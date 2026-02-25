@@ -1,0 +1,416 @@
+{
+  "Numer": "0467/02/26",
+  "KalkulacjaId": 170315,
+  "OfertaDealeraId": null,
+  "OpcjeSerwisowe": [],
+  "OpcjeFabryczne": [
+    {
+      "Id": 0,
+      "Nazwa": "Szary Graphite metalizowany",
+      "Kod": null,
+      "CenaNetto": 2926.8292682926829,
+      "Cena": 3600.0,
+      "isNierabatowany": false,
+      "NiePokazujNaOfercie": false,
+      "ZatwierdzonaPrzezDealera": false,
+      "ZmodyfikowanaPrzezDealera": false,
+      "WR": false
+    },
+    {
+      "Id": 0,
+      "Nazwa": "PakietInfotainment(RN0)",
+      "Kod": null,
+      "CenaNetto": 4146.3414634146341,
+      "Cena": 5100.0,
+      "isNierabatowany": false,
+      "NiePokazujNaOfercie": false,
+      "ZatwierdzonaPrzezDealera": false,
+      "ZmodyfikowanaPrzezDealera": false,
+      "WR": false
+    }
+  ],
+  "Stan": 0,
+  "StawkaVat": 0.23,
+  "isReadonly": false,
+  "HasActiveOffer": false,
+  "isAllowedBySecurityPrzeliczanieBezLimitu": true,
+  "isAllowedBySecurityDZA": true,
+  "isAllowedBySecurityKP": true,
+  "isAllowedBySecurityWidocznoscKorekt": true,
+  "isAllowedByKorektaRV": true,
+  "isAllowedToChangeEurotax": true,
+  "Podmiot": {
+    "Id": 144872,
+    "Typ": "Firma",
+    "DN": "CBRE Sp. z o.o. +48509300163"
+  },
+  "HandlowiecExpress": {
+    "Id": 1032,
+    "Typ": "PracownikExpress",
+    "DN": "Justyna Major"
+  },
+  "LiniaProduktowa": {
+    "Id": 3,
+    "Typ": "LiniaProduktowa",
+    "DN": "LTR"
+  },
+  "OfertaDealera": {
+    "Id": 0,
+    "Typ": null,
+    "DN": null
+  },
+  "Prywatna": false,
+  "Marza": 0.13,
+  "ReczneDostosowanieStawki": null,
+  "UstalonaStawkaLacznaNetto": null,
+  "RodzajCzynszu": "Kwotowo",
+  "CzynszKwota": 0.0,
+  "CzynszProcent": 0.0,
+  "CzynszInicjalny": 0.0,
+  "OkresUzytkowania": 36,
+  "Przebieg": 120000,
+  "Model": {
+    "Id": 12161,
+    "Typ": "Model",
+    "DN": "SKODA Superb 1,5 PHEV Hybrydowy 2x4 AT"
+  },
+  "Marka": "SKODA",
+  "KlasaWR": "D",
+  "RodzajPaliwa": "Hybrydowy",
+  "TypRabatu": "Procentowo",
+  "RabatProcent": 0.24,
+  "RabatKwotaNetto": 41160.9756097561,
+  "RabatKwota": 50628.0,
+  "Opis": null,
+  "CenaCennikowaNetto": 164430.8943089431,
+  "CenaCennikowa": 202250.0,
+  "PakietSerwisowy": 0.0,
+  "PakietSerwisowyNazwa": null,
+  "DrugieZabezpieczenie": null,
+  "ZOponami": true,
+  "CzyUwzgledniaSerwisowanie": true,
+  "KorektaKosztuUbezpieczenia": null,
+  "KosztUbezpieczeniaKorekta": 0.0,
+  "KorektaKosztuPrzygotowaniaDosprzedazy": null,
+  "KosztPrzygotowaniaDosprzedazyKorekta": 0.0,
+  "KorektaKosztuOpon": null,
+  "KosztOponKorekta": 0.0,
+  "ProcentAmortyzacji": 0.0091,
+  "KalkulacjaWolumenowa": null,
+  "PlanowanaLiczbaSamochodow": null,
+  "RozmiarOpon": {
+    "Szerokosc": "215",
+    "Profil": "60",
+    "Litera": "R",
+    "Srednica": "16",
+    "IndeksNosnosci": null,
+    "IndeksPredkosci": null
+  },
+  "SzerokosciOpony": [
+    "135", "145", "155", "165", "175", "185", "195", "205", "215", "225", "235", "245", "255", "265", "275", "285", "295", "305", "315"
+  ],
+  "ProfileOpony": [
+    "20", "25", "30", "35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85"
+  ],
+  "SredniceOpony": [
+    "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"
+  ],
+  "ElementyRyczaltowe": [
+    {
+      "Id": 1,
+      "Nazwa": "Nielimitowane żarówki",
+      "Aktywny": true,
+      "StawkaMiesiecznaNetto": 10.0,
+      "StawkaZa10TysKmNetto": null,
+      "DaneHistorii": {
+        "DataDodania": null,
+        "DataModyfikacji": null,
+        "DodalId": null,
+        "ZmodyfikowalId": null,
+        "DodalZewnetrznyId": null,
+        "ZmodyfikowalZewnetrznyId": null
+      },
+      "Alerts": [],
+      "Actions": []
+    },
+    {
+      "Id": 2,
+      "Nazwa": "Nielimitowane opony",
+      "Aktywny": true,
+      "StawkaMiesiecznaNetto": 20.0,
+      "StawkaZa10TysKmNetto": null,
+      "DaneHistorii": {
+        "DataDodania": null,
+        "DataModyfikacji": null,
+        "DodalId": null,
+        "ZmodyfikowalId": null,
+        "DodalZewnetrznyId": null,
+        "ZmodyfikowalZewnetrznyId": null
+      },
+      "Alerts": [],
+      "Actions": []
+    },
+    {
+      "Id": 3,
+      "Nazwa": "Usługa Pick-Up",
+      "Aktywny": true,
+      "StawkaMiesiecznaNetto": null,
+      "StawkaZa10TysKmNetto": 300.0,
+      "DaneHistorii": {
+        "DataDodania": null,
+        "DataModyfikacji": null,
+        "DodalId": null,
+        "ZmodyfikowalId": null,
+        "DodalZewnetrznyId": null,
+        "ZmodyfikowalZewnetrznyId": null
+      },
+      "Alerts": [],
+      "Actions": []
+    },
+    {
+      "Id": 4,
+      "Nazwa": "Doubezpieczenie - wersja premium",
+      "Aktywny": true,
+      "StawkaMiesiecznaNetto": 50.0,
+      "StawkaZa10TysKmNetto": null,
+      "DaneHistorii": {
+        "DataDodania": null,
+        "DataModyfikacji": null,
+        "DodalId": null,
+        "ZmodyfikowalId": null,
+        "DodalZewnetrznyId": null,
+        "ZmodyfikowalZewnetrznyId": null
+      },
+      "Alerts": [],
+      "Actions": []
+    },
+    {
+      "Id": 5,
+      "Nazwa": "Doubezpieczenie - wersja standard",
+      "Aktywny": true,
+      "StawkaMiesiecznaNetto": 20.0,
+      "StawkaZa10TysKmNetto": null,
+      "DaneHistorii": {
+        "DataDodania": null,
+        "DataModyfikacji": null,
+        "DodalId": null,
+        "ZmodyfikowalId": null,
+        "DodalZewnetrznyId": null,
+        "ZmodyfikowalZewnetrznyId": null
+      },
+      "Alerts": [],
+      "Actions": []
+    },
+    {
+      "Id": 6,
+      "Nazwa": "Nielimitowane wycieraczki",
+      "Aktywny": true,
+      "StawkaMiesiecznaNetto": 10.0,
+      "StawkaZa10TysKmNetto": null,
+      "DaneHistorii": {
+        "DataDodania": null,
+        "DataModyfikacji": null,
+        "DodalId": null,
+        "ZmodyfikowalId": null,
+        "DodalZewnetrznyId": null,
+        "ZmodyfikowalZewnetrznyId": null
+      },
+      "Alerts": [],
+      "Actions": []
+    }
+  ],
+  "WybraneElementyRyczaltowe": [],
+  "KlasaOpon": "BLIZNIACZE",
+  "referencjaObiektu": {
+    "Id": 170315,
+    "Typ": "Kalkulacja"
+  },
+  "LiczbaKompletowOpon": [
+    "Automatycznie", "1", "1,5", "2", "2,5", "3", "3,5", "4", "4,5", "5", "5,5", "6", "6,5", "7", "7,5", "8", "8,5", "9", "9,5", "10"
+  ],
+  "LiczbaKompletowOponSelected": "",
+  "OdkupOpon": false,
+  "Homologacja": [
+    "Osobowy", "Ciężarowy", "PRZYCZEPA SPECJALNA"
+  ],
+  "HomologacjaSelected": "Osobowy",
+  "KorektaRV": 0.0,
+  "InneKosztySerwisowania": 0.0,
+  "SamochodZastepczy": true,
+  "NaukaJazdy": null,
+  "ExpressPlaciUbezpieczenie": true,
+  "DoubezpieczenieKradziezy": null,
+  "CzyGPS": true,
+  "Metalik": true,
+  "Rocznik": "bieżący",
+  "WiborProcent": 0.0482,
+  "MarzaFinansowaProcent": 0.022,
+  "MarzaKosztFinansowyProcent": null,
+  "MarzaUbezpieczenieProcent": null,
+  "MarzaSamochodZastepczyProcent": null,
+  "MarzaSerwisProcent": null,
+  "MarzaOponyProcent": null,
+  "MarzaKosztyDodatkoweProcent": null,
+  "Nierabatowany": false,
+  "isDemontaz": null,
+  "Hak": null,
+  "GlownyMatrixId": 26100963,
+  "GlownyMatrixParameters": {
+    "Id": 26100963,
+    "LacznyKosztCzesciOdsetkowejRaty": {
+      "Wartosc": 23716.0
+    },
+    "LacznyKosztCzesciOdsetkowejRatyDzienny": {
+      "Wartosc": 21.6703216374269
+    },
+    "UtrataWartosci": {
+      "Wartosc": 40944.0
+    },
+    "UtrataWartosciDzienny": {
+      "Wartosc": 37.41228070175439
+    },
+    "OkresUzytkowania": 36,
+    "LacznieUbezpieczenie": {
+      "Wartosc": 13952.0
+    },
+    "LacznieUbezpieczenieMC": {
+      "Wartosc": 387.55555555555554
+    },
+    "LacznieUbezpieczenieDzienny": {
+      "Wartosc": 12.748538011695906
+    },
+    "KosztTechnicznySamochodZastepczy": {
+      "Wartosc": 2145.0
+    },
+    "KosztTechnicznySamochodZastepczyMC": {
+      "Wartosc": 59.583333333333336
+    },
+    "KosztTechnicznySamochodZastepczyDzienny": {
+      "Wartosc": 1.9599780701754386
+    },
+    "KosztTechnicznySerwis": {
+      "Wartosc": 0.0
+    },
+    "KosztTechnicznySerwisMC": {
+      "Wartosc": 0.0
+    },
+    "KosztTechnicznySerwisDzienny": {
+      "Wartosc": 0.0
+    },
+    "KosztTechnicznyOpony": {
+      "Wartosc": 3891.0
+    },
+    "KosztTechnicznyOponyMC": {
+      "Wartosc": 108.08333333333333
+    },
+    "KosztTechnicznyOponyDzienny": {
+      "Wartosc": 3.555372807017544
+    },
+    "KosztyDodatkowe": {
+      "Wartosc": 1662.0
+    },
+    "KosztyDodatkoweMC": {
+      "Wartosc": 46.166666666666664
+    },
+    "KosztyDodatkoweDzienny": {
+      "Wartosc": 1.518640350877193
+    },
+    "CzynszFinansowyRazem": {
+      "Wartosc": 64660.0
+    },
+    "CzynszFinansowyRazemMC": {
+      "Wartosc": 1796.111111111111
+    },
+    "CzynszFinansowyRazemDzienny": {
+      "Wartosc": 59.082602339181285
+    },
+    "CzynszTechnicznyRazem": {
+      "Wartosc": 21650.0
+    },
+    "CzynszTechnicznyRazemDzienny": {
+      "Wartosc": 19.78252923976608
+    },
+    "KosztRazem": {
+      "Wartosc": 86310.0
+    },
+    "KosztRazemMC": {
+      "Wartosc": 2397.5
+    },
+    "KosztRazemDzienny": {
+      "Wartosc": 78.86513157894737
+    },
+    "KosztFinansowy": {
+      "RozkladMarzy": 0.7491,
+      "KwotaMarzy": 268.0,
+      "KosztPlusMarza": 2064.0,
+      "RozkladMarzyKorekta": 0.7491,
+      "KwotaMarzyKorekta": 268.0,
+      "KosztPlusMarzaKorekta": 2064.0
+    },
+    "KosztTechniczny": {
+      "RozkladMarzy": 0.2506,
+      "KwotaMarzy": 90.0,
+      "KosztPlusMarza": 690.0,
+      "RozkladMarzyKorekta": 0.2506,
+      "KwotaMarzyKorekta": 90.0,
+      "KosztPlusMarzaKorekta": 690.0
+    },
+    "KosztUbezpieczenie": {
+      "RozkladMarzy": 0.1616,
+      "KwotaMarzy": 58.0,
+      "KosztPlusMarza": 445.0,
+      "RozkladMarzyKorekta": 0.1616,
+      "KwotaMarzyKorekta": 58.0,
+      "KosztPlusMarzaKorekta": 445.0
+    },
+    "KosztSamochodZastepczy": {
+      "RozkladMarzy": 0.0248,
+      "KwotaMarzy": 9.0,
+      "KosztPlusMarza": 68.0,
+      "RozkladMarzyKorekta": 0.0248,
+      "KwotaMarzyKorekta": 9.0,
+      "KosztPlusMarzaKorekta": 68.0
+    },
+    "KosztSerwis": {
+      "RozkladMarzy": 0.0,
+      "KwotaMarzy": 0.0,
+      "KosztPlusMarza": 0.0,
+      "RozkladMarzyKorekta": 0.0,
+      "KwotaMarzyKorekta": 0.0,
+      "KosztPlusMarzaKorekta": 0.0
+    },
+    "KosztOpony": {
+      "RozkladMarzy": 0.045,
+      "KwotaMarzy": 16.0,
+      "KosztPlusMarza": 124.0,
+      "RozkladMarzyKorekta": 0.045,
+      "KwotaMarzyKorekta": 16.0,
+      "KosztPlusMarzaKorekta": 124.0
+    },
+    "KosztAdmin": {
+      "RozkladMarzy": 0.0192,
+      "KwotaMarzy": 7.0,
+      "KosztPlusMarza": 53.0,
+      "RozkladMarzyKorekta": 0.0192,
+      "KwotaMarzyKorekta": 7.0,
+      "KosztPlusMarzaKorekta": 53.0
+    },
+    "KosztRazemMarza": {
+      "RozkladMarzy": 1.0,
+      "KwotaMarzy": 358.0,
+      "KosztPlusMarza": 2754.0,
+      "RozkladMarzyKorekta": 0.0,
+      "KwotaMarzyKorekta": 358.0,
+      "KosztPlusMarzaKorekta": 2754.0
+    }
+  },
+  "WersjaNadwozia": "5 drzwiowy",
+  "WersjaWyposazenia": "Drive",
+  "KlasaWynajmuId": 6,
+  "KlasaWynajmuNazwa": "D+",
+  "SymbolETaxId": 64,
+  "KlasaSamochoduNazwa": "08 B Klasa [E Hybrid]",
+  "DostepneWersjeNadwozia": [
+    "2 drzwiowy", "4 drzwiowy", "3 drzwiowy", "5 drzwiowy", "Kombi", "Furgon", "Pick-up", "Wieloosobowy", "Podwozie", "Van", "Dwuosobowy", "5 drzwiowy/VAN"
+  ]
+}
