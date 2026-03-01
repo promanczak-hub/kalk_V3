@@ -3,6 +3,8 @@ import { Box, Tabs, Tab } from "@mui/material";
 import RmsCrudPanel from "./RmsCrud/RmsCrudPanel";
 import RabatyCrudPanel from "./RabatyCrud/RabatyCrudPanel";
 import EnginesCrudPanel from "./EnginesCrud/EnginesCrudPanel";
+import ServiceCostsCrudPanel from "./ServiceCostsCrud/ServiceCostsCrudPanel";
+import TabelaOponCrudPanel from "./TabelaOponCrud/TabelaOponCrudPanel";
 
 export default function ControlCenter() {
   const [activeTab, setActiveTab] = useState(0);
@@ -14,12 +16,16 @@ export default function ControlCenter() {
           <Tab label="Tabele RMS _czak" />
           <Tab label="Tabela rabaty" />
           <Tab label="Tabele Napędy" />
+          <Tab label="Koszty Serwisowe" />
+          <Tab label="Tabela Opon" />
         </Tabs>
       </Box>
 
       {activeTab === 0 && <RmsCrudPanel />}
       {activeTab === 1 && <RabatyCrudPanel />}
       {activeTab === 2 && <EnginesCrudPanel />}
+      {activeTab === 3 && <ServiceCostsCrudPanel />}
+      {activeTab === 4 && <TabelaOponCrudPanel />}
     </Box>
   );
 }

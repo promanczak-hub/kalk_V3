@@ -46,7 +46,7 @@ def fix():
         conn.commit()
         print("Grants and reload executed.")
 
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
 
 

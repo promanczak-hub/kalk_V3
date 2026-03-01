@@ -1,11 +1,9 @@
-import os
-import asyncio
 from dotenv import load_dotenv
 
 # Load env before importing core which uses env keys
 load_dotenv("../frontend/.env.local")
 
-from core.extractor_v2 import extract_vehicle_data_v2
+from core.extractor_v2 import extract_vehicle_data_v2  # noqa: E402
 
 
 def main():

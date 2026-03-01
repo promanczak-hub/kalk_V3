@@ -116,7 +116,6 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
                     total_price_data = digital_twin_financials.get("total_price", {})
 
                     total_gross = total_price_data.get("gross")
-                    total_net = total_price_data.get("net")
                     currency = total_price_data.get("currency", "PLN")
 
                     if total_gross is not None:

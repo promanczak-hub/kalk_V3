@@ -15,8 +15,9 @@ def match_fleet_discount(pro_data: dict) -> dict:
     """
     # 1. Sprawdź czy mamy w ogóle wyciągnięty obiekt i brand
     flash_data = pro_data.get("card_summary", {})
-    extracted_brand = flash_data.get("brand", "")
     metadata = pro_data.get("digital_twin", {}).get("metadata", {})
+    extracted_brand = pro_data.get("digital_twin", {}).get("brand", "")
+
     doc_type_str = metadata.get("document_type", "Oferta na samochód")
 
     if not extracted_brand or doc_type_str != "Oferta na samochód":

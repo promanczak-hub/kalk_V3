@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,8 @@ from api.budget_finder_routes import router as budget_finder_router
 from api.calculator_excel_data_routes import router as calculator_excel_data_router
 from api.extract_routes import router as extract_router
 from core.database import supabase
+import pandas as pd
+import io
 
 app = FastAPI(title="Kalkulator LTR V2 Engine", version="1.0.0")
 app.include_router(samar_rv_router)
@@ -170,6 +173,23 @@ class EngineType(BaseModel):
     description: Optional[str] = None
 
 
+class SamarClass(BaseModel):
+    id: Optional[int] = None
+    name: str
+    description: Optional[str] = None
+    mileage_cutoff_threshold: Optional[int] = None
+    example_models: Optional[str] = None
+
+
+class SamarServiceCost(BaseModel):
+    id: Optional[str] = None
+    samar_class_id: int
+    engine_type_id: int
+    power_band: str
+    cost_aso_per_km: float
+    cost_non_aso_per_km: float
+
+
 @app.get("/api/control-center", tags=["Control Center"])
 async def get_control_center() -> ControlCenterSettings:
     try:
@@ -276,6 +296,201 @@ async def delete_engine(engine_id: int) -> Dict[str, str]:
     try:
         supabase.table("engines").delete().eq("id", engine_id).execute()
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/samar-classes", tags=["Control Center"])
+async def get_samar_classes() -> List[SamarClass]:
+    try:
+        response = supabase.table("samar_classes").select("*").order("id").execute()
+        response_data = cast(Any, response.data)
+
+        # Fetch example models from KlasaSAMAR_czak mapping
+        try:
+            samar_czak = (
+                supabase.table("KlasaSAMAR_czak").select("col_1", "col_8").execute()
+            )
+            czak_data = cast(Any, samar_czak.data)
+            czak_mapping = {
+                row.get("col_1"): row.get("col_8")
+                for row in czak_data
+                if row.get("col_1")
+            }
+        except Exception:
+            czak_mapping = {}
+
+        results = []
+        for row in response_data:
+            model = SamarClass(**row)
+            if model.name in czak_mapping:
+                model.example_models = czak_mapping[model.name]
+            results.append(model)
+
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/samar-service-costs", tags=["Control Center"])
+async def get_samar_service_costs() -> List[SamarServiceCost]:
+    try:
+        response = (
+            supabase.table("samar_service_costs")
+            .select("*")
+            .order("samar_class_id")
+            .order("engine_type_id")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [SamarServiceCost(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/samar-service-costs", tags=["Control Center"])
+async def update_samar_service_cost(cost: SamarServiceCost) -> SamarServiceCost:
+    try:
+        data = cost.model_dump(exclude_unset=True)
+        if not data.get("id"):
+            data.pop("id", None)
+        response = supabase.table("samar_service_costs").upsert(data).execute()
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to update service cost")
+        response_data = cast(Any, response.data[0])
+        return SamarServiceCost(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/samar-service-costs/{cost_id}", tags=["Control Center"])
+async def delete_samar_service_cost(cost_id: str) -> Dict[str, str]:
+    try:
+        supabase.table("samar_service_costs").delete().eq("id", cost_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/samar-service-costs/export", tags=["Control Center"])
+async def export_samar_service_costs() -> StreamingResponse:
+    try:
+        # Fetch all necessary data
+        costs_resp = (
+            supabase.table("samar_service_costs")
+            .select(
+                "id, samar_class_id, engine_type_id, power_band, cost_aso_per_km, cost_non_aso_per_km"
+            )
+            .execute()
+        )
+        classes_resp = supabase.table("samar_classes").select("id, name").execute()
+        engines_resp = supabase.table("engines").select("id, name, category").execute()
+
+        costs = costs_resp.data
+        classes = {c["id"]: c["name"] for c in classes_resp.data}
+        engines = {e["id"]: f"{e['name']} ({e['category']})" for e in engines_resp.data}
+
+        # Build records for DataFrame
+        records = []
+        for row in costs:
+            records.append(
+                {
+                    "ID": row["id"],  # Keep ID for import matching
+                    "Klasa SAMAR": classes.get(row["samar_class_id"], "Unknown"),
+                    "Napęd (Silnik)": engines.get(row["engine_type_id"], "Unknown"),
+                    "Przedział Mocy": row["power_band"],
+                    "Koszt ASO za km (Netto)": row["cost_aso_per_km"],
+                    "Koszt Non-ASO za km (Netto)": row["cost_non_aso_per_km"],
+                }
+            )
+
+        df = pd.DataFrame(records)
+
+        # Save to memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Koszty Serwisowe")
+
+            # Optional: adjust column widths for readability
+            worksheet = writer.sheets["Koszty Serwisowe"]
+            for col in worksheet.columns:
+                max_length = 0
+                column = col[0].column_letter
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(cell.value)
+                    except Exception:
+                        pass
+                adjusted_width = max_length + 2
+                worksheet.column_dimensions[column].width = adjusted_width
+
+        output.seek(0)
+
+        headers = {
+            "Content-Disposition": "attachment; filename=koszty_serwisowe_eksport.xlsx"
+        }
+        return StreamingResponse(
+            output,
+            headers=headers,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/samar-service-costs/import", tags=["Control Center"])
+async def import_samar_service_costs(file: UploadFile = File(...)) -> Dict[str, Any]:
+    try:
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
+
+        # Validate columns
+        required_cols = ["ID", "Koszt ASO za km (Netto)", "Koszt Non-ASO za km (Netto)"]
+        missing = [col for col in required_cols if col not in df.columns]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Brakujące kolumny w pliku Excel: {', '.join(missing)}",
+            )
+
+        # Process updates
+        updated_count = 0
+        updates_batch = []
+        for index, row in df.iterrows():
+            row_id = str(row["ID"])
+            if pd.isna(row_id) or row_id.strip() == "":
+                continue
+
+            cost_aso = float(row["Koszt ASO za km (Netto)"])
+            cost_non_aso = float(row["Koszt Non-ASO za km (Netto)"])
+
+            # Simple batch logic: keep track and upsert one by one via supabase
+            # (Bulk isn't simple with Supabase Python without upsert array, so we use a loop or arrays)
+            updates_batch.append(
+                {
+                    "id": row_id,
+                    "cost_aso_per_km": cost_aso,
+                    "cost_non_aso_per_km": cost_non_aso,
+                }
+            )
+
+            # Update to database in smaller chunks or single upsert list
+            # To be safe with supabase constraints, we can upsert only the required fields.
+            # But supabase postgREST upsert requires the whole row or it merges. We will do a direct update.
+            # Because upsert needs all non-null columns if they don't have defaults.
+            supabase.table("samar_service_costs").update(
+                {"cost_aso_per_km": cost_aso, "cost_non_aso_per_km": cost_non_aso}
+            ).eq("id", row_id).execute()
+
+            updated_count += 1
+
+        return {
+            "status": "success",
+            "message": f"Pomyślnie zaktualizowano {updated_count} rekordów.",
+            "updated_count": updated_count,
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

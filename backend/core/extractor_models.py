@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
@@ -162,6 +163,22 @@ class VehicleAISynthesis(BaseModel):
     financials: FinancialData
 
 
+class NapedTyp(str, Enum):
+    BENZYNA_ICE = "Benzyna (PB) (Konwencjonalne (ICE))"
+    DIESEL_ICE = "Diesel (ON) (Konwencjonalne (ICE))"
+    BENZYNA_MHEV = "Benzyna mHEV (PB-mHEV) (Miękkie Hybrydy (mHEV))"
+    DIESEL_MHEV = "Diesel mHEV (ON-mHEV) (Miękkie Hybrydy (mHEV))"
+    HEV = "Hybryda (HEV)"
+    PHEV = "Hybryda Plug-in (PHEV)"
+    BEV = "Elektryczny (BEV)"
+
+
+class PrzedzialMocy(str, Enum):
+    LOW = "LOW (do 130 KM)"
+    MID = "MID (131 - 200 KM)"
+    HIGH = "HIGH (201 KM i więcej)"
+
+
 # --- V2 CARD SUMMARY (Flash LLM Output) ---
 
 
@@ -205,6 +222,18 @@ class CardSummary(BaseModel):
     )
     powertrain: str = Field(
         description="Oznaczenie samego silnika i mocy, bez nazwy marki i modelu. Np. '2.0 TDI 177 KM', '1.5 TSI 150 KM', 'E-Tech EV60'. Zwróć 'Brak' jeśli nie przypisano."
+    )
+    engine_category: Optional[NapedTyp] = Field(
+        None,
+        description="Przyporządkuj rodzaj i zasilanie napędu pojazdu z dokumentu ściśle do jednej z kategorii w Enum `NapedTyp`.",
+    )
+    power_hp: Optional[int] = Field(
+        None,
+        description="Wyciągnięta moc pojazdu w koniach mechanicznych (KM) jako liczba całkowita (int).",
+    )
+    power_range: Optional[PrzedzialMocy] = Field(
+        None,
+        description="Na podstawie odczytanej mocy w KM `power_hp`, przyporządkuj pojazd do odpowiedniego przedziału opisanego w Enum `PrzedzialMocy`.",
     )
     fuel: str = Field(
         description="Rodzaj paliwa / zasilania, np. 'Diesel', 'Benzyna', 'Elektryczny', 'Hybryda PHEV', 'MHEV'. Zwróć 'Brak' jeśli nie znaleziono."

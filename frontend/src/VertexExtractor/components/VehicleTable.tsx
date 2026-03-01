@@ -274,9 +274,15 @@ function VehicleRowCard({
     vehicle.final_price_pln !== vehicle.base_price;
   const isDealerOffer =
     hasOfferFinalPrice && offerFinalPrice > 0 && offerFinalPrice < totalCatalogPrice - 1.0;
-  const offerDiscountPercentage =
-    isDealerOffer && totalCatalogPrice > 0
-      ? Math.round(((totalCatalogPrice - offerFinalPrice) / totalCatalogPrice) * 100)
+  
+  // Try to read the exact AI parsed discount percentage first, otherwise fallback to math
+  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
+  const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
+
+  const offerDiscountPercentage = parsedOfferDiscountPct
+    ? Number(parsedOfferDiscountPct)
+    : isDealerOffer && totalCatalogPrice > 0
+      ? Number((((totalCatalogPrice - offerFinalPrice) / totalCatalogPrice) * 100).toFixed(1))
       : 0;
 
   // 2. Discount from Suggested sources (e.g. Supabase)
@@ -405,6 +411,14 @@ function VehicleRowCard({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-slate-900 truncate flex items-center gap-2 flex-wrap">
               <span>{vehicle.brand || "?"} {vehicle.model}</span>
+              {mappedData && (
+                <span 
+                  className="text-xs font-normal text-slate-500 opacity-90 ml-2 hidden sm:inline-block"
+                  title="Wykryto automatycznie przez AI wg katalogu cyfrowego bliźniaka"
+                >
+                  ({mappedData.brand} / {mappedData.model} / {mappedData.trim_level} / {mappedData.transmission} / {mappedData.fuel} / {mappedData.vehicle_type})
+                </span>
+              )}
             </h3>
             {vehicle.suggested_discount_pct != null && (
               <span 
@@ -478,17 +492,6 @@ function VehicleRowCard({
       {isExpanded && (
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
           
-          {mappedData && (
-            <div className="mb-6 flex flex-col gap-1.5 text-sm text-slate-700">
-               <div className="flex items-start"><span className="text-slate-400 w-32 shrink-0">Marka:</span> <span className="font-semibold">{mappedData.brand || "Brak"}</span></div>
-               <div className="flex items-start"><span className="text-slate-400 w-32 shrink-0">Model:</span> <span className="font-semibold">{mappedData.model || "Brak"}</span></div>
-               <div className="flex items-start"><span className="text-slate-400 w-32 shrink-0">Wersja wyposażenia:</span> <span className="font-semibold">{mappedData.trim_level || "Brak"}</span></div>
-               <div className="flex items-start"><span className="text-slate-400 w-32 shrink-0">Skrzynia / Napęd:</span> <span className="font-semibold">{mappedData.transmission || "Brak"}</span></div>
-               <div className="flex items-start"><span className="text-slate-400 w-32 shrink-0">Paliwo:</span> <span className="font-semibold">{mappedData.fuel || "Brak"}</span></div>
-               <div className="flex items-start"><span className="text-slate-400 w-32 shrink-0">Typ:</span> <span className="font-semibold">{mappedData.vehicle_type || "Brak"}</span></div>
-            </div>
-          )}
-
           {/* Top Section: Price Summary Visual */}
           <div className="mb-8">
             <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">

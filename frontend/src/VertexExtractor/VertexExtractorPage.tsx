@@ -16,6 +16,7 @@ export default function VertexExtractorPage() {
     isSearching,
     fetchSavedVehicles,
     handleGlobalSearch,
+    handleDeleteVehicle,
   } = useVehicles();
 
   const {
@@ -51,6 +52,7 @@ export default function VertexExtractorPage() {
           handleGlobalSearch={handleGlobalSearch}
           fetchSavedVehicles={fetchSavedVehicles}
           handleOpenSavedJson={handleOpenSavedJson}
+          handleDeleteVehicle={handleDeleteVehicle}
         />
       </main>
 

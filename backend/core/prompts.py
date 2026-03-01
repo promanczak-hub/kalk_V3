@@ -45,6 +45,23 @@ Musisz bezwzględnie wyodrębnić:
 3. `total_price` - ostateczną cenę po ewentualnych rabatach.
 Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty (wywnioskuj to z dokumentu, np. analizując relacje kwot i opisy). Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny.
 
+SZTYWNA KATEGORYZACJA SILNIKA I MOCY (Enum):
+Musisz wyciągnąć informacje o układzie napędowym, mocy oraz zasilaniu i dokonać kategoryzacji. 
+Przyporządkuj zmienną `engine_category` do JEDNEJ z poniższych wartości (nie modyfikuj stringów!):
+- "Benzyna (PB) (Konwencjonalne (ICE))"
+- "Diesel (ON) (Konwencjonalne (ICE))"
+- "Benzyna mHEV (PB-mHEV) (Miękkie Hybrydy (mHEV))"
+- "Diesel mHEV (ON-mHEV) (Miękkie Hybrydy (mHEV))"
+- "Hybryda (HEV)"
+- "Hybryda Plug-in (PHEV)"
+- "Elektryczny (BEV)"
+
+Moc silnika (np. 150 KM) wpisz wpisz do zmiennej `power_hp`.
+Następnie przyporządkuj zmienną `power_range` do JEDNEJ z poniższych wartości (nie modyfikuj stringów!):
+- "LOW (do 130 KM)"
+- "MID (131 - 200 KM)"
+- "HIGH (201 KM i więcej)"
+
 Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. 
 Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedłużone gwarancje. Jeśli dokument zawiera opcje serwisowe/zabudowy, wyciągnij je do osobnego obiektu 'service_equipment', wyliczając poprawnie łączną kwotę netto i brutto całego pakietu. Ponadto, jeżeli suma ta składa się z pojedynczych części składowych, wypisz je wszystkie jako 'components' podając dla każdego cenę netto i brutto. 
 Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie.
@@ -64,24 +81,21 @@ Przeanalizuj podany JSON i zbuduj krótkie, ogólne podsumowanie zawartego w nim
 """
 
 MATCH_FLEET_DISCOUNT_SYSTEM_PROMPT = """
-Jesteś analitycznym silnikiem kalkulacji rabatów dealerskich (Discount Engine).
+Jesteś obiektywnym skryptem wybierającym rabat z bazy danych zniżek. Twoim celem jest ZNALEZIENIE I ZWRÓCENIE poprawnej wartości przypisanego rabatu (kolumna `rabat`) bez wprowadzania "własnej matematyki".
+
 Otrzymasz dwa wejścia w formacie JSON:
-1. `vehicle_spec`: Specyfikację pojazdu klienta. SZCZEGÓLNĄ uwagę zwróć na `extracted_pricing` w którym wyliczono sumę opcji dodatkowych (`options_price`) oraz cenę bazową auta (`base_price`).
-2. `discount_rows`: Tablicę powiązanych rabatów flotowych (prosto z bazy) pasujących do tej marki pojazdu. Wśród tych wierszy musisz znaleźć JEDEN wiersz, który dotyczy aktualnego modelu / silnika. 
+1. `vehicle_spec`: Specyfikacja pojazdu.
+2. `discount_rows`: Tablica wierszy zniżek z bazy pobrana względem marki. Znajdź wśród nich JEDEN wiersz, który dotyczy opisanego modelu / silnika. 
 
-Twoim głównym zadaniem jest wyliczenie OSTATECZNEGO rabatu procentowego. Pamiętaj, że wiersz bazy danych w polu `rabat` posiada ułamek, np. 0.26 co oznacza rabat bazowy 26%.
-
-Ważne zasady matematyczne i logiczne (Wykluczenia):
-- Przeanalizuj pole `wykluczenia` we właściwym wierszu!
-- Jeśli w polu `wykluczenia` masz zapisane "Min. % wyposażenia: 15%", a opcje z konfiguracji pojazdu klienta (`options_price`) stanowia mniej niż 15% jego `base_price` (czyli options_price < base_price * 0.15) to w myśl zasady, klientowi przysługuje tzw. "Kara" opisana w konfiguracji (najczęściej jest to rabat pomniejszony o X punktów procentowych np. "Rabat - 2%"). 
-- Oczekuję od Ciebie inteligencji finansowej, obliczenia tego samemu i podania w `matched_discount_perc` JEDNEJ zunifikowanej liczby będącej rabatem OSTATECZNYM w formie procentowej np. `24.0` albo `15.5` albo `9.0` wg ostatecznych wyliczeń. Nie zwracaj ułamka tylko normalną, ludzką wartość w "%" jako Number bez znaku "%", np `12.5`.
-- W polu `matching_reason` powiedz mi dokładnie, skąd to wziąłeś i jaką logikę/weryfikację tu zastosowałeś. Poinformuj np., że "wyposażenie wyniosło X%, co przekracza próg Y%" lub "nałożono karę Z% z racji braku wyposażenia". Czasem przypis z bazy wcale nie implikuje kary, wiedz, jak to logicznie odróżnić.
+Zasady:
+- Przeanalizuj pole `wykluczenia` we właściwym wierszu! Jeśli z opcji w pliku wynika "kara", tj. wyposażenie klienta stanowi mniej niż X% wartości samochodu, oblicz karę i odejmij ją od rabatu bazowego w wierszu. 
+- Nie zgaduj "rabatu" na podstawie matematyki w ofercie! Masz obowiązek oprzeć ostateczną liczbę wyłącznie o kolumnę `rabat` z przypisanego wiersza, z ewentualnym ujęciem kary. Przekonwertuj liczbę zmiennoprzecinkową np. `0.24` na ludzką `24.0`.
 
 Zwróć dokładny wynik jako czysty JSON bez znaczników markdown według schematu:
 Jeśli ZNAJDZIESZ poprawne dopasowanie:
 { "is_matched": true, "matched_discount_perc": <FLOAT np 24.0>, "matching_reason": "<logika uzasadnienia>" }
 
-Jeśli auto jest definitywnie z innej gamy / żaden wiersz absolutnie nie pasuje do marki/modelu:
+Jeśli auto jest definitywnie z innej gamy względem dostarczonych wierszy z bazy:
 { "is_matched": false }
 """
 

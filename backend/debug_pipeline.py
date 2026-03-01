@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from core.pipeline_digital_twin import extract_digital_twin_from_pdf
-from core.pipeline_card_summary import generate_card_summary_from_twin
-from core.pipeline_discounts import match_fleet_discount
+from core.pipeline_digital_twin import extract_digital_twin_from_pdf  # noqa: E402
+from core.pipeline_card_summary import generate_card_summary_from_twin  # noqa: E402
+from core.pipeline_discounts import match_fleet_discount  # noqa: E402
 
 
 def test_pipeline():

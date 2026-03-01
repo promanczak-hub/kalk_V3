@@ -10,7 +10,6 @@ import {
 import CalculatorPanel from "./CalculatorPanel";
 import ControlCenter from "./ControlCenter";
 import KalkulacjeList from "./KalkulacjeList";
-import BudgetFinder from "./BudgetFinder";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 
 const lightTheme = createTheme({
@@ -156,7 +155,6 @@ function App() {
               sx={{ display: editingTitle ? 'flex' : 'none' }} 
             />
             <Tab value={3} label="Control Center (Parametry Globalne)" />
-            <Tab value={4} label="Wyszukiwarka Budżetowa" />
           </Tabs>
         </Box>
 
@@ -164,7 +162,6 @@ function App() {
         {currentTab === 1 && <KalkulacjeList />}
         {currentTab === 2 && <CalculatorPanel />}
         {currentTab === 3 && <ControlCenter />}
-        {currentTab === 4 && <BudgetFinder />}
       </div>
     </ThemeProvider>
   );
