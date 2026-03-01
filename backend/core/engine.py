@@ -5,6 +5,133 @@ from core.finance import FinancialCostsCalculator
 from core.insurance import InsuranceCalculator
 from core.replacement_car import ReplacementCarCalculator
 from core.additional_costs import AdditionalCostsCalculator
+from functools import lru_cache
+
+
+@lru_cache(maxsize=128)
+def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
+    """Dodatkowa f-cja do pobrania auta z DB na podst vehicle_id"""
+    if not vid:
+        return {}
+    try:
+        from core.database import supabase
+
+        res = supabase.table("pojazdy_master").select("*").eq("id", vid).execute()
+        if res.data and isinstance(res.data, list) and len(res.data) > 0:
+            res_dict = cast(Dict[str, Any], res.data[0])
+            return res_dict
+    except Exception:
+        pass
+    return cast(Dict[str, Any], {})
+
+
+@lru_cache(maxsize=128)
+def get_samar_klasa_from_db(klasa_id: str) -> Dict[str, Any]:
+    """Pobiera parametry serwisowe (i nie tylko) przypisane do klasy pojazdu"""
+    if not klasa_id:
+        return {}
+    try:
+        from core.database import supabase
+
+        res = supabase.table("samar_klasa_wr").select("*").eq("id", klasa_id).execute()
+        if res.data and len(res.data) > 0:
+            return cast(Dict[str, Any], res.data[0])
+    except Exception:
+        pass
+    return {}
+
+
+@lru_cache(maxsize=128)
+def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
+    """Pobiera tabelę ubezpieczeń dla danej klasy (lub domyślnej null)"""
+    try:
+        from core.database import supabase
+
+        # Pobierz dla konkretnej klasy
+        if klasa_id:
+            res = (
+                supabase.table("ltr_admin_ubezpieczenia")
+                .select("*")
+                .eq("KlasaId", klasa_id)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return cast(List[Dict[str, Any]], res.data)
+
+        # Fallback dla null / default
+        res = (
+            supabase.table("ltr_admin_ubezpieczenia")
+            .select("*")
+            .is_("KlasaId", "null")
+            .execute()
+        )
+        if res.data:
+            return cast(List[Dict[str, Any]], res.data)
+    except Exception as e:
+        print(f"Error fetching insurance rates: {e}")
+    return []
+
+
+@lru_cache(maxsize=128)
+def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
+    """Pobiera parametry auta zastępczego dla klasy pojazdu"""
+    try:
+        from core.database import supabase
+
+        # Pobierz dla konkretnej klasy
+        if klasa_id:
+            res = (
+                supabase.table("ltr_admin_stawka_zastepczy")
+                .select("*")
+                .eq("KlasaId", klasa_id)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return cast(Dict[str, Any], res.data[0])
+
+        # Fallback dla null / default
+        res = (
+            supabase.table("ltr_admin_stawka_zastepczy")
+            .select("*")
+            .is_("KlasaId", "null")
+            .execute()
+        )
+        if res.data:
+            return cast(Dict[str, Any], res.data[0])
+    except Exception as e:
+        print(f"Error fetching replacement car rate: {e}")
+    return {}
+
+
+@lru_cache(maxsize=128)
+def get_damage_coefficients_from_db(klasa_id: str) -> Dict[str, Any]:
+    """Pobiera współczynniki szkodowe dla klasy pojazdu"""
+    try:
+        from core.database import supabase
+
+        # Pobierz dla konkretnej klasy
+        if klasa_id:
+            res = (
+                supabase.table("ltr_admin_wspolczynniki_szkodowe")
+                .select("*")
+                .eq("klasa_wr_id", klasa_id)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return cast(Dict[str, Any], res.data[0])
+
+        # Fallback dla null / default
+        res = (
+            supabase.table("ltr_admin_wspolczynniki_szkodowe")
+            .select("*")
+            .is_("klasa_wr_id", "null")
+            .execute()
+        )
+        if res.data:
+            return cast(Dict[str, Any], res.data[0])
+    except Exception as e:
+        print(f"Error fetching damage coefficients: {e}")
+    return {}
 
 
 class CalculationEngine:
@@ -21,8 +148,13 @@ class CalculationEngine:
         )
 
         # Load vehicle if needed
-        self.vehicle = self._get_vehicle()
-        self.samar_klasa = self._get_samar_klasa()
+        vid = getattr(self.input_data, "vehicle_id", "")
+        if isinstance(self.input_data, dict):
+            vid = self.input_data.get("vehicle_id", "")
+        self.vehicle = get_vehicle_from_db(vid) if vid else {}
+
+        klasa_id = self.vehicle.get("klasa_wr_id", "")
+        self.samar_klasa = get_samar_klasa_from_db(klasa_id) if klasa_id else {}
 
         self.ops_calc = OperationalCostsCalculator(samar_klasa_data=self.samar_klasa)
         self.finance_calc = FinancialCostsCalculator(
@@ -30,104 +162,6 @@ class CalculationEngine:
             margin_pct=self.input_data.margin_pct,
             initial_deposit_pct=self.input_data.initial_deposit_pct,
         )
-
-    def _get_vehicle(self) -> Dict[str, Any]:
-        """Dodatkowa f-cja do pobrania auta z DB na podst vehicle_id"""
-        from core.database import supabase
-
-        vid = self.input_data.vehicle_id
-        if not vid:
-            return {}
-        try:
-            res = supabase.table("pojazdy_master").select("*").eq("id", vid).execute()
-            if res.data and isinstance(res.data, list) and len(res.data) > 0:
-                res_dict = cast(Dict[str, Any], res.data[0])
-                return res_dict
-        except Exception:
-            pass
-        return cast(Dict[str, Any], {})
-
-    def _get_samar_klasa(self) -> Dict[str, Any]:
-        """Pobiera parametry serwisowe (i nie tylko) przypisane do klasy pojazdu"""
-        klasa_id = self.vehicle.get("klasa_wr_id")
-        if not klasa_id:
-            return {}
-        try:
-            from core.database import supabase
-
-            res = (
-                supabase.table("samar_klasa_wr")
-                .select("*")
-                .eq("id", klasa_id)
-                .execute()
-            )
-            if res.data and len(res.data) > 0:
-                return cast(Dict[str, Any], res.data[0])
-        except Exception:
-            pass
-        return {}
-
-    def _get_insurance_rates(self) -> List[Dict[str, Any]]:
-        """Pobiera tabelę ubezpieczeń dla danej klasy (lub domyślnej null)"""
-        try:
-            from core.database import supabase
-
-            klasa_id = self.vehicle.get("klasa_wr_id")
-
-            # Pobierz dla konkretnej klasy
-            if klasa_id:
-                res = (
-                    supabase.table("ltr_admin_ubezpieczenia")
-                    .select("*")
-                    .eq("KlasaId", klasa_id)
-                    .execute()
-                )
-                if res.data and len(res.data) > 0:
-                    return cast(List[Dict[str, Any]], res.data)
-
-            # Fallback dla null / default
-            res = (
-                supabase.table("ltr_admin_ubezpieczenia")
-                .select("*")
-                .is_("KlasaId", "null")
-                .execute()
-            )
-            if res.data:
-                return cast(List[Dict[str, Any]], res.data)
-        except Exception as e:
-            print(f"Error fetching insurance rates: {e}")
-        return []
-
-    def _get_replacement_car_rate(self) -> Dict[str, Any]:
-        """Pobiera parametry auta zastępczego dla klasy pojazdu"""
-        try:
-            from core.database import supabase
-
-            klasa_id = self.vehicle.get("klasa_wr_id")
-
-            # Pobierz dla konkretnej klasy
-            if klasa_id:
-                res = (
-                    supabase.table("ltr_admin_stawka_zastepczy")
-                    .select("*")
-                    .eq("KlasaId", klasa_id)
-                    .execute()
-                )
-                if res.data and len(res.data) > 0:
-                    return cast(Dict[str, Any], res.data[0])
-
-            # Fallback dla null / default
-            res = (
-                supabase.table("ltr_admin_stawka_zastepczy")
-                .select("*")
-                .is_("KlasaId", "null")
-                .execute()
-            )
-            if res.data:
-                return cast(Dict[str, Any], res.data[0])
-        except Exception as e:
-            print(f"Error fetching replacement car rate: {e}")
-        return {}
 
     def _calculate_capex(self) -> Tuple[float, float]:
         """Kalkuluje wejściową sumę finansowaną (CAPEX) uwzględniając rabaty i opcje z UI"""
@@ -226,16 +260,22 @@ class CalculationEngine:
                     else 0
                 )
 
-                insurance_rates = self._get_insurance_rates()
+                klasa_id = self.vehicle.get("klasa_wr_id", "") if self.vehicle else ""
+                insurance_rates = get_insurance_rates_from_db(klasa_id)
+                damage_coeffs = get_damage_coefficients_from_db(klasa_id)
                 ins_calc = InsuranceCalculator(
-                    insurance_rates, procent_amortyzacji_miesiecznie
+                    insurance_rates=insurance_rates,
+                    damage_coefficients=damage_coeffs,
+                    settings=self.settings,
+                    amortization_pct=procent_amortyzacji_miesiecznie,
+                    total_km=total_km,
                 )
 
                 insurance_res = ins_calc.calculate_cost(months, capex_for_financing)
                 insurance_base = float(insurance_res["monthly_insurance"])
 
                 # Obliczanie Auta Zastępczego
-                rc_rate = self._get_replacement_car_rate()
+                rc_rate = get_replacement_car_rate_from_db(klasa_id)
                 rc_calc = ReplacementCarCalculator(rc_rate)
                 rc_res = rc_calc.calculate_cost(
                     months=months, enabled=self.input_data.replacement_car_enabled

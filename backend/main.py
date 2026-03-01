@@ -5,10 +5,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from api.samar_rv_routes import router as samar_rv_router
+from api.parser_routes import router as parser_router
+from api.kalkulacje_routes import router as kalkulacje_router
+from api.budget_finder_routes import router as budget_finder_router
+from api.calculator_excel_data_routes import router as calculator_excel_data_router
+from api.extract_routes import router as extract_router
 from core.database import supabase
 
 app = FastAPI(title="Kalkulator LTR V2 Engine", version="1.0.0")
 app.include_router(samar_rv_router)
+app.include_router(parser_router, prefix="/api")
+app.include_router(extract_router, prefix="/api")
+app.include_router(kalkulacje_router, prefix="/api")
+app.include_router(budget_finder_router, prefix="/api")  # type: ignore
+app.include_router(calculator_excel_data_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -101,6 +111,7 @@ class CalculatorInput(BaseModel):
 class ControlCenterSettings(BaseModel):
     default_wibor: float
     default_ltr_margin: float
+    vat_rate: float
     bank_spread: float
     samar_segment_b_adjustment: int
     samar_segment_c_adjustment: int
@@ -114,6 +125,12 @@ class ControlCenterSettings(BaseModel):
     samar_rv_apply_options_depreciation: bool
     samar_rv_base_mileage: int
     samar_rv_mileage_unit_km: int
+
+    # Parametry ubezpieczeń V1 (Kradzież, Szkoda)
+    ins_theft_doub_pct: float
+    ins_driving_school_doub_pct: float
+    ins_avg_damage_value: float
+    ins_avg_damage_mileage: int
 
     # Koszty Dodatkowe
     cost_gsm_subscription_monthly: float
@@ -144,6 +161,13 @@ class ServiceBaseCost(BaseModel):
     id: Optional[int] = None
     klasa_id: int
     koszt_przegladu_podstawowego: float
+
+
+class EngineType(BaseModel):
+    id: Optional[int] = None
+    name: str
+    category: str
+    description: Optional[str] = None
 
 
 @app.get("/api/control-center", tags=["Control Center"])
@@ -211,6 +235,46 @@ async def update_tyre_cost(cost: TyreCost) -> TyreCost:
 async def delete_tyre_cost(cost_id: str) -> Dict[str, str]:
     try:
         supabase.table("tyre_costs").delete().eq("id", cost_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/engines", tags=["Control Center"])
+async def get_engines() -> List[EngineType]:
+    try:
+        response = (
+            supabase.table("engines")
+            .select("*")
+            .order("category")
+            .order("name")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [EngineType(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/engines", tags=["Control Center"])
+async def update_engine(engine: EngineType) -> EngineType:
+    try:
+        data = engine.model_dump(exclude_unset=True)
+        if not data.get("id"):
+            data.pop("id", None)
+        response = supabase.table("engines").upsert(data).execute()
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to update engine")
+        response_data = cast(Any, response.data[0])
+        return EngineType(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/engines/{engine_id}", tags=["Control Center"])
+async def delete_engine(engine_id: int) -> Dict[str, str]:
+    try:
+        supabase.table("engines").delete().eq("id", engine_id).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -327,4 +391,4 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

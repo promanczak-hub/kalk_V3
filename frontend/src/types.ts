@@ -54,7 +54,7 @@ export interface V1DataOption {
   OpcjeFabryczne: V1FactoryOption[];
   OpcjeSerwisowe: V1ServiceOption[];
   StawkaVat: number;
-  
+
   // Dane kontraktu
   Marza: number;
   RodzajCzynszu: string;
@@ -67,14 +67,21 @@ export interface V1DataOption {
   Marka: string;
   Model: { Id: number; Typ: string; DN: string };
   WersjaNadwozia: string;
+  KategoriaSamar: string;
+  MocSilnika: string;
   WersjaWyposazenia: string;
   RodzajPaliwa: string;
   HomologacjaSelected: string;
   KlasaWR: string;
-  
+
   // Opony
   ZOponami: boolean;
-  RozmiarOpon: { Szerokosc: string; Profil: string; Litera: string; Srednica: string };
+  RozmiarOpon: {
+    Szerokosc: string;
+    Profil: string;
+    Litera: string;
+    Srednica: string;
+  };
   KlasaOpon: string;
   LiczbaKompletowOponSelected: string;
   OdkupOpon: boolean;
@@ -90,7 +97,7 @@ export interface V1DataOption {
   ProcentAmortyzacji: number;
   Opis: string | null;
   Prywatna: boolean;
-  
+
   // Kalkulacja samochodu
   CenaCennikowaNetto: number;
   CenaCennikowa: number;
@@ -99,7 +106,7 @@ export interface V1DataOption {
   RabatProcent: number;
   RabatKwotaNetto: number;
   RabatKwota: number;
-  
+
   // Opcje dodatkowe
   SamochodZastepczy: boolean;
   ExpressPlaciUbezpieczenie: boolean;
@@ -110,7 +117,7 @@ export interface V1DataOption {
   KosztUbezpieczeniaKorekta: number;
   KosztPrzygotowaniaDosprzedazyKorekta: number;
   KosztOponKorekta: number;
-  
+
   // Wyniki
   GlownyMatrixParameters?: V1GlownyMatrixParameters;
 }
