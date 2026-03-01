@@ -64,13 +64,43 @@ def process_and_save_document_bg(
         print(f"[BG TASK] Mapowanie AI (Gemini Flash) dla {file_name}...")
         try:
             mapped_data = map_vehicle_data_flash(parsed_data)
-            parsed_data["mapped_ai_data"] = mapped_data
 
             # Wzbogać braki o zmapowane dane jeśli to możliwe
             if not brand or brand == "Brak":
                 brand = mapped_data.get("brand", brand)
             if not model or model == "Brak":
                 model = mapped_data.get("model", model)
+
+            # --- Dodanie klasyfikacji SAMAR ---
+            from core.samar_mapper import map_to_samar_class
+
+            card_summary = parsed_data.get("card_summary", {})
+            segment = card_summary.get("segment") or card_summary.get("car_segment")
+            body_style = card_summary.get("body_style")
+
+            samar_code, samar_name = map_to_samar_class(
+                brand, model, segment, body_style
+            )
+            mapped_data["samar_category"] = samar_name
+
+            # --- Dodanie Klasy Napędowej (Kwerenda z DB) ---
+            fuel = mapped_data.get("fuel")
+            if fuel:
+                try:
+                    engines_resp = (
+                        supabase.table("engines")
+                        .select("category")
+                        .eq("name", fuel)
+                        .execute()
+                    )
+                    if engines_resp.data:
+                        mapped_data["engine_class"] = engines_resp.data[0]["category"]
+                except Exception as db_e:
+                    print(
+                        f"[BG TASK] Błąd pobierania kategorii silnika dla {fuel}: {db_e}"
+                    )
+
+            parsed_data["mapped_ai_data"] = mapped_data
 
         except Exception as map_err:
             print(f"[BG TASK] Błąd mapowania danych AI: {map_err}")

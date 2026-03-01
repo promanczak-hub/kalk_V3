@@ -143,6 +143,8 @@ function VehicleRowCard({
     vehicle_type: string;
     trim_level: string;
     transmission: string;
+    samar_category?: string;
+    engine_class?: string;
   }
 
   
@@ -348,6 +350,39 @@ function VehicleRowCard({
 
   const hasPaidOptions = factoryOptions.length > 0 || serviceOptions.length > 0;
 
+  const renderCostCategoryBadge = () => {
+    let powerBand = null;
+    const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
+    
+    if (synth && "power_range" in synth && typeof synth.power_range === 'string') {
+      const match = synth.power_range.match(/(LOW|MID|HIGH)/i);
+      if (match) powerBand = match[1].toUpperCase();
+    }
+    
+    if (!powerBand && vehicle.powertrain) {
+      const match = vehicle.powertrain.match(/(\d{2,3})\s*(KM|HP)/i);
+      if (match) {
+        const hp = parseInt(match[1]);
+        if (hp <= 130) powerBand = "LOW";
+        else if (hp <= 200) powerBand = "MID";
+        else powerBand = "HIGH";
+      }
+    }
+    
+    if (!powerBand) return null;
+
+    let bgColor = "bg-slate-50 border-slate-200 text-slate-700";
+    if (powerBand === "LOW") bgColor = "bg-emerald-50 border-emerald-100 text-emerald-700";
+    else if (powerBand === "MID") bgColor = "bg-amber-50 border-amber-100 text-amber-700";
+    else if (powerBand === "HIGH") bgColor = "bg-rose-50 border-rose-100 text-rose-700";
+
+    return (
+      <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-medium ${bgColor}`}>
+        Koszty Serwisowe: {powerBand}
+      </span>
+    );
+  };
+
   if (vehicle.verification_status === "processing") {
     return (
       <div className="bg-white rounded-xl border border-blue-200 shadow-sm p-4 sm:p-5 flex items-center justify-between opacity-80 animate-pulse">
@@ -437,18 +472,29 @@ function VehicleRowCard({
           <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
             {vehicle.powertrain && vehicle.powertrain !== "Brak" ? vehicle.powertrain : "Brak danych napędu"}
           </p>
-          {vehicle.emissions && vehicle.emissions !== "Brak" && vehicle.emissions !== "-" && (
-            <div className="flex gap-2 mt-1.5">
+          <div className="flex gap-2 mt-1.5 flex-wrap">
+            {mappedData?.samar_category && (
+              <span className="inline-flex items-center rounded-sm bg-blue-50 border border-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                Klasa SAMAR: {mappedData.samar_category}
+              </span>
+            )}
+            {mappedData?.engine_class && (
+              <span className="inline-flex items-center rounded-sm bg-teal-50 border border-teal-100 px-2 py-0.5 text-[10px] font-medium text-teal-700">
+                Silnik/Napęd: {mappedData.fuel} / {mappedData.engine_class}
+              </span>
+            )}
+            {renderCostCategoryBadge()}
+            {vehicle.emissions && vehicle.emissions !== "Brak" && vehicle.emissions !== "-" && (
               <span className="inline-flex items-center rounded-full bg-slate-50 border border-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
                 WLTP: {vehicle.emissions}
               </span>
-              {vehicle.wheels && vehicle.wheels !== "Brak" && (
+            )}
+            {vehicle.wheels && vehicle.wheels !== "Brak" && (
                 <span className="inline-flex items-center rounded-full bg-slate-50 border border-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
                   Koła: {vehicle.wheels}
                 </span>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Highlighted Price */}

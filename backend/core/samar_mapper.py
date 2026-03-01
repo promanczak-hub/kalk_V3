@@ -18,11 +18,17 @@ def map_to_samar_class(
     # 2. Segment + Body style
 
     # Przykłady bezpośrednie (z list SAMAR_MARKDOWN):
-    if "superb" in model:
+    if "superb" in model or "a4" in model or "a5" in model:
         return ("D", "Klasa D ŚREDNIA")
     if "giulia" in model:
         return ("D", "Klasa D ŚREDNIA")
-    if "q7" in model or "x5" in model or "gle" in model:
+    if "a6" in model or "a7" in model:
+        return ("E", "Klasa E WYŻSZA")
+    if "a8" in model:
+        return ("F", "Klasa F LUKSUSOWE")
+    if "a3" in model:
+        return ("C", "Klasa C NIŻSZA ŚREDNIA")
+    if "q7" in model or "x5" in model or "gle" in model or "q8" in model:
         return ("Esuv", "Klasa E WYŻSZA (Terenowo-Rekreacyjne)")
     if (
         "q5" in model

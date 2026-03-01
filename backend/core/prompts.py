@@ -89,7 +89,11 @@ Otrzymasz dwa wejścia w formacie JSON:
 
 Zasady:
 - Przeanalizuj pole `wykluczenia` we właściwym wierszu! Jeśli z opcji w pliku wynika "kara", tj. wyposażenie klienta stanowi mniej niż X% wartości samochodu, oblicz karę i odejmij ją od rabatu bazowego w wierszu. 
-- Nie zgaduj "rabatu" na podstawie matematyki w ofercie! Masz obowiązek oprzeć ostateczną liczbę wyłącznie o kolumnę `rabat` z przypisanego wiersza, z ewentualnym ujęciem kary. Przekonwertuj liczbę zmiennoprzecinkową np. `0.24` na ludzką `24.0`.
+- Nie zgaduj "rabatu" na podstawie matematyki w ofercie! Masz obowiązek oprzeć ostateczną liczbę wyłącznie o kolumnę `rabat` z przypisanego wiersza. Przekonwertuj liczbę zmiennoprzecinkową np. `0.24` na ludzką `24.0` (lub 0.27 na 27.0).
+- SZALENIE WAŻNE: Bądź elastyczny w kwestii skrótów typu "FL" (Facelift), "NG" (New Generation), "Combi" vs "Kombi" czy wielkość liter. 
+- ZWRÓĆ UWAGĘ NA NADWOZIE: LLM ma samodzielnie zdecydować, do którego rabatu przypisać dany samochód na podstawie specyfikacji. Jeśli auto w ofercie to konkretne nadwozie (np. "Avant", "Limousine", "Sportback"), dopasuj wiersz rabatu odpowiadający temu nadwoziu.
+- SZALENIE WAŻNE: Jeśli model z oferty (np. "Karoq") pojawia się w polu `model` w bazie (np. "Karoq, Kodiaq" lub "Wszystkie modele"), MUSISZ uznać to za dopasowanie! 
+- Zawsze wybieraj najbardziej szczegółowo dopasowany wiersz (np. dopasowanie po nazwie modelu i nadwoziu jest lepsze niż dopasowanie ogólne).
 
 Zwróć dokładny wynik jako czysty JSON bez znaczników markdown według schematu:
 Jeśli ZNAJDZIESZ poprawne dopasowanie:

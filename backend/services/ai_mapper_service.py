@@ -14,6 +14,7 @@ class FuelType(str, Enum):
     ON = "Diesel (ON)"
     PB_MHEV = "Benzyna mHEV (PB-mHEV)"
     ON_MHEV = "Diesel mHEV (ON-mHEV)"
+    LPG = "Autogaz (LPG)"
     BEV = "Elektryczny (BEV)"
     HEV = "Hybryda (HEV)"
     PHEV = "Hybryda Plug-in (PHEV)"

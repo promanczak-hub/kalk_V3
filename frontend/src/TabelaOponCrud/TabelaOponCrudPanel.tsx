@@ -108,7 +108,7 @@ export default function TabelaOponCrudPanel() {
   return (
     <Box sx={{ mt: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h6">Tabela Kosztów Opon (PLN)</Typography>
+        <Typography variant="h6">Tabela Kosztów Opon (PLN Netto)</Typography>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
@@ -137,7 +137,7 @@ export default function TabelaOponCrudPanel() {
                   </TableCell>
                   <TableCell sx={{ fontSize: '1.1em', fontWeight: 500 }}>{row.srednica}"</TableCell>
                   {columns.map(col => (
-                    <TableCell key={col.name}>{String(row[col.name as keyof TireCostRow] ?? '0')} zł</TableCell>
+                    <TableCell key={col.name}>{Number(row[col.name as keyof TireCostRow] ?? 0).toFixed(2)} zł</TableCell>
                   ))}
                 </TableRow>
               ))}
@@ -160,12 +160,13 @@ export default function TabelaOponCrudPanel() {
                   const val = e.target.value;
                   setFormData({
                     ...formData,
-                    [col.name]: val === '' ? null : Number(val)
+                    [col.name]: val === '' ? null : parseFloat(val)
                   });
                 }}
                 fullWidth
                 variant="outlined"
                 size="small"
+                inputProps={{ step: "0.01" }}
               />
             ))}
           </Box>

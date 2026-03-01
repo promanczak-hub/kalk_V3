@@ -23,6 +23,11 @@ def match_fleet_discount(pro_data: dict) -> dict:
     if not extracted_brand or doc_type_str != "Oferta na samochód":
         return pro_data
 
+    # Znormalizuj nazwę marki aby zwiększyć szanse na dopasowanie (np. Škoda -> Skoda)
+    normalized_brand = (
+        extracted_brand.lower().replace("škoda", "skoda").replace("skoda", "skoda")
+    )
+
     # 2. Skonfiguruj API
     api_key = os.environ.get("GEMINI_API_KEY")
     if api_key:
@@ -48,17 +53,18 @@ def match_fleet_discount(pro_data: dict) -> dict:
         supabase_response = (
             supabase.table("tabela_rabaty")
             .select("*")
-            .ilike("marka", f"%{extracted_brand}%")
+            .ilike("marka", f"%{normalized_brand}%")
             .execute()
         )
 
         discount_rows = supabase_response.data
 
         if not discount_rows:
+            print(f"No discount rows found for brand {normalized_brand} in Supabase.")
             return pro_data
 
         print(
-            f"Found {len(discount_rows)} potential discount rows for {extracted_brand}. Matching..."
+            f"Found {len(discount_rows)} potential discount rows for {normalized_brand} (original: {extracted_brand}). Matching..."
         )
 
         # Build explicit pricing for the prompt to easily do the math
