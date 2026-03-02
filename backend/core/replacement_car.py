@@ -1,21 +1,36 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
+from core.database import supabase
 
 
 class ReplacementCarCalculator:
     """Moduł odpowiedzialny za kalkulację kosztu samochodu zastępczego (LTR_V1)"""
 
-    def __init__(self, stawka_zastepcza_data: Optional[Dict[str, Any]]):
+    def __init__(self, samar_class_id: int):
         """
-        stawka_zastepcza_data: słownik z danymi z ltr_admin_stawka_zastepczy
+        Inicjalizacja na podstawie ID klasy SAMAR.
+        Pobiera stawki bezpośrednio z bazy danych z tabeli replacement_car_rates.
         """
-        self.stawka_data = stawka_zastepcza_data or {}
+        self.samar_class_id = samar_class_id
+        self.average_days_per_year = 0.0
+        self.daily_rate_net = 0.0
 
-        # SredniaIloscDobWRoku - jak często auto trafia do zastępczego (np. 5 dni/rok)
-        self.srednia_dni_w_roku = float(
-            self.stawka_data.get("SredniaIloscDobWRoku", 0.0)
-        )
-        # DobaNetto - stawka wynajmu za jeden dzień
-        self.doba_netto = float(self.stawka_data.get("DobaNetto", 0.0))
+        self._fetch_rates()
+
+    def _fetch_rates(self):
+        """Pobiera stawki z tabeli replacement_car_rates na podstawie samar_class_id."""
+        try:
+            res = (
+                supabase.table("replacement_car_rates")
+                .select("average_days_per_year, daily_rate_net")
+                .eq("samar_class_id", self.samar_class_id)
+                .execute()
+            )
+
+            if res.data:
+                self.average_days_per_year = float(res.data[0]["average_days_per_year"])
+                self.daily_rate_net = float(res.data[0]["daily_rate_net"])
+        except Exception as e:
+            print(f"Błąd pobierania stawek ZRW dla klasy {self.samar_class_id}: {e}")
 
     def calculate_cost(self, months: int, enabled: bool) -> Dict[str, Any]:
         """
@@ -23,18 +38,19 @@ class ReplacementCarCalculator:
         - months: Czas trwania leasingu/wynajmu
         - enabled: Czy checkbox włączony w UI
         """
-        if not enabled or self.srednia_dni_w_roku == 0.0 or self.doba_netto == 0.0:
+        if (
+            not enabled
+            or self.average_days_per_year == 0.0
+            or self.daily_rate_net == 0.0
+            or months == 0
+        ):
             return {"total_replacement_car": 0.0, "monthly_replacement_car": 0.0}
 
         years = months / 12.0
-
-        # Prosta zryczałtowana matematyka z V1
-        total_days = self.srednia_dni_w_roku * years
-        total_cost = total_days * self.doba_netto
+        total_days = self.average_days_per_year * years
+        total_cost = total_days * self.daily_rate_net
 
         return {
             "total_replacement_car": round(total_cost, 2),
-            "monthly_replacement_car": round(total_cost / months, 2)
-            if months > 0
-            else 0.0,
+            "monthly_replacement_car": round(total_cost / months, 2),
         }

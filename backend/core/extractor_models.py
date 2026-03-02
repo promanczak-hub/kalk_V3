@@ -173,6 +173,12 @@ class NapedTyp(str, Enum):
     BEV = "Elektryczny (BEV)"
 
 
+class NapedRodzaj(str, Enum):
+    FWD = "Napęd FWD"
+    RWD = "Napęd RWD"
+    AWD = "Napęd AWD"
+
+
 class PrzedzialMocy(str, Enum):
     LOW = "LOW (do 130 KM)"
     MID = "MID (131 - 200 KM)"
@@ -223,6 +229,17 @@ class CardSummary(BaseModel):
     powertrain: str = Field(
         description="Oznaczenie samego silnika i mocy, bez nazwy marki i modelu. Np. '2.0 TDI 177 KM', '1.5 TSI 150 KM', 'E-Tech EV60'. Zwróć 'Brak' jeśli nie przypisano."
     )
+    vehicle_class: str = Field(
+        description="Klasa pojazdu na podstawie oceny całego dokumentu. Musi być to ściśle jedna z dwóch wartości: 'Osobowy' lub 'Dostawczy'."
+    )
+    engine_capacity: Optional[str] = Field(
+        None,
+        description="Pojemność silnika, np. '1.5', '2.0'. Zwróć 'Brak' lub null, jeśli nie dotyczy lub brakuje informacji.",
+    )
+    engine_designation: Optional[str] = Field(
+        None,
+        description="Oznaczenie handlowe silnika / technologii, np. 'TSI', 'TDI', 'dCi', 'EcoBoost'. Zwróć 'Brak' lub null, jeśli brakuje.",
+    )
     engine_category: Optional[NapedTyp] = Field(
         None,
         description="Przyporządkuj rodzaj i zasilanie napędu pojazdu z dokumentu ściśle do jednej z kategorii w Enum `NapedTyp`.",
@@ -238,17 +255,21 @@ class CardSummary(BaseModel):
     fuel: str = Field(
         description="Rodzaj paliwa / zasilania, np. 'Diesel', 'Benzyna', 'Elektryczny', 'Hybryda PHEV', 'MHEV'. Zwróć 'Brak' jeśli nie znaleziono."
     )
+    drive_type: Optional[NapedRodzaj] = Field(
+        None,
+        description="Rodzaj napędu (FWD, RWD, AWD). Musi być przyporządkowane do jednej z opcji Enum `NapedRodzaj` lub pozostać puste, jeśli brak jednoznacznej informacji.",
+    )
     transmission: str = Field(
         description="Rodzaj skrzyni biegów, np. 'Automatyczna', 'Manualna', 'DSG'. Zwróć 'Brak' jeśli nie przypisano."
     )
     body_style: str = Field(
-        description="Typ nadwozia pojazdu wywnioskowany z nazwy lub specyfikacji. Zwróć ściśle jedną z wartości: Hatchback, Kombi, SUV, Liftback, Sedan, Coupe, Cabrio, Minivan, Pickup, Furgon, Skrzyniowy. Jeśli brak pewności, wybierz najbardziej prawdopodobną lub 'Brak'."
+        description="Typ nadwozia pojazdu wywnioskowany z nazwy lub specyfikacji. Jeśli osobowy, zwróć ściśle m.in: Hatchback, Kombi, SUV, Liftback, Sedan, Coupe, Cabrio, Minivan. Jeśli dostawczy, zwróć ściśle m.in: Furgon, Pickup, Wieloosobowy, Podwozie, Van, Dwuosobowy, 5 drzwiowy VAN. Jeśli brak pewności, wybierz najbardziej prawdopodobną lub 'Brak'."
     )
     trim_level: str = Field(
         description="Wersja wyposażenia pojazdu, np. 'S line', 'AMG Line', 'R-Line', 'L&K', 'Centre-line'. Szukaj precyzyjnego oznaczenia wersji obok modelu bazowego. Zwróć 'Brak' jeśli nie przypisano."
     )
     wheels: str = Field(
-        description="Rozmiar i opis kół w standardzie (np. '16 cali 205/55 R16'). Zwracaj uwagę na słowa takie jak: 'Obręcze', 'Felgi', 'Kute'. Zignoruj informacje o markach (np. Nexen, Hankook) - połącz to w logiczny rozmiar. Zwróć 'Brak' jeśli nie znaleziono."
+        description="Tylko i wyłącznie średnica felgi (kół) wyrażona jako liczba (np. '17', '18'). Zwracaj uwagę na słowa takie jak: 'Obręcze', 'Felgi', 'Kute' w dokumencie, następnie wyciągnij samą średnicę nominalną. Zwróć 'Brak' jeśli nie znaleziono."
     )
     emissions: str = Field(
         description="Emisja spalin (np. '123 g/km') i opcjonalnie zużycie paliwa (np. '6.5 l/100km'). Szukaj słów: 'WLTP', 'Zużycie', 'Spalanie', 'Emisja CO2'. Zwróć 'Brak' jeśli nie znaleziono."

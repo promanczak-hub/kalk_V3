@@ -26,6 +26,7 @@ def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) 
 
     doc_type_config = types.GenerateContentConfig(
         temperature=0.0,
+        max_output_tokens=8192,
         response_mime_type="text/plain",
         system_instruction=DOC_TYPE_PROMPT,
     )
@@ -84,6 +85,7 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
 
         flash_config = types.GenerateContentConfig(
             temperature=0.0,
+            max_output_tokens=8192,
             response_mime_type="application/json",
             response_schema=chosen_schema,
             system_instruction=instruction,

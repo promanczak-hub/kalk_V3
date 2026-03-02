@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, cast, Tuple
-from core.tires import LTRSubCalculatorOpony
+from core.LTRSubCalculatorOpony import LTRSubCalculatorOpony
 from core.operations import OperationalCostsCalculator
 from core.finance import FinancialCostsCalculator
 from core.insurance import InsuranceCalculator
@@ -143,8 +143,14 @@ class CalculationEngine:
 
         # Inicjalizacja subkalkulatorów
         self.tires_calc = LTRSubCalculatorOpony(
-            all_season_tires=self.input_data.all_season_tires,
-            tire_buyback=self.input_data.tire_buyback,
+            z_oponami=getattr(self.input_data, "z_oponami", True),
+            klasa_opony_string=getattr(self.input_data, "klasa_opony_string", ""),
+            srednica_felgi=16,  # bedzie przesloniete ponizej
+            korekta_kosztu=getattr(self.input_data, "korekta_kosztu_opon", False),
+            koszt_opon_korekta=getattr(self.input_data, "koszt_opon_korekta", 0.0),
+            sets_needed_override=getattr(
+                self.input_data, "liczba_kompletow_opon", None
+            ),
         )
 
         # Load vehicle if needed

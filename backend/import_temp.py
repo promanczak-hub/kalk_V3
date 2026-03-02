@@ -1,4 +1,3 @@
-import sys
 
 try:
     import pandas as pd

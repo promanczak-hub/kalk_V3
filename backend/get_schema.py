@@ -1,9 +1,7 @@
-import sys
 import json
 
 try:
     import pandas as pd
-    from sqlalchemy import create_engine
 
     file_path = r"C:\Users\proma\Downloads\cennikiopon.csv"
 

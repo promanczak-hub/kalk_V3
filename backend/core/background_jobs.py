@@ -28,10 +28,25 @@ def process_and_save_document_bg(
         supabase = get_supabase_client()
 
         # 1. Wgranie pliku fizycznego do Supabase Storage
+        import tempfile
+        import os
+
         storage_path = f"{file_id}-{file_name}"
-        res = supabase.storage.from_("raw-vehicle-pdfs").upload(
-            path=storage_path, file=file_bytes, file_options={"content-type": mime_type}
-        )
+        res = None
+
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(file_bytes)
+                tmp_file_path = tmp_file.name
+
+            res = supabase.storage.from_("raw-vehicle-pdfs").upload(
+                path=storage_path,
+                file=tmp_file_path,
+                file_options={"content-type": mime_type},
+            )
+        finally:
+            if "tmp_file_path" in locals() and os.path.exists(tmp_file_path):
+                os.remove(tmp_file_path)
 
         # Nawet na błędzie uploadu staramy się procesować dalej
         raw_pdf_url = None
@@ -77,9 +92,16 @@ def process_and_save_document_bg(
             card_summary = parsed_data.get("card_summary", {})
             segment = card_summary.get("segment") or card_summary.get("car_segment")
             body_style = card_summary.get("body_style")
+            trim = mapped_data.get("trim")
+            transmission = mapped_data.get("transmission")
 
             samar_code, samar_name = map_to_samar_class(
-                brand, model, segment, body_style
+                brand=brand,
+                model=model,
+                segment=segment,
+                body_style=body_style,
+                trim=trim,
+                transmission=transmission,
             )
             mapped_data["samar_category"] = samar_name
 
@@ -121,8 +143,11 @@ def process_and_save_document_bg(
         print(f"[BG TASK] Gotowe dla {file_name} (ID: {file_id})")
 
     except Exception as e:
+        import traceback
+
+        error_trace = traceback.format_exc()
         print(
-            f"[BG TASK ERROR] Wystąpił błąd podczas przetwarzania {file_name} (ID: {file_id}): {str(e)}"
+            f"[BG TASK ERROR] Wystąpił błąd podczas przetwarzania {file_name} (ID: {file_id}): {str(e)}\n{error_trace}"
         )
         # Zapisz błąd w bazie, żeby UI mogło to odczytać
         try:

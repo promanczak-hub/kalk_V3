@@ -16,17 +16,14 @@ def match_fleet_discount(pro_data: dict) -> dict:
     # 1. Sprawdź czy mamy w ogóle wyciągnięty obiekt i brand
     flash_data = pro_data.get("card_summary", {})
     metadata = pro_data.get("digital_twin", {}).get("metadata", {})
-    extracted_brand = pro_data.get("digital_twin", {}).get("brand", "")
+    extracted_brand = pro_data.get("brand") or pro_data.get("digital_twin", {}).get(
+        "brand", ""
+    )
 
     doc_type_str = metadata.get("document_type", "Oferta na samochód")
 
     if not extracted_brand or doc_type_str != "Oferta na samochód":
         return pro_data
-
-    # Znormalizuj nazwę marki aby zwiększyć szanse na dopasowanie (np. Škoda -> Skoda)
-    normalized_brand = (
-        extracted_brand.lower().replace("škoda", "skoda").replace("skoda", "skoda")
-    )
 
     # 2. Skonfiguruj API
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -49,32 +46,41 @@ def match_fleet_discount(pro_data: dict) -> dict:
 
         supabase: Client = create_client(supabase_url, supabase_key)
 
-        # 3. Pobierz potencjalne pasujące wiersze z bazy danych
-        supabase_response = (
-            supabase.table("tabela_rabaty")
-            .select("*")
-            .ilike("marka", f"%{normalized_brand}%")
-            .execute()
-        )
+        # 3. Pobierz wszystkie potencjalne wiersze z bazy danych
+        # Zrezygnowano ze sztywnego filtra ILIKE marka, aby LLM sam łaczył VW z Volkswagen itp.
+        supabase_response = supabase.table("tabela_rabaty").select("*").execute()
 
         discount_rows = supabase_response.data
 
         if not discount_rows:
-            print(f"No discount rows found for brand {normalized_brand} in Supabase.")
             return pro_data
 
-        print(
-            f"Found {len(discount_rows)} potential discount rows for {normalized_brand} (original: {extracted_brand}). Matching..."
-        )
-
-        # Build explicit pricing for the prompt to easily do the math
+        # Build explicit pricing for the prompt to easily do the math (hide total_price to strictly prevent LLM calculation)
         extracted_pricing = {
             "base_price": flash_data.get("base_price"),
             "options_price": flash_data.get("options_price"),
-            "total_price": flash_data.get("total_price"),
         }
 
-        vehicle_spec = {"extracted_pricing": extracted_pricing, "full_data": pro_data}
+        # Create a deep copy of pro_data to avoid modifying the original during sanitization
+        sanitized_pro_data = json.loads(json.dumps(pro_data))
+
+        # Sanitize card_summary
+        if "card_summary" in sanitized_pro_data:
+            sanitized_pro_data["card_summary"].pop("total_price", None)
+
+        # Sanitize financials in digital_twin
+        dt = sanitized_pro_data.get("digital_twin", {})
+        if "financials" in dt:
+            dt["financials"].pop("total_price", None)
+            dt["financials"].pop("final_price", None)
+            dt["financials"].pop("final_price_pln", None)
+            dt["financials"].pop("discount", None)
+            dt["financials"].pop("rabat", None)
+
+        vehicle_spec = {
+            "extracted_pricing": extracted_pricing,
+            "full_data": sanitized_pro_data,
+        }
 
         # 4. Prompt do Flasha aby przypasował
         prompt = f"""
@@ -114,6 +120,7 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
         )
 
         resp_text = getattr(response, "text", "{}") or "{}"
+        print(f"RAW LLM RESPONSE: {resp_text}")
         match_result = json.loads(clean_json_response(str(resp_text)))
 
         if match_result and match_result.get("is_matched"):

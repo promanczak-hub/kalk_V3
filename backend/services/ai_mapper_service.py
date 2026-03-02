@@ -80,14 +80,19 @@ def map_vehicle_data_flash(original_json: Dict[str, Any]) -> dict:
     prompt = f"Oryginalny JSON do zmapowania:\n{json.dumps(original_json, ensure_ascii=False)}"
 
     try:
+        print("[AI MAPPER] Wysyłam zapytanie do Gemini API...")
         response = client.models.generate_content(
             model=flash_model_id,
             contents=[types.Part.from_text(text=prompt)],
             config=config,
         )
 
+        print("[AI MAPPER] Otrzymano odpowiedź z Gemini API.")
         resp_text = getattr(response, "text", "{}") or "{}"
         mapped_data = json.loads(clean_json_response(str(resp_text)))
+        print(
+            f"[AI MAPPER] Pomyślnie zmapowano dane: {mapped_data.get('brand')} {mapped_data.get('model')}"
+        )
         return mapped_data
     except Exception as e:
         print(f"Error mapping vehicle data with AI: {e}")

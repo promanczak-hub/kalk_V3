@@ -27,6 +27,7 @@ def extract_digital_twin_from_pdf(
 
     config = types.GenerateContentConfig(
         temperature=0.0,
+        max_output_tokens=8192,
         response_mime_type="application/json",
         system_instruction=MASTER_PROMPT_V2,
     )

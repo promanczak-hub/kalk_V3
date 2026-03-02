@@ -23,16 +23,14 @@ class AdditionalCostsCalculator:
         if self.input_data.add_hook_installation:
             total += self.settings.cost_hook_installation
 
-        # Krata
-        if self.input_data.add_grid_dismantling:
-            total += self.settings.cost_grid_dismantling
-
-        # Rejestracja / Karta
-        if self.input_data.add_registration:
-            total += self.settings.cost_registration
+        # Rejestracja / Karta (Zawsze doliczana w LTR, brak ukrytego checkboxa)
+        total += self.settings.cost_registration
 
         # Przygotowanie do Sprzedaży (Liniowo, V1 czasami mnożyło to przez korekty z SAMAR, ale spłaszczamy wg założeń ryczałtowych)
-        if self.input_data.add_sales_prep:
+        if (
+            hasattr(self.input_data, "add_sales_prep")
+            and self.input_data.add_sales_prep
+        ):
             total += self.settings.cost_sales_prep
 
         return {

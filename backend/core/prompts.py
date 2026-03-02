@@ -14,16 +14,15 @@ Zwróć wynik jako obiekt JSON, w którym na najwyższym poziomie MUSZĄ znaleź
 
 ZASADY TWORZENIA CYFROWEGO BLIŹNIAKA (węzeł "digital_twin"):
 A. Wyodrębnij hierarchiczną strukturę (nagłówki, sekcje).
-B. Zmapuj wszystkie tabele (np. cenniki, dane techniczne) do formatu Markdown lub tabelarycznego JSON.
+B. Zmapuj wszystkie tabele (np. cenniki, dane techniczne) do formatu Markdown lub tabelarycznego JSON zachowując ich oryginalny układ.
 C. Opisz wszystkie elementy wizualne (schematy, zdjęcia, wygląd auta, fotele, otoczenie na zdjęciach).
 D. Zidentyfikuj kluczowe metadane dokumentu (data wydania, autor, wersja).
-E. (KRYTYCZNE FINANSE I OPCJE): Zawsze szukaj i wyodrębniaj pełne dane finansowe do obiektu `financials` (lub odpowiednika w Twojej strukturze):
-   - Musisz wyodrębnić cenę bazową pojazdu (bez opcji).
-   - Musisz wyodrębnić łączną kwotę opcji dodatkowych.
-   - Musisz wyodrębnić całkowitą cenę końcową po ew. rabatach.
-   - Pamiętaj, aby zawsze dołączać walutę i rozróżniać netto/brutto na podstawie dokumentu.
-   - BARDZO WAŻNE: Znajdź listę WSZYSTKICH płatnych opcji dodatkowych (wyposażenie opcjonalne, pakiety, akcesoria). Jeśli obok jakiegoś elementu wyposażenia widnieje kwota (np. 1500 zł, 4500 PLN), to MUSI znaleźć się to w strukturze jako płatna opcja z przypisaną ceną! Nie grupuj ich bez podania cen.
-Zachowaj pełną wierność względem oryginału, uwzględniając przypisy i opisy drobnym drukiem.
+E. (KRYTYCZNE FINANSE I CENNIKI): Przepisz dokładnie wszystkie informacje o cenach, rabatach, ratach i opłaty dodatkowe w takiej formie, w jakiej występują w dokumencie.
+   - NIE wykonuj absolutnie żadnych obliczeń matematycznych.
+   - NIE próbuj wymuszać na siłę struktury "cena bazowa" vs "opcje", jeśli nie wynika to jasno z sekcji dokumentu w danym miejscu.
+   - Odczytaj wszystkie wycenione pozycje z wyposażenia (opcje, pakiety, akcesoria) pokazując ich ceny obok nazwy, jeśli takie ceny widnieją na papierze. Jeśli w dokumencie wypisano listę w pakiecie bez podziału na ceny - przepisz te elementy jako zwykłą listę (bez narzucania im cen).
+   - Zachowaj informację o walutach oraz wzmianki o kwotach netto/brutto na podstawie kontekstu dokumentu.
+Zachowaj pełną wierność względem oryginału, uwzględniając przypisy i opisy drobnym drukiem. Traktuj się jako bezwzględny OCR i parser układu, nie księgowy.
 
 The output MUST be a valid JSON object. Do not output any markdown blocks (like ```json), just the raw JSON.
 """
@@ -35,15 +34,15 @@ Jeśli dokument opisuje JEDEN konkretnie skonfigurowany pojazd, zawsze zwracaj '
 """
 
 CARD_SUMMARY_PROMPT = """
-Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach. Jeśli widzisz 'obręcze', 'felgi' to są to koła (wheels). 
+Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach. Jeśli widzisz 'obręcze', 'felgi', 'koła', wyodrębnij tylko i wyłącznie ich średnicę jako ciąg znaków (np. '17', '18') do pola wheels. 
 Jeśli widzisz zużycie paliwa lub cykl WLTP, podepnij to pod emisję (emissions). 
 
-KRYTYCZNE DANE FINANSOWE:
-Musisz bezwzględnie wyodrębnić:
-1. `base_price` - faktyczną cenę katalogową bazową (bez opcji). Szukaj jej w sekcjach "Cena bazowa", "Cena modelu", "Wartość auta". Jeśli brakuje jej wprost w JSONie, spróbuj wyliczyć ją matematycznie (Cena Całkowita minus Opcje).
-2. `options_price` - łączną cenę opcji dodatkowo płatnych. Jeśli brakuje wprost, zsumuj ceny z 'paid_options' lub odejmij bazę od całości.
+KRYTYCZNE DANE FINANSOWE (WYMAGA TWOJEJ INTELIGENCJI I OBLICZEŃ):
+W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu, co oznacza, że dane finansowe mogą być rozrzucone w sekcjach tekstowych, surowych tabelach lub opisach (jako brudne dane, a nie dedykowany obiekt `financials`). Twoim bezwzględnym zadaniem jest przeanalizowanie tych kwot i wyodrębnienie lub wyliczenie z nich trzech wartości:
+1. `base_price` - faktyczną cenę katalogową bazową (bez opcji). Szukaj jej w sekcjach "Cena bazowa", "Cena modelu", "Wartość auta". Jeśli brakuje jej wprost w JSONie, musisz wyliczyć ją matematycznie (Cena Całkowita minus suma znalezionych Opcji).
+2. `options_price` - łączną cenę opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej.
 3. `total_price` - ostateczną cenę po ewentualnych rabatach.
-Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty (wywnioskuj to z dokumentu, np. analizując relacje kwot i opisy). Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny.
+Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny, wylicz to matematycznie na podstawie pozostałych liczb. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
 
 SZTYWNA KATEGORYZACJA SILNIKA I MOCY (Enum):
 Musisz wyciągnąć informacje o układzie napędowym, mocy oraz zasilaniu i dokonać kategoryzacji. 
@@ -61,6 +60,17 @@ Następnie przyporządkuj zmienną `power_range` do JEDNEJ z poniższych wartoś
 - "LOW (do 130 KM)"
 - "MID (131 - 200 KM)"
 - "HIGH (201 KM i więcej)"
+
+Zidentyfikuj rodzaj napędu (oś napędzana) i przyporządkuj zmienną `drive_type` (lub odpowiednik wg schematu) do JEDNEJ z poniższych wartości:
+- "Napęd FWD" (przód)
+- "Napęd RWD" (tył)
+- "Napęd AWD" (4x4, Quattro, xDrive, 4Motion itp.)
+Jeśli brakuje ewidentnych informacji o napędzie, pozostaw to pole puste.
+
+Na podstawie wszystkich informacji oceń całościowo pojazd i przypisz wartość `vehicle_class` do JEDNEJ z opcji: "Osobowy" lub "Dostawczy".
+Dodatkowo rozbij `powertrain` na części składowe:
+- `engine_capacity`: wyciągnij samą pojemność (np. "1.5", "2.0"). Jeśli brak, zostaw puste.
+- `engine_designation`: wyciągnij skrót i oznaczenie technologii (np. "TSI", "TDI", "dCi", "EcoBoost"). Jeśli brak, zostaw puste.
 
 Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. 
 Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedłużone gwarancje. Jeśli dokument zawiera opcje serwisowe/zabudowy, wyciągnij je do osobnego obiektu 'service_equipment', wyliczając poprawnie łączną kwotę netto i brutto całego pakietu. Ponadto, jeżeli suma ta składa się z pojedynczych części składowych, wypisz je wszystkie jako 'components' podając dla każdego cenę netto i brutto. 
@@ -88,10 +98,11 @@ Otrzymasz dwa wejścia w formacie JSON:
 2. `discount_rows`: Tablica wierszy zniżek z bazy pobrana względem marki. Znajdź wśród nich JEDEN wiersz, który dotyczy opisanego modelu / silnika. 
 
 Zasady:
-- Przeanalizuj pole `wykluczenia` we właściwym wierszu! Jeśli z opcji w pliku wynika "kara", tj. wyposażenie klienta stanowi mniej niż X% wartości samochodu, oblicz karę i odejmij ją od rabatu bazowego w wierszu. 
-- Nie zgaduj "rabatu" na podstawie matematyki w ofercie! Masz obowiązek oprzeć ostateczną liczbę wyłącznie o kolumnę `rabat` z przypisanego wiersza. Przekonwertuj liczbę zmiennoprzecinkową np. `0.24` na ludzką `24.0` (lub 0.27 na 27.0).
-- SZALENIE WAŻNE: Bądź elastyczny w kwestii skrótów typu "FL" (Facelift), "NG" (New Generation), "Combi" vs "Kombi" czy wielkość liter. 
-- ZWRÓĆ UWAGĘ NA NADWOZIE: LLM ma samodzielnie zdecydować, do którego rabatu przypisać dany samochód na podstawie specyfikacji. Jeśli auto w ofercie to konkretne nadwozie (np. "Avant", "Limousine", "Sportback"), dopasuj wiersz rabatu odpowiadający temu nadwoziu.
+- ZIGNORUJ zasady dotyczące "minimalnego poziomu wyposażenia" (np. "Min. % wyposażenia: 15%") zapisane w kolumnie `wykluczenia` podczas sprawdzania specyfikacji oferty! NIE WYLICZAJ poziomu wyposażenia samochodu na podstawie cen na ofercie i NIE STOSUJ żadnych kar procentowych za jego ewentualny brak. Po prostu zwróć bazową wartość rabatu przypisaną w tabeli.
+- SUROWO ZAKAZUJĘ wyliczania rabatu ze wzorów matematycznych bazujących na cenach w ofercie! ZIGNORUJ CAŁKOWICIE ceny podane w `vehicle_spec` przy ustalaniu procentu rabatu. Masz ZWRÓCIĆ DOKŁADNIE to, co znajduje się w kolumnie `rabat` w bazie danych.
+- Przekonwertuj liczbę zmiennoprzecinkową np. `0.24` na ludzką `24.0` (lub `0.27` na `27.0`).
+- SZALENIE WAŻNE: Bądź elastyczny w kwestii skrótów typu "FL" (Facelift), "NG" (New Generation), "Combi" vs "Kombi" czy wielkość liter.
+- ZWRÓĆ UWAGĘ NA NADWOZIE: LLM ma samodzielnie zdecydować, do którego rabatu przypisać dany samochód na podstawie specyfikacji. Jeśli auto w ofercie to konkretne nadwozie (np. "Touring", "Avant", "Limousine", "Sportback"), dopasuj wiersz rabatu odpowiadający temu nadwoziu.
 - SZALENIE WAŻNE: Jeśli model z oferty (np. "Karoq") pojawia się w polu `model` w bazie (np. "Karoq, Kodiaq" lub "Wszystkie modele"), MUSISZ uznać to za dopasowanie! 
 - Zawsze wybieraj najbardziej szczegółowo dopasowany wiersz (np. dopasowanie po nazwie modelu i nadwoziu jest lepsze niż dopasowanie ogólne).
 

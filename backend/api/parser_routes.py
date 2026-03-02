@@ -89,6 +89,8 @@ Tekst / Dane oferty:
             model=offer_data.model,
             segment=offer_data.segment,
             body_style=offer_data.body_style,
+            trim=offer_data.trim,
+            transmission=offer_data.transmission,
         )
         offer_data.samar_class_name = f"[{klasa_kod}] {klasa_nazwa}"
 

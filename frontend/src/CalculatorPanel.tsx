@@ -342,6 +342,7 @@ export default function CalculatorPanel() {
         body_style: cs.body_style || "",
         samar_category: "KLASYFIKACJA...",
         power_hp: parsedRaw.digital_twin?.technical_data?.power_hp || "",
+        vehicle_class: cs.vehicle_class || "",
       };
     }
 
@@ -382,8 +383,8 @@ export default function CalculatorPanel() {
 
       const bruttoBase = (parsed.base_price_net || 0) * (1 + vat);
 
-      // Opony parsing (AAA/BB RCC)
       let opony = prev.RozmiarOpon;
+      let klasaOpon = prev.KlasaOpon;
       if (parsed.tire_size) {
         const regex = /^(\d{3})\/(\d{2})\s*(R)(\d{2})/i;
         const match = parsed.tire_size.match(regex);
@@ -394,6 +395,16 @@ export default function CalculatorPanel() {
             Litera: match[3],
             Srednica: match[4],
           };
+          
+          // Logic for default tire class
+          const diameter = parseInt(match[4], 10);
+          if (parsed.vehicle_class === "Dostawczy") {
+            klasaOpon = "WZMOCNIONE";
+          } else {
+             if (diameter <= 16) klasaOpon = "BUDGET";
+             else if (diameter >= 17 && diameter <= 18) klasaOpon = "MEDIUM";
+             else if (diameter >= 19) klasaOpon = "PREMIUM";
+          }
         }
       }
 
@@ -423,11 +434,13 @@ export default function CalculatorPanel() {
         CenaCennikowa: bruttoBase || 0,
         OpcjeFabryczne: newFactoryOptions, // Zawsze zastępuj przy parsowaniu oferty
         OpcjeSerwisowe: newServiceOptions,
+        HomologacjaSelected: parsed.vehicle_class || prev.HomologacjaSelected,
         TypRabatu: "Kwotowo",
         RabatKwotaNetto: rabatKwotaNetto,
         RabatKwota: rabatKwota,
         RabatProcent: rabatProcent,
         RozmiarOpon: opony,
+        KlasaOpon: klasaOpon,
       };
     });
 
@@ -932,7 +945,7 @@ export default function CalculatorPanel() {
                       sx={{ height: 28, fontSize: "0.8rem" }}
                     >
                       <MenuItem value="Osobowy">Osobowy</MenuItem>
-                      <MenuItem value="Ciężarowy">Ciężarowy</MenuItem>
+                      <MenuItem value="Dostawczy">Dostawczy</MenuItem>
                     </Select>
                   </Grid>
 
@@ -1101,8 +1114,11 @@ export default function CalculatorPanel() {
                       }
                       sx={{ height: 28, fontSize: "0.8rem" }}
                     >
+                      <MenuItem value="BUDGET">BUDGET</MenuItem>
+                      <MenuItem value="MEDIUM">MEDIUM</MenuItem>
                       <MenuItem value="PREMIUM">PREMIUM</MenuItem>
-                      <MenuItem value="BLIZNIACZE">BLIZNIACZE</MenuItem>
+                      <MenuItem value="WZMOCNIONE">WZMOCNIONE</MenuItem>
+                      <MenuItem value="BLIZNIACZE">BLIŹNIACZE</MenuItem>
                     </Select>
                   </Grid>
 
