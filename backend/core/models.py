@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class ControlCenterSettings(BaseModel):
     default_wibor: float
     default_ltr_margin: float
+    default_depreciation_pct: float
     vat_rate: float
     bank_spread: float
     samar_segment_b_adjustment: int
@@ -24,6 +25,9 @@ class ControlCenterSettings(BaseModel):
     ins_driving_school_doub_pct: float
     ins_avg_damage_value: float
     ins_avg_damage_mileage: int
+    ins_nnw_annual_rate: float
+    ins_ass_annual_rate: float
+    ins_green_card_annual_rate: float
 
     # Koszty Dodatkowe
     cost_gsm_subscription_monthly: float
@@ -33,3 +37,6 @@ class ControlCenterSettings(BaseModel):
     cost_grid_dismantling: float
     cost_registration: float
     cost_sales_prep: float
+
+    # Normatywny przebieg floty (floor dla kosztu serwisu)
+    normatywny_przebieg_mc: int = 2916  # km/mc (= 35 000 km/rok)

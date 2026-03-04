@@ -56,9 +56,10 @@ npm run dev
 
 > Aplikacja webowa będzie dostępna pod adresem: `http://localhost:5173`
 
-## 🧪 Testy
+## 🧪 Testy i Standardy Kodu
 
 Projekt kładzie duży nacisk na jakość kodu. Przed commitem upewnij się, że kod przechodzi wszystkie formatowania, lintery i testy.
+Zasada krytyczna: **Żaden plik z kodem źródłowym (komponenty, serwisy, kontrolery, API) nie może przekraczać 400 linii kodu.** Moduły dłuższe podlegają bezwzględnej refaktoryzacji na mniejsze jednostki/komponenty.
 
 W folderze `backend/`:
 
@@ -86,3 +87,27 @@ Skopiuj i dostosuj poniższy prompt. Wklej go na początku sesji (np. w Cursorze
 > 3. Weryfikacja: Czekaj na moją komendę "Dalej", "Kontynuuj" lub "Popraw", zanim przejdziesz do wykonywania kolejnego punktu planu. Nigdy nie wykonuj kilku kroków naraz.
 > 4. Aktywne Pytanie: Jeśli w starej logice występuje niejasność, brak dokumentacji lub ryzyko błędu zaokrągleń – nie zgaduj. Zatrzymaj się i natychmiast zapytaj mnie o intencję biznesową lub dostarczenie większego kontekstu.
 > 5. Test-First (TDD): Każdy krok logiki musi być poprzedzony stworzeniem testu jednostkowego, który potwierdza zgodność starego wyniku z nowym. Dopiero po przejściu (lub napisaniu) testu, możesz zaimplementować docelowy kod funkcji.
+
+## 📋 Changelog & Śledzenie Zmian API
+
+Sekcja dokumentuje istotne zmiany w interfejsach, modułach i funkcjach projektu.
+Celem jest zapewnienie pełnej transparentności — szczególnie gdy istniejąca funkcjonalność
+jest usuwana, zastępowana lub zmienia sygnaturę.
+
+### Konwencja wpisów
+
+- 🆕 `[NEW]` — nowa funkcja/moduł/endpoint
+- ♻️ `[CHANGED]` — zmiana sygnatury, zachowania lub nazwy
+- 🗑️ `[REMOVED]` — usunięta funkcja (z podaniem powodu i zamiennika)
+- 🐛 `[FIXED]` — poprawka błędu
+- ⚠️ `[DEPRECATED]` — oznaczone do usunięcia w przyszłej wersji
+
+### Historia zmian
+
+#### 2026-03-04 — Progress Tracking & Cancel w pipeline
+
+- `[NEW]` `POST /api/cancel-processing` — endpoint do natychmiastowego anulowania przetwarzania dokumentu
+- `[NEW]` `core/background_jobs.py: register_cancel_event`, `trigger_cancel` — registry wątków z `threading.Event`
+- `[CHANGED]` `core/background_jobs.py: process_and_save_document_bg` — dodano aktualizację `verification_status` po każdym etapie pipeline'u (`uploading`, `extracting_twin`, `generating_summary`, `matching_discounts`, `mapping_data`) + sprawdzanie flagi cancel przed kosztownymi wywołaniami LLM
+- `[CHANGED]` `core/extractor_v2.py: extract_vehicle_data_v2` — nowe opcjonalne parametry `on_progress` i `is_cancelled` (callbacks)
+- `[CHANGED]` `VehicleRowCard.tsx` — zamiana prostego spinnera na stepper z 5 etapami + przycisk "Anuluj"

@@ -11,6 +11,7 @@ from api.kalkulacje_routes import router as kalkulacje_router
 from api.budget_finder_routes import router as budget_finder_router
 from api.calculator_excel_data_routes import router as calculator_excel_data_router
 from api.extract_routes import router as extract_router
+from api.homologation_routes import router as homologation_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -22,6 +23,7 @@ app.include_router(extract_router, prefix="/api")
 app.include_router(kalkulacje_router, prefix="/api")
 app.include_router(budget_finder_router, prefix="/api")  # type: ignore
 app.include_router(calculator_excel_data_router, prefix="/api")
+app.include_router(homologation_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,6 +65,7 @@ class VehicleOptions(BaseModel):
     price_net: float
     price_gross: float
     no_discount: bool = False
+    include_in_wr: bool = False
 
 
 class CalculatorInput(BaseModel):
@@ -74,7 +77,14 @@ class CalculatorInput(BaseModel):
     discount_pct: float = Field(default=0.0, description="Rabat jako procent")
     factory_options: List[VehicleOptions] = Field(default_factory=list)
     service_options: List[VehicleOptions] = Field(default_factory=list)
-    grid: GridVariant = Field(default_factory=lambda: GridVariant())
+    # Parametry bazowe (Siatka Dynamiczna V3)
+    okres_bazowy: int = Field(
+        default=48, description="Domyślny/bazowy okres w miesiącach z Card Summary"
+    )
+    przebieg_bazowy: int = Field(
+        default=140000, description="Domyślny/bazowy przebieg z Card Summary"
+    )
+
     pricing_margin_pct: float = Field(
         default=0.0, description="Marża z poziomu UI (preset/suwak)"
     )
@@ -99,6 +109,14 @@ class CalculatorInput(BaseModel):
     # Podatki i Finanse (PMT)
     wibor_pct: float = Field(default=5.0, description="WIBOR %")
     margin_pct: float = Field(default=2.0, description="Marża Finansowa Leasingu %")
+    depreciation_pct: Optional[float] = Field(
+        default=None,
+        description="Procent amortyzacji przekazany z UI (nadpisuje dynamikę SAMAR)",
+    )
+    manual_wr_correction: float = Field(
+        default=0.0,
+        description="Ręczna korekta kwotowa (netto) Wartości Rezydualnej przekazywana z UI",
+    )
     initial_deposit_pct: float = Field(
         default=0.0, description="Oplata Wstępna (Czynsz Inicjalny) % z ceny auta"
     )
@@ -114,6 +132,20 @@ class CalculatorInput(BaseModel):
     add_grid_dismantling: bool = Field(default=False, description="Wymontowanie Kraty")
     add_registration: bool = Field(default=True, description="Rejestracja")
     add_sales_prep: bool = Field(default=True, description="Przygotowanie do sprzedaży")
+
+    # Nowe pola V1→V3
+    service_cost_type: str = Field(
+        default="ASO",
+        description="Rodzaj kosztów serwisowych: 'ASO' lub 'nonASO'",
+    )
+    vehicle_vintage: str = Field(
+        default="current",
+        description="Rocznik pojazdu: 'current' (bieżący) lub 'previous' (ubiegły)",
+    )
+    is_metalic: bool = Field(
+        default=False,
+        description="Czy lakier metalik/perłowy (wpływa na korektę WR)",
+    )
 
 
 from core.models import ControlCenterSettings  # noqa: E402
@@ -145,6 +177,7 @@ class EngineType(BaseModel):
     name: str
     category: str
     description: Optional[str] = None
+    fuel_group_id: int = 1
 
 
 class SamarClass(BaseModel):
@@ -162,6 +195,14 @@ class SamarServiceCost(BaseModel):
     power_band: str
     cost_aso_per_km: float
     cost_non_aso_per_km: float
+
+
+class BrandCorrection(BaseModel):
+    id: Optional[str] = None
+    klasa_samar: str
+    rodzaj_paliwa: str
+    marka: str
+    correction_percent: float
 
 
 @app.get("/api/control-center", tags=["Control Center"])
@@ -549,10 +590,55 @@ async def delete_service_base_cost(cost_id: int) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── Brand Corrections CRUD ──
+
+
+@app.get("/api/brand-corrections", tags=["Control Center"])
+async def get_brand_corrections_crud() -> List[BrandCorrection]:
+    try:
+        response = (
+            supabase.table("samar_brand_corrections")
+            .select("*")
+            .order("klasa_samar")
+            .order("marka")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [BrandCorrection(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/brand-corrections", tags=["Control Center"])
+async def upsert_brand_correction(item: BrandCorrection) -> BrandCorrection:
+    try:
+        data = item.model_dump(exclude_unset=True)
+        if not data.get("id"):
+            data.pop("id", None)
+        response = supabase.table("samar_brand_corrections").upsert(data).execute()
+        if not response.data:
+            raise HTTPException(
+                status_code=500, detail="Nie udało się zapisać korekty marki"
+            )
+        response_data = cast(Any, response.data[0])
+        return BrandCorrection(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/brand-corrections/{item_id}", tags=["Control Center"])
+async def delete_brand_correction(item_id: str) -> Dict[str, str]:
+    try:
+        supabase.table("samar_brand_corrections").delete().eq("id", item_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/calculate-matrix")
 async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
     try:
-        from core.engine import CalculationEngine
+        from core.LTRKalkulator import LTRKalkulator
 
         response = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not response.data:
@@ -562,11 +648,10 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
         response_data = cast(Any, response.data[0])
         settings = ControlCenterSettings(**response_data)
 
-        # Override frontend input with authoritative DB settings
-        data.wibor_pct = settings.default_wibor
-        data.margin_pct = settings.default_ltr_margin
+        # Allow frontend wibor and margin to take precedence if they are explicitly sent,
+        # otherwise they use the Pydantic defaults from CalculatorInput or UI values.
 
-        engine = CalculationEngine(input_data=data, settings=settings)
+        engine = LTRKalkulator(input_data=data, settings=settings)
         matrix_cells = engine.build_matrix()
         return {
             "status": "success",

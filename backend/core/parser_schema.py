@@ -31,7 +31,10 @@ class MappedOffer(BaseModel):
         description="Zmapowana Nazwa Klasy SAMAR (Wypełniana automatycznie na backendzie, nie przez LLM).",
     )
     fuel_type: str = Field(
-        description="Rodzaj paliwa wywnioskowany z opisu. Oczekiwane [Diesel, Benzyna, Elektryczny, PHEV, MHEV, Hybryda]"
+        description="Rodzaj paliwa wywnioskowany z opisu. Oczekiwane wartości ściśle z listy: "
+        "'Benzyna (PB)', 'Diesel (ON)', 'Benzyna mHEV (PB-mHEV)', "
+        "'Diesel mHEV (ON-mHEV)', 'Hybryda (HEV)', 'Hybryda Plug-in (PHEV)', "
+        "'Elektryczny (BEV)', 'Wodór (FCEV)', 'Autogaz (LPG)'"
     )
     color: Optional[str] = Field(
         None, description="Surowa nazwa lakieru / koloru nadwozia wyciągnięta z oferty."
@@ -64,4 +67,12 @@ class MappedOffer(BaseModel):
     )
     transmission: Optional[str] = Field(
         None, description="Rodzaj skrzyni biegów ('manualna' lub 'automatyczna')"
+    )
+    service_interval_km: Optional[int] = Field(
+        None,
+        description="Cykl przeglądowy, interwał serwisowy wyrażony w przebytych kilometrach (np. 30000). Ustala LLM na podstawie dokumentu lub wyszukiwania. None jeśli nieznany.",
+    )
+    service_interval_months: Optional[int] = Field(
+        None,
+        description="Cykl przeglądowy, interwał serwisowy wyrażony w miesiącach (np. 12 lub 24). Ustala LLM na podstawie dokumentu lub wyszukiwania. None jeśli nieznany.",
     )

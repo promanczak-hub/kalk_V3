@@ -102,6 +102,11 @@ Szukaj marki i modelu w listach przykładowych modeli. Zwróć SZCZEGÓLNĄ uwag
 Na przykład, ten sam wiodący model (jak 'VW Crafter' lub 'Ford Transit') może występować jako auto dostawcze ("S. DOSTAWCZE I CIĘŻAROWE..." lub "DOSTAWCZE") 
 w wariancie 'Furgon' / ciężarowym, albo jako auto osobowe/bus ("MINIBUS I MINIBUS" lub "VANY...") w wariancie 'Osobowy' / 'Tourneo'.
 Zawsze wybieraj najbardziej adekwatną klasę biorąc pod uwagę czy to osobówka, czy auto użytkowe/cargo.
+
+KRYTYCZNE REGUŁY ROZRÓŻNIANIA (bezwzględnie przestrzegaj):
+1. Jeśli typ nadwozia (body_style) to 'Furgon', 'Panel Van', 'Van dostawczy', 'Dostawczy', 'Cargo', 'Skrzyniowy', 'Podwozie' lub 'Chłodnia' — NIGDY nie klasyfikuj jako MINIBUS. Użyj odpowiedniej klasy dostawczej: 'S. DOSTAWCZE I CIĘŻAROWE CIĘŻKIE DOSTAWCZE', 'S. DOSTAWCZE I CIĘŻAROWE ŚREDNIE DOSTAWCZE' lub 'S. DOSTAWCZE I CIĘŻAROWE KOMBI VAN'.
+2. Klasa MINIBUS I MINIBUS jest WYŁĄCZNIE dla wariantów osobowych (przeszklonych, z siedzeniami pasażerskimi), np. 'Tourneo', 'Kombi', 'Bus', 'Osobowy', 'Caravelle', 'Multivan'.
+3. Jeśli wersja/trim zawiera słowa 'L1H1', 'L2H2', 'L3H2', 'L4H3' itp. (oznaczenia rozstawów/wysokości furgonów) — to ZAWSZE jest furgon dostawczy, nie minibus.
 """
 
     try:

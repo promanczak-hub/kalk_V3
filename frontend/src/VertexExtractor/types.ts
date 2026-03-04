@@ -39,6 +39,9 @@ export interface FleetVehicleView {
   notes: string | null;
   standard_equipment: string[] | null;
   paid_options: { name: string; price: string; category?: string }[] | null;
+  // Service interval
+  service_interval_km: number | null;
+  service_interval_months: number | null;
 
   // Brochure fields
   model_description?: string | null;
@@ -55,4 +58,27 @@ export interface FleetVehicleView {
     matching_reason?: string;
   } | null;
   created_at: string;
+}
+
+export interface ModificationEffect {
+  override_samar_class?: string | null;
+  override_homologation?: string | null;
+  adds_weight_kg?: number | null;
+  is_financial_only?: boolean;
+}
+
+export interface ServiceOptionPayload {
+  name: string;
+  category: string;
+  price_net?: number | null;
+  effects?: ModificationEffect | null;
+}
+
+export interface HomologationResponse {
+  new_samar_category: string | null;
+  new_vehicle_type: string | null;
+  payload_loss_kg: number;
+  dynamic_payload_kg: number | null;
+  homologation_alerts: string[];
+  samar_override_applied: boolean;
 }

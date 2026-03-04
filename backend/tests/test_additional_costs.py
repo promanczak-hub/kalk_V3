@@ -1,7 +1,12 @@
+import os
+import sys
+
+# Dodajemy PYTHONPATH aby pytest widzial 'core':
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pytest
-from core.additional_costs import AdditionalCostsCalculator
+from core.LTRSubCalculatorKosztyDodatkowe import AdditionalCostsCalculator
 from core.models import ControlCenterSettings
-from core.engine_v3 import CalculatorInputV3
 
 
 @pytest.fixture
@@ -34,19 +39,24 @@ def mock_settings() -> ControlCenterSettings:
         cost_grid_dismantling=0.0,
         cost_registration=233.5,
         cost_sales_prep=800.0,
+        ins_nnw_annual_rate=150.0,
+        ins_ass_annual_rate=200.0,
+        ins_green_card_annual_rate=50.0,
     )
 
 
 def test_additional_costs_all_flags_on(mock_settings: ControlCenterSettings):
-    input_data = CalculatorInputV3(
+    from main import CalculatorInput
+
+    input_data = CalculatorInput(
         vehicle_id="test",
         base_price_net=100000,
         discount_pct=10,
-        selected_options=[],
         wibor_pct=5.8,
         margin_pct=2.0,
-        upfront_pct=10.0,
-        replacement_car=False,
+        pricing_margin_pct=2.0,
+        initial_deposit_pct=10.0,
+        replacement_car_enabled=False,
         z_oponami=False,
         add_gsm_subscription=True,
         add_hook_installation=True,
@@ -71,15 +81,17 @@ def test_additional_costs_all_flags_on(mock_settings: ControlCenterSettings):
 
 
 def test_additional_costs_all_flags_off(mock_settings: ControlCenterSettings):
-    input_data = CalculatorInputV3(
+    from main import CalculatorInput
+
+    input_data = CalculatorInput(
         vehicle_id="test",
         base_price_net=100000,
         discount_pct=10,
-        selected_options=[],
         wibor_pct=5.8,
         margin_pct=2.0,
-        upfront_pct=10.0,
-        replacement_car=False,
+        pricing_margin_pct=2.0,
+        initial_deposit_pct=10.0,
+        replacement_car_enabled=False,
         z_oponami=False,
         add_gsm_subscription=False,
         add_hook_installation=False,

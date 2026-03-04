@@ -6,7 +6,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.service import ServiceCalculator, ServiceCalculatorInput
+from core.LTRSubCalculatorSerwisNew import ServiceCalculator, ServiceCalculatorInput
 
 
 class TestServiceCalculator(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestServiceCalculator(unittest.TestCase):
         result = calc.calculate()
         self.assertEqual(result, 120.0)
 
-    @patch("core.service.ServiceCalculator._fetch_rate_from_db")
+    @patch("core.LTRSubCalculatorSerwisNew.ServiceCalculator._fetch_rate_from_db")
     def test_standard_mileage_aso(self, mock_fetch):
         # We simulate the _fetch_rate_from_db setting _rate_per_km
         def side_effect():
@@ -60,7 +60,7 @@ class TestServiceCalculator(unittest.TestCase):
         # Checking floating point proximity
         self.assertAlmostEqual(result, 6000 / 36, places=2)
 
-    @patch("core.service.ServiceCalculator._fetch_rate_from_db")
+    @patch("core.LTRSubCalculatorSerwisNew.ServiceCalculator._fetch_rate_from_db")
     def test_standard_mileage_non_aso(self, mock_fetch):
         self.default_input.opcja_serwisowa = "NON-ASO"
 

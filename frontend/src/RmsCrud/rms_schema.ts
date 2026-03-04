@@ -868,5 +868,51 @@ export const RMSTablesSchema = {
       "name": "col_9",
       "type": "string"
     }
+  ],
+  "ubezpieczenie_wspolczynniki_szkodowe": [
+    {
+      "name": "klasa_samar",
+      "type": "string"
+    },
+    {
+      "name": "wspolczynnik_szkodowy",
+      "type": "number"
+    }
+  ],
+  "v1_admin_parametry": [
+    {
+      "name": "id",
+      "type": "number"
+    },
+    {
+      "name": "nazwa",
+      "type": "string"
+    },
+    {
+      "name": "wartosc",
+      "type": "number"
+    }
+  ],
+  "v1_admin_ubezpieczenie": [
+    {
+      "name": "id",
+      "type": "number"
+    },
+    {
+      "name": "kolejny_rok",
+      "type": "number"
+    },
+    {
+      "name": "stawka_bazowa_ac",
+      "type": "number"
+    },
+    {
+      "name": "skladka_oc_wartosc",
+      "type": "number"
+    },
+    {
+      "name": "klasa_samar",
+      "type": "string"
+    }
   ]
 };

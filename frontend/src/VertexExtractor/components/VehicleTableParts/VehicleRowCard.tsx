@@ -1,0 +1,974 @@
+import { useState, useEffect, useMemo } from "react";
+import { Database, ExternalLink, Loader2, Wand2, X } from "lucide-react";
+import { cn } from "../ui/DocumentCard";
+import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
+import { parsePriceToNumber } from "./PriceDualFormat";
+import { VehicleBaseInfo } from "./VehicleBaseInfo";
+import type { MappedData } from "./VehicleBaseInfo";
+import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
+// VehicleServiceIntervals removed — service cost uses normatywny_przebieg_mc floor
+import { PDFViewerFrame } from "./PDFViewerFrame";
+import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
+import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
+
+interface VehicleRowCardProps {
+  vehicle: FleetVehicleView;
+  handleOpenSavedJson: (id: string, titleName: string) => void;
+  onRefresh: () => void;
+}
+
+export function VehicleRowCard({
+  vehicle,
+  handleOpenSavedJson,
+  onRefresh,
+}: VehicleRowCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [overridePrompt, setOverridePrompt] = useState("");
+  const [isOverriding, setIsOverriding] = useState(false);
+
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [brochureData, setBrochureData] = useState<any | null>(null);
+  const [brochureImages, setBrochureImages] = useState<string[]>([]);
+  const [isGeneratingBrochure, setIsGeneratingBrochure] = useState(false);
+
+
+
+
+  // Financial parameters (defaults from control_center)
+  const [wiborPct, setWiborPct] = useState<number>(5.85);
+  const [marginPct, setMarginPct] = useState<number>(2.0);
+  const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
+  const [depreciationPct, setDepreciationPct] = useState<number>(0.91);
+  const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
+  const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
+
+  // Toggles
+  const [expressPaysInsurance, setExpressPaysInsurance] = useState(true);
+  const [replacementCar, setReplacementCar] = useState(true);
+  const [gpsRequired, setGpsRequired] = useState(true);
+  const [includeServicing, setIncludeServicing] = useState(true);
+  const [hookInstallation, setHookInstallation] = useState(false);
+
+  // Tire parameters
+  const [tireClass, setTireClass] = useState<string>("Medium");
+  const [tireCountMode, setTireCountMode] = useState<string>("auto");
+  const [tireCostCorrectionEnabled, setTireCostCorrectionEnabled] = useState(true);
+  const [tireCostCorrection, setTireCostCorrection] = useState<number>(0);
+
+  // Service cost type (ASO / nonASO)
+  const [serviceCostType, setServiceCostType] = useState<"ASO" | "nonASO">("ASO");
+
+  // Vehicle vintage (bieżący / ubiegły rocznik)
+  const [vehicleVintage, setVehicleVintage] = useState<"current" | "previous">("current");
+
+  // Metalik auto-detection from exterior_color
+  const autoDetectMetalic = (): boolean => {
+    const color = (vehicle.exterior_color || "").toLowerCase();
+    const keywords = ["metalic", "metalik", "metallic", "perłowy", "pearl", "mica", "xirallic", "special"];
+    return keywords.some(kw => color.includes(kw));
+  };
+  const [isMetalic, setIsMetalic] = useState<boolean>(autoDetectMetalic());
+
+  // Fetch control_center defaults
+  useEffect(() => {
+    const fetchDefaults = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const resp = await fetch(`${baseUrl}/api/control-center`);
+        if (resp.ok) {
+          const settings = await resp.json();
+          if (settings.default_wibor) setWiborPct(settings.default_wibor);
+          if (settings.bank_spread) setMarginPct(settings.bank_spread);
+          if (settings.default_ltr_margin) setPricingMarginPct(settings.default_ltr_margin);
+          if (settings.default_depreciation_pct) setDepreciationPct(settings.default_depreciation_pct * 100);
+        }
+      } catch (e) {
+        console.error("Failed to fetch control_center defaults", e);
+      }
+    };
+    fetchDefaults();
+  }, []);
+
+
+
+
+
+  // Local state for CRUD operations on Service Options
+  const initialServiceOptions = useMemo(() => {
+    return vehicle.paid_options?.filter(
+      (o) => o.category && !o.category.includes("Fabryczna")
+    ).map(o => ({
+       id: crypto.randomUUID(),
+       name: o.name,
+       price_net: o.price ? parsePriceToNumber(o.price) : 0,
+       category: o.category || "Opcja Serwisowa",
+       // @ts-ignore
+       include_in_wr: o.include_in_wr || false
+    })) || [];
+  }, [vehicle.paid_options]);
+
+  const initialFactoryOptions = useMemo(() => {
+    const opts = vehicle.paid_options?.filter(
+      (o) => o.category?.includes("Fabryczna") || !o.category
+    ).map(o => ({
+       id: crypto.randomUUID(),
+       name: o.name,
+       price_net: o.price ? parsePriceToNumber(o.price) : 0,
+       category: o.category || "Fabryczna"
+    })) || [];
+
+    if (vehicle.exterior_color && vehicle.exterior_color !== "Brak") {
+      const isAlreadyAdded = opts.some(
+        (opt) =>
+          opt.name.toLowerCase().includes("lakier") ||
+          vehicle.exterior_color!.toLowerCase().includes(opt.name.toLowerCase())
+      );
+      if (!isAlreadyAdded) {
+        let name = `Lakier: ${vehicle.exterior_color}`;
+        let priceNet = 0;
+        const match =
+          vehicle.exterior_color.match(
+            /\((?:dopłata\s*)?([\d\s,.]+\s*(?:PLN|zł|pln|ZŁ).*?)\)/i,
+          ) ||
+          vehicle.exterior_color.match(/-\s*([\d\s,.]+\s*(?:PLN|zł|pln|ZŁ).*?)/i) ||
+          vehicle.exterior_color.match(/(\d[\d\s]*\s*(?:PLN|zł|pln|ZŁ))/i);
+
+        if (match) {
+          const priceStr = match[1] || match[0];
+          priceNet = parsePriceToNumber(priceStr);
+          name = `Lakier: ${vehicle.exterior_color
+            .replace(match[0], "")
+            .replace(/\(\s*\)/, "")
+            .trim()}`;
+        }
+        opts.unshift({ id: crypto.randomUUID(), name, price_net: priceNet, category: "Fabryczna" });
+      }
+    }
+    return opts;
+  }, [vehicle.paid_options, vehicle.exterior_color]);
+
+   const [customServiceOptions, setCustomServiceOptions] = useState<{id: string, name: string, price_net: number, category: string, effects?: ModificationEffect, include_in_wr?: boolean}[]>([]);
+   const [customFactoryOptions, setCustomFactoryOptions] = useState<{id: string, name: string, price_net: number, category: string, effects?: ModificationEffect}[]>([]);
+  
+  // Set initial state only once or when vehicle completely changes
+  useEffect(() => {
+     setCustomServiceOptions(initialServiceOptions);
+     setCustomFactoryOptions(initialFactoryOptions);
+  }, [initialServiceOptions, initialFactoryOptions]);
+
+  const handleUpdateServiceOptionName = (id: string, newName: string) => {
+    setCustomServiceOptions(prev => prev.map(opt => opt.id === id ? { ...opt, name: newName } : opt));
+  };
+
+  const handleUpdateServiceOptionPrice = (id: string, newPrice: number) => {
+    setCustomServiceOptions(prev => prev.map(opt => opt.id === id ? { ...opt, price_net: newPrice } : opt));
+  };
+
+  const handleUpdateServiceOptionIncludeInWr = (id: string, include: boolean) => {
+    setCustomServiceOptions(prev => prev.map(opt => opt.id === id ? { ...opt, include_in_wr: include } : opt));
+  };
+
+  const handleRemoveServiceOption = (id: string) => {
+     setCustomServiceOptions(prev => prev.filter(opt => opt.id !== id));
+  };
+
+  const handleAddManualServiceOption = () => {
+     setCustomServiceOptions(prev => [
+       ...prev, 
+       { id: crypto.randomUUID(), name: "Nowa Usługa", price_net: 0, category: "Opcja Serwisowa", include_in_wr: false }
+     ]);
+  };
+
+  const handleUpdateFactoryOptionName = (id: string, newName: string) => {
+    setCustomFactoryOptions(prev => prev.map(opt => opt.id === id ? { ...opt, name: newName } : opt));
+  };
+
+  const handleUpdateFactoryOptionPrice = (id: string, newPrice: number) => {
+    setCustomFactoryOptions(prev => prev.map(opt => opt.id === id ? { ...opt, price_net: newPrice } : opt));
+  };
+
+  const handleRemoveFactoryOption = (id: string) => {
+     setCustomFactoryOptions(prev => prev.filter(opt => opt.id !== id));
+  };
+
+  const handleAddManualFactoryOption = () => {
+     setCustomFactoryOptions(prev => [
+       ...prev, 
+       { id: crypto.randomUUID(), name: "Nowa Opcja Fabryczna", price_net: 0, category: "Fabryczna" }
+     ]);
+  };
+
+  const handleRestoreAllOptions = () => {
+    if (window.confirm("Czy na pewno chcesz przywrócić oryginalne usługi serwisowe i opcje fabryczne wyekstrahowane z dokumentu bazy? Bieżące niezapisane modyfikacje zostaną utracone.")) {
+       setCustomServiceOptions(initialServiceOptions);
+       setCustomFactoryOptions(initialFactoryOptions);
+    }
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [homologationResult, setHomologationResult] = useState<HomologationResponse | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const verifyHomologation = async () => {
+      try {
+        const mappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
+        // Default base payload if missing (for now using 1000kg as fallback or extracting from real schema later)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const basePayload = (vehicle.synthesis_data as any)?.card_summary?.technical_details?.payload_capacity_kg || 1500;
+        
+        const payload = {
+          vehicle_id: vehicle.id,
+          base_samar_category: mappedData?.samar_category,
+          base_vehicle_type: mappedData?.vehicle_type,
+          base_payload_kg: basePayload,
+          service_options: customServiceOptions.map(opt => ({
+             name: opt.name,
+             category: opt.category,
+             price_net: opt.price_net,
+             effects: opt.effects
+          }))
+        };
+
+        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const res = await fetch(`${baseUrl}/api/homologation/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted) {
+          setHomologationResult(data);
+        }
+      } catch {
+        // silently fail verification
+      }
+    };
+
+    const timeout = setTimeout(verifyHomologation, 600);
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
+  }, [customServiceOptions, vehicle.id, vehicle.synthesis_data]);
+
+  const [isSavingServices, setIsSavingServices] = useState(false);
+
+  const handleSaveAllOptions = async () => {
+    setIsSavingServices(true);
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+      
+      if (!updatedJson.card_summary) updatedJson.card_summary = {};
+      
+      updatedJson.card_summary.paid_options = [
+        ...customFactoryOptions.map(opt => ({
+           name: opt.name,
+           category: opt.category,
+           price: String(opt.price_net) + " PLN netto",
+           price_net: opt.price_net
+        })),
+        ...customServiceOptions.map(opt => ({
+           name: opt.name,
+           category: opt.category,
+           price: String(opt.price_net) + " PLN netto",
+           price_net: opt.price_net,
+           include_in_wr: opt.include_in_wr || false
+        }))
+      ];
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+      onRefresh();
+    } catch (err) {
+      console.error("Error saving options", err);
+      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    } finally {
+      setIsSavingServices(false);
+    }
+  };
+
+  const [localMappedData, setLocalMappedData] = useState<MappedData | null>(null);
+  const [isMapping, setIsMapping] = useState(false);
+
+  const serverMappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
+  const mappedData = localMappedData || serverMappedData;
+
+  const handleMapDataSilent = async () => {
+    if (!vehicle.synthesis_data) return;
+    setIsMapping(true);
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${baseUrl}/api/extract/map-vehicle-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          original_json: vehicle.synthesis_data,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Błąd podczas wywołania API mapowania danych.");
+      }
+
+      const data = await res.json();
+      setLocalMappedData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsMapping(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isExpanded && vehicle.synthesis_data && !mappedData && !isMapping) {
+      handleMapDataSilent();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, mappedData, vehicle.synthesis_data]);
+
+  // ── Processing stages for progress stepper ──
+  const PROCESSING_STAGES = [
+    { key: "uploading", label: "Upload pliku do chmury" },
+    { key: "detecting_vehicles", label: "Wykrywanie pojazdów w dokumencie" },
+    { key: "extracting_twin", label: "Bliźniak cyfrowy (Gemini Pro)" },
+    { key: "generating_summary", label: "Generowanie podsumowania" },
+    { key: "matching_discounts", label: "Dopasowywanie rabatów" },
+    { key: "mapping_data", label: "Mapowanie danych AI" },
+  ];
+
+  // Match multi-vehicle dynamic statuses like "extracting_twin_2_of_5"
+  const rawStatus = vehicle.verification_status || "";
+  const isMultiTwinStatus = rawStatus.startsWith("extracting_twin_");
+  const normalizedStatus = isMultiTwinStatus ? "extracting_twin" : rawStatus;
+
+  const processingStatuses = new Set([
+    "processing", "uploading", "detecting_vehicles", "extracting_twin",
+    "generating_summary", "matching_discounts", "mapping_data",
+  ]);
+
+  const renderOptionName = (name: string) => {
+    if (processingStatuses.has(vehicle.verification_status || "")) return <>{name}</>;
+    
+    const modKeyword = " (modyfikacja użytkownika)";
+    if (name.includes(modKeyword)) {
+      return (
+        <span className="inline-flex items-center flex-wrap gap-1.5">
+          <span>{name.replace(modKeyword, "")}</span>
+          <span className="inline-flex items-center rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+            <Wand2 className="w-2.5 h-2.5 mr-1" />
+            Modyfikacja użytkownika
+          </span>
+        </span>
+      );
+    }
+    return <>{name}</>;
+  };
+
+  const handleManualOverride = async () => {
+    if (!overridePrompt.trim()) return;
+    setIsOverriding(true);
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${baseUrl}/api/extract/manual-override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          original_json: vehicle.synthesis_data,
+          user_prompt: overridePrompt,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Błąd z odpowiedzi serwera.");
+      }
+
+      const updatedJson = await res.json();
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setIsOverrideModalOpen(false);
+      setOverridePrompt("");
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      alert("Błąd podczas modyfikacji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    } finally {
+      setIsOverriding(false);
+    }
+  };
+
+  const handleServiceOptionExtracted = async (extractedOption: ExtractedServiceOption) => {
+    try {
+      const newOption = {
+        id: crypto.randomUUID(),
+        name: extractedOption.name,
+        category: "Opcja Serwisowa",
+        price_net: extractedOption.net_price,
+        effects: extractedOption.effects || undefined
+      };
+
+      setCustomServiceOptions(prev => [...prev, newOption]);
+
+      if (extractedOption.effects) {
+        const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+        const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+        if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+        if (extractedOption.effects.override_samar_class) {
+           updatedJson.mapped_ai_data.samar_category = extractedOption.effects.override_samar_class;
+        }
+        if (extractedOption.effects.override_homologation) {
+           updatedJson.mapped_ai_data.vehicle_type = extractedOption.effects.override_homologation;
+        }
+      }
+
+      if (extractedOption.effects && (extractedOption.effects.override_samar_class || extractedOption.effects.override_homologation)) {
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+        const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+        if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+        if (extractedOption.effects.override_samar_class) {
+           updatedJson.mapped_ai_data.samar_category = extractedOption.effects.override_samar_class;
+        }
+        if (extractedOption.effects.override_homologation) {
+           updatedJson.mapped_ai_data.vehicle_type = extractedOption.effects.override_homologation;
+        }
+
+        const { error } = await supabase
+          .from("vehicle_synthesis")
+          .update({ synthesis_data: updatedJson })
+          .eq("id", vehicle.id);
+
+        if (error) throw error;
+        onRefresh();
+      }
+    } catch (err) {
+      console.error("Error saving extracted service option", err);
+      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
+  const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">("offer");
+  const [customDiscountPctRaw, setCustomDiscountPctRaw] = useState<string | number>("");
+
+  const customDiscountPct = Number(customDiscountPctRaw) || 0;
+
+  const basePrice = parsePriceToNumber(vehicle.base_price);
+  const optionsPrice = parsePriceToNumber(vehicle.options_price);
+  const totalCatalogPrice = basePrice + optionsPrice;
+
+  const offerFinalPrice = parsePriceToNumber(vehicle.final_price_pln);
+  const hasOfferFinalPrice = Boolean(
+    vehicle.final_price_pln &&
+    vehicle.final_price_pln !== "Brak" &&
+    vehicle.final_price_pln !== vehicle.base_price
+  );
+  const isDealerOffer = Boolean(
+    hasOfferFinalPrice && offerFinalPrice > 0 && offerFinalPrice < totalCatalogPrice - 1.0
+  );
+  
+  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
+  const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
+
+  const offerDiscountPercentage = parsedOfferDiscountPct
+    ? Number(parsedOfferDiscountPct)
+    : isDealerOffer && totalCatalogPrice > 0
+      ? Number((((totalCatalogPrice - offerFinalPrice) / totalCatalogPrice) * 100).toFixed(1))
+      : 0;
+
+  const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
+
+  let activeDiscountPct = 0;
+  let activeFinalPrice = totalCatalogPrice;
+
+  if (discountMode === "offer" && isDealerOffer) {
+    activeDiscountPct = offerDiscountPercentage;
+    activeFinalPrice = offerFinalPrice;
+  } else if (discountMode === "suggested") {
+    activeDiscountPct = suggestedDiscountPct;
+    activeFinalPrice = totalCatalogPrice * (1 - suggestedDiscountPct / 100);
+  } else if (discountMode === "custom") {
+    activeDiscountPct = customDiscountPct;
+    activeFinalPrice = totalCatalogPrice * (1 - customDiscountPct / 100);
+  }
+
+  const formatCalculatedPrice = (val: number) => {
+      if (val === 0) return "Brak";
+      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      return `${val.toFixed(2)} PLN ${isNetto ? 'netto' : 'brutto'}`;
+  };
+
+  const factoryOptionsPriceTotal = customFactoryOptions.reduce((acc, curr) => acc + curr.price_net, 0);
+  const customServiceOptionsPriceTotal = customServiceOptions.reduce((acc, curr) => acc + curr.price_net, 0);
+
+  const dynamicTotalOptionsPrice = factoryOptionsPriceTotal + customServiceOptionsPriceTotal;
+
+  const hasFactoryOptions = customFactoryOptions.length > 0;
+
+  const isProcessing = processingStatuses.has(normalizedStatus);
+
+  // Cancelled vehicles should not render at all (cancel = delete)
+  if (vehicle.verification_status === "cancelled") {
+    return null;
+  }
+
+  if (isProcessing) {
+    const currentStageIndex = PROCESSING_STAGES.findIndex(
+      (s) => s.key === normalizedStatus
+    );
+    // "processing" (legacy) maps to step 0
+    const activeIndex = normalizedStatus === "processing" ? 0 : currentStageIndex;
+
+    const handleCancel = async () => {
+      if (!window.confirm("Czy na pewno chcesz anulować przetwarzanie tego dokumentu?")) return;
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const res = await fetch(`${baseUrl}/api/cancel-processing`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vehicle_id: vehicle.id }),
+        });
+        if (!res.ok) throw new Error("Cancel failed");
+        // Cancel = delete — remove the vehicle after stopping processing
+        window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
+      } catch (err) {
+        console.error("Cancel error:", err);
+        alert("Nie udało się anulować przetwarzania.");
+      }
+    };
+
+    return (
+      <div className={cn(
+        "bg-white rounded-xl border shadow-sm p-5 transition-all",
+        "border-blue-200"
+      )}>
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">
+                Przetwarzanie dokumentu...
+              </h3>
+              <p className="text-xs text-slate-500">
+                Bliźniak cyfrowy w fazie tworzenia
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleCancel}
+            className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-100 hover:border-red-200"
+            title="Anuluj przetwarzanie"
+          >
+            <X className="w-3.5 h-3.5" />
+            Anuluj
+          </button>
+        </div>
+
+        {/* Progress stepper */}
+        <div className="space-y-1.5 ml-2">
+          {PROCESSING_STAGES.map((stage, idx) => {
+            let icon: React.ReactNode;
+            let textClass: string;
+
+            if (idx < activeIndex) {
+              // Completed
+              icon = <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg></div>;
+              textClass = "text-emerald-700 font-medium";
+            } else if (idx === activeIndex) {
+              // Active
+              icon = (
+                <div className="w-4 h-4 relative flex items-center justify-center">
+                  <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+                </div>
+              );
+              textClass = "text-blue-700 font-semibold";
+            } else {
+              // Future
+              icon = <div className="w-4 h-4 rounded-full border-2 border-slate-200" />;
+              textClass = "text-slate-400";
+            }
+
+            return (
+              <div key={stage.key} className="flex items-center gap-2.5 py-0.5">
+                {icon}
+                <span className={cn("text-xs transition-colors", textClass)}>
+                  {stage.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "bg-white rounded-xl border transition-all duration-200 shadow-sm overflow-hidden group hover:shadow-md",
+        isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-200"
+      )}
+    >
+      <VehicleBaseInfo 
+        vehicle={vehicle}
+        mappedData={mappedData}
+        isExpanded={isExpanded}
+        onToggleExpand={() => setIsExpanded(!isExpanded)}
+        activeFinalPrice={activeFinalPrice}
+        totalCatalogPrice={totalCatalogPrice}
+        formatCalculatedPrice={formatCalculatedPrice}
+      />
+
+      {isExpanded && (
+        <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
+          <VehicleFinancialOptions 
+             vehicle={vehicle}
+             totalCatalogPrice={totalCatalogPrice}
+             activeFinalPrice={activeFinalPrice}
+             dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
+             discountMode={discountMode}
+             setDiscountMode={setDiscountMode}
+             customDiscountPctRaw={customDiscountPctRaw}
+             setCustomDiscountPctRaw={setCustomDiscountPctRaw}
+             isDealerOffer={isDealerOffer}
+             offerDiscountPercentage={offerDiscountPercentage}
+             suggestedDiscountPct={suggestedDiscountPct}
+             activeDiscountPct={activeDiscountPct}
+             formatCalculatedPrice={formatCalculatedPrice}
+             customFactoryOptions={customFactoryOptions}
+             handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
+             handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
+             handleRemoveFactoryOption={handleRemoveFactoryOption}
+             handleAddManualFactoryOption={handleAddManualFactoryOption}
+             hasFactoryOptions={hasFactoryOptions}
+             renderOptionName={renderOptionName}
+             customServiceOptions={customServiceOptions}
+             handleUpdateServiceOptionName={handleUpdateServiceOptionName}
+             handleUpdateServiceOptionPrice={handleUpdateServiceOptionPrice}
+             handleUpdateServiceOptionIncludeInWr={handleUpdateServiceOptionIncludeInWr}
+             handleRemoveServiceOption={handleRemoveServiceOption}
+             handleAddManualServiceOption={handleAddManualServiceOption}
+             handleRestoreAllOptions={handleRestoreAllOptions}
+             handleSaveAllOptions={handleSaveAllOptions}
+             isSavingServices={isSavingServices}
+             handleServiceOptionExtracted={handleServiceOptionExtracted}
+             // Financial parameters
+             wiborPct={wiborPct}
+             setWiborPct={setWiborPct}
+             marginPct={marginPct}
+             setMarginPct={setMarginPct}
+             pricingMarginPct={pricingMarginPct}
+             setPricingMarginPct={setPricingMarginPct}
+             depreciationPct={depreciationPct}
+             initialDepositPct={initialDepositPct}
+             setInitialDepositPct={setInitialDepositPct}
+             otherServiceCosts={otherServiceCosts}
+             setOtherServiceCosts={setOtherServiceCosts}
+             // Toggles
+             expressPaysInsurance={expressPaysInsurance}
+             setExpressPaysInsurance={setExpressPaysInsurance}
+             replacementCar={replacementCar}
+             setReplacementCar={setReplacementCar}
+             gpsRequired={gpsRequired}
+             setGpsRequired={setGpsRequired}
+             includeServicing={includeServicing}
+             setIncludeServicing={setIncludeServicing}
+             hookInstallation={hookInstallation}
+             setHookInstallation={setHookInstallation}
+             // Tire parameters
+             tireClass={tireClass}
+             setTireClass={setTireClass}
+             tireCountMode={tireCountMode}
+             setTireCountMode={setTireCountMode}
+             tireCostCorrectionEnabled={tireCostCorrectionEnabled}
+             setTireCostCorrectionEnabled={setTireCostCorrectionEnabled}
+             tireCostCorrection={tireCostCorrection}
+             setTireCostCorrection={setTireCostCorrection}
+             // Service cost type
+             serviceCostType={serviceCostType}
+             setServiceCostType={setServiceCostType}
+             // Vehicle vintage & metalic
+             vehicleVintage={vehicleVintage}
+             setVehicleVintage={setVehicleVintage}
+             isMetalic={isMetalic}
+             setIsMetalic={setIsMetalic}
+             isMetalicAutoDetected={autoDetectMetalic()}
+             // Price context for czynsz inicjalny calculations
+             activeFinalPriceForDeposit={activeFinalPrice}
+          />
+
+
+
+          <div className="mt-6 flex flex-col items-end gap-3 pt-4 border-t border-slate-200">
+             <div className="flex justify-end items-center gap-3">
+               <button
+                 onClick={async (e) => {
+                   e.stopPropagation();
+                   try {
+                     const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+                     const resp = await fetch(`${baseUrl}/api/kalkulacje`, {
+                       method: "POST",
+                       headers: { "Content-Type": "application/json" },
+                       body: JSON.stringify({ 
+                          stan_json: {
+                            ...(vehicle.synthesis_data || {}),
+                            financial_params: {
+                              wibor_pct: wiborPct,
+                              margin_pct: marginPct,
+                              pricing_margin_pct: pricingMarginPct,
+                              depreciation_pct: depreciationPct,
+                              initial_deposit_pct: initialDepositPct,
+                              other_service_costs: otherServiceCosts,
+                            },
+                            toggles: {
+                              express_pays_insurance: expressPaysInsurance,
+                              replacement_car: replacementCar,
+                              gps_required: gpsRequired,
+                              include_servicing: includeServicing,
+                              hook_installation: hookInstallation,
+                            },
+                            tire_params: {
+                              tire_class: tireClass,
+                              tire_count_mode: tireCountMode,
+                              tire_cost_correction_enabled: tireCostCorrectionEnabled,
+                              tire_cost_correction: tireCostCorrection,
+                            },
+                            service_cost_type: serviceCostType,
+                            vehicle_vintage: vehicleVintage,
+                            is_metalic: isMetalic,
+                            discount: {
+                              active_discount_pct: activeDiscountPct,
+                              active_final_price: activeFinalPrice,
+                            },
+                          }
+                        }),
+                     });
+                     if (!resp.ok) throw new Error("Błąd przy tworzeniu kalkulacji");
+                     const data = await resp.json();
+                     const numerKalkulacji = data.numer_kalkulacji || `ID: ${data.id}`;
+
+                     const params = new URLSearchParams();
+                     params.set('id', data.id);
+                     params.set('kalkulacja', numerKalkulacji);
+                     params.set('aktywnyRabatProcent', activeDiscountPct.toString());
+                     params.set('aktywnaCenaKoncowa', activeFinalPrice.toString());
+
+                     window.dispatchEvent(
+                       new CustomEvent('switchTab', {
+                         detail: { tabIndex: 2, urlParams: params },
+                       })
+                     );
+                   } catch (err) {
+                     console.error("Błąd tworzenia kalkulacji:", err);
+                     alert("Nie udało się utworzyć kalkulacji. Sprawdź logi serwera.");
+                   }
+                 }}
+                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all shadow-sm"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                 Zrób kalkulację
+               </button>
+
+               <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   setIsOverrideModalOpen(!isOverrideModalOpen);
+                 }}
+                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-200 hover:shadow-sm transition-all shadow-sm"
+               >
+                 <Wand2 className="w-3.5 h-3.5 mr-2" />
+                 Modyfikacja manualna
+               </button>
+
+                 <button
+                   onClick={async (e) => {
+                     e.stopPropagation();
+                     // Jeśli mamy już pobrane dane z tego cyklu, od razu otwieramy 
+                     if (brochureData) {
+                       setIsBrochureModalOpen(true);
+                       return;
+                     }
+                     // Jeśli nie - ładujemy do skutku i blokujemy przycisk
+                     setIsGeneratingBrochure(true);
+                     try {
+                        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+                        const rawText = JSON.stringify(vehicle.synthesis_data || {});
+                        
+                        const brochurePromise = fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ raw_text: rawText }),
+                        }).then(r => {
+                            if (!r.ok) throw new Error("Brochure extraction failed");
+                            return r.json();
+                        });
+
+                        const isPdfUrl = vehicle.raw_pdf_url && /\.pdf$/i.test(vehicle.raw_pdf_url);
+                        const imagesPromise = isPdfUrl
+                            ? fetch(`${baseUrl}/api/parse-offer/extract-images`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ pdf_url: vehicle.raw_pdf_url }),
+                              }).then(r => {
+                                  if (!r.ok) throw new Error("Image extraction failed");
+                                  return r.json();
+                              })
+                            : Promise.resolve({ images: [] });
+                
+                        const [brochureResult, imagesResult] = await Promise.allSettled([brochurePromise, imagesPromise]);
+
+                        if (brochureResult.status === 'fulfilled') {
+                            setBrochureData(brochureResult.value);
+                        } else {
+                            throw new Error("Nie udało się wygenerować broszury z AI.");
+                        }
+
+                        if (imagesResult.status === 'fulfilled') {
+                            setBrochureImages(imagesResult.value.images || []);
+                        }
+
+                        setIsBrochureModalOpen(true);
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : "Wystąpił nieznany błąd podczas ładowania broszury");
+                      } finally {
+                        setIsGeneratingBrochure(false);
+                      }
+                   }}
+                   disabled={isGeneratingBrochure}
+                   className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 hover:shadow-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   {isGeneratingBrochure ? (
+                     <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin text-indigo-700" />
+                   ) : (
+                     <span className="mr-2 text-base leading-none">📄</span>
+                   )}
+                   {isGeneratingBrochure ? "Inicjalizacja LLM..." : "Draft Broszury"}
+                 </button>
+
+                <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   handleOpenSavedJson(vehicle.id, `${vehicle.brand} ${vehicle.model}`);
+                 }}
+                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:shadow-sm transition-all shadow-sm"
+               >
+                 <Database className="w-3.5 h-3.5 mr-2" />
+                 Dane JSON
+               </button>
+               {vehicle.raw_pdf_url && (
+                 <button
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     if (vehicle.raw_pdf_url) setIsViewerOpen(!isViewerOpen);
+                   }}
+                   className={cn(
+                     "flex items-center text-xs font-semibold px-4 py-2 rounded-lg transition-all shadow-sm border",
+                     isViewerOpen 
+                       ? "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 hover:border-slate-300"
+                       : "bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-200"
+                   )}
+                 >
+                   <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                   {isViewerOpen ? "Zwiń dokument" : "Otwórz dokument"}
+                 </button>
+               )}
+               <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   if (window.confirm("Czy na pewno chcesz usunąć tę plakietkę? Istniejące kalkulacje na jej bazie nie zostaną usunięte.")) {
+                       const event = new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } });
+                       window.dispatchEvent(event);
+                   }
+                 }}
+                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 hover:border-red-200 hover:shadow-sm transition-all shadow-sm"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                 Usuń
+               </button>
+             </div>
+
+              {isOverrideModalOpen && (
+               <div className="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-top-2">
+                 <h5 className="text-[11px] font-bold text-slate-700 mb-2 flex items-center uppercase tracking-wider">
+                   <Wand2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600" /> Nadpisywanie Danych z użyciem AI (Flash)
+                 </h5>
+                 <div className="flex gap-2">
+                   <input
+                     type="text"
+                     placeholder="np. Dodaj hak holowniczy, moc silnika to 300KM, ma napęd AWD..."
+                     value={overridePrompt}
+                     onChange={(e) => setOverridePrompt(e.target.value)}
+                     className="flex-1 px-3 py-2 text-sm rounded-md border border-slate-300 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-sm"
+                     onKeyDown={(e) => {
+                       if (e.key === "Enter") handleManualOverride();
+                     }}
+                   />
+                   <button
+                     onClick={handleManualOverride}
+                     disabled={isOverriding || !overridePrompt.trim()}
+                     className="px-4 py-2 bg-emerald-600 text-white rounded-md font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm transition-colors"
+                   >
+                     {isOverriding ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                     {isOverriding ? "Korygowanie..." : "Zastosuj"}
+                   </button>
+                 </div>
+                 <p className="text-[10px] text-slate-500 mt-2">
+                   Algorytm chirurgicznie zedytuje wyłącznie zlecane parametry w obrębie Cyfrowego Bliźniaka, zachowując 100% spójności reszty dokumentu. Zmiana widoczna będzie po odświeżeniu.
+                 </p>
+               </div>
+             )}
+
+              {isViewerOpen && vehicle.raw_pdf_url && (
+                 <PDFViewerFrame 
+                    rawPdfUrl={vehicle.raw_pdf_url} 
+                    brand={vehicle.brand || "?"} 
+                    model={vehicle.model || "?"} 
+                 />
+              )}
+            </div>
+        </div>
+      )}
+
+      {isBrochureModalOpen && brochureData && (
+         <BrochureBuilderModal 
+            vehicle={vehicle}
+            initialBrochureData={brochureData}
+            initialImages={brochureImages}
+            onClose={() => setIsBrochureModalOpen(false)} 
+         />
+      )}
+    </div>
+  );
+}

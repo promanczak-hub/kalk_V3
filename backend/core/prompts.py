@@ -13,6 +13,7 @@ Zwróć wynik jako obiekt JSON, w którym na najwyższym poziomie MUSZĄ znaleź
 5. "digital_twin": Tutaj umieść absolutnie całą wyodrębnioną duszę i strukturę dokumentu, zgodnie z poniższymi zasadami:
 
 ZASADY TWORZENIA CYFROWEGO BLIŹNIAKA (węzeł "digital_twin"):
+(WYDOBĄDŹ ABSOLUTNIE WSZYSTKO) Nie ignoruj żadnych bloków tekstu, logotypów, disclaimerów ani not prawnych. Twoim nadrzędnym zadaniem jest stworzenie pełnego, 100% cyfrowego bliźniaka dokumentu - w tym całego "szumu", tekstu marketingowego i prawnego. Przepisuj dokładnie tak, jak widzisz.
 A. Wyodrębnij hierarchiczną strukturę (nagłówki, sekcje).
 B. Zmapuj wszystkie tabele (np. cenniki, dane techniczne) do formatu Markdown lub tabelarycznego JSON zachowując ich oryginalny układ.
 C. Opisz wszystkie elementy wizualne (schematy, zdjęcia, wygląd auta, fotele, otoczenie na zdjęciach).
@@ -24,7 +25,39 @@ E. (KRYTYCZNE FINANSE I CENNIKI): Przepisz dokładnie wszystkie informacje o cen
    - Zachowaj informację o walutach oraz wzmianki o kwotach netto/brutto na podstawie kontekstu dokumentu.
 Zachowaj pełną wierność względem oryginału, uwzględniając przypisy i opisy drobnym drukiem. Traktuj się jako bezwzględny OCR i parser układu, nie księgowy.
 
-The output MUST be a valid JSON object. Do not output any markdown blocks (like ```json), just the raw JSON.
+The output MUST be a valid JSON object. Do not output any markdown blocks (like ```json), just the raw JSON. Upewnij się, że generowany JSON jest w 100% poprawny składniowo (zabezpiecz wszystkie cudzysłowy i znaki nowej linii). Nie ucinaj długich stringów w połowie słowa - w razie potrzeby skróć wyciągany tekst.
+"""
+
+FALLBACK_STRUCTURED_PROMPT_FLASH = """
+Jesteś precyzyjnym parserem danych dokumentów motoryzacyjnych. Dokument wejściowy jest trudny do sparsowania w całości (zawiera mnóstwo szumu, not prawnych, disclaimerów), dlatego twoim zadaniem jest SKONCENTROWANA, STRUKTURALNA EKSTRAKCJA.
+
+Wyodrębnij wyłącznie twarde, użyteczne biznesowo dane, mapując je rygorystycznie na poniższy schemat JSON:
+{
+  "brand": "string",
+  "model": "string",
+  "offer_number": "string lub null",
+  "configuration_code": "string lub null",
+  "total_price": "string z walutą (np. 150000 PLN brutto) lub null",
+  "base_price": "string z walutą lub null",
+  "options_price": "string z walutą lub null",
+  "engine_power_hp": "string (np. 150 KM) lub null",
+  "engine_capacity_cm3": "string lub null",
+  "fuel_consumption": "string lub null",
+  "co2_emissions": "string lub null",
+  "transmission": "string lub null",
+  "drive_type": "string lub null",
+  "paint_color": "string lub null",
+  "wheels": "string lub null",
+  "upholstery": "string lub null",
+  "standard_equipment": ["lista stringów", "..."],
+  "optional_equipment": [
+    {"name": "nazwa pakietu/opcji", "price": "cena lub null"}
+  ]
+}
+
+1. TABELE: Odczytaj tabele cenników, tabele wymiarów, opcji i akcesoriów.
+2. NAGŁÓWKI I CECHY: Wyciągnij listę głównych nagłówków i połącz je z konkretnymi cechami.
+3. IGNORUJ SZUM: Kategorycznie ignoruj dowolne bloki tekstu o rozmiarze powyżej 3 zdań (noty prawne, disclaimer o oponach, marketingowy opis sylwetki).
 """
 
 DOC_TYPE_PROMPT = """
@@ -97,7 +130,16 @@ Otrzymasz dwa wejścia w formacie JSON:
 1. `vehicle_spec`: Specyfikacja pojazdu.
 2. `discount_rows`: Tablica wierszy zniżek z bazy pobrana względem marki. Znajdź wśród nich JEDEN wiersz, który dotyczy opisanego modelu / silnika. 
 
-Zasady:
+ZASADA KRYTYCZNA — WERYFIKACJA MARKI:
+- NAJPIERW sprawdź, czy MARKA pojazdu z oferty (np. "Renault", "Dacia", "Toyota") 
+  ISTNIEJE wśród wartości kolumny `marka` w `discount_rows`.
+- Dozwolone dopasowania elastyczne: "VW" = "Volkswagen", "SEAT/CUPRA" = "Cupra" = "Seat".
+- Jeśli marka pojazdu KOMPLETNIE NIE WYSTĘPUJE w `discount_rows` → BEZWZGLĘDNIE zwróć 
+  { "is_matched": false }. NIE WOLNO CI dopasowywać rabatu z innej marki!
+- Przykład: Jeśli pojazd to Renault Master, a w bazie rabatów są tylko AUDI, BMW, SKODA, VW 
+  → zwróć { "is_matched": false }. Nigdy nie przypisuj rabatu Skody do Renault!
+
+Pozostałe zasady:
 - ZIGNORUJ zasady dotyczące "minimalnego poziomu wyposażenia" (np. "Min. % wyposażenia: 15%") zapisane w kolumnie `wykluczenia` podczas sprawdzania specyfikacji oferty! NIE WYLICZAJ poziomu wyposażenia samochodu na podstawie cen na ofercie i NIE STOSUJ żadnych kar procentowych za jego ewentualny brak. Po prostu zwróć bazową wartość rabatu przypisaną w tabeli.
 - SUROWO ZAKAZUJĘ wyliczania rabatu ze wzorów matematycznych bazujących na cenach w ofercie! ZIGNORUJ CAŁKOWICIE ceny podane w `vehicle_spec` przy ustalaniu procentu rabatu. Masz ZWRÓCIĆ DOKŁADNIE to, co znajduje się w kolumnie `rabat` w bazie danych.
 - Przekonwertuj liczbę zmiennoprzecinkową np. `0.24` na ludzką `24.0` (lub `0.27` na `27.0`).
@@ -107,10 +149,10 @@ Zasady:
 - Zawsze wybieraj najbardziej szczegółowo dopasowany wiersz (np. dopasowanie po nazwie modelu i nadwoziu jest lepsze niż dopasowanie ogólne).
 
 Zwróć dokładny wynik jako czysty JSON bez znaczników markdown według schematu:
-Jeśli ZNAJDZIESZ poprawne dopasowanie:
+Jeśli ZNAJDZIESZ poprawne dopasowanie (TYLKO jeśli marka się zgadza!):
 { "is_matched": true, "matched_discount_perc": <FLOAT np 24.0>, "matching_reason": "<logika uzasadnienia>" }
 
-Jeśli auto jest definitywnie z innej gamy względem dostarczonych wierszy z bazy:
+Jeśli marka nie istnieje w bazie LUB auto jest definitywnie z innej gamy:
 { "is_matched": false }
 """
 
@@ -132,4 +174,63 @@ masz BEZWZGLĘDNY OBOWIĄZEK samodzielnie wyliczyć i zaktualizować pole `total
 Zawsze weryfikuj, czy pole `total_price` uległo poprawnej modyfikacji po obliczeniach, a `base_price` przetrwało w tej samej formie. 
 Absolutnie ZAKAZUJE SIĘ usuwania, skracania lub podsumowywania jakichkolwiek innych danych. 
 Wypisz pełną strukture pasującą do wgranego schematu.
+"""
+
+SERVICE_OPTION_DIGITAL_TWIN_PROMPT = """
+Jesteś Inżynierem Pojazdów Użytkowych (Homologacji) pracującym nad integracją Opcji Serwisowych i Zabudów.
+Otrzymujesz dokument (najczęściej PDF lub skan) opisujący dodatkową opcję serwisową, wycenę zabudowy, akcesoria (jak dywaniki, hak) lub inną modyfikację pojazdu dokonywaną u dealera.
+Twoim zadaniem jest stworzenie `ServiceOptionDigitalTwin` - cyfrowej reprezentacji tej opcji.
+
+KRYTYCZNE WSKAZÓWKI:
+1. `name`: Wymyśl sensowną, zwięzłą nazwę opisującą tę opcję (np. "Zabudowa Izotermiczna Carrier", "Hak holowniczy", "Pakiet Serwisowy 3 lata").
+2. `net_price`: Odnajdź sumaryczną kwotę całkowitą tej opcji w dokumencie. MUSISZ przeliczyć ją na wartość numeryczną NETTO (bez VAT) w PLN. Jeśli na ofercie jest tylko brutto, podziel przez 1.23. Odpowiadaj wyłącznie liczbą float.
+3. `description_or_components`: Przepisz wszystkie ważne elementy składowe zabudowy, akcesoria lub obostrzenia jako listę stringów, aby doradca wiedział co składa się na ten pakiet.
+
+NAJWAŻNIEJSZE -> SEKCJA `effects` (VehicleModificationEffects):
+Jako inżynier musisz ocenić, czy ta opcja ingeruje w homologację i fizyczne parametry pojazdu.
+- `is_financial_only`: Ustaw na 'true' JEŚLI opcja to Opony, Dywaniki, Ubezpieczenie, Przedłużona Gwarancja, Folia ochronna, Pakiet Przeglądów itd. Jeśli opcja MODYFIKUJE NADWOZIE (np. Kontener, Izoterma, Dokładka HDS, Skrzynia, Plandeka) to ustaw 'false'.
+- `override_samar_class`: JEŚLI opcja to modyfikacja nadwozia, narzuć jej odpowiednią, nową klasę SAMAR, np: "Izoterma", "Kontener", "Skrzyniowy", "Autobus", "Chłodnia". Jeśli opcja nie zmienia bryły pojazdu bazowego, zostaw null.
+- `override_homologation`: JEŚLI dokument wprost pisze o homologacji innej niż standardowa po zmiankach (np. zmiana na N1, N2, N3), podaj ją. Inaczej null.
+- `adds_weight_kg`: JEŚLI dokument zawiera informację o dodatkowej masie ramy/zabudowy/agregatu (np. "Masa zabudowy: 250kg"), podaj tę wartość jako float. Pozwoli to systemowi ostrzec doradcę o spadku ładowności.
+
+WYJŚCIE MUSI BYĆ CZYSTYM, WALIDUJĄCYM SIĘ JSON-EM ZGODNYM ZE SCHEMATEM Pydantic `ServiceOptionDigitalTwin`.
+"""
+
+MULTI_VEHICLE_DETECTION_PROMPT = """
+Działaj jako ekspert ds. analizy dokumentów flotowych.
+
+KRYTYCZNE ZADANIE: Przeanalizuj załączony dokument i ustal, ile OSOBNYCH pojazdów jest w nim opisanych.
+Następnie dla KAŻDEGO pojazdu stwórz osobny, pełny cyfrowy bliźniak.
+
+DEFINICJA "osobnego pojazdu": Samochód z własną marką, modelem, wersją silnikową i/lub ceną.
+Jeśli dokument zawiera np. 3 konfiguracje różnych aut (choć od tego samego dealera) — to 3 pojazdy.
+UWAGA: Ogólny cennik modelu (np. "cennik Skoda Octavia" z wieloma wersjami silnikowymi) to NIE jest multi-vehicle — to jest jeden cennik. Multi-vehicle dotyczy sytuacji, gdy w jednym pliku jest kilka KONKRETNYCH ofert/konfiguracji na RÓŻNE modele lub różne pełne zestawy samochodów.
+
+Dla KAŻDEGO znalezionego pojazdu stwórz kompletnego cyfrowego bliźniaka wg tych zasad:
+- Wyodrębnij hierarchiczną strukturę (nagłówki, sekcje) specyficzną dla tego pojazdu.
+- Zmapuj wszystkie tabele (cenniki, dane techniczne) do formatu Markdown lub tabelarycznego JSON.
+- (KRYTYCZNE FINANSE): Przepisz dokładnie wszystkie ceny, rabaty, raty i opłaty w takiej formie, w jakiej występują dla tego konkretnego pojazdu.
+- NIE wykonuj żadnych obliczeń matematycznych.
+- Zachowaj informację o walutach oraz wzmianki o kwotach netto/brutto.
+- Każdy digital_twin MUSI być samodzielny — nie odwoływać się do danych innych pojazdów.
+
+Zwróć JSON:
+{
+  "vehicle_count": N,
+  "vehicles": [
+    {
+      "brand": "Marka pojazdu",
+      "model": "Model pojazdu",
+      "offer_number": "numer oferty lub null",
+      "configuration_code": "kod konfiguracji lub null",
+      "digital_twin": { ... pełny cyfrowy bliźniak tego pojazdu ... }
+    }
+  ]
+}
+
+REGUŁY:
+- NIE hardkoduj żadnych marek, modeli, segmentów — mogą być dowolne.
+- Każdy digital_twin MUSI być samodzielny i kompletny.
+- Odpowiedź MUSI być czystym, walidującym się JSON-em. Nie ucinaj treści.
+- Upewnij się, że generowany JSON jest w 100% poprawny składniowo.
 """

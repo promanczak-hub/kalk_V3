@@ -55,6 +55,40 @@ def match_fleet_discount(pro_data: dict) -> dict:
         if not discount_rows:
             return pro_data
 
+        # ── Brand pre-check: skip LLM if brand doesn't exist in DB ──
+        brand_aliases: dict[str, set[str]] = {
+            "volkswagen": {"vw", "volkswagen", "vw osobowe", "vw dostawcze"},
+            "vw": {"vw", "volkswagen", "vw osobowe", "vw dostawcze"},
+            "vw osobowe": {"vw", "volkswagen", "vw osobowe"},
+            "vw dostawcze": {"vw", "volkswagen", "vw dostawcze"},
+            "seat": {"seat", "seat/cupra", "cupra"},
+            "cupra": {"seat", "seat/cupra", "cupra"},
+            "seat/cupra": {"seat", "seat/cupra", "cupra"},
+        }
+
+        db_brands_raw: set[str] = {
+            (row.get("marka") or "").strip().lower() for row in discount_rows
+        }
+        db_brands_raw.discard("")
+
+        # Expand DB brands with aliases
+        db_brands_expanded: set[str] = set()
+        for db_brand in db_brands_raw:
+            db_brands_expanded.add(db_brand)
+            db_brands_expanded.update(brand_aliases.get(db_brand, set()))
+
+        vehicle_brand_lower = extracted_brand.strip().lower()
+        vehicle_brand_aliases = brand_aliases.get(
+            vehicle_brand_lower, {vehicle_brand_lower}
+        )
+
+        if not vehicle_brand_aliases & db_brands_expanded:
+            print(
+                f"Brand '{extracted_brand}' not found in tabela_rabaty "
+                f"(available: {sorted(db_brands_raw)}). Skipping LLM call."
+            )
+            return pro_data
+
         # Build explicit pricing for the prompt to easily do the math (hide total_price to strictly prevent LLM calculation)
         extracted_pricing = {
             "base_price": flash_data.get("base_price"),

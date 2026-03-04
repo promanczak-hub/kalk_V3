@@ -63,12 +63,15 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           reader.readAsArrayBuffer(fileObj);
         });
 
-        // 2. Sprawdź duplikat w Supabase
-        const { data: duplicateData } = await supabase
+        // 2. Sprawdź duplikat w Supabase (limit(1) handles multi-vehicle files
+        //    where the same hash exists on N rows)
+        const { data: duplicateRows } = await supabase
           .from("vehicle_synthesis")
           .select("brand, model")
           .eq("file_hash", md5Hash)
-          .maybeSingle();
+          .limit(1);
+
+        const duplicateData = duplicateRows && duplicateRows.length > 0 ? duplicateRows[0] : null;
 
         if (duplicateData) {
           setDocuments((docs) =>

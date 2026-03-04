@@ -6,8 +6,10 @@ from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Background
 from fastapi.responses import Response
 from core.extractor_v2 import process_manual_override_v2
 from core.json_utils import clean_json_response
-from core.background_jobs import process_and_save_document_bg
+from core.background_jobs import process_and_save_document_bg, trigger_cancel
+from core.pipeline_service_option import extract_service_option_from_pdf
 from services.ai_mapper_service import map_vehicle_data_flash
+from core.database import supabase as supabase_client
 
 router = APIRouter()
 
@@ -57,6 +59,42 @@ async def extract_pdf_async(
         )
 
 
+@router.post("/extract/service-option")
+async def extract_service_option(
+    file: UploadFile = File(...),
+) -> Dict[str, Any]:
+    supported_extensions = (".pdf", ".png", ".jpg", ".jpeg", ".webp")
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename missing.")
+
+    if not any(file.filename.lower().endswith(ext) for ext in supported_extensions):
+        raise HTTPException(
+            status_code=400, detail="Unsupported file format. Use PDF or Images."
+        )
+
+    try:
+        file_bytes = await file.read()
+        mime_type = file.content_type or "application/pdf"
+
+        # Synchronously call the new LLM pipeline
+        print(f"Extracting Service Option from {file.filename}")
+        extracted_data = extract_service_option_from_pdf(
+            document_data=file_bytes, mime_type=mime_type
+        )
+
+        if not extracted_data:
+            raise HTTPException(status_code=500, detail="Failed to extract data.")
+
+        return extracted_data
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred during service option extraction: {str(e)}",
+        )
+
+
 @router.post("/extract/manual-override")
 async def manual_override(request: ManualOverrideRequest) -> Dict[str, Any]:
     try:
@@ -102,7 +140,7 @@ def proxy_pdf(url: str):
             content=response.content,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": "inline",
+                "Content-Disposition": 'inline; filename="document.pdf"',
                 "Accept-Ranges": "bytes",
                 "Access-Control-Allow-Origin": "*",
                 "Cross-Origin-Resource-Policy": "cross-origin",
@@ -132,3 +170,37 @@ async def delete_vehicle(request: DeleteVehicleRequest) -> Dict[str, Any]:
     except Exception as e:
         print(f"Error deleting vehicle: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete vehicle")
+
+
+class CancelProcessingRequest(BaseModel):
+    vehicle_id: str
+
+
+@router.post("/cancel-processing")
+async def cancel_processing(request: CancelProcessingRequest) -> Dict[str, Any]:
+    """
+    Immediately cancels document processing:
+    1. Sets DB status to 'cancelled' → triggers Supabase Realtime → instant UI update
+    2. Signals the background thread to stop before next LLM call
+    """
+    try:
+        # 1. Immediately update DB — frontend sees this via Realtime
+        supabase_client.table("vehicle_synthesis").update(
+            {"verification_status": "cancelled"}
+        ).eq("id", request.vehicle_id).execute()
+
+        # 2. Signal the background thread to stop
+        was_running = trigger_cancel(request.vehicle_id)
+
+        print(
+            f"[CANCEL] Vehicle {request.vehicle_id} cancelled. "
+            f"Thread was {'running' if was_running else 'not found (already finished)'}"
+        )
+
+        return {
+            "status": "cancelled",
+            "message": "Przetwarzanie zostało anulowane.",
+        }
+    except Exception as e:
+        print(f"Error cancelling processing: {e}")
+        raise HTTPException(status_code=500, detail="Failed to cancel processing")

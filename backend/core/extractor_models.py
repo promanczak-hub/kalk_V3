@@ -164,13 +164,15 @@ class VehicleAISynthesis(BaseModel):
 
 
 class NapedTyp(str, Enum):
-    BENZYNA_ICE = "Benzyna (PB) (Konwencjonalne (ICE))"
-    DIESEL_ICE = "Diesel (ON) (Konwencjonalne (ICE))"
-    BENZYNA_MHEV = "Benzyna mHEV (PB-mHEV) (Miękkie Hybrydy (mHEV))"
-    DIESEL_MHEV = "Diesel mHEV (ON-mHEV) (Miękkie Hybrydy (mHEV))"
+    BENZYNA_ICE = "Benzyna (PB)"
+    DIESEL_ICE = "Diesel (ON)"
+    BENZYNA_MHEV = "Benzyna mHEV (PB-mHEV)"
+    DIESEL_MHEV = "Diesel mHEV (ON-mHEV)"
     HEV = "Hybryda (HEV)"
     PHEV = "Hybryda Plug-in (PHEV)"
     BEV = "Elektryczny (BEV)"
+    FCEV = "Wodór (FCEV)"
+    LPG = "Autogaz (LPG)"
 
 
 class NapedRodzaj(str, Enum):
@@ -287,6 +289,10 @@ class CardSummary(BaseModel):
         None,
         description="Szczegóły dotyczące opcji serwisowej, pakietów przeglądów lub zabudowy (jeśli występuje na dokumencie). Zawiera kwoty netto/brutto całości oraz podzespołów.",
     )
+    has_tow_hook: Optional[bool] = Field(
+        None,
+        description="Czy pojazd ma zamontowany hak holowniczy (lub przygotowanie pod hak). Zwróć True jeśli znaleziono, False jeśli wprost nie ma, null jeśli brak informacji.",
+    )
     suggested_discount_pct: Optional[float] = Field(
         None,
         description="Wyliczony przez AI sugerowany procent rabatu na podstawie dopasowania auta do oficjalnej macierzy rabatowej (np. 12.5). Zostaw puste, jeśli nie dopasowano.",
@@ -319,4 +325,108 @@ class OtherDocumentSummary(BaseModel):
     summary: str = Field(description="Ogólne podsumowanie zawartego dokumentu.")
     key_points: list[str] = Field(
         description="Najważniejsze punkty lub regulacje wylistowane z dokumentu."
+    )
+
+
+# --- V3 SERVICE OPTIONS DIGITAL TWIN ---
+
+
+class VehicleModificationEffects(BaseModel):
+    override_samar_class: Optional[str] = Field(
+        None,
+        description="Ewentualna nowa klasa SAMAR jeśli modyfikacja zmienia charakter pojazdu (np. Autobus, Izoterma, Kontener, Skrzyniowy, Dostawczy)",
+    )
+    override_homologation: Optional[str] = Field(
+        None, description="Opcjonalna kategoria homologacyjna (np. N1, N2, M1)"
+    )
+    adds_weight_kg: Optional[float] = Field(
+        None, description="Dodatkowa masa własna w kg wynikająca z modyfikacji"
+    )
+    is_financial_only: bool = Field(
+        False,
+        description="Zaznacz true jeśli to tylko koszt (np. dywaniki, opony, hak) w przeciwieństwie do zabudowy",
+    )
+
+
+class ServiceOptionDigitalTwin(BaseModel):
+    name: str = Field(
+        description="Zwięzła nazwa usługi / zabudowy / przedmiotu wywnioskowana z dokumentu"
+    )
+    net_price: float = Field(description="Wyciągnięta całkowita kwota netto w PLN")
+    description_or_components: list[str] = Field(
+        default_factory=list,
+        description="Lista kluczowych komponentów lub parametrów opisujących tę usługę",
+    )
+    effects: Optional[VehicleModificationEffects] = Field(
+        default=None,
+        description="Szczegółowa kategoryzacja wpływu tej opcji na parametry fizyczne i klasy pojazdu",
+    )
+
+
+# --- V3 BROCHURE EXTRACTOR SCHEMA ---
+
+
+class BrochureEquipmentCategory(BaseModel):
+    category_name: str = Field(
+        description="Dynamiczna nazwa kategorii, w jakiej występuje to wyposażenie, np. 'Bezpieczeństwo', 'Wnętrze', 'Pakiety, 'Media i Nawigacja'. Niech model sam ułoży logiczne grupy."
+    )
+    items: list[str] = Field(
+        description="Lista szczegółowych elementów w tej kategorii, z pominięciem jakichkolwiek cen.",
+        default_factory=list,
+    )
+
+
+class VehicleBrochureSchema(BaseModel):
+    brand: Optional[str] = Field(None, description="Marka pojazdu")
+    model: Optional[str] = Field(None, description="Model pojazdu")
+    trim_level: Optional[str] = Field(
+        None, description="Wersja wyposażenia pojazdu, np. 'S line', 'AMG'"
+    )
+    vehicle_class: str = Field(
+        description="Typ pojazdu wywnioskowany z konfiguracji: 'Osobowy' lub 'Dostawczy'"
+    )
+
+    # Technical Specs
+    engine_description: Optional[str] = Field(
+        None, description="Oznaczenie pojemności silnika i technologii np. '2.0 TDI'"
+    )
+    power_hp: Optional[int] = Field(
+        None, description="Moc w Koniach Mechanicznych (KM)"
+    )
+    transmission: Optional[str] = Field(
+        None, description="Rodzaj skrzyni biegów np. 'Automatyczna'"
+    )
+    drive_type: Optional[str] = Field(
+        None, description="Typ napędu, np. 'Na przednią oś', 'AWD', 'quattro'"
+    )
+
+    # Dimensions & Weights
+    length_mm: Optional[int] = Field(None, description="Długość pojazdu w mm")
+    width_mm: Optional[int] = Field(
+        None, description="Szerokość pojazdu w mm (z lusterkami lub bez)"
+    )
+    height_mm: Optional[int] = Field(None, description="Wysokość pojazdu w mm")
+    wheelbase_mm: Optional[int] = Field(None, description="Rozstaw osi w mm")
+    cargo_capacity_l: Optional[int] = Field(
+        None, description="Pojemność przestrzeni bagażowej w litrach"
+    )
+    payload_kg: Optional[int] = Field(
+        None, description="Ładowność pojazdu w kg (bardzo ważne dla aut dostawczych)"
+    )
+
+    # Performance
+    acceleration_0_100: Optional[float] = Field(
+        None, description="Przyspieszenie od 0 do 100 km/h w sekundach"
+    )
+    fuel_consumption_wltp: Optional[float] = Field(
+        None, description="Zużycie paliwa / energii w trybie WLTP. (Zapisz cyfrę)"
+    )
+    emissions_wltp: Optional[int] = Field(
+        None, description="Emisja CO2 w trybie WLTP g/km"
+    )
+
+    # Dynamic Equipment
+    equipment_categories: list[BrochureEquipmentCategory] = Field(
+        default_factory=list,
+        description="Pełna specyfikacja wyposażeniowa samochodu zgrupowana w logiczne kategorie (m.in Wnętrze, Nadwozie, Opcje, Bezpieczeństwo). Brak jakichkolwiek cen w tej strukturze.",
     )

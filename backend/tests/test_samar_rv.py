@@ -35,15 +35,15 @@ def mock_calc_input():
 
 def test_map_fuel_type(mock_vehicle_data, mock_calc_input):
     calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-    assert calc.fuel_type_id == 1  # Benzyna
+    assert calc.fuel_type_id == 1  # Benzyna (PB) -> fuel_group_id=1
 
-    mock_vehicle_data["Paliwo"] = "Diesel"
+    mock_vehicle_data["Paliwo"] = "Diesel (ON)"
     calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-    assert calc.fuel_type_id == 2  # Diesel
+    assert calc.fuel_type_id == 2  # Diesel (ON) -> fuel_group_id=2
 
-    mock_vehicle_data["Paliwo"] = "PHEV"
+    mock_vehicle_data["Paliwo"] = "Hybryda Plug-in (PHEV)"
     calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-    assert calc.fuel_type_id == 3  # EV/Hybrid
+    assert calc.fuel_type_id == 3  # PHEV -> fuel_group_id=3
 
 
 def test_samar_rv_calculate_base(mocker, mock_vehicle_data, mock_calc_input):

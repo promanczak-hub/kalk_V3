@@ -44,13 +44,32 @@ class SamarRVCalculator:
         self.class_config = self._fetch_class_config()
 
     def _map_fuel_type(self, fuel_str: Optional[str]) -> int:
-        """1=Benzyna, 2=Diesel, 3=EV/Hybrid"""
+        """Mapuje nazwę napędu na fuel_group_id (1=Benzyna, 2=Diesel, 3=Alternatywne).
+
+        Odpytuje tabelę engines po nazwie. Fallback: heurystyka substring.
+        """
         if not fuel_str:
             return 1
+        try:
+            res = (
+                supabase.table("engines")
+                .select("fuel_group_id")
+                .eq("name", fuel_str)
+                .limit(1)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return int(res.data[0].get("fuel_group_id", 1))
+        except Exception:
+            pass
+        # Fallback heuristic for legacy/unmapped values
         fuel = fuel_str.lower()
-        if "diesel" in fuel:
+        if "diesel" in fuel or "(on)" in fuel:
             return 2
-        elif "elektr" in fuel or "hybr" in fuel or "phev" in fuel:
+        if any(
+            kw in fuel
+            for kw in ("elektr", "hybr", "phev", "hev", "bev", "fcev", "lpg", "wodór")
+        ):
             return 3
         return 1
 

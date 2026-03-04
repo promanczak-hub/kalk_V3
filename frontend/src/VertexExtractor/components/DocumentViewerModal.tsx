@@ -127,12 +127,19 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                <p className="text-sm font-medium">{error}</p>
             </div>
           ) : blobUrl ? (
-            <iframe
-              src={`${blobUrl}#toolbar=1&navpanes=0&statusbar=0&messages=0`}
+            <object
+              data={`${blobUrl}#toolbar=1&navpanes=0&statusbar=0&messages=0`}
+              type="application/pdf"
               className="w-full h-full border-0 absolute inset-0 bg-slate-200/50"
               title={`Podgląd dokumentu: ${documentName}`}
-              loading="lazy"
-            />
+            >
+              <div className="flex flex-col items-center justify-center p-6 text-center text-slate-500 w-full h-full bg-slate-100 absolute inset-0 z-10">
+                 <p className="mb-2">Twoja przeglądarka nie obsługuje wbudowanego podglądu PDF pod tym adresem.</p>
+                 <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="px-4 py-2 mt-2 bg-blue-600 font-medium text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
+                   Otwórz dokument w nowej karcie
+                 </a>
+              </div>
+            </object>
           ) : null}
         </div>
       </div>

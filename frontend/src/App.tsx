@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ThemeProvider,
   createTheme,
@@ -11,82 +11,85 @@ import CalculatorPanel from "./CalculatorPanel";
 import ControlCenter from "./ControlCenter";
 import KalkulacjeList from "./KalkulacjeList";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
-
-const lightTheme = createTheme({
-  palette: {
-    mode: "light",
-    primary: {
-      main: "#1e3a8a", // Ciemny niebieski widziany w nagłówkach
-    },
-    background: {
-      default: "#ffffff",
-      paper: "#ffffff",
-    },
-  },
-  typography: {
-    fontFamily:
-      '"Inter", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
-    fontSize: 13,
-  },
-  components: {
-    MuiTextField: {
-      defaultProps: {
-        size: "small",
-        variant: "outlined",
-      },
-    },
-    MuiSelect: {
-      defaultProps: {
-        size: "small",
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-          boxShadow: "none",
-        },
-      },
-    },
-    MuiAccordionSummary: {
-      styleOverrides: {
-        root: {
-          backgroundColor: "#1e3a8a",
-          color: "#ffffff",
-          minHeight: "40px !important",
-          "& .MuiAccordionSummary-content": {
-            margin: "8px 0 !important",
-          },
-          "& .MuiSvgIcon-root": {
-            color: "#ffffff",
-          },
-        },
-      },
-    },
-    MuiAccordionDetails: {
-      styleOverrides: {
-        root: {
-          padding: "16px 24px",
-          border: "1px solid #e0e0e0",
-          borderTop: "none",
-        },
-      },
-    },
-    MuiAccordion: {
-      styleOverrides: {
-        root: {
-          boxShadow: "none",
-          "&:before": {
-            display: "none",
-          },
-          marginBottom: "16px",
-        },
-      },
-    },
-  },
-});
+import CommandPalette from "./components/CommandPalette";
 
 function App() {
+  const [mode, setMode] = useState<'light' | 'dark'>('light');
+
+  const theme = useMemo(() => createTheme({
+    palette: {
+      mode,
+      primary: {
+        main: mode === 'light' ? "#1e3a8a" : "#90caf9",
+      },
+      background: {
+        default: mode === 'light' ? "#ffffff" : "#121212",
+        paper: mode === 'light' ? "#ffffff" : "#1e1e1e",
+      },
+    },
+    typography: {
+      fontFamily:
+        '"Inter", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
+      fontSize: 13,
+    },
+    components: {
+      MuiTextField: {
+        defaultProps: {
+          size: "small",
+          variant: "outlined",
+        },
+      },
+      MuiSelect: {
+        defaultProps: {
+          size: "small",
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            textTransform: "none",
+            boxShadow: "none",
+          },
+        },
+      },
+      MuiAccordionSummary: {
+        styleOverrides: {
+          root: {
+            backgroundColor: mode === 'light' ? "#1e3a8a" : "#2d2d2d",
+            color: "#ffffff",
+            minHeight: "40px !important",
+            "& .MuiAccordionSummary-content": {
+              margin: "8px 0 !important",
+            },
+            "& .MuiSvgIcon-root": {
+              color: "#ffffff",
+            },
+          },
+        },
+      },
+      MuiAccordionDetails: {
+        styleOverrides: {
+          root: {
+            padding: "16px 24px",
+            border: `1px solid ${mode === 'light' ? '#e0e0e0' : '#444'}`,
+            borderTop: "none",
+          },
+        },
+      },
+      MuiAccordion: {
+        styleOverrides: {
+          root: {
+            boxShadow: "none",
+            "&:before": {
+              display: "none",
+            },
+            marginBottom: "16px",
+            backgroundColor: mode === 'light' ? "#ffffff" : "#1e1e1e",
+          },
+        },
+      },
+    },
+  }), [mode]);
   const [currentTab, setCurrentTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('id') ? 2 : 0;
@@ -127,8 +130,9 @@ function App() {
   }, []);
 
   return (
-    <ThemeProvider theme={lightTheme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
+      <CommandPalette toggleTheme={() => setMode(m => m === 'light' ? 'dark' : 'light')} mode={mode} />
       <div
         style={{
           minHeight: "100vh",

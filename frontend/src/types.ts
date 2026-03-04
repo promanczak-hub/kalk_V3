@@ -114,6 +114,9 @@ export interface V1DataOption {
   CzyGPS: boolean;
   DoubezpieczenieKradziezy: boolean | null;
   NaukaJazdy: boolean | null;
+  ZielonaKarta?: boolean;
+  NNW?: boolean;
+  ASS?: boolean;
   KosztUbezpieczeniaKorekta: number;
   KosztPrzygotowaniaDosprzedazyKorekta: number;
   KosztOponKorekta: number;

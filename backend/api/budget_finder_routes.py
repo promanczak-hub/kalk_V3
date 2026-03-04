@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Dict, Any, cast
 from core.database import supabase
-from core.engine import CalculationEngine
+from core.LTRKalkulator import LTRKalkulator
 
 router = APIRouter(prefix="/budget-finder", tags=["Budget Finder"])
 
@@ -167,7 +167,7 @@ def find_budget_offers(
             calc_input.pricing_margin_pct = marza
             calc_input.margin_pct = marza
 
-            eng = CalculationEngine(input_data=calc_input, settings=settings)
+            eng = LTRKalkulator(input_data=calc_input, settings=settings)
             matrix = eng.build_matrix()
             if not matrix:
                 return 999999.0
@@ -430,7 +430,7 @@ def get_matrix(
             margin_pct=marza_pct,
         )
 
-        eng = CalculationEngine(input_data=calc_input, settings=settings)
+        eng = LTRKalkulator(input_data=calc_input, settings=settings)
         matrix = eng.build_matrix()
         return matrix
     except Exception as e:

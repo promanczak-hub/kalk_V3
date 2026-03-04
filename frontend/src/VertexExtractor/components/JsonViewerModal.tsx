@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   CheckCircle2,
   FileText,
@@ -7,9 +7,12 @@ import {
   Download,
   Search,
   Send,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import type { UploadedDocument } from "../types";
 
+// Dodajemy pomocniczy interfejs
 interface JsonViewerModalProps {
   activeJsonView: UploadedDocument | null;
   onClose: () => void;
@@ -25,6 +28,9 @@ export function JsonViewerModal({
 }: JsonViewerModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSendingToKalk, setIsSendingToKalk] = useState(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  const contentRef = useRef<HTMLPreElement>(null);
 
   const handleSendToCalculator = async () => {
     if (!activeJsonView || !activeJsonView.jsonResult) return;
@@ -70,12 +76,65 @@ export function JsonViewerModal({
       const regex = new RegExp(`(${escapedQuery})`, "gi");
       return escapedJson.replace(
         regex,
-        '<mark class="bg-emerald-200 text-emerald-900 rounded-sm font-medium">$1</mark>',
+        '<mark class="search-match cursor-pointer px-0.5 rounded-sm font-medium bg-emerald-200 text-emerald-900">$1</mark>',
       );
     } catch {
       return escapedJson;
     }
   }, [activeJsonView?.jsonResult, searchQuery]);
+
+  // Handle active highlighting and scrolling manually via DOM to avoid re-rendering entire JSON string
+  useEffect(() => {
+    if (!contentRef.current) return;
+    
+    // Używamy setTimeout, aby upewnić się, że DOM został już zaktualizowany przez React po dangerouslySetInnerHTML
+    const timeoutId = setTimeout(() => {
+      if (!contentRef.current) return;
+      
+      const marks = contentRef.current.querySelectorAll('mark.search-match');
+      setMatchCount(marks.length);
+
+      marks.forEach((mark, index) => {
+        if (index === currentMatchIndex) {
+          mark.classList.remove('bg-emerald-200', 'text-emerald-900');
+          mark.classList.add('bg-amber-400', 'text-amber-950', 'ring-2', 'ring-amber-600', 'shadow-sm');
+          mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          mark.classList.remove('bg-amber-400', 'text-amber-950', 'ring-2', 'ring-amber-600', 'shadow-sm');
+          mark.classList.add('bg-emerald-200', 'text-emerald-900');
+        }
+      });
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [highlightedJson, currentMatchIndex]);
+
+  // Reset match index when query changes
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [searchQuery]);
+
+  const handleNextMatch = () => {
+    if (matchCount > 0) {
+      setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+    }
+  };
+
+  const handlePrevMatch = () => {
+    if (matchCount > 0) {
+      setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        handlePrevMatch();
+      } else {
+        handleNextMatch();
+      }
+    }
+  };
 
   if (!activeJsonView) return null;
 
@@ -97,23 +156,51 @@ export function JsonViewerModal({
             </button>
           </div>
           <div className="px-4 pb-4">
-            <div className="relative w-full">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="w-4 h-4 text-slate-400" />
+            <div className="relative w-full flex items-center gap-3">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="w-4 h-4 text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Wyszukaj w JSON..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-shadow cursor-text"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Wyszukaj w JSON..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-shadow"
-              />
+              
+              {searchQuery && (
+                <div className="flex items-center gap-1 shrink-0 text-sm text-slate-500 select-none">
+                  <span className="mr-2 font-medium">
+                    {matchCount > 0 ? `${currentMatchIndex + 1} / ${matchCount}` : 'Brak wyników'}
+                  </span>
+                  <button
+                    onClick={handlePrevMatch}
+                    disabled={matchCount === 0}
+                    className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-600 focus:outline-none"
+                    title="Poprzedni wynik (Shift + Enter)"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleNextMatch}
+                    disabled={matchCount === 0}
+                    className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-600 focus:outline-none"
+                    title="Następny wynik (Enter)"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
         
         <div className="p-6 overflow-y-auto flex-1 bg-white custom-scrollbar h-[500px]">
           <pre
+            ref={contentRef}
             className="text-xs font-mono text-slate-600 leading-relaxed whitespace-pre-wrap break-all"
             dangerouslySetInnerHTML={{ __html: highlightedJson }}
           />

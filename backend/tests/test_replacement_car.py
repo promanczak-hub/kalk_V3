@@ -3,7 +3,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.replacement_car import ReplacementCarCalculator
+from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
 
 
 def test_replacement_car_disabled():
