@@ -10,6 +10,9 @@ import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 import { PDFViewerFrame } from "./PDFViewerFrame";
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
+import { VehicleSummaryCard } from "./VehicleSummaryCard";
+import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
+import { VehicleFinancialCard } from "./VehicleFinancialCard";
 
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
@@ -653,6 +656,13 @@ export function VehicleRowCard({
 
       {isExpanded && (
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
+          {/* Business-style data visualizations */}
+          <div className="space-y-4 mb-6">
+            <VehicleSummaryCard vehicle={vehicle} />
+            <VehicleEquipmentCard vehicle={vehicle} />
+            <VehicleFinancialCard vehicle={vehicle} />
+          </div>
+
           <VehicleFinancialOptions 
              vehicle={vehicle}
              totalCatalogPrice={totalCatalogPrice}
