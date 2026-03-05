@@ -1,13 +1,5 @@
 import React, { useRef, useState } from "react";
-import {
-  Box,
-  Button,
-  Typography,
-  CircularProgress,
-  Paper,
-  Alert,
-} from "@mui/material";
-import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
+import { Upload, Loader2 } from "lucide-react";
 import axios from "axios";
 
 export interface ExtractedServiceOption {
@@ -68,7 +60,6 @@ export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
       setErrorMsg(errMsg);
     } finally {
       setIsUploading(false);
-      // Reset input so the same file can be uploaded again if needed
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -76,44 +67,45 @@ export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
   };
 
   return (
-    <Paper sx={{ p: 2, mb: 2, border: "1px dashed #ccc", bgcolor: "#fafafa" }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography variant="subtitle1" fontWeight="bold">
+    <div className="p-4 mb-2 border border-dashed border-slate-300 rounded-lg bg-slate-50/50">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-700">
             Dodaj Opcję Serwisową z pliku (Digital Twin)
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Wgraj ofertę PDF zabudowy, akcesoriów lub wycenę serwisową. 
-            AI automatycznie zinterpretuje koszt układu, jego składniki oraz ewentualny
-            wpływ na parametry homologacyjne auta.
-          </Typography>
-        </Box>
-        <Box>
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Wgraj ofertę PDF zabudowy, akcesoriów lub wycenę serwisową.
+            AI zinterpretuje koszt, składniki oraz wpływ na homologację.
+          </p>
+        </div>
+        <div className="flex-shrink-0">
           <input
             type="file"
             accept=".pdf,.png,.jpg,.jpeg,.webp"
-            style={{ display: "none" }}
+            className="hidden"
             ref={fileInputRef}
             onChange={handleFileChange}
           />
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <AutoFixHighIcon />}
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            sx={{ whiteSpace: "nowrap" }}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition-all shadow-sm"
           >
-            {isUploading ? "Analizuję (Gemini)..." : "Wgraj i Analizuj"}
-          </Button>
-        </Box>
-      </Box>
+            {isUploading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            {isUploading ? "Analizuję..." : "Wgraj i Analizuj"}
+          </button>
+        </div>
+      </div>
 
       {errorMsg && (
-        <Alert severity="error" sx={{ mt: 2 }}>
+        <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded text-xs text-red-700">
           {errorMsg}
-        </Alert>
+        </div>
       )}
-    </Paper>
+    </div>
   );
 };

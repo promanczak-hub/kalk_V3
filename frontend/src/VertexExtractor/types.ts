@@ -27,6 +27,7 @@ export interface FleetVehicleView {
   powertrain: string | null;
   body_style: string | null;
   document_category: string | null;
+  vehicle_class: string | null;
   trim_level: string | null;
   fuel: string | null;
   transmission: string | null;
@@ -58,8 +59,8 @@ export interface FleetVehicleView {
     matching_reason?: string;
   } | null;
   created_at: string;
+  [key: string]: any; // Allow dynamic raw data access
 }
-
 export interface ModificationEffect {
   override_samar_class?: string | null;
   override_homologation?: string | null;

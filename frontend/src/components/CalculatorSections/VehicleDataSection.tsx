@@ -25,6 +25,12 @@ interface EngineOption {
   fuel_group_id: number;
 }
 
+interface BodyTypeOption {
+  id: number;
+  name: string;
+  vehicle_class: string;
+}
+
 interface VehicleDataSectionProps {
   data: V1DataOption;
   expanded: string | false;
@@ -48,12 +54,18 @@ export default function VehicleDataSection({
   handleUpdateRabat,
 }: VehicleDataSectionProps) {
   const [engines, setEngines] = useState<EngineOption[]>([]);
+  const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
 
   useEffect(() => {
     axios
       .get<EngineOption[]>("http://127.0.0.1:8000/api/engines")
       .then((res) => setEngines(res.data))
       .catch((err) => console.error("Failed to load engines:", err));
+
+    fetch("http://127.0.0.1:8000/api/body-types")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setBodyTypes(data); })
+      .catch((err) => console.error("Failed to load body types:", err));
   }, []);
 
   return (
@@ -121,13 +133,23 @@ export default function VehicleDataSection({
                   handleUpdate("WersjaNadwozia", e.target.value)
                 }
               >
-                <MenuItem value="Hatchback">Hatchback</MenuItem>
-                <MenuItem value="Kombi">Kombi</MenuItem>
-                <MenuItem value="Sedan">Sedan</MenuItem>
-                <MenuItem value="SUV">SUV</MenuItem>
-                <MenuItem value="5 drzwiowy">5 drzwiowy</MenuItem>
-                <MenuItem value="4 drzwiowy">4 drzwiowy</MenuItem>
-                <MenuItem value="Furgon">Furgon</MenuItem>
+                {bodyTypes.length > 0 ? (
+                  Object.entries(
+                    bodyTypes.reduce<Record<string, BodyTypeOption[]>>((acc, bt) => {
+                      (acc[bt.vehicle_class] = acc[bt.vehicle_class] || []).push(bt);
+                      return acc;
+                    }, {})
+                  ).flatMap(([vc, items]) => [
+                    <ListSubheader key={vc}>{vc}</ListSubheader>,
+                    ...items.map((bt) => (
+                      <MenuItem key={bt.id} value={bt.name}>
+                        {bt.name}
+                      </MenuItem>
+                    )),
+                  ])
+                ) : (
+                  <MenuItem disabled>Ładowanie...</MenuItem>
+                )}
               </Select>
             </FormControl>
           </Grid>

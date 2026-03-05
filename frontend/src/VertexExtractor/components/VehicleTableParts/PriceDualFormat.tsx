@@ -1,4 +1,4 @@
-import { cn } from "../ui/DocumentCard";
+import { cn } from "../../../lib/utils";
 
 export const parsePriceToNumber = (priceStr?: string | null): number => {
   if (!priceStr || priceStr === "Brak") return 0;

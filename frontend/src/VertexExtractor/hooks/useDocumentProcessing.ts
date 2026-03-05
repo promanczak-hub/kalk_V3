@@ -48,9 +48,10 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
         ),
       );
 
+      let md5Hash = "";
       try {
         // 1. Oblicz Hash MD5 pliku
-        const md5Hash = await new Promise<string>((resolve, reject) => {
+        md5Hash = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => {
             if (e.target?.result) {
@@ -63,17 +64,21 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           reader.readAsArrayBuffer(fileObj);
         });
 
-        // 2. Sprawdź duplikat w Supabase (limit(1) handles multi-vehicle files
-        //    where the same hash exists on N rows)
+        // 2. Sprawdź duplikat w Supabase na podstawie sumy kontrolnej MD5,
+        // ale zignoruj wiersze, które mają status błędu lub zostały anulowane.
+        // Oraz na wszelki wypadek zabezpiecz przed wyrzucaniem alertu "null null" dla świeżych "processing", które właśnie dodaliśmy ułamek sekundy temu
         const { data: duplicateRows } = await supabase
           .from("vehicle_synthesis")
-          .select("brand, model")
+          .select("brand, model, verification_status")
           .eq("file_hash", md5Hash)
+          .not("verification_status", "in", '("error","cancelled")')
           .limit(1);
 
         const duplicateData = duplicateRows && duplicateRows.length > 0 ? duplicateRows[0] : null;
 
-        if (duplicateData) {
+        // Tylko jeśli to nie jest nasz nowo utworzony pusty wiersz bez brandu i modelu. 
+        // Zapobiega wyświetlaniu alertu "Odrzucono duplikat: Plik X to identyczny dokument co zapisany null null"
+        if (duplicateData && (duplicateData.brand || duplicateData.model || duplicateData.verification_status === "completed")) {
           setDocuments((docs) =>
             docs.map((d) =>
               d.id === doc.id
@@ -82,7 +87,7 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
                     status: "error",
                     jsonResult: JSON.stringify(
                       {
-                        error: `DUPLIKAT! Ten plik zidentyfikowano już w bazie jako: ${duplicateData.brand} ${duplicateData.model}`,
+                        error: `DUPLIKAT! Ten plik zidentyfikowano już w bazie jako: ${duplicateData.brand || "Nieznana marka"} ${duplicateData.model || ""}`,
                       },
                       null,
                       2,
@@ -92,7 +97,7 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
             ),
           );
           alert(
-            `Odrzucono duplikat: Plik ${fileObj.name} to identyczny dokument co zapisany ${duplicateData.brand} ${duplicateData.model}.`,
+            `Odrzucono duplikat: Plik ${fileObj.name} to identyczny dokument co zapisany ${duplicateData.brand || "Nieznana marka"} ${duplicateData.model || ""}.`,
           );
           return;
         }
@@ -146,6 +151,19 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
 
       } catch (error) {
         console.error("Extraction error:", error);
+        
+        // Zabezpieczenie: jeśli dostaliśmy ID na początku, oznaczmy ten wpis jako błąd w bazie by nie "wisiał"
+        if (md5Hash) {
+            try {
+                await supabase.from("vehicle_synthesis")
+                  .update({ verification_status: "error", notes: String(error) })
+                  .eq("file_hash", md5Hash) // uzywamy sumy kontrolnej do odnalezienia zablokowanych encji
+                  .or(`verification_status.eq.processing,verification_status.eq.uploading`); // aktualizujemy tylko te co utknęły
+            } catch (dbErr) {
+                console.error("Failed to fallback update DB on extraction error:", dbErr);
+            }
+        }
+
         setDocuments((docs) =>
           docs.map((d) =>
             d.id === doc.id

@@ -7,9 +7,10 @@ import json
 import os
 from typing import Tuple
 
-from google import genai
 from google.genai import types
 from supabase import Client, create_client
+
+from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 
 
 def _build_samar_client() -> Client:
@@ -37,16 +38,6 @@ def _fetch_samar_dictionary(client: Client) -> list[dict]:
         if klasa and modele:
             rows.append({"klasa": klasa, "modele": modele})
     return rows
-
-
-def _build_gemini_client() -> genai.Client:
-    """Create a Gemini client (API key or Vertex AI)."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if api_key:
-        return genai.Client(api_key=api_key)
-    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-    return genai.Client(vertexai=True, project=project, location=location)
 
 
 def map_to_samar_class(
@@ -127,13 +118,14 @@ Posortuj wyniki od najwyższego do najniższego confidence.
 """
 
     try:
-        gemini = _build_gemini_client()
+        gemini = get_gemini_client()
         response = gemini.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
+                safety_settings=SAFETY_SETTINGS_PERMISSIVE,
                 response_schema={
                     "type": "object",
                     "properties": {

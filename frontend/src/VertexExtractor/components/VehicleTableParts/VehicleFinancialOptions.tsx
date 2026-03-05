@@ -1,5 +1,5 @@
 import { Banknote, Database, Loader2, Wrench, CircleDot, AlertTriangle } from "lucide-react";
-import { cn } from "../ui/DocumentCard";
+import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { ServiceOptionsManager } from "../../../components/Calculator/ServiceOptionsManager";
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
@@ -79,6 +79,8 @@ interface VehicleFinancialOptionsProps {
   isMetalic: boolean;
   setIsMetalic: (val: boolean) => void;
   isMetalicAutoDetected: boolean;
+  hookAutoDetected: boolean;
+  vintageAutoDetected: boolean;
   // Czynsz inicjalny netto/brutto
   activeFinalPriceForDeposit: number;
   crossCardAlerts?: DiscountAlert[];
@@ -139,6 +141,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
     isMetalic, setIsMetalic, isMetalicAutoDetected,
+    hookAutoDetected, vintageAutoDetected,
     activeFinalPriceForDeposit,
   } = props;
 
@@ -256,32 +259,32 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               <thead>
                 <tr className="border-b border-slate-200">
                   <th className="py-1.5 text-left text-xs font-bold uppercase text-slate-400">Pozycja</th>
-                  <th className="py-1.5 text-right text-xs font-bold uppercase text-slate-400">Brutto</th>
                   <th className="py-1.5 text-right text-xs font-bold uppercase text-slate-400">Netto</th>
+                  <th className="py-1.5 text-right text-xs font-bold uppercase text-slate-400">Brutto</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-slate-100">
                   <td className="py-2.5 text-xs text-slate-500">Cena bazowa</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{basePriceNum > 0 ? fmtPLN(toBrutto(basePriceNum)) : "—"}</td>
                   <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{basePriceNum > 0 ? fmtPLN(toNetto(basePriceNum)) : "—"}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{basePriceNum > 0 ? fmtPLN(toBrutto(basePriceNum)) : "—"}</td>
                 </tr>
                 <tr className="border-b border-slate-100">
                   <td className="py-2.5 text-xs text-slate-500">Opcje fabryczne</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{dynamicTotalOptionsPrice > 0 ? fmtPLN(dynamicTotalOptionsPrice * 1.23) : "—"}</td>
                   <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{dynamicTotalOptionsPrice > 0 ? fmtPLN(dynamicTotalOptionsPrice) : "—"}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{dynamicTotalOptionsPrice > 0 ? fmtPLN(dynamicTotalOptionsPrice * 1.23) : "—"}</td>
                 </tr>
                 {discountAmount > 0 && (
                   <tr className="border-b border-slate-100">
                     <td className="py-2.5 text-xs text-slate-500">Rabat ({activeDiscountPct}%)</td>
-                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-500">({fmtPLN(toBrutto(discountAmount))})</td>
                     <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">({fmtPLN(toNetto(discountAmount))})</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-500">({fmtPLN(toBrutto(discountAmount))})</td>
                   </tr>
                 )}
                 <tr className="border-t-2 border-slate-300">
                   <td className="py-2.5 text-sm font-semibold text-slate-900">Cena końcowa</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(toBrutto(activeFinalPrice))}</td>
                   <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(toNetto(activeFinalPrice))}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(toBrutto(activeFinalPrice))}</td>
                 </tr>
               </tbody>
             </table>
@@ -511,8 +514,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             {/* Rocznik Dropdown */}
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
-                Rocznik pojazdu
+              Rocznik pojazdu
                 <LinkedIndicator tableName="samar_vintage_depreciation" isLinked={true} />
+                {vintageAutoDetected && (
+                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
+                    AI
+                  </span>
+                )}
               </label>
               <select
                 className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
@@ -567,7 +575,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             </label>
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
               <input type="checkbox" checked={hookInstallation} onChange={e => setHookInstallation(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
-              <span className="flex items-center">Hak holowniczy <LinkedIndicator tableName="control_center" isLinked={true} /></span>
+              <span className="flex items-center">Hak holowniczy <LinkedIndicator tableName="control_center" isLinked={true} />
+                {hookAutoDetected && (
+                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
+                    AI
+                  </span>
+                )}
+              </span>
             </label>
           </div>
         </div>

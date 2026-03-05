@@ -791,7 +791,54 @@ async def delete_brand_correction(item_id: str) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Replacement Car Rates CRUD ──
+# ── Body Types Dictionary CRUD ──
+
+
+class BodyType(BaseModel):
+    id: Optional[int] = None
+    name: str
+    vehicle_class: str  # "Osobowy" / "Dostawczy"
+    description: Optional[str] = None
+
+
+@app.get("/api/body-types", tags=["Control Center"])
+async def get_body_types() -> List[BodyType]:
+    try:
+        response = (
+            supabase.table("body_types")
+            .select("*")
+            .order("vehicle_class")
+            .order("name")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [BodyType(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/body-types", tags=["Control Center"])
+async def upsert_body_type(body_type: BodyType) -> BodyType:
+    try:
+        data = body_type.model_dump(exclude_unset=True)
+        if not data.get("id"):
+            data.pop("id", None)
+        response = supabase.table("body_types").upsert(data).execute()
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to upsert body type")
+        response_data = cast(Any, response.data[0])
+        return BodyType(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/body-types/{body_type_id}", tags=["Control Center"])
+async def delete_body_type(body_type_id: int) -> Dict[str, str]:
+    try:
+        supabase.table("body_types").delete().eq("id", body_type_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/replacement-car-rates", tags=["Control Center"])

@@ -7,25 +7,13 @@ If only 1 vehicle, returns early and lets the standard pipeline handle it.
 """
 
 import json
-import os
 from typing import Union
 
-from google import genai
 from google.genai import types
 
+from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.prompts import MULTI_VEHICLE_DETECTION_PROMPT
-
-
-def _build_gemini_client() -> genai.Client:
-    """Create Gemini client from env (API key or Vertex AI)."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if api_key:
-        return genai.Client(api_key=api_key)
-
-    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-    return genai.Client(vertexai=True, project=project_id, location=location)
 
 
 def _build_document_parts(
@@ -48,7 +36,7 @@ def detect_vehicle_count(
     Returns the number of separate vehicle offers detected in the document.
     Falls back to 1 on any error.
     """
-    client = _build_gemini_client()
+    client = get_gemini_client()
     doc_parts = _build_document_parts(document_data, mime_type)
 
     detection_prompt = types.Part.from_text(
@@ -90,6 +78,7 @@ def detect_vehicle_count(
         temperature=0.0,
         max_output_tokens=16,
         response_mime_type="text/plain",
+        safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )
 
     try:
@@ -129,7 +118,7 @@ def extract_multi_vehicle_twins(
     Returns a list of dicts, each containing:
       - brand, model, offer_number, configuration_code, digital_twin
     """
-    client = _build_gemini_client()
+    client = get_gemini_client()
     contents = _build_document_parts(document_data, mime_type)
 
     config = types.GenerateContentConfig(
@@ -137,6 +126,10 @@ def extract_multi_vehicle_twins(
         max_output_tokens=65536,
         response_mime_type="application/json",
         system_instruction=MULTI_VEHICLE_DETECTION_PROMPT,
+        safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+        thinking_config=types.ThinkingConfig(
+            thinking_budget=16384,
+        ),
     )
 
     try:

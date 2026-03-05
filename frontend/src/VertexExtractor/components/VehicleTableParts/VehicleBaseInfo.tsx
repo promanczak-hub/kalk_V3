@@ -1,8 +1,10 @@
-import { ChevronUp, ChevronDown, Check, AlertTriangle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import type { FleetVehicleView } from "../../types";
 import { PriceDualFormat } from "./PriceDualFormat";
 import { SamarCategoryDropdown } from "./SamarCategoryDropdown";
+import { EngineCategoryDropdown } from "./EngineCategoryDropdown";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
 export interface MappedData {
@@ -21,6 +23,11 @@ interface SamarCandidate {
   confidence: number;
 }
 
+export interface EngineCandidate {
+  klasa: string;
+  confidence: number;
+}
+
 interface VehicleBaseInfoProps {
   vehicle: FleetVehicleView;
   mappedData?: MappedData | null;
@@ -31,6 +38,8 @@ interface VehicleBaseInfoProps {
   formatCalculatedPrice: (val: number) => string;
   samarCandidates?: SamarCandidate[];
   onSamarCategoryChange?: (newCategory: string) => void;
+  engineCandidates?: EngineCandidate[];
+  onEngineCategoryChange?: (newCategory: string) => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
@@ -79,8 +88,48 @@ function hasValue(v: string | null | undefined): boolean {
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-0.5 rounded text-xs font-medium text-slate-600">
+    <span
+      className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-0.5 rounded text-xs font-medium text-slate-600"
+      style={{ fontFamily: "'VT323', monospace", fontSize: "0.875rem" }}
+    >
       {children}
+    </span>
+  );
+}
+
+/** Monospace VT323 tag for offer/config codes — click to copy */
+function CodeTag({ children }: { children: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const text = typeof children === "string" ? children : (e.currentTarget as HTMLElement).textContent ?? "";
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      });
+    },
+    [children],
+  );
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 border px-2.5 py-0.5 rounded text-sm tracking-wide cursor-pointer transition-colors ${
+        copied
+          ? "border-green-400 bg-green-50 text-green-700"
+          : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:border-slate-400"
+      }`}
+      style={{ fontFamily: "'VT323', monospace" }}
+      onClick={handleCopy}
+      title="Kliknij, aby skopiować"
+    >
+      {children}
+      {copied ? (
+        <CheckCheck className="w-3 h-3 text-green-600" />
+      ) : (
+        <Copy className="w-3 h-3 text-slate-400" />
+      )}
     </span>
   );
 }
@@ -95,6 +144,8 @@ export function VehicleBaseInfo({
   formatCalculatedPrice,
   samarCandidates = [],
   onSamarCategoryChange,
+  engineCandidates = [],
+  onEngineCategoryChange,
   isSelected = false,
   onToggleSelect,
   crossCardAlerts = [],
@@ -103,105 +154,67 @@ export function VehicleBaseInfo({
 
   return (
     <div
-      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-4 cursor-pointer select-none"
+      className="p-4 sm:p-5 cursor-pointer select-none"
       onClick={onToggleExpand}
     >
-      {/* Selection checkbox */}
-      {onToggleSelect && (
-        <div
-          className="flex-shrink-0 pt-0.5"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect();
-          }}
-        >
+      {/* ── Row 1: Checkbox + Date + Vehicle Name + Price + Chevron ── */}
+      <div className="flex items-start gap-3">
+        {/* Selection checkbox */}
+        {onToggleSelect && (
           <div
-            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
-              isSelected
-                ? "bg-blue-500 border-blue-500"
-                : "border-slate-300 hover:border-blue-400"
-            }`}
+            className="flex-shrink-0 pt-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect();
+            }}
           >
-            {isSelected && <Check className="w-3 h-3 text-white" />}
+            <div
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
+                isSelected
+                  ? "bg-blue-500 border-blue-500"
+                  : "border-slate-300 hover:border-blue-400"
+              }`}
+            >
+              {isSelected && <Check className="w-3 h-3 text-white" />}
+            </div>
           </div>
-        </div>
-      )}
-      {/* Date & Meta */}
-      <div className="flex-shrink-0 w-full sm:w-36 flex flex-col gap-1 pt-0.5">
-        <span className="text-xs text-slate-500 tabular-nums">
-          {format(new Date(vehicle.created_at), "dd.MM.yyyy")}
-        </span>
-        <div className="flex gap-1.5 items-center flex-wrap">
-          {hasValue(vehicle.offer_number) && (
-            <Tag>{vehicle.offer_number}</Tag>
-          )}
-          {hasValue(vehicle.configuration_code) && (
-            <Tag>{vehicle.configuration_code}</Tag>
-          )}
-        </div>
-      </div>
+        )}
 
-      {/* Vehicle Identity */}
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <h3 className="text-sm font-semibold text-slate-900 truncate">
-            {vehicle.brand || "?"} {vehicle.model}
-          </h3>
-          {hasValue(vehicle.trim_level) && (
-            <span className="text-xs text-slate-500 font-medium">{vehicle.trim_level}</span>
-          )}
-          {mappedData && (
-            <span
-              className="text-xs text-slate-500 hidden sm:inline-block"
-              title="Klasyfikacja AI"
-            >
-              {mappedData.vehicle_type} · {mappedData.fuel} · {mappedData.transmission}
-            </span>
-          )}
+        {/* Date */}
+        <div className="flex-shrink-0 pt-0.5">
+          <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+            {format(new Date(vehicle.created_at), "dd.MM.yyyy")}
+          </span>
         </div>
 
-        <p className="text-xs text-slate-600 line-clamp-1 mt-0.5">
-          {hasValue(vehicle.powertrain)
-            ? vehicle.powertrain
-            : "Brak danych napędu"}
-        </p>
+        {/* Vehicle Identity — grows to fill */}
+        <div className="flex-grow min-w-0 overflow-hidden">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="text-sm font-semibold text-slate-900 truncate">
+              {vehicle.brand || "?"} {vehicle.model}
+            </h3>
+            {hasValue(vehicle.trim_level) && (
+              <span className="text-xs text-slate-500 font-medium">{vehicle.trim_level}</span>
+            )}
+            {mappedData && (
+              <span
+                className="text-xs text-slate-500 hidden sm:inline-block"
+                title="Klasyfikacja AI"
+              >
+                {mappedData.vehicle_type} · {mappedData.fuel} · {mappedData.transmission}
+              </span>
+            )}
+          </div>
 
-        {/* Metadata tags — all monochrome */}
-        <div className="flex gap-2 mt-1.5 flex-wrap items-center">
-          {vehicle.suggested_discount_pct != null && (
-            <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
-          )}
-          {vehicle.synthesis_data && vehicle.suggested_discount_pct == null && (
-            <Tag>Brak rabatu</Tag>
-          )}
-          {mappedData?.samar_category && onSamarCategoryChange ? (
-            <SamarCategoryDropdown
-              currentCategory={mappedData.samar_category}
-              candidates={samarCandidates}
-              onCategoryChange={onSamarCategoryChange}
-            />
-          ) : mappedData?.samar_category ? (
-            <Tag>SAMAR: {mappedData.samar_category}</Tag>
-          ) : null}
-          {mappedData?.engine_class && (
-            <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
-          )}
-          {powerBand && <Tag>Serwis: {powerBand}</Tag>}
-          {crossCardAlerts.length > 0 && (
-            <span
-              className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded text-xs font-semibold text-amber-700 animate-in fade-in duration-300"
-              title={`Inna oferta (${crossCardAlerts[0].siblingOfferNumber || "brak nr"}) ma rabat ${crossCardAlerts[0].siblingDiscountPct}% vs ${crossCardAlerts[0].currentDiscountPct}%`}
-            >
-              <AlertTriangle className="w-3 h-3" />
-              Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.)
-            </span>
-          )}
+          <p className="text-xs text-slate-600 line-clamp-1 mt-0.5">
+            {hasValue(vehicle.powertrain)
+              ? vehicle.powertrain
+              : "Brak danych napędu"}
+          </p>
         </div>
-      </div>
 
-      {/* Price */}
-      <div className="flex-shrink-0 text-right min-w-[180px] flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start pt-0.5">
-        <div className="flex flex-col items-end">
+        {/* Price */}
+        <div className="flex-shrink-0 text-right min-w-[160px] flex flex-col items-end pt-0.5">
           {activeFinalPrice > 0 && activeFinalPrice !== totalCatalogPrice ? (
             <>
               <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
@@ -228,7 +241,17 @@ export function VehicleBaseInfo({
           )}
         </div>
 
-        <button className="sm:ml-4 sm:hidden ml-auto p-1 text-slate-400 hover:text-slate-600">
+        {/* Chevron */}
+        <div className="hidden sm:flex items-center pl-2 text-slate-300 group-hover:text-slate-500 transition-colors pt-1">
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5" />
+          ) : (
+            <ChevronDown className="w-5 h-5" />
+          )}
+        </div>
+
+        {/* Mobile chevron */}
+        <button className="sm:hidden p-1 text-slate-400 hover:text-slate-600 flex-shrink-0">
           {isExpanded ? (
             <ChevronUp className="w-5 h-5" />
           ) : (
@@ -237,11 +260,47 @@ export function VehicleBaseInfo({
         </button>
       </div>
 
-      <div className="hidden sm:flex items-center pl-4 text-slate-300 group-hover:text-slate-500 transition-colors">
-        {isExpanded ? (
-          <ChevronUp className="w-5 h-5" />
-        ) : (
-          <ChevronDown className="w-5 h-5" />
+      {/* ── Row 2: Codes + Tags — full width, wraps freely ── */}
+      <div className="flex gap-2 mt-2 flex-wrap items-center ml-0 sm:ml-8">
+        {hasValue(vehicle.offer_number) && (
+          <CodeTag>{vehicle.offer_number}</CodeTag>
+        )}
+        {hasValue(vehicle.configuration_code) && (
+          <CodeTag>{vehicle.configuration_code}</CodeTag>
+        )}
+        {vehicle.suggested_discount_pct != null && (
+          <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
+        )}
+        {vehicle.synthesis_data && vehicle.suggested_discount_pct == null && (
+          <Tag>Brak rabatu</Tag>
+        )}
+        {mappedData?.samar_category && onSamarCategoryChange ? (
+          <SamarCategoryDropdown
+            currentCategory={mappedData.samar_category}
+            candidates={samarCandidates}
+            onCategoryChange={onSamarCategoryChange}
+          />
+        ) : mappedData?.samar_category ? (
+          <Tag>SAMAR: {mappedData.samar_category}</Tag>
+        ) : null}
+        {mappedData?.engine_class && onEngineCategoryChange ? (
+          <EngineCategoryDropdown
+            currentCategory={mappedData.fuel}
+            candidates={engineCandidates}
+            onCategoryChange={onEngineCategoryChange}
+          />
+        ) : mappedData?.engine_class ? (
+          <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
+        ) : null}
+        {powerBand && <Tag>Serwis: {powerBand}</Tag>}
+        {crossCardAlerts.length > 0 && (
+          <span
+            className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded text-xs font-semibold text-amber-700 animate-in fade-in duration-300"
+            title={`Inna oferta (${crossCardAlerts[0].siblingOfferNumber || "brak nr"}) ma rabat ${crossCardAlerts[0].siblingDiscountPct}% vs ${crossCardAlerts[0].currentDiscountPct}%`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.)
+          </span>
         )}
       </div>
     </div>

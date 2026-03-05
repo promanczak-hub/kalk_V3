@@ -1,4 +1,5 @@
 import json
+import datetime
 import threading
 import uuid
 from supabase import create_client, Client
@@ -51,9 +52,12 @@ def _cleanup_cancel_event(file_id: str) -> None:
 def _update_progress(supabase: Client, file_id: str, status: str) -> None:
     """Update verification_status in DB — triggers Supabase Realtime."""
     try:
-        supabase.table("vehicle_synthesis").update({"verification_status": status}).eq(
-            "id", file_id
-        ).execute()
+        supabase.table("vehicle_synthesis").update(
+            {
+                "verification_status": status,
+                "processing_updated_at": datetime.datetime.utcnow().isoformat(),
+            }
+        ).eq("id", file_id).execute()
         print(f"[PROGRESS] {file_id} → {status}")
     except Exception as e:
         print(f"[PROGRESS ERROR] Failed to update status to '{status}': {e}")
@@ -119,19 +123,43 @@ def _finalize_vehicle(
         mapped_data["samar_category"] = samar_name
         mapped_data["samar_candidates"] = samar_candidates
 
-        fuel = mapped_data.get("fuel")
-        if fuel:
+        from core.engine_mapper import map_to_engine_class
+
+        powertrain = (
+            card_summary.get("powertrain", {})
+            if isinstance(card_summary.get("powertrain"), dict)
+            else {}
+        )
+        engine_designation = powertrain.get("engine_designation")
+        capacity = powertrain.get("engine_capacity")
+        power = card_summary.get("power_hp")
+
+        eng_name, eng_cat, eng_candidates = map_to_engine_class(
+            fuel=mapped_data.get("fuel"),
+            engine_designation=engine_designation,
+            power=str(power) if power else None,
+            capacity=str(capacity) if capacity else None,
+            model=model,
+            trim=trim,
+        )
+
+        if eng_name != "UNKNOWN":
+            mapped_data["fuel"] = eng_name
+            mapped_data["engine_class"] = eng_cat
+            mapped_data["engine_candidates"] = eng_candidates
+        elif mapped_data.get("fuel"):
+            # Fallback for when API fails so we don't break old logic
             try:
                 engines_resp = (
                     supabase.table("engines")
                     .select("category")
-                    .eq("name", fuel)
+                    .eq("name", mapped_data.get("fuel"))
                     .execute()
                 )
                 if engines_resp.data:
                     mapped_data["engine_class"] = engines_resp.data[0]["category"]
             except Exception as db_e:
-                print(f"[BG TASK] Błąd pobierania kategorii silnika dla {fuel}: {db_e}")
+                print(f"[BG TASK] Błąd pobierania kategorii silnika fallback: {db_e}")
 
         parsed_data["mapped_ai_data"] = mapped_data
 
@@ -149,6 +177,7 @@ def _finalize_vehicle(
         "synthesis_data": parsed_data,
         "verification_status": "completed",
         "raw_pdf_url": raw_pdf_url,
+        "document_category": parsed_data.get("card_summary", {}).get("vehicle_class"),
     }
 
     print(f"[BG TASK] Zapisuję wyniki do DB dla {vehicle_id}")
@@ -364,10 +393,11 @@ def process_and_save_document_bg(
             f"(ID: {file_id}): {str(e)}\n{error_trace}"
         )
         try:
+            # Always ensure a fresh client is used in the exception block if previous one died
             supabase = get_supabase_client()
             error_payload = {
                 "verification_status": "error",
-                "notes": f"Błąd ekstrakcji: {str(e)}",
+                "notes": f"Błąd ekstrakcji: {str(e)}\n\n{error_trace}",
             }
             supabase.table("vehicle_synthesis").update(error_payload).eq(
                 "id", file_id

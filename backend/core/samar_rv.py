@@ -161,24 +161,92 @@ class SamarRVCalculator:
         return 0.0
 
     def get_vintage_correction(self, rocznik: str) -> float:
-        """Korekta za rocznik pojazdu"""
+        """Korekta za rocznik pojazdu.
+
+        Maps frontend values ('current'/'previous') to DB keys
+        ('bieżący'/'bieżący-1') and queries ltr_admin_korekta_wr_roczniks.
+        Returns the correction percentage (e.g. -0.02 for 2% penalty).
+        Falls back to 0.0 if no match.
+        """
+        vintage_map: dict[str, str] = {
+            "current": "bieżący",
+            "previous": "bieżący-1",
+        }
+        db_key = vintage_map.get(rocznik, "bieżący")
+        try:
+            response = (
+                self.supabase.table("ltr_admin_korekta_wr_roczniks")
+                .select("korekta_procent")
+                .eq("rocznik", db_key)
+                .limit(1)
+                .execute()
+            )
+            if response.data:
+                return float(response.data[0]["korekta_procent"])
+        except Exception as e:
+            print(f"Error fetching vintage correction: {e}")
         return 0.0
 
-    def get_brand_correction(self) -> float:
-        """Korekta za markę z legacy tabeli ltr_admin_korekta_wr_markas.
+    # Fallback: Chińskie marki – 20% gorsza retencja
+    _CHINESE_BRANDS_FALLBACK: set[str] = {
+        "BYD",
+        "MG",
+        "SAIC",
+        "GWM",
+        "GREAT WALL",
+        "GEELY",
+        "NIO",
+        "XPENG",
+        "ZEEKR",
+        "LYNK & CO",
+        "CHERY",
+        "DONGFENG",
+        "JAC",
+        "MAXUS",
+        "LDV",
+        "AIWAYS",
+        "ORA",
+        "HONGQI",
+        "LEAPMOTOR",
+        "DFSK",
+        "DR",
+        "BAIC",
+        "SKYWELL",
+        "SERES",
+    }
 
-        Filtruje po klasa_wr_id, rodzaj_paliwa (=fuel_type_id) i marka_id.
+    # Klasy dostawcze (samar_class_id)
+    _COMMERCIAL_CLASS_IDS: set[int] = {21, 25, 26, 27, 28, 29, 30}
+
+    def get_brand_correction(self) -> float:
+        """Korekta za markę pojazdu.
+
+        Priorytet:
+        1. Szukaj w tabeli ltr_admin_korekta_wr_markas po brand_name
+        2. Fallback: hardcoded chińskie marki / VW Crafter
         """
-        marka_id = self.vehicle.get("MakeId") or self.vehicle.get("marka_id")
-        if not marka_id:
+        brand = (
+            (self.vehicle.get("brand") or self.vehicle.get("Marka") or "")
+            .strip()
+            .upper()
+        )
+        model = (
+            (self.vehicle.get("model") or self.vehicle.get("Model") or "")
+            .strip()
+            .upper()
+        )
+
+        if not brand:
             return 0.0
+
+        # ── 1. Próba DB lookup po brand_name ──
         try:
             res = (
                 supabase.table("ltr_admin_korekta_wr_markas")
                 .select("korekta_procent")
+                .eq("brand_name", brand)
                 .eq("klasa_wr_id", self.class_id)
                 .eq("rodzaj_paliwa", self.fuel_type_id)
-                .eq("marka_id", int(marka_id))
                 .limit(1)
                 .execute()
             )
@@ -186,6 +254,18 @@ class SamarRVCalculator:
                 return float(res.data[0].get("korekta_procent", 0.0))
         except Exception:
             pass
+
+        # ── 2. Fallback: reguły hardcoded ──
+        if brand in self._CHINESE_BRANDS_FALLBACK:
+            return -0.20
+
+        if (
+            brand in ("VOLKSWAGEN SAMOCHODY DOSTAWCZE", "VOLKSWAGEN")
+            and "CRAFTER" in model
+            and self.class_id in self._COMMERCIAL_CLASS_IDS
+        ):
+            return 0.10
+
         return 0.0
 
     def get_mileage_correction(self) -> Dict[str, float]:

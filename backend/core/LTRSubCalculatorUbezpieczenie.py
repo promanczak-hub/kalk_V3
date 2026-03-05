@@ -1,96 +1,136 @@
-from dataclasses import dataclass
-
-
-@dataclass
-class InsuranceInput:
-    base_price: float
-    months: int
-    ac_rate_pct: float
-    oc_rate_annual: float
-    depreciation_rate_pct: float  # e.g., 0.98% drop per month -> 0.0098
-
-    # Optional flags and their rates
-    theft_doub_rate_pct: float
-    add_theft_insurance: bool
-
-    manual_correction_gross: float
-    annual_damage_risk: float
-    vat_rate: float
-
-    express_pays_insurance: bool
-
-
-@dataclass
-class InsuranceResult:
-    total_cost_net: float
-    monthly_cost_net: float
-    uncharged_total: float
+from typing import Any, Dict, List
 
 
 class InsuranceCalculator:
-    def __init__(self, data: InsuranceInput):
-        self.data = data
+    def __init__(
+        self,
+        insurance_rates: List[Dict[str, Any]],
+        damage_coefficients: Dict[str, Any],
+        settings: Any,
+        amortization_pct: float,
+        total_km: int,
+    ):
+        self.insurance_rates = insurance_rates
+        self.damage_coefficients = damage_coefficients
+        self.settings = settings
+        self.amortization_pct = amortization_pct
+        self.total_km = total_km
         self.LICZBA_LAT = 7
 
-    def calculate(self) -> InsuranceResult:
+    def calculate_cost(self, months: int, base_price: float) -> dict:
         total_cost_period = 0.0
 
-        ac_rate_combined = self.data.ac_rate_pct
-        if self.data.add_theft_insurance:
-            ac_rate_combined += self.data.theft_doub_rate_pct
+        # Optional Flags - assuming False for now unless logic added to UI
+        add_theft_insurance = False
+        add_driving_school = False
 
-        # Loop exactly up to 7 years, but accumulate only for months of the lease
-        for year in range(self.LICZBA_LAT):
-            # Calculate total months strictly BEFORE this year
-            liczba_miesiecy_przed_rokiem = year * 12
+        theft_doub_rate_pct = getattr(self.settings, "ins_theft_doub_pct", 0.0)
+        driving_school_rate_pct = getattr(
+            self.settings, "ins_driving_school_doub_pct", 0.0
+        )
 
-            # If we've already covered all required months, exit loop
-            if liczba_miesiecy_przed_rokiem >= self.data.months:
-                break
+        average_damage_value_base = getattr(
+            self.settings, "ins_avg_damage_value", 1500.0
+        )
+        average_damage_mileage = getattr(
+            self.settings, "ins_avg_damage_mileage", 30000.0
+        )
 
-            # V1 logic: base drops linearly each month
+        wsp_sredni_przebieg = float(
+            self.damage_coefficients.get("WspSredniPrzebieg", 1.0)
+        )
+        wsp_wartosc_szkody = float(
+            self.damage_coefficients.get("WspWartoscSzkody", 1.0)
+        )
+
+        if average_damage_mileage > 0:
+            srednia_szkoda_calosc = average_damage_value_base * (
+                (self.total_km / average_damage_mileage)
+                * wsp_sredni_przebieg
+                * wsp_wartosc_szkody
+            )
+        else:
+            srednia_szkoda_calosc = 0.0
+
+        for year in range(1, self.LICZBA_LAT + 1):
+            # Znajdź stawkę ubezpieczeniową dla danego roku z tabeli
+            rok_rate = next(
+                (r for r in self.insurance_rates if r.get("KolejnyRok") == year), None
+            )
+
+            # Fallback dla brakującego roku - z the base / first year
+            if not rok_rate:
+                # User requested NO fallback. If no rate for year exist in specific table, error.
+                raise ValueError(
+                    f"No insurance rate found for year {year} and no fallback allowed."
+                )
+            else:
+                stawka_ac = float(rok_rate.get("StawkaBazowaAC", 0.025))
+                skladka_oc = float(rok_rate.get("SkladkaOC", 1200.0))
+
+            liczba_miesiecy_przed_rokiem = (year - 1) * 12
             depreciation_factor = 1.0 - (
-                liczba_miesiecy_przed_rokiem * self.data.depreciation_rate_pct
+                liczba_miesiecy_przed_rokiem * self.amortization_pct
             )
             if depreciation_factor < 0:
                 depreciation_factor = 0.0
 
-            podstawa_naliczania = self.data.base_price * depreciation_factor
+            podstawa_naliczania = base_price * depreciation_factor
 
-            # Yearly AC part
-            yearly_ac = podstawa_naliczania * (ac_rate_combined / 100.0)
+            skladka_ac_kwota = round(podstawa_naliczania * stawka_ac, 2)
+            skladka_oc_kwota = skladka_oc
 
-            # Yearly OC part is fixed
-            yearly_oc = self.data.oc_rate_annual
+            doubezpieczenie_kradziez = (
+                (skladka_ac_kwota * (theft_doub_rate_pct / 100.0))
+                if add_theft_insurance
+                else 0.0
+            )
+            doubezpieczenie_nauka = (
+                (skladka_ac_kwota * (driving_school_rate_pct / 100.0))
+                if add_driving_school
+                else 0.0
+            )
 
-            # Yearly total for this simulated year includes damage risk
-            yearly_total = yearly_ac + yearly_oc + self.data.annual_damage_risk
+            suma_skladki_rok = (
+                skladka_ac_kwota
+                + skladka_oc_kwota
+                + doubezpieczenie_kradziez
+                + doubezpieczenie_nauka
+            )
 
-            # Pro-rate if this is the last, partial year
-            miesiecy_pozostalo = self.data.months - liczba_miesiecy_przed_rokiem
-            if miesiecy_pozostalo < 12:
-                # Add only the fraction of the year
-                total_cost_period += yearly_total * (miesiecy_pozostalo / 12.0)
+            # Pro-rata calculation per year logic from V1 C#
+            skladka_roczna = 0.0
+            v1 = year * 12
+            v2 = (year - 1) * 12
+
+            if year == 1:
+                if months >= 12:
+                    skladka_roczna = suma_skladki_rok
+                else:
+                    skladka_roczna = suma_skladki_rok * (months / 12.0)
             else:
-                # Add full year
-                total_cost_period += yearly_total
+                if months < v1 and months > v2:
+                    skladka_roczna = suma_skladki_rok * ((months - v2) / 12.0)
+                elif months >= v1:
+                    skladka_roczna = suma_skladki_rok
 
-        cost_for_contract = total_cost_period
+            # Szkody logic from V1
+            szkoda_rocznie = 0.0
+            if months <= v1 and months > v2:
+                szkoda_rocznie = (srednia_szkoda_calosc / months) * (months - v2)
+            elif months > v1:
+                szkoda_rocznie = (srednia_szkoda_calosc / months) * 12.0
 
-        # Add manual correction
-        manual_net = 0.0
-        if self.data.vat_rate > 0:
-            manual_net = self.data.manual_correction_gross / self.data.vat_rate
+            skladka_laczna_rok = skladka_roczna + szkoda_rocznie
 
-        total_uncharged = cost_for_contract + manual_net
+            # Add to total cost ONLY if the months span overlaps this year
+            if months > v2:
+                total_cost_period += skladka_laczna_rok
 
-        # Financial logic override based on express_pays_insurance
-        effective_total = total_uncharged if self.data.express_pays_insurance else 0.0
+        total_cost_net = total_cost_period
+        monthly_cost_net = total_cost_net / months if months > 0 else 0.0
 
-        return InsuranceResult(
-            total_cost_net=effective_total,
-            monthly_cost_net=effective_total / self.data.months
-            if self.data.months > 0
-            else 0.0,
-            uncharged_total=total_uncharged,
-        )
+        return {
+            "monthly_insurance": monthly_cost_net,
+            "total_insurance": total_cost_net,
+        }

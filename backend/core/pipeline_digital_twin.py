@@ -1,9 +1,8 @@
 import json
-import os
 from typing import Union
-from google import genai
 from google.genai import types
 
+from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.prompts import MASTER_PROMPT_V2, FALLBACK_STRUCTURED_PROMPT_FLASH
 
@@ -45,22 +44,19 @@ def extract_digital_twin_from_pdf(
     Extracts a raw JSON digital twin representation of the document using Gemini 2.5 Pro.
     Falls back to Structured Outputs if standard JSON extraction gets corrupted.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
-
-    if api_key:
-        client = genai.Client(api_key=api_key)
-    else:
-        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-        client = genai.Client(vertexai=True, project=project_id, location=location)
-
+    client = get_gemini_client()
     model_id = "gemini-2.5-pro"
 
     config = types.GenerateContentConfig(
         temperature=0.0,
+        seed=42,
         max_output_tokens=65536,
         response_mime_type="application/json",
         system_instruction=MASTER_PROMPT_V2,
+        safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+        thinking_config=types.ThinkingConfig(
+            thinking_budget=16384,
+        ),
     )
 
     if isinstance(document_data, bytes):
@@ -70,7 +66,7 @@ def extract_digital_twin_from_pdf(
     else:
         contents = [types.Part.from_text(text=document_data)]
 
-    print("Attempting primary standard JSON extraction...")
+    print("Attempting primary standard JSON extraction (thinking enabled)...")
     response = client.models.generate_content(
         model=model_id,
         contents=contents,
@@ -79,8 +75,27 @@ def extract_digital_twin_from_pdf(
 
     pro_response_text = getattr(response, "text", "{}") or "{}"
 
+    # Capture usage metadata for cost tracking
+    usage = getattr(response, "usage_metadata", None)
+    usage_info: dict = {}
+    if usage:
+        usage_info = {
+            "prompt_tokens": getattr(usage, "prompt_token_count", None),
+            "output_tokens": getattr(usage, "candidates_token_count", None),
+            "thinking_tokens": getattr(usage, "thoughts_token_count", None),
+            "model": model_id,
+            "stage": "digital_twin",
+        }
+        print(
+            f"[GEMINI USAGE] prompt={usage_info['prompt_tokens']}, "
+            f"output={usage_info['output_tokens']}, "
+            f"thinking={usage_info['thinking_tokens']}"
+        )
+
     try:
         pro_data = json.loads(clean_json_response(pro_response_text))
+        if usage_info:
+            pro_data["_extraction_metadata"] = usage_info
         print("Primary standard JSON extraction succeeded.")
         return pro_data
     except json.JSONDecodeError as e:

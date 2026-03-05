@@ -138,3 +138,89 @@ def generate_matrix_from_extracted_v3(vehicle_id: str, req: dict):
     except Exception as e:
         print(f"Matrix Engine Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/debug-pipeline/{vehicle_id}")
+def debug_calculation_pipeline(vehicle_id: str, req: dict):
+    from main import CalculatorInput, VehicleOptions
+    from core.PipelineDebugger import PipelineDebugger
+    from core.models import ControlCenterSettings
+    from typing import cast, Any, Dict
+
+    try:
+        # Reconstruct Control Center Settings
+        cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
+        if not cc_res.data:
+            raise HTTPException(status_code=500, detail="Brak ustawień CC")
+
+        response_data = cast(Dict[str, Any], cc_res.data[0])
+        settings = ControlCenterSettings(**response_data)
+
+        # 1. Map options
+        factory_opts = []
+        for o in req.get("factory_options", []):
+            factory_opts.append(
+                VehicleOptions(
+                    name=o["name"],
+                    price_net=o["price_net"],
+                    price_gross=round(o["price_net"] * 1.23, 2),
+                )
+            )
+        service_opts = []
+        for o in req.get("service_options", []):
+            service_opts.append(
+                VehicleOptions(
+                    name=o["name"],
+                    price_net=o["price_net"],
+                    price_gross=round(o["price_net"] * 1.23, 2),
+                    include_in_wr=o.get("include_in_wr", False),
+                )
+            )
+
+        # 2. Map Payload into CalculatorInput
+        calc_input = CalculatorInput(
+            vehicle_id=vehicle_id,
+            base_price_net=req.get("base_price_net", 0.0),
+            discount_pct=req.get("discount_pct", 0.0),
+            factory_options=factory_opts,
+            service_options=service_opts,
+            wibor_pct=req.get("wibor_pct", 5.85),
+            margin_pct=req.get("margin_pct", 2.0),
+            pricing_margin_pct=req.get("pricing_margin_pct", 15.0),
+            depreciation_pct=req.get("depreciation_pct"),
+            initial_deposit_pct=req.get("initial_deposit_pct", 0.0),
+            z_oponami=req.get("z_oponami", True),
+            klasa_opony_string=req.get("klasa_opony_string", "Medium"),
+            srednica_felgi=req.get("srednica_felgi", 18),
+            korekta_kosztu_opon=req.get("korekta_kosztu_opon", False),
+            koszt_opon_korekta=req.get("koszt_opon_korekta", 0.0),
+            service_cost_type=req.get("service_cost_type", "ASO"),
+            okres_bazowy=req.get("okres_bazowy", 48),
+            przebieg_bazowy=req.get("przebieg_bazowy", 140000),
+            replacement_car_enabled=req.get("replacement_car_enabled", True),
+            pakiet_serwisowy=req.get("pakiet_serwisowy", 0.0),
+            inne_koszty_serwisowania_netto=req.get(
+                "inne_koszty_serwisowania_netto", 0.0
+            ),
+        )
+
+        # 3. Handle overrides and months for execution
+        months = req.get("months", calc_input.okres_bazowy)
+        overrides = req.get("overrides", {})
+
+        # 4. Call Debugger Engine
+        debugger = PipelineDebugger(input_data=calc_input, settings=settings)
+        steps = debugger.calculate_steps(months=months, overrides=overrides)
+
+        return {
+            "status": "success",
+            "vehicle_id": vehicle_id,
+            "months": months,
+            "steps": steps,
+        }
+    except Exception as e:
+        print(f"Debugger Engine Error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

@@ -23,6 +23,7 @@ E. (KRYTYCZNE FINANSE I CENNIKI): Przepisz dokładnie wszystkie informacje o cen
    - NIE próbuj wymuszać na siłę struktury "cena bazowa" vs "opcje", jeśli nie wynika to jasno z sekcji dokumentu w danym miejscu.
    - Odczytaj wszystkie wycenione pozycje z wyposażenia (opcje, pakiety, akcesoria) pokazując ich ceny obok nazwy, jeśli takie ceny widnieją na papierze. Jeśli w dokumencie wypisano listę w pakiecie bez podziału na ceny - przepisz te elementy jako zwykłą listę (bez narzucania im cen).
    - Zachowaj informację o walutach oraz wzmianki o kwotach netto/brutto na podstawie kontekstu dokumentu.
+F. (KRYTYCZNE DANE TECHNICZNE): Bezwzględnie zlokalizuj w dokumencie sekcje takie jak "Silnik", "Dane techniczne", "Masy i Wymiary", "Emisja", "Spalanie", "Napęd". ZAKAZUJĘ zwracania pustych bloków `content: []` dla tych sekcji, jeśli w dokumencie występuje jakikolwiek tekst, ikona, czy specyfikacja dotycząca pojemności skokowej, mocy (KM/kW), momentu obrotowego, układu napędowego (np. 4Drive, quattro, 4x4, 4Motion, oś przednia, tylna), skrzyni biegów (np. DSG, automatyczna, manual) lub rodzaju paliwa oraz emisji CO2 i WLTP. Wymagam przepisania tych danych niezależnie czy są w dużej tabeli czy w małym druczku pod zdjęciem.
 Zachowaj pełną wierność względem oryginału, uwzględniając przypisy i opisy drobnym drukiem. Traktuj się jako bezwzględny OCR i parser układu, nie księgowy.
 
 The output MUST be a valid JSON object. Do not output any markdown blocks (like ```json), just the raw JSON. Upewnij się, że generowany JSON jest w 100% poprawny składniowo (zabezpiecz wszystkie cudzysłowy i znaki nowej linii). Nie ucinaj długich stringów w połowie słowa - w razie potrzeby skróć wyciągany tekst.
@@ -67,7 +68,9 @@ Jeśli dokument opisuje JEDEN konkretnie skonfigurowany pojazd, zawsze zwracaj '
 """
 
 CARD_SUMMARY_PROMPT = """
-Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach. Jeśli widzisz 'obręcze', 'felgi', 'koła', wyodrębnij tylko i wyłącznie ich średnicę jako ciąg znaków (np. '17', '18') do pola wheels. 
+Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach (np. w nazwach akcesoriów, w disclaimerach lub elementach graficznych wyodrębnionych przez VLM).
+Szczególną uwagę zwróć na dedukcję napędu, paliwa i skrzyni biegów.
+Jeśli widzisz 'obręcze', 'felgi', 'koła', wyodrębnij tylko i wyłącznie ich średnicę jako ciąg znaków (np. '17', '18') do pola wheels. 
 Jeśli widzisz zużycie paliwa lub cykl WLTP, podepnij to pod emisję (emissions). 
 
 KRYTYCZNE DANE FINANSOWE (WYMAGA TWOJEJ INTELIGENCJI I OBLICZEŃ):
@@ -110,6 +113,22 @@ Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedł
 Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie.
 Bądź precyzyjny, ale szukaj szeroko w obrębie danego kontekstu. 
 Wyciągnij 'body_style' i 'trim_level' jako dwie oddzielne wartości w obiekcie, nie dokładaj ich na końcu innych stringów typu model.
+
+DETEKCJA LAKIERU (is_metalic_paint):
+Oceń rodzaj lakieru nadwozia na podstawie opisu koloru w dokumencie:
+- True: lakier metaliczny, perłowy, xirallic, mica, special efekt, dwuwarstwowy, 'metallic', 'pearl' - nawet jeśli jest w cenie bazowej (za darmo).
+- False: lakier bazowy, akrylowy, jednowarstwowy, solido, 'uni' lub brak wzmianki o typie premium.
+- null: brak informacji o kolorze lakieru.
+Chodzi o kategorie/technologie lakieru, NIE o jego cene.
+
+DETEKCJA HAKA (has_tow_hook):
+Sprawdz czy w konfiguracji, opcjach lub wyposazeniu standardowym wystepuje hak holowniczy (lub przygotowanie pod hak). True = jest, False = wprost nie ma, null = brak informacji.
+
+DETEKCJA ROCZNIKA (is_current_year_vehicle):
+Na podstawie daty waznosci oferty, roku modelowego, roku produkcji, daty dokumentu lub innych wskazowek ocen:
+- True: pojazd z biezacego lub przyszlego rocznika produkcji.
+- False: pojazd wyprodukowany w roku poprzednim (ubiegloroczny).
+- null: brak wystarczajacych danych do oceny.
 """
 
 BROCHURE_SUMMARY_PROMPT = """

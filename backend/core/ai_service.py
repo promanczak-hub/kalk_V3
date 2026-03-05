@@ -1,8 +1,7 @@
 from typing import Optional, Any
-import os
 import json
-from google import genai
 from google.genai import types
+from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.extractor_models import VehicleBrochureSchema
 
 
@@ -11,11 +10,7 @@ def process_brochure_document(raw_text: str) -> Optional[Any]:
     Funkcja (Digital Twin) do przetwarzania surowego pdf_text / json w czystą, ustandaryzowaną broszurę ofertową
     (tzw. Karta Produktu). Korzysta z zewnętrznego API Google GenAI i zwraca model Pydantic.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("Brak klucza GEMINI_API_KEY w konfiguracji serwera.")
-
-    client = genai.Client(api_key=api_key)
+    client = get_gemini_client()
 
     prompt = f"""
 Jesteś zaawansowanym systemem eksperckim branży motoryzacyjnej. Twoim zadaniem jest przekształcenie 
@@ -42,6 +37,7 @@ Surowy tekst z oferty:
                 response_mime_type="application/json",
                 response_schema=VehicleBrochureSchema,
                 temperature=0.1,
+                safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             ),
         )
 

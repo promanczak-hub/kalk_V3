@@ -1,9 +1,9 @@
 import json
 import os
 from supabase import create_client, Client
-from google import genai
 from google.genai import types
 
+from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.prompts import MATCH_FLEET_DISCOUNT_SYSTEM_PROMPT
 
@@ -26,13 +26,7 @@ def match_fleet_discount(pro_data: dict) -> dict:
         return pro_data
 
     # 2. Skonfiguruj API
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if api_key:
-        client = genai.Client(api_key=api_key)
-    else:
-        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-        client = genai.Client(vertexai=True, project=project_id, location=location)
+    client = get_gemini_client()
 
     flash_model_id = "gemini-2.5-flash"
 
@@ -130,6 +124,7 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
             system_instruction=MATCH_FLEET_DISCOUNT_SYSTEM_PROMPT,
             temperature=0.0,  # Deterministic matching
             response_mime_type="application/json",
+            safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             response_schema={
                 "type": "object",
                 "properties": {

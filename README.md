@@ -88,6 +88,33 @@ Skopiuj i dostosuj poniższy prompt. Wklej go na początku sesji (np. w Cursorze
 > 4. Aktywne Pytanie: Jeśli w starej logice występuje niejasność, brak dokumentacji lub ryzyko błędu zaokrągleń – nie zgaduj. Zatrzymaj się i natychmiast zapytaj mnie o intencję biznesową lub dostarczenie większego kontekstu.
 > 5. Test-First (TDD): Każdy krok logiki musi być poprzedzony stworzeniem testu jednostkowego, który potwierdza zgodność starego wyniku z nowym. Dopiero po przejściu (lub napisaniu) testu, możesz zaimplementować docelowy kod funkcji.
 
+## 🔢 Kolejność Sub-Kalkulatorów (V1 → V3)
+
+Kanoniczna kolejność uruchamiania sub-kalkulatorów w pipeline `LTRKalkulator.Calculate()`.
+Źródło: `C:\Users\proma\Downloads\kalkulator_V1_extracted\kalkulator_V1\LTRKalkulator.cs` (linie 250-398).
+
+| #   | Skrót (V1) | Sub-Kalkulator           | Plik V3 (Python)                        | Zależności wejściowe     |
+| --- | ---------- | ------------------------ | --------------------------------------- | ------------------------ |
+| 1   | **(Op)**   | **Opony**                | `LTRSubCalculatorOpony.py`              | — (niezależny)           |
+| 2   | **(KDod)** | **Koszty Dodatkowe**     | `LTRSubCalculatorKosztyDodatkowe.py`    | — (niezależny)           |
+| 3   | **(SZst)** | **Samochód Zastępczy**   | `LTRSubCalculatorSamochodZastepczy.py`  | — (niezależny)           |
+| 4   | **(Srw)**  | **Serwis**               | `LTRSubCalculatorSerwisNew.py`          | — (niezależny)           |
+| 5   | **(CeZ)**  | **Cena Zakupu (CAPEX)**  | `LTRSubCalculatorCenaZakupu.py`         | Opony (koszt 1 kpl)      |
+| 6   | **(UtW)**  | **Utrata Wartości (WR)** | `LTRSubCalculatorUtrataWartosciNew.py`  | CenaZakupu               |
+| 7   | **(Am)**   | **Amortyzacja**          | `LTRSubCalculatorAmortyzacja.py`        | CenaZakupu, WR           |
+| 8   | **(Ub)**   | **Ubezpieczenie**        | `LTRSubCalculatorUbezpieczenie.py`      | Amortyzacja%, CenaZakupu |
+| 9   | **(Fi)**   | **Finanse (PMT)**        | `LTRSubCalculatorFinanse.py`            | CenaZakupu, WR           |
+| 10  | **(KDz)**  | **Koszt Dzienny**        | `LTRSubCalculatorKosztDzienny.py`       | Wszystkie powyższe       |
+| 11  | **(St)**   | **Stawka**               | `LTRSubCalculatorStawka.py`             | KosztDzienny + wszystkie |
+| 12  | **(Bm)**   | **Budżet Marketingowy**  | `LTRSubCalculatorBudzetMarketingowy.py` | WR                       |
+
+> [!IMPORTANT]
+> **Kroki 1–4** są niezależne — mogą być liczone równolegle.
+> **Kroki 5–9** mają zależności kaskadowe (każdy zależy od poprzednich).
+> **Kroki 10–12** agregują wyniki wszystkich poprzednich.
+
+---
+
 ## 📋 Changelog & Śledzenie Zmian API
 
 Sekcja dokumentuje istotne zmiany w interfejsach, modułach i funkcjach projektu.

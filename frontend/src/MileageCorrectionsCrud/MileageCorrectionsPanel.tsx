@@ -18,7 +18,8 @@ import {
   Tooltip,
 } from "@mui/material";
 import { Save } from "lucide-react";
-import axios from "axios";
+
+const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 interface SamarClass {
   id: number;
@@ -72,14 +73,20 @@ export default function MileageCorrectionsPanel() {
   useEffect(() => {
     const fetchMeta = async () => {
       try {
-        const [classRes, engineRes] = await Promise.all([
-          axios.get("/api/samar-classes"),
-          axios.get("/api/engines"),
+        const [classResp, engineResp] = await Promise.all([
+          fetch(`${BASE_URL}/api/samar-classes`),
+          fetch(`${BASE_URL}/api/engines`),
         ]);
-        setClasses(classRes.data);
-        setEngines(engineRes.data.sort((a: EngineType, b: EngineType) => a.id - b.id));
-        if (classRes.data.length > 0) {
-          setSelectedClassId(classRes.data[0].id);
+        const classData: SamarClass[] = classResp.ok ? await classResp.json() : [];
+        const engineData: EngineType[] = engineResp.ok ? await engineResp.json() : [];
+        setClasses(Array.isArray(classData) ? classData : []);
+        setEngines(
+          Array.isArray(engineData)
+            ? engineData.sort((a, b) => a.id - b.id)
+            : []
+        );
+        if (classData.length > 0) {
+          setSelectedClassId(classData[0].id);
         }
       } catch (e) {
         console.error("Failed to load metadata", e);
@@ -92,8 +99,9 @@ export default function MileageCorrectionsPanel() {
     if (selectedClassId === null) return;
     setLoading(true);
     try {
-      const res = await axios.get(`/api/mileage-corrections?samar_class_id=${selectedClassId}`);
-      setCorrections(res.data);
+      const resp = await fetch(`${BASE_URL}/api/mileage-corrections?samar_class_id=${selectedClassId}`);
+      const data: MileageCorrection[] = resp.ok ? await resp.json() : [];
+      setCorrections(Array.isArray(data) ? data : []);
       setEditedCorrections(new Map());
     } catch (e) {
       console.error("Failed to load corrections", e);
@@ -154,7 +162,11 @@ export default function MileageCorrectionsPanel() {
         uniqueMap.set(correction.fuel_type_id, { ...(prev || {}), ...correction });
       }
       const payload = Array.from(uniqueMap.values());
-      await axios.post("/api/mileage-corrections/bulk", payload);
+      await fetch(`${BASE_URL}/api/mileage-corrections/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       setSnackbar({ open: true, message: "Zapisano korekty przebiegowe", severity: "success" });
       await fetchCorrections();
     } catch (e) {

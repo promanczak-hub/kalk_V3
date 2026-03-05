@@ -1,0 +1,30 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\kalk_v3
+configfile: pyproject.toml
+plugins: anyio-4.12.1, timeout-2.4.0
+collected 2 items
+
+tests\test_pipeline_debugger.py EE                                       [100%]
+
+=================================== ERRORS ====================================
+__ ERROR at setup of test_pipeline_debugger_no_overrides_matches_kalkulator ___
+file D:\kalk_v3\backend\tests\test_pipeline_debugger.py, line 93
+  def test_pipeline_debugger_no_overrides_matches_kalkulator(
+E       fixture 'mocker' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_input_data, mock_settings, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\kalk_v3\backend\tests\test_pipeline_debugger.py:93
+___________ ERROR at setup of test_pipeline_debugger_with_override ____________
+file D:\kalk_v3\backend\tests\test_pipeline_debugger.py, line 167
+  def test_pipeline_debugger_with_override(mock_input_data, mock_settings, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_input_data, mock_settings, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\kalk_v3\backend\tests\test_pipeline_debugger.py:167
+=========================== short test summary info ===========================
+ERROR tests\test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+ERROR tests\test_pipeline_debugger.py::test_pipeline_debugger_with_override
+============================== 2 errors in 2.42s ==============================

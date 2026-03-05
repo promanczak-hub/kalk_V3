@@ -293,6 +293,25 @@ class CardSummary(BaseModel):
         None,
         description="Czy pojazd ma zamontowany hak holowniczy (lub przygotowanie pod hak). Zwróć True jeśli znaleziono, False jeśli wprost nie ma, null jeśli brak informacji.",
     )
+    is_metalic_paint: Optional[bool] = Field(
+        None,
+        description=(
+            "Czy lakier nadwozia jest z kategorii premium (metalik, perłowy, xirallic, "
+            "mica, special efekt, dwuwarstwowy) — zwróć True. Lakier bazowy, akrylowy, "
+            "jednowarstwowy, solido — zwróć False. Chodzi o kategorię lakieru, NIE o cenę "
+            "(nawet darmowy lakier metalik = True). Null jeśli brak informacji."
+        ),
+    )
+    is_current_year_vehicle: Optional[bool] = Field(
+        None,
+        description=(
+            "Czy pojazd jest z bieżącego rocznika produkcji (True) czy ubiegłego (False). "
+            "Oceń na podstawie: daty ważności oferty, roku modelowego, daty produkcji, "
+            "roku rejestracji lub innych wskazówek w dokumencie. Jeśli oferta jest "
+            "wystawiona na pojazd z roku bieżącego lub przyszłego — True. Jeśli pojazd "
+            "został wyprodukowany w roku poprzednim — False. Null jeśli brak danych."
+        ),
+    )
     suggested_discount_pct: Optional[float] = Field(
         None,
         description="Wyliczony przez AI sugerowany procent rabatu na podstawie dopasowania auta do oficjalnej macierzy rabatowej (np. 12.5). Zostaw puste, jeśli nie dopasowano.",

@@ -6,13 +6,8 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { cn } from "../../../lib/utils";
 import type { UploadedDocument } from "../../types";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 export function DocumentCard({
   doc,

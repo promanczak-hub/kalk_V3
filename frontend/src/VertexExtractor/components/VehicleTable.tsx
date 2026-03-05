@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Database, Info, Loader2, RefreshCw, Sparkles } from "lucide-react";
-import { cn } from "./ui/DocumentCard";
+import { cn } from "../../lib/utils";
 import type { FleetVehicleView } from "../types";
 import { VehicleRowCard } from "./VehicleTableParts/VehicleRowCard";
 import { VehicleFilterBar } from "./VehicleTableParts/VehicleFilterBar";

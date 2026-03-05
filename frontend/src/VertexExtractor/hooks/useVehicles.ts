@@ -30,6 +30,34 @@ export function useVehicles() {
     }
   }, []);
 
+  // Fetch a single vehicle from the view and merge it into state
+  const fetchSingleVehicle = useCallback(
+    async (vehicleId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("fleet_management_view")
+          .select("*")
+          .eq("id", vehicleId)
+          .single();
+
+        if (error) throw error;
+        if (!data) return;
+
+        setSavedVehicles((prev) => {
+          const exists = prev.some((v) => v.id === vehicleId);
+          if (exists) {
+            return prev.map((v) => (v.id === vehicleId ? data : v));
+          }
+          return [data, ...prev]; // new vehicle at the top
+        });
+      } catch (err) {
+        console.error("Failed to fetch single vehicle, falling back to full refetch:", err);
+        fetchSavedVehicles();
+      }
+    },
+    [fetchSavedVehicles],
+  );
+
   useEffect(() => {
     fetchSavedVehicles();
 
@@ -43,18 +71,57 @@ export function useVehicles() {
           table: "vehicle_synthesis",
         },
         (payload) => {
-          console.log("Odebrano zdarzenie Realtime z vehicle_synthesis:", payload);
-          // Odświeżamy listę, by uwzględnić nowe/zaktualizowane pojazdy 
-          // (np. gdy FastAPI skończy procesować dokument w tle)
-          fetchSavedVehicles();
-        }
+          const eventType = payload.eventType;
+          console.log(`[Realtime] ${eventType} on vehicle_synthesis`, payload);
+
+          if (eventType === "DELETE") {
+            // Remove locally — no need to refetch
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) {
+              setSavedVehicles((prev) => prev.filter((v) => v.id !== oldId));
+            }
+          } else if (eventType === "UPDATE") {
+            const newData = payload.new as {
+              id: string;
+              verification_status?: string;
+            };
+
+            // For intermediate status updates, just patch the status inline
+            // (avoids full view query for every progress tick)
+            if (
+              newData.verification_status &&
+              newData.verification_status !== "completed" &&
+              newData.verification_status !== "error"
+            ) {
+              setSavedVehicles((prev) =>
+                prev.map((v) =>
+                  v.id === newData.id
+                    ? {
+                        ...v,
+                        verification_status: newData.verification_status!,
+                      }
+                    : v,
+                ),
+              );
+            } else {
+              // Status "completed" or other field change — fetch full row from view
+              fetchSingleVehicle(newData.id);
+            }
+          } else if (eventType === "INSERT") {
+            // New row inserted — fetch full data from view
+            const newId = (payload.new as { id?: string })?.id;
+            if (newId) {
+              fetchSingleVehicle(newId);
+            }
+          }
+        },
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchSavedVehicles]);
+  }, [fetchSavedVehicles, fetchSingleVehicle]);
 
   const handleUpdateNotes = async (vehicleId: string, newNotes: string) => {
     try {

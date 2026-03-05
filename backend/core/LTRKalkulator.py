@@ -65,11 +65,10 @@ def get_samar_klasa_from_db(klasa_id: str) -> Dict[str, Any]:
 
 @lru_cache(maxsize=128)
 def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
-    """Pobiera tabelę ubezpieczeń dla danej klasy (lub domyślnej null)"""
+    """Pobiera tabelę ubezpieczeń dla danej klasy (bez fallbacku na null)"""
     try:
         from core.database import supabase
 
-        # Pobierz dla konkretnej klasy
         if klasa_id:
             res = (
                 supabase.table("ltr_admin_ubezpieczenia")
@@ -80,15 +79,6 @@ def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
             if res.data and len(res.data) > 0:
                 return cast(List[Dict[str, Any]], res.data)
 
-        # Fallback dla null / default
-        res = (
-            supabase.table("ltr_admin_ubezpieczenia")
-            .select("*")
-            .is_("KlasaId", "null")
-            .execute()
-        )
-        if res.data:
-            return cast(List[Dict[str, Any]], res.data)
     except Exception as e:
         print(f"Error fetching insurance rates: {e}")
     return []
@@ -119,11 +109,10 @@ def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
 
 @lru_cache(maxsize=128)
 def get_damage_coefficients_from_db(klasa_id: str) -> Dict[str, Any]:
-    """Pobiera współczynniki szkodowe dla klasy pojazdu"""
+    """Pobiera współczynniki szkodowe dla klasy pojazdu (bez fallbacku na null)"""
     try:
         from core.database import supabase
 
-        # Pobierz dla konkretnej klasy
         if klasa_id:
             res = (
                 supabase.table("ltr_admin_wspolczynniki_szkodowe")
@@ -134,15 +123,6 @@ def get_damage_coefficients_from_db(klasa_id: str) -> Dict[str, Any]:
             if res.data and len(res.data) > 0:
                 return cast(Dict[str, Any], res.data[0])
 
-        # Fallback dla null / default
-        res = (
-            supabase.table("ltr_admin_wspolczynniki_szkodowe")
-            .select("*")
-            .is_("klasa_wr_id", "null")
-            .execute()
-        )
-        if res.data:
-            return cast(Dict[str, Any], res.data[0])
     except Exception as e:
         print(f"Error fetching damage coefficients: {e}")
     return {}

@@ -1,8 +1,9 @@
 import json
-import os
 from typing import Any
 from google import genai
 from google.genai import types
+
+from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 
 from core.json_utils import clean_json_response
 from core.extractor_models import (
@@ -274,6 +275,7 @@ def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) 
         max_output_tokens=8192,
         response_mime_type="text/plain",
         system_instruction=DOC_TYPE_PROMPT,
+        safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )
 
     doc_type_response = client.models.generate_content(
@@ -300,14 +302,7 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
     Given a raw JSON digital twin, generates a structured summary using Gemini Flash.
     Returns the pro_data augmented with "card_summary" and doc type metadata.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
-
-    if api_key:
-        client = genai.Client(api_key=api_key)
-    else:
-        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-        client = genai.Client(vertexai=True, project=project_id, location=location)
+    client = get_gemini_client()
 
     flash_model_id = "gemini-2.5-flash"
     pro_response_text = json.dumps(pro_data, ensure_ascii=False)
@@ -334,6 +329,7 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
             response_mime_type="application/json",
             response_schema=chosen_schema,
             system_instruction=instruction,
+            safety_settings=SAFETY_SETTINGS_PERMISSIVE,
         )
 
         flash_contents: list[types.Part] = [

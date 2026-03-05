@@ -5,7 +5,6 @@ export function Header() {
     <>
       <div className="flex flex-col mb-12 relative">
         <div className="flex justify-between items-start">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/express-logo.png"
             alt="Express Car Rental"

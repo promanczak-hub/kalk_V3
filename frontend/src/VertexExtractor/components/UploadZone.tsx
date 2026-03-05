@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { UploadCloud } from "lucide-react";
-import { cn } from "./ui/DocumentCard";
+import { cn } from "../../lib/utils";
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;

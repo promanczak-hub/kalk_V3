@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Database, ExternalLink, Loader2, Wand2, X } from "lucide-react";
-import { cn } from "../ui/DocumentCard";
+import { Database, ExternalLink, Loader2, Wand2, X, AlertTriangle } from "lucide-react";
+import { cn } from "../../../lib/utils";
 import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
 import { parsePriceToNumber } from "./PriceDualFormat";
 import { VehicleBaseInfo } from "./VehicleBaseInfo";
@@ -62,7 +62,10 @@ export function VehicleRowCard({
   const [replacementCar, setReplacementCar] = useState(true);
   const [gpsRequired, setGpsRequired] = useState(true);
   const [includeServicing, setIncludeServicing] = useState(true);
-  const [hookInstallation, setHookInstallation] = useState(false);
+  const [hookInstallation, setHookInstallation] = useState(() => {
+    const cs = (vehicle.synthesis_data as any)?.card_summary;
+    return cs?.has_tow_hook === true;
+  });
 
   // Tire parameters
   const [tireClass, setTireClass] = useState<string>("Medium");
@@ -79,10 +82,18 @@ export function VehicleRowCard({
   const [serviceCostType, setServiceCostType] = useState<"ASO" | "nonASO">("ASO");
 
   // Vehicle vintage (bieżący / ubiegły rocznik)
-  const [vehicleVintage, setVehicleVintage] = useState<"current" | "previous">("current");
+  const [vehicleVintage, setVehicleVintage] = useState<"current" | "previous">(() => {
+    const cs = (vehicle.synthesis_data as any)?.card_summary;
+    if (cs?.is_current_year_vehicle === false) return "previous";
+    return "current";
+  });
 
-  // Metalik auto-detection from exterior_color
+  // Metalik auto-detection: LLM priority, fallback to keyword matching
   const autoDetectMetalic = (): boolean => {
+    const cs = (vehicle.synthesis_data as any)?.card_summary;
+    if (cs?.is_metalic_paint === true) return true;
+    if (cs?.is_metalic_paint === false) return false;
+    // Fallback: keyword matching on exterior_color
     const color = (vehicle.exterior_color || "").toLowerCase();
     const keywords = ["metalic", "metalik", "metallic", "perłowy", "pearl", "mica", "xirallic", "special"];
     return keywords.some(kw => color.includes(kw));
@@ -512,8 +523,9 @@ export function VehicleRowCard({
     "generating_summary", "matching_discounts", "mapping_data",
   ]);
 
-  const handleManualOverride = async () => {
-    if (!overridePrompt.trim()) return;
+  const handleManualOverride = async (promptOverride?: string) => {
+    const finalPrompt = promptOverride || overridePrompt;
+    if (!finalPrompt.trim()) return;
     setIsOverriding(true);
     try {
       const { createClient } = await import("@supabase/supabase-js");
@@ -527,7 +539,7 @@ export function VehicleRowCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           original_json: vehicle.synthesis_data,
-          user_prompt: overridePrompt,
+          user_prompt: finalPrompt,
         }),
       });
 
@@ -674,6 +686,62 @@ export function VehicleRowCard({
     return null;
   }
 
+  if (vehicle.verification_status === "error") {
+    const handleDeleteError = async () => {
+      if (!window.confirm("Czy na pewno chcesz usunąć ten wpis z błędem?")) return;
+      try {
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        await supabase.from("vehicle_synthesis").delete().eq("id", vehicle.id);
+        window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
+      } catch (err) {
+        console.error("Direct Supabase cleanup failed:", err);
+        alert("Nie udało się skasować wiersza.");
+      }
+    };
+
+    return (
+      <div className={cn(
+        "bg-white rounded-xl border shadow-sm p-5 transition-all",
+        "border-red-300 ring-4 ring-red-50"
+      )}>
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-500" />
+            <div>
+              <h3 className="text-sm font-semibold text-red-800">
+                Błąd przetwarzania dokumentu
+              </h3>
+              <p className="text-xs text-red-600 mt-0.5">
+                Nie udało się wyekstrahować bliźniaka cyfrowego.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleDeleteError}
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors border border-slate-200"
+            title="Usuń wpis"
+          >
+            <X className="w-3.5 h-3.5" />
+            Usuń wpis
+          </button>
+        </div>
+
+        {vehicle.notes && (
+          <div className="mt-3 ml-2 p-3 bg-red-50/50 rounded-md border border-red-100">
+            <p className="text-xs text-red-800 font-mono whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
+              {vehicle.notes}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (isProcessing) {
     const currentStageIndex = PROCESSING_STAGES.findIndex(
       (s) => s.key === normalizedStatus
@@ -694,8 +762,20 @@ export function VehicleRowCard({
         // Cancel = delete — remove the vehicle after stopping processing
         window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
       } catch (err) {
-        console.error("Cancel error:", err);
-        alert("Nie udało się anulować przetwarzania.");
+        console.error("Cancel error, attempting direct Supabase cleanup:", err);
+        try {
+            // Plan B: bezpośrednie skasowanie wiersza przez Supabase JS jeśli backend leży
+            const { createClient } = await import("@supabase/supabase-js");
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const supabase = createClient(supabaseUrl, supabaseKey);
+            
+            await supabase.from("vehicle_synthesis").delete().eq("id", vehicle.id);
+            window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
+        } catch (dbErr) {
+            console.error("Direct Supabase cleanup failed:", dbErr);
+            alert("Nie udało się anulować przetwarzania ani skasować zawieszonego wiersza.");
+        }
       }
     };
 
@@ -792,7 +872,13 @@ export function VehicleRowCard({
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
           {/* Business-style data visualizations */}
           <div className="space-y-4 mb-6">
-            <VehicleSummaryCard vehicle={vehicle} />
+            <VehicleSummaryCard 
+              vehicle={vehicle} 
+              onOverride={async (prompt) => {
+                await handleManualOverride(prompt);
+              }}
+              isOverriding={isOverriding}
+            />
             <VehicleEquipmentCard
               vehicle={vehicle}
               customFactoryOptions={customFactoryOptions}
@@ -870,6 +956,8 @@ export function VehicleRowCard({
              isMetalic={isMetalic}
              setIsMetalic={setIsMetalic}
              isMetalicAutoDetected={autoDetectMetalic()}
+             hookAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.has_tow_hook === true}
+             vintageAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.is_current_year_vehicle != null}
              // Price context for czynsz inicjalny calculations
              activeFinalPriceForDeposit={activeFinalPrice}
              crossCardAlerts={crossCardAlerts}
@@ -1092,7 +1180,7 @@ export function VehicleRowCard({
                      }}
                    />
                    <button
-                     onClick={handleManualOverride}
+                     onClick={() => handleManualOverride()}
                      disabled={isOverriding || !overridePrompt.trim()}
                      className="px-4 py-2 bg-emerald-600 text-white rounded-md font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm transition-colors"
                    >
