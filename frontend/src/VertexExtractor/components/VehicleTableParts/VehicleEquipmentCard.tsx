@@ -4,9 +4,10 @@ import { NetGrossInput } from "./NetGrossInput";
 interface VehicleEquipmentCardProps {
   vehicle: FleetVehicleView;
   // Factory options CRUD
-  customFactoryOptions: { id: string; name: string; price_net: number; category: string }[];
+  customFactoryOptions: { id: string; name: string; price_net: number; category: string; no_discount: boolean }[];
   handleUpdateFactoryOptionName: (id: string, newName: string) => void;
   handleUpdateFactoryOptionPrice: (id: string, newVal: number) => void;
+  handleUpdateFactoryOptionNoDiscount: (id: string, noDiscount: boolean) => void;
   handleRemoveFactoryOption: (id: string) => void;
   handleAddManualFactoryOption: () => void;
   activeDiscountPct: number;
@@ -29,6 +30,7 @@ export function VehicleEquipmentCard({
   customFactoryOptions,
   handleUpdateFactoryOptionName,
   handleUpdateFactoryOptionPrice,
+  handleUpdateFactoryOptionNoDiscount,
   handleRemoveFactoryOption,
   handleAddManualFactoryOption,
   activeDiscountPct,
@@ -83,13 +85,20 @@ export function VehicleEquipmentCard({
                     }`}
                   >
                     <td className="py-2 pr-4">
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={opt.name}
-                        onChange={(e) => handleUpdateFactoryOptionName(opt.id, e.target.value)}
-                        placeholder="Nazwa opcji"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          className="flex-1 px-2 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          value={opt.name}
+                          onChange={(e) => handleUpdateFactoryOptionName(opt.id, e.target.value)}
+                          placeholder="Nazwa opcji"
+                        />
+                        {opt.no_discount && (
+                          <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-amber-50 text-amber-700 border border-amber-200">
+                            Nierabatowana
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2" colSpan={3}>
                       <NetGrossInput
@@ -98,13 +107,27 @@ export function VehicleEquipmentCard({
                       />
                     </td>
                     <td className="py-2 text-center">
-                      <button
-                        onClick={() => handleRemoveFactoryOption(opt.id)}
-                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                        title="Usuń opcję"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <label
+                          className="relative inline-flex items-center cursor-pointer"
+                          title={opt.no_discount ? "Opcja nierabatowana — kliknij aby zmienić" : "Kliknij aby oznaczyć jako nierabatowaną"}
+                        >
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={opt.no_discount}
+                            onChange={(e) => handleUpdateFactoryOptionNoDiscount(opt.id, e.target.checked)}
+                          />
+                          <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                        <button
+                          onClick={() => handleRemoveFactoryOption(opt.id)}
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                          title="Usuń opcję"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

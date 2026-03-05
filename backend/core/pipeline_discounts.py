@@ -133,12 +133,16 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
                         "type": "number",
                         "description": "Znormalizowana i wyliczona wartość wybranego rabatu w procentach. Zawsze jako standardowy float, np. zamiast '0.24' z excela, zwróć 24.0. Zamiast kwoty połączonej z ułamkiem oblicz ekwiwalent jeśli to możliwe, lub podaj domyślny procent.",
                     },
+                    "match_confidence": {
+                        "type": "integer",
+                        "description": "Pewność dopasowania w skali 0-100. 95-100=dokładne dopasowanie marki+modelu+nadwozia, 85-94=marka+model w grupie, 75-84=marka OK model ogólny, <75=luźne. Zwróć 0 jeśli brak dopasowania.",
+                    },
                     "matching_reason": {
                         "type": "string",
                         "description": "Krótkie (1-2 zdania) uzasadnienie dla użytkownika: Dlaczego ten rabat został wybrany i na podstawie jakiego wiersza (np. kod modelu, nazwa pakietu).",
                     },
                 },
-                "required": ["is_matched"],
+                "required": ["is_matched", "match_confidence"],
             },
         )
 
@@ -152,15 +156,30 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
         print(f"RAW LLM RESPONSE: {resp_text}")
         match_result = json.loads(clean_json_response(str(resp_text)))
 
+        confidence = match_result.get("match_confidence", 0) if match_result else 0
+        min_confidence_threshold = 80
+
+        # Always store confidence for debugging purposes
+        flash_data["suggested_discount_confidence"] = confidence
+
         if match_result and match_result.get("is_matched"):
-            # Append the results directly to card_summary so the frontend receives it
-            flash_data["suggested_discount_pct"] = match_result.get(
-                "matched_discount_perc"
-            )
-            flash_data["suggested_discount_source"] = match_result.get(
-                "matching_reason"
-            )
-            print(f"Fleet discount match result: {match_result}")
+            if confidence >= min_confidence_threshold:
+                flash_data["suggested_discount_pct"] = match_result.get(
+                    "matched_discount_perc"
+                )
+                flash_data["suggested_discount_source"] = match_result.get(
+                    "matching_reason"
+                )
+                print(
+                    f"Fleet discount match result (confidence={confidence}%): "
+                    f"{match_result}"
+                )
+            else:
+                print(
+                    f"Fleet discount match REJECTED — confidence {confidence}% "
+                    f"< threshold {min_confidence_threshold}%. "
+                    f"Would-be match: {match_result}"
+                )
         else:
             print("No confident fleet discount matched.")
 

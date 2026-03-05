@@ -12,6 +12,14 @@ class CreateKalkulacjaRequest(BaseModel):
     stan_json: dict
 
 
+class AskAiRequest(BaseModel):
+    step_name: str
+    inputs: dict
+    outputs: dict
+    metadata: Optional[dict] = None
+    query: str
+
+
 class KalkulacjaResponse(BaseModel):
     id: str
     numer_kalkulacji: str
@@ -220,6 +228,46 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
         }
     except Exception as e:
         print(f"Debugger Engine Error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/debug-pipeline/{vehicle_id}/ask-ai")
+def ask_ai_about_step(vehicle_id: str, req: AskAiRequest):
+    from core.gemini_client import get_gemini_client
+    import json
+
+    try:
+        client = get_gemini_client()
+
+        prompt = f"""
+Jesteś inżynierem-asystentem w systemie kalkulatora leasingowego. Użytkownik przegląda krok "{req.step_name}" w dziale Pipeline Debugger i zadał pytanie.
+Oto kontekst tego kroku:
+WEJŚCIA (Inputs):
+{json.dumps(req.inputs, indent=2, ensure_ascii=False)}
+
+WYJŚCIA (Outputs):
+{json.dumps(req.outputs, indent=2, ensure_ascii=False)}
+
+METADANE (Wzory i Źródła):
+{json.dumps(req.metadata or {}, indent=2, ensure_ascii=False)}
+
+Pytanie użytkownika:
+{req.query}
+
+Odpowiedz krótko i merytorycznie w języku polskim. Wyjaśnij dlaczego dany krok wyliczył taką wartość (np. zero, lub daną stawkę). Wskazuj na konkretne Wejścia (Inputs) lub Metadane (np. brak ustawień w bazie).
+Bądź techniczny, przyjazny i konkretnie diagnozuj wynik. Używaj formatowania Markdown by wypunktować kluczowe powody.
+"""
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+
+        return {"status": "success", "answer": response.text}
+    except Exception as e:
+        print(f"AI Debugger Error: {e}")
         import traceback
 
         traceback.print_exc()

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 from core.LTRKalkulator import (
     LTRKalkulator,
     get_insurance_rates_from_db,
@@ -16,7 +16,7 @@ from core.LTRSubCalculatorBudzetMarketingowy import (
 from core.LTRSubCalculatorKosztDzienny import KosztDziennyCalculator, KosztDziennyInput
 from core.LTRSubCalculatorStawka import StawkaCalculator, StawkaInput
 from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
-from core.LTRSubCalculatorFinanse import FinanceCalculator, FinanceInput
+from core.LTRSubCalculatorFinanse import FinanseCalculator, FinanseInput
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 
 
@@ -79,6 +79,20 @@ class PipelineDebugger(LTRKalkulator):
                     "monthly_storage": tires_res["monthly_storage"],
                     "monthly_swaps": tires_res["monthly_swaps"],
                 },
+                "metadata": {
+                    "tires_base": {
+                        "source": "LTRSubCalculatorOpony.py -> calculate_cost()",
+                        "formula": "Suma: sprzęt (opony/felgi) + raty za przechowywanie + raty za wymiany (uzależnione od 'Z Oponami' oraz średnicy felgi)",
+                    },
+                    "tires_capex": {
+                        "source": "LTRSubCalculatorOpony.py -> calculate_cost()",
+                        "formula": "Jednorazowy koszt początkowego kompletu opon zimowych (wliczony w CAPEX tylko jeśli okres >= 24 msc lub przebieg >= 45k km)",
+                    },
+                    "tires_total": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "tires_base * months",
+                    },
+                },
             }
         )
 
@@ -106,6 +120,16 @@ class PipelineDebugger(LTRKalkulator):
                     "additional_costs_base": additional_costs_base,
                     "additional_costs_total": additional_costs_total,
                 },
+                "metadata": {
+                    "additional_costs_base": {
+                        "source": "LTRSubCalculatorKosztyDodatkowe.py -> calculate_cost()",
+                        "formula": "Suma kosztów z tabeli CC (GPS, Zarządzanie, Inne... dzielona przez okres) * narzut (jesli aplikowalne)",
+                    },
+                    "additional_costs_total": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "additional_costs_base * months",
+                    },
+                },
             }
         )
 
@@ -132,11 +156,21 @@ class PipelineDebugger(LTRKalkulator):
                     "rc_rate": rc_rate,
                 },
                 "outputs": {"rc_base": rc_base, "rc_total": rc_total},
+                "metadata": {
+                    "rc_base": {
+                        "source": "LTRSubCalculatorSamochodZastepczy.py -> calculate_cost()",
+                        "formula": "Stawka miesięczna z bazy (insurance_samochody_zastepcze_kategorie) dla wskazanej klasy pojazdu",
+                    },
+                    "rc_total": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "rc_base * months",
+                    },
+                },
             }
         )
 
         # KROK 4: Serwis (Srw)
-        normatywny_przebieg = getattr(self.settings, "normatywny_przebieg_mc", 2916)
+        normatywny_przebieg = getattr(self.settings, "normatywny_przebieg_mc", 1667)
         pakiet_serwisowy_val = float(getattr(self.input_data, "pakiet_serwisowy", 0.0))
         inne_koszty_val = float(
             getattr(self.input_data, "inne_koszty_serwisowania_netto", 0.0)
@@ -177,6 +211,16 @@ class PipelineDebugger(LTRKalkulator):
                     "service_base": service_base,
                     "service_total": service_total,
                 },
+                "metadata": {
+                    "service_base": {
+                        "source": "LTRSubCalculatorSerwisNew.py -> calculate()",
+                        "formula": "Złożony wzór bazujący na przeglądach/częściach silnika zależących od przebiegu/okresu + Pakiet Serwisowy i Inne Koszty",
+                    },
+                    "service_total": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "service_base * months",
+                    },
+                },
             }
         )
 
@@ -193,6 +237,12 @@ class PipelineDebugger(LTRKalkulator):
                     "tires_capex": tires_capex,
                 },
                 "outputs": {"capex_for_financing": capex_for_financing},
+                "metadata": {
+                    "capex_for_financing": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "Cena Pojazdu Netto (po rabacie) + Opcje Fabryczne + Opcje Serwisowe + Opony CAPEX",
+                    }
+                },
             }
         )
 
@@ -257,6 +307,20 @@ class PipelineDebugger(LTRKalkulator):
                     "utrata_bez_czynszu": utrata_bez_czynszu,
                     "rv_lo_net": rv_res["WRdlaLO"],
                 },
+                "metadata": {
+                    "vr_samar": {
+                        "source": "LTRSubCalculatorUtrataWartosciNew.py -> calculate_values()",
+                        "formula": "Wyliczenie tabelaryczne rezydualnej wg cennika SAMAR (z uwzględnieniem przebiegu i wieku po X miesiącach)",
+                    },
+                    "utrata_z_czynszem": {
+                        "source": "LTRSubCalculatorUtrataWartosciNew.py lub PipelineDebugger.py",
+                        "formula": "CAPEX łączny (z oponami itp.) mniejszy o Szacowaną Wartość Końcową (vr_samar)",
+                    },
+                    "utrata_bez_czynszu": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "Tożsame z utrata_z_czynszem; legacy placeholder",
+                    },
+                },
             }
         )
 
@@ -287,6 +351,12 @@ class PipelineDebugger(LTRKalkulator):
                 },
                 "outputs": {
                     "procent_amortyzacji_miesiecznie": procent_amortyzacji_miesiecznie
+                },
+                "metadata": {
+                    "procent_amortyzacji_miesiecznie": {
+                        "source": "LTRSubCalculatorAmortyzacja.py -> calculate()",
+                        "formula": "Różnica % między Wartością Początkową (CAPEX) a Wartością Końcową (WR) podzielona przez Okres",
+                    }
                 },
             }
         )
@@ -320,26 +390,46 @@ class PipelineDebugger(LTRKalkulator):
                     "insurance_base": insurance_base,
                     "insurance_total": insurance_total,
                 },
+                "metadata": {
+                    "insurance_base": {
+                        "source": "LTRSubCalculatorUbezpieczenie.py -> calculate_cost()",
+                        "formula": "Bazuje na stawkach (OC/AC) na przestrzeni 7 lat (korekty amortyzacji) oraz szkodowości (kategoria pojazdu)",
+                    },
+                    "insurance_total": {
+                        "source": "PipelineDebugger.py",
+                        "formula": "insurance_base * months",
+                    },
+                },
             }
         )
 
-        # KROK 9: Finanse (PMT) (Fi)
-        finance_input = FinanceInput(
-            total_capex=capex_for_financing,
-            upfront_pct=self.input_data.initial_deposit_pct,
-            rv_net=vr_samar,
-            months=months,
-            wibor_pct=self.input_data.wibor_pct,
-            margin_pct=self.input_data.margin_pct,
+        # KROK 9: Finanse (PMT) (Fi) — V1 parity
+        vat_rate_fin = getattr(self.settings, "vat_rate", 1.23)
+        if vat_rate_fin > 10.0:
+            vat_rate_fin = 1.0 + (vat_rate_fin / 100.0)
+        finance_input = FinanseInput(
+            WartoscPoczatkowaNetto=capex_for_financing,
+            WrPrzewidywanaCenaSprzedazy=vr_samar,
+            CzynszInicjalny=float(getattr(self.input_data, "CzynszKwota", 0.0) or 0.0),
+            CzynszProcent=float(getattr(self.input_data, "CzynszProcent", 0.0) or 0.0),
+            RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
+            StawkaVAT=vat_rate_fin,
+            Okres=months,
+            WIBORProcent=float(getattr(self.input_data, "wibor_pct", 0.0) or 0.0),
+            MarzaFinansowaProcent=float(
+                getattr(self.input_data, "margin_pct", 0.0) or 0.0
+            ),
         )
-        finance_calc = FinanceCalculator(finance_input)
+        finance_calc = FinanseCalculator(finance_input)
         finance_res = finance_calc.calculate()
 
-        orig_koszt_finansowy = float(finance_res.total_interest)
-        orig_czynsz_inicjalny = float(finance_res.initial_deposit_net)
+        orig_koszt_finansowy = float(finance_res.SumaOdsetekZczynszem)
+        orig_czynsz_inicjalny = float(finance_res.CzynszInicjalnyNetto)
+        orig_suma_odsetek_bez = float(finance_res.SumaOdsetekBEZczynszu)
 
         koszt_finansowy = overrides.get("step_9_fi_koszt", orig_koszt_finansowy)
         czynsz_inicjalny = overrides.get("step_9_fi_czynsz", orig_czynsz_inicjalny)
+        suma_odsetek_bez = overrides.get("step_9_fi_suma_bez", orig_suma_odsetek_bez)
 
         steps.append(
             {
@@ -348,11 +438,28 @@ class PipelineDebugger(LTRKalkulator):
                 "inputs": vars(finance_input),
                 "outputs": {
                     "koszt_finansowy": koszt_finansowy,
+                    "suma_odsetek_bez_czynszu": suma_odsetek_bez,
                     "czynsz_inicjalny": czynsz_inicjalny,
-                    "monthly_pmt_net": float(finance_res.monthly_pmt_net),
-                    "total_capital_repayment": float(
-                        finance_res.total_capital_repayment
+                    "monthly_pmt_z_czynszem": float(finance_res.monthly_pmt_z_czynszem),
+                    "monthly_pmt_bez_czynszu": float(
+                        finance_res.monthly_pmt_bez_czynszu
                     ),
+                    "wykup_kwota": float(finance_res.WykupKwota),
+                    "czynsz_procent": float(finance_res.CzynszInicjalnyProcent),
+                },
+                "metadata": {
+                    "koszt_finansowy": {
+                        "source": "LTRSubCalculatorFinanse.py -> calculate()",
+                        "formula": "Suma odsetek Z czynszem — iteracyjny harmonogram V1 (PMT.cs)",
+                    },
+                    "suma_odsetek_bez_czynszu": {
+                        "source": "LTRSubCalculatorFinanse.py -> calculate()",
+                        "formula": "Suma odsetek BEZ czynszu — kredyt = pełne WP, ten sam wykup",
+                    },
+                    "czynsz_inicjalny": {
+                        "source": "LTRSubCalculatorFinanse.py -> calculate()",
+                        "formula": "CzynszBrutto / VAT (kwotowy) lub WP × % (procentowy)",
+                    },
                 },
             }
         )
@@ -367,7 +474,7 @@ class PipelineDebugger(LTRKalkulator):
             ubezpieczenie_netto=insurance_total,
             opony_netto=tires_total,
             serwis_netto=service_total,
-            suma_odsetek_bez_czynszu=koszt_finansowy,
+            suma_odsetek_bez_czynszu=suma_odsetek_bez,
             okres=months,
         )
         kd_result = KosztDziennyCalculator(kd_input).calculate()
@@ -390,6 +497,16 @@ class PipelineDebugger(LTRKalkulator):
                     "koszt_mc_bez_czynszu": koszt_mc_bez_czynszu,
                     "koszt_dzienny": float(kd_result.koszt_dzienny),
                     "koszty_ogolem": float(kd_result.koszty_ogolem),
+                },
+                "metadata": {
+                    "koszt_mc": {
+                        "source": "LTRSubCalculatorKosztDzienny.py -> calculate()",
+                        "formula": "Suma wszystkich kosztów (Utrata + Ubezpieczenie + Koszty Dodatkowe + Opony + Serwis + Zastępczy + Finansowanie) podzielona przez Okres",
+                    },
+                    "koszty_ogolem": {
+                        "source": "LTRSubCalculatorKosztDzienny.py -> calculate()",
+                        "formula": "Matematyczna suma wszystkich wydatków ponoszonych w trakcie okresu (przed narzutem marży docelowej)",
+                    },
                 },
             }
         )
@@ -430,6 +547,16 @@ class PipelineDebugger(LTRKalkulator):
                     "czynsz_finansowy": float(stawka_result.czynsz_finansowy),
                     "czynsz_techniczny": float(stawka_result.czynsz_techniczny),
                 },
+                "metadata": {
+                    "oferowana_stawka": {
+                        "source": "LTRSubCalculatorStawka.py -> calculate()",
+                        "formula": "koszt_mc / (1 - marża%) (aplikowanie docelowego uzysku)",
+                    },
+                    "marza_mc": {
+                        "source": "LTRSubCalculatorStawka.py -> calculate()",
+                        "formula": "oferowana_stawka - koszt_mc",
+                    },
+                },
             }
         )
 
@@ -455,6 +582,12 @@ class PipelineDebugger(LTRKalkulator):
                 "name": "Budżet Marketingowy",
                 "inputs": vars(bm_input),
                 "outputs": {"korekta_wr_maks": korekta_wr_maks},
+                "metadata": {
+                    "korekta_wr_maks": {
+                        "source": "LTRSubCalculatorBudzetMarketingowy.py -> calculate()",
+                        "formula": "(Oczekiwana wartość WR - WR_SAMAR) / VAT",
+                    }
+                },
             }
         )
 

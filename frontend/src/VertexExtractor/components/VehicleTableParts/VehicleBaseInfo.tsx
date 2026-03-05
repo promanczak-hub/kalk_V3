@@ -16,6 +16,7 @@ export interface MappedData {
   transmission: string;
   samar_category?: string;
   engine_class?: string;
+  drive_type?: string;
 }
 
 interface SamarCandidate {
@@ -40,9 +41,12 @@ interface VehicleBaseInfoProps {
   onSamarCategoryChange?: (newCategory: string) => void;
   engineCandidates?: EngineCandidate[];
   onEngineCategoryChange?: (newCategory: string) => void;
+  driveType?: string;
+  onDriveTypeChange?: (newDriveType: string) => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
+  onScrollToVehicle?: (vehicleId: string) => void;
 }
 
 function detectPowerBand(
@@ -89,10 +93,38 @@ function hasValue(v: string | null | undefined): boolean {
 function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-0.5 rounded text-xs font-medium text-slate-600"
-      style={{ fontFamily: "'VT323', monospace", fontSize: "0.875rem" }}
+      className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-1 rounded text-xs font-medium text-slate-600"
+      style={{ fontFamily: "'VT323', monospace", fontSize: "0.95rem", lineHeight: 1 }}
     >
       {children}
+    </span>
+  );
+}
+
+const DRIVE_TYPE_OPTIONS = [
+  { value: "4x2 (FWD)", label: "4x2 (FWD)" },
+  { value: "4x2 (RWD)", label: "4x2 (RWD)" },
+  { value: "4x4 (AWD)", label: "4x4 (AWD)" },
+];
+
+function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: string) => void }) {
+  if (!onChange) {
+    return current ? <Tag>Oś: {current}</Tag> : null;
+  }
+  return (
+    <span className="inline-flex items-center">
+      <select
+        className="text-xs border border-slate-200 bg-slate-50 rounded px-1.5 py-1 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
+        style={{ fontFamily: "'VT323', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+        value={current || ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
+      >
+        <option value="" disabled>Oś napędowa…</option>
+        {DRIVE_TYPE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
     </span>
   );
 }
@@ -115,7 +147,7 @@ function CodeTag({ children }: { children: React.ReactNode }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 border px-2.5 py-0.5 rounded text-sm tracking-wide cursor-pointer transition-colors ${
+      className={`inline-flex items-center gap-1 border px-2.5 py-1 rounded text-sm tracking-wide cursor-pointer transition-colors ${
         copied
           ? "border-green-400 bg-green-50 text-green-700"
           : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:border-slate-400"
@@ -146,9 +178,12 @@ export function VehicleBaseInfo({
   onSamarCategoryChange,
   engineCandidates = [],
   onEngineCategoryChange,
+  driveType = "",
+  onDriveTypeChange,
   isSelected = false,
   onToggleSelect,
   crossCardAlerts = [],
+  onScrollToVehicle,
 }: VehicleBaseInfoProps) {
   const powerBand = detectPowerBand(vehicle);
 
@@ -227,13 +262,13 @@ export function VehicleBaseInfo({
                 />
               </span>
             </>
-          ) : vehicle.base_price && vehicle.base_price !== "Brak" ? (
+          ) : totalCatalogPrice > 0 ? (
             <>
               <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
                 Cena Katalogowa
               </span>
               <span className="text-lg font-semibold tracking-tight text-slate-800 tabular-nums">
-                <PriceDualFormat priceStr={vehicle.base_price} align="right" />
+                <PriceDualFormat priceStr={formatCalculatedPrice(totalCatalogPrice)} align="right" />
               </span>
             </>
           ) : (
@@ -293,14 +328,30 @@ export function VehicleBaseInfo({
           <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
         ) : null}
         {powerBand && <Tag>Serwis: {powerBand}</Tag>}
+        <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
         {crossCardAlerts.length > 0 && (
-          <span
-            className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded text-xs font-semibold text-amber-700 animate-in fade-in duration-300"
-            title={`Inna oferta (${crossCardAlerts[0].siblingOfferNumber || "brak nr"}) ma rabat ${crossCardAlerts[0].siblingDiscountPct}% vs ${crossCardAlerts[0].currentDiscountPct}%`}
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
+            title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"} z rabatem ${crossCardAlerts[0].siblingDiscountPct}%`}
+            onClick={(e) => {
+              e.stopPropagation();
+              const targetId = crossCardAlerts[0].siblingVehicleId;
+              if (onScrollToVehicle) {
+                onScrollToVehicle(targetId);
+              } else {
+                const el = document.querySelector(`[data-vehicle-id="${targetId}"]`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                  el.classList.add("ring-4", "ring-amber-300");
+                  setTimeout(() => el.classList.remove("ring-4", "ring-amber-300"), 2000);
+                }
+              }
+            }}
           >
             <AlertTriangle className="w-3 h-3" />
-            Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.)
-          </span>
+            Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.) →
+          </button>
         )}
       </div>
     </div>

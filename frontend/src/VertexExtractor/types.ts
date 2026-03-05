@@ -52,6 +52,7 @@ export interface FleetVehicleView {
 
   synthesis_data?: Record<string, unknown> | null;
   suggested_discount_pct?: number | null;
+  suggested_discount_confidence?: number | null;
   suggested_discount_source?: string | null;
   express_discount_match?: {
     is_matched: boolean;
@@ -59,7 +60,30 @@ export interface FleetVehicleView {
     matching_reason?: string;
   } | null;
   created_at: string;
+
+  // Price validation flags (injected by pipeline_price_validator.py)
+  price_validation?: PriceValidation | null;
+
   [key: string]: any; // Allow dynamic raw data access
+}
+
+export interface PriceValidationWarning {
+  rule: string;
+  message: string;
+  severity: "INFO" | "WARNING" | "ERROR";
+  expected?: number;
+  actual?: number;
+  diff_pct?: number;
+}
+
+export interface PriceValidation {
+  is_valid: boolean;
+  warnings: PriceValidationWarning[];
+  parsed_prices?: {
+    base: number | null;
+    options: number | null;
+    total: number | null;
+  };
 }
 export interface ModificationEffect {
   override_samar_class?: string | null;

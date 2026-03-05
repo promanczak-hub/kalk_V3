@@ -56,10 +56,10 @@ const parsePercent = (str: string): number => {
   return val / 100;
 };
 
-export default function MileageCorrectionsPanel() {
+export default function MileageCorrectionsPanel({ samarClassId }: { samarClassId?: number }) {
   const [classes, setClasses] = useState<SamarClass[]>([]);
   const [engines, setEngines] = useState<EngineType[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(samarClassId ?? null);
   const [corrections, setCorrections] = useState<MileageCorrection[]>([]);
   const [editedCorrections, setEditedCorrections] = useState<Map<string, MileageCorrection>>(new Map());
   const [loading, setLoading] = useState(false);
@@ -94,6 +94,13 @@ export default function MileageCorrectionsPanel() {
     };
     fetchMeta();
   }, []);
+
+  // Sync with parent's samarClassId prop
+  useEffect(() => {
+    if (samarClassId !== undefined) {
+      setSelectedClassId(samarClassId);
+    }
+  }, [samarClassId]);
 
   const fetchCorrections = useCallback(async () => {
     if (selectedClassId === null) return;
@@ -184,20 +191,22 @@ export default function MileageCorrectionsPanel() {
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
         <Typography variant="h6">Korekty Przebiegowe (per napęd)</Typography>
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <TextField
-            select
-            size="small"
-            label="Klasa SAMAR"
-            value={selectedClassId ?? ""}
-            onChange={(e) => setSelectedClassId(Number(e.target.value))}
-            sx={{ minWidth: 200 }}
-          >
-            {classes.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          {!samarClassId && (
+            <TextField
+              select
+              size="small"
+              label="Klasa SAMAR"
+              value={selectedClassId ?? ""}
+              onChange={(e) => setSelectedClassId(Number(e.target.value))}
+              sx={{ minWidth: 200 }}
+            >
+              {classes.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
           <Button
             variant="contained"
             color="primary"

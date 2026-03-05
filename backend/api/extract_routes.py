@@ -128,6 +128,91 @@ async def map_vehicle_data(request: MapDataRequest) -> Dict[str, Any]:
         )
 
 
+@router.post("/extract/remap-classification")
+async def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
+    """
+    Full classification pipeline: Flash mapper → SAMAR → Engine.
+    Returns mapped_ai_data with samar_category, engine_class, candidates.
+    """
+    from core.samar_mapper import map_to_samar_class
+    from core.engine_mapper import map_to_engine_class
+
+    try:
+        print("[REMAP] Running full classification pipeline...")
+
+        # Step 1: Flash mapper (brand, model, fuel, transmission, vehicle_type)
+        mapped_data = map_vehicle_data_flash(request.original_json)
+
+        card_summary = request.original_json.get("card_summary", {})
+        brand = mapped_data.get("brand") or request.original_json.get("brand")
+        model = mapped_data.get("model") or request.original_json.get("model")
+
+        # Step 2: SAMAR classification
+        segment = card_summary.get("segment") or card_summary.get("car_segment")
+        body_style = card_summary.get("body_style")
+        trim = mapped_data.get("trim_level")
+        transmission = mapped_data.get("transmission")
+
+        samar_code, samar_name, samar_candidates = map_to_samar_class(
+            brand=brand,
+            model=model,
+            segment=segment,
+            body_style=body_style,
+            trim=trim,
+            transmission=transmission,
+        )
+        mapped_data["samar_category"] = samar_name
+        mapped_data["samar_candidates"] = samar_candidates
+
+        # Step 3: Engine classification
+        powertrain_data = (
+            card_summary.get("powertrain", {})
+            if isinstance(card_summary.get("powertrain"), dict)
+            else {}
+        )
+        engine_designation = powertrain_data.get("engine_designation")
+        capacity = powertrain_data.get("engine_capacity")
+        power = card_summary.get("power_hp")
+
+        eng_name, eng_cat, eng_candidates = map_to_engine_class(
+            fuel=mapped_data.get("fuel"),
+            engine_designation=engine_designation,
+            power=str(power) if power else None,
+            capacity=str(capacity) if capacity else None,
+            model=model,
+            trim=trim,
+        )
+
+        if eng_name != "UNKNOWN":
+            mapped_data["fuel"] = eng_name
+            mapped_data["engine_class"] = eng_cat
+            mapped_data["engine_candidates"] = eng_candidates
+        elif mapped_data.get("fuel"):
+            try:
+                engines_resp = (
+                    supabase_client.table("engines")
+                    .select("category")
+                    .eq("name", mapped_data.get("fuel"))
+                    .execute()
+                )
+                if engines_resp.data:
+                    mapped_data["engine_class"] = engines_resp.data[0]["category"]
+            except Exception as db_e:
+                print(f"[REMAP] Engine fallback DB error: {db_e}")
+
+        print(f"[REMAP] Done: SAMAR={samar_name}, Engine={eng_name}/{eng_cat}")
+        return mapped_data
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Classification pipeline error: {str(e)}",
+        )
+
+
 @router.get("/pdf-proxy")
 def proxy_pdf(url: str):
     if not url:

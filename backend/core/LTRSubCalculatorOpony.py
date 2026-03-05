@@ -52,9 +52,8 @@ class LTRSubCalculatorOpony:
             # Configurations
             self.thresholds = self._fetch_tire_configurations()
 
-            # Hardware cost base from DB (price for 1 piece * 4)
-            unit_price = self._fetch_tire_cost()
-            self.tire_set_price_base = unit_price * 4.0
+            # Hardware cost base from DB (price per set / komplet)
+            self.tire_set_price_base = self._fetch_tire_cost()
 
             # Adjust price if manual correction is enabled (Gross -> Net)
             if self.korekta_kosztu:
@@ -121,9 +120,9 @@ class LTRSubCalculatorOpony:
         return self.tire_column_name
 
     def _fetch_tire_cost(self) -> float:
-        """Pobiera cenę jednej opony danej średnicy i klasy."""
+        """Pobiera cenę kompletu opon (4 szt.) danej średnicy i klasy."""
         if not self.srednica_felgi:
-            return 375.0  # Default fallback for 1 piece (1500 / 4)
+            raise ValueError("srednica_felgi jest wymagana do pobrania ceny opon")
 
         column_name = self._get_tire_column_name()
         try:
@@ -144,7 +143,11 @@ class LTRSubCalculatorOpony:
                 f"Error fetching tire cost for size {self.srednica_felgi} {column_name}: {e}"
             )
 
-        return 375.0  # Default fallback for 1 piece
+        raise ValueError(
+            f"Brak ceny opon w tabeli koszty_opon "
+            f"dla srednica={self.srednica_felgi}, klasa={column_name}. "
+            f"Uzupełnij dane w Supabase."
+        )
 
     def _get_sets_needed(self, total_km: int) -> float:
         """Schodkowa logika ilości kompletów pobrana z tablic parametrycznych V3."""

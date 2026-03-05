@@ -200,6 +200,10 @@ class SamarClass(BaseModel):
     description: Optional[str] = None
     mileage_cutoff_threshold: Optional[int] = None
     example_models: Optional[str] = None
+    excel_code: Optional[str] = None
+    klasa_wr_id: Optional[int] = None
+    category: Optional[str] = None
+    size_class: Optional[str] = None
 
 
 class SamarServiceCost(BaseModel):
@@ -905,6 +909,70 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
             "message": "Matrix calculation completed successfully",
             "cells": matrix_cells,
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Body Type WR Corrections CRUD (Sparse) ──
+
+
+class BodyCorrection(BaseModel):
+    id: Optional[int] = None
+    samar_class_id: int
+    brand_name: Optional[str] = None
+    body_type_id: Optional[int] = None
+    engine_type_id: Optional[int] = None
+    correction_percent: float = 0.0
+    zabudowa_correction_percent: float = 0.0
+
+
+@app.get("/api/body-corrections", tags=["Control Center"])
+async def get_body_corrections(
+    samar_class_id: Optional[int] = None,
+) -> List[BodyCorrection]:
+    try:
+        q = supabase.table("body_type_wr_corrections").select("*").order("id")
+        if samar_class_id is not None:
+            q = q.eq("samar_class_id", samar_class_id)
+        response = q.execute()
+        response_data = (
+            cast(List[Dict[str, Any]], response.data) if response.data else []
+        )
+        return [BodyCorrection(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/body-corrections", tags=["Control Center"])
+async def upsert_body_correction(item: BodyCorrection) -> BodyCorrection:
+    try:
+        data = item.model_dump(exclude_unset=True)
+        data.pop("id", None)
+        # Normalize brand_name
+        if data.get("brand_name"):
+            data["brand_name"] = data["brand_name"].strip().upper()
+        response = supabase.table("body_type_wr_corrections").upsert(data).execute()
+        response_data = (
+            cast(List[Dict[str, Any]], response.data) if response.data else []
+        )
+        if not response_data:
+            raise HTTPException(
+                status_code=500, detail="Failed to upsert body correction"
+            )
+        return BodyCorrection(**response_data[0])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/body-corrections/{correction_id}", tags=["Control Center"])
+async def delete_body_correction(correction_id: int) -> Dict[str, str]:
+    try:
+        supabase.table("body_type_wr_corrections").delete().eq(
+            "id", correction_id
+        ).execute()
+        return {"status": "deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

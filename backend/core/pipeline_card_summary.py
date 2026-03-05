@@ -1,4 +1,6 @@
 import json
+import re
+import traceback
 from typing import Any
 from google import genai
 from google.genai import types
@@ -8,13 +10,11 @@ from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.extractor_models import (
     CardSummary,
-    BrochureSummary,
     OtherDocumentSummary,
 )
 from core.prompts import (
     DOC_TYPE_PROMPT,
     CARD_SUMMARY_PROMPT,
-    BROCHURE_SUMMARY_PROMPT,
     OTHER_DOC_SUMMARY_PROMPT,
 )
 
@@ -44,12 +44,184 @@ def _deep_get(d: dict, *paths: str) -> Any:
     return None
 
 
+def _extract_from_pages(pages: list) -> dict:
+    """
+    Deterministic extraction from pages-based digital_twin.
+
+    Scans content items across all pages for pricing, technical data,
+    equipment, wheels, emissions, and color. Returns a dict of
+    extracted fields that can be merged into card_summary.
+    """
+    result: dict[str, Any] = {}
+    std_equipment: list[str] = []
+    paid_options: list[dict[str, str]] = []
+
+    for page in pages:
+        content_items = page.get("content", [])
+        if not isinstance(content_items, list):
+            continue
+
+        for item in content_items:
+            if not isinstance(item, dict):
+                continue
+
+            item_type = item.get("type", "")
+            title = (item.get("title") or "").strip().upper()
+
+            # --- Pricing ---
+            if item_type == "pricing_summary":
+                currency = item.get("currency", "PLN")
+                for comp in item.get("price_components", []):
+                    label = (comp.get("item") or "").lower()
+                    price = comp.get("price", "")
+                    if not price:
+                        continue
+                    price_str = f"{price} {currency} brutto"
+                    if "bazow" in label or "modelu" in label:
+                        result.setdefault("base_price", price_str)
+                    elif "opcjonaln" in label or "wyposażeni" in label:
+                        result.setdefault("options_price", price_str)
+                    elif "całkowit" in label or "zapłat" in label:
+                        result.setdefault("total_price", price_str)
+
+            # --- Technical data table ---
+            tech_table = item.get("technical_data_table", [])
+            if isinstance(tech_table, list) and tech_table:
+                for row in tech_table:
+                    if not isinstance(row, dict):
+                        continue
+                    lbl = (row.get("label") or "").strip().lower()
+                    val = (row.get("value") or "").strip()
+                    if not val:
+                        continue
+                    if "paliw" in lbl or "rodzaj" in lbl:
+                        result.setdefault("fuel", val)
+                    elif "skrzyni" in lbl or "bieg" in lbl:
+                        result.setdefault("transmission", val)
+                    elif "pojemno" in lbl and "silnik" in lbl:
+                        result.setdefault("engine_capacity", val)
+                    elif "emisj" in lbl and "co2" in lbl:
+                        result.setdefault("emissions", val)
+
+            # --- Emissions from vehicle config ---
+            vehicle = item.get("vehicle", {})
+            if isinstance(vehicle, dict):
+                em = vehicle.get("emissions", {})
+                if isinstance(em, dict) and em.get("value"):
+                    result.setdefault("emissions", em["value"])
+
+            # --- Wheels (OBRĘCZE) ---
+            if "OBRĘ" in title or "FELG" in title or "WHEEL" in title:
+                for wi in item.get("items", []):
+                    if isinstance(wi, dict):
+                        name = wi.get("name", "")
+                        size_match = re.search(r'(\d{2})["″\'\s]', name)
+                        if size_match:
+                            result.setdefault("wheels", size_match.group(1))
+
+            # --- Standard equipment ---
+            if "STANDARD" in title and "WYPOSAŻ" in title:
+                for ei in item.get("items", []):
+                    if isinstance(ei, dict):
+                        desc = ei.get("description") or ei.get("name", "")
+                        if desc:
+                            std_equipment.append(desc.strip())
+
+            # --- Optional equipment ---
+            if "OPCJONALN" in title and "WYPOSAŻ" in title:
+                currency = item.get("currency", "PLN")
+                for oi in item.get("items", []):
+                    if isinstance(oi, dict):
+                        name = oi.get("name", "")
+                        price = oi.get("price", "0")
+                        if name:
+                            paid_options.append(
+                                {
+                                    "name": name.strip(),
+                                    "price": f"{price} {currency}",
+                                    "category": "Fabryczna",
+                                }
+                            )
+
+            # --- Exterior color (NADWOZIE / LAKIER) ---
+            if "NADWOZI" in title or "LAKIER" in title or "KOLOR" in title:
+                for ci in item.get("items", []):
+                    if isinstance(ci, dict):
+                        name = (ci.get("name") or ci.get("description") or "").strip()
+                        if name and not result.get("exterior_color"):
+                            price = ci.get("price", "")
+                            if price and price != "0,00":
+                                result["exterior_color"] = f"{name} ({price} PLN)"
+                            else:
+                                result["exterior_color"] = name
+
+            # --- Body style from WYBRANY MODEL (e.g. "BMW 320i Touring") ---
+            if "MODEL" in title and "WYBRANY" in title:
+                for mi in item.get("items", []):
+                    if isinstance(mi, dict):
+                        model_name = (mi.get("name") or "").strip()
+                        if model_name:
+                            body_keywords = {
+                                "touring": "Touring (Kombi)",
+                                "sedan": "Sedan",
+                                "limousine": "Sedan",
+                                "gran coupe": "Gran Coupé",
+                                "coupe": "Coupé",
+                                "cabrio": "Kabriolet",
+                                "suv": "SUV",
+                                "hatchback": "Hatchback",
+                                "kombi": "Kombi",
+                                "van": "Van",
+                            }
+                            lower_name = model_name.lower()
+                            for keyword, style in body_keywords.items():
+                                if keyword in lower_name:
+                                    result.setdefault("body_style", style)
+                                    break
+
+    # --- Construct powertrain from tech data ---
+    capacity = result.get("engine_capacity", "")
+    fuel = result.get("fuel", "")
+    transmission = result.get("transmission", "")
+    if capacity or fuel:
+        parts = [p for p in [capacity, fuel, transmission] if p]
+        result.setdefault("powertrain", " / ".join(parts))
+
+    if std_equipment:
+        result["standard_equipment"] = std_equipment
+    if paid_options:
+        result["paid_options"] = paid_options
+
+    if result:
+        print(
+            f"[BACKFILL-PAGES] Wyciągnięto {len(result)} pól "
+            f"z formatu pages: {list(result.keys())}"
+        )
+    return result
+
+
 def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
     """
     Deterministic fallback: fill missing card_summary fields
     directly from digital_twin structure.
-    Handles both nested (equipment.standard_equipment) and flat layouts.
+    Handles pages-based (v2.0) and legacy structured layouts.
     """
+    # --- 0. Pages-based extraction (v2.0 digital twin) ---
+    pages = digital_twin.get("pages")
+    if isinstance(pages, list) and pages:
+        extracted = _extract_from_pages(pages)
+        for key, value in extracted.items():
+            current = card_summary.get(key)
+            if (
+                not current
+                or (
+                    isinstance(current, str)
+                    and current.strip().lower() in ("", "brak", "none", "null")
+                )
+                or (isinstance(current, list) and len(current) == 0)
+            ):
+                card_summary[key] = value
+
     # --- 1. standard_equipment ---
     existing_std = card_summary.get("standard_equipment")
     if not existing_std or (isinstance(existing_std, list) and len(existing_std) == 0):
@@ -316,9 +488,6 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
         if doc_type_str == "Oferta na samochód":
             chosen_schema = CardSummary
             instruction = CARD_SUMMARY_PROMPT
-        elif doc_type_str == "Cennik ogólny modelu":
-            chosen_schema = BrochureSummary
-            instruction = BROCHURE_SUMMARY_PROMPT
         else:
             chosen_schema = OtherDocumentSummary
             instruction = OTHER_DOC_SUMMARY_PROMPT
@@ -409,5 +578,15 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
         return pro_data
 
     except Exception as e:
-        print(f"Błąd w podczas działanie potoku Card Summary (Flash): {e}")
+        tb = traceback.format_exc()
+        print(f"[CARD SUMMARY ERROR] Błąd potoku Card Summary (Flash): {e}\n{tb}")
+        # Safety net: even if Flash fails, try pages backfill
+        digital_twin = pro_data.get("digital_twin", {})
+        pages = digital_twin.get("pages")
+        if isinstance(pages, list) and pages:
+            print("[CARD SUMMARY FALLBACK] Flash failed — applying pages backfill")
+            card_summary = pro_data.get("card_summary", {})
+            pro_data["card_summary"] = _backfill_from_digital_twin(
+                card_summary, digital_twin
+            )
         return pro_data

@@ -5,6 +5,7 @@ from core.pipeline_digital_twin import extract_digital_twin_from_pdf
 from core.pipeline_card_summary import generate_card_summary_from_twin
 from core.pipeline_discounts import match_fleet_discount
 from core.pipeline_overrides import process_manual_override
+from core.pipeline_price_validator import validate_and_flag_prices
 
 # Type alias for progress/cancel callbacks
 ProgressCallback = Callable[[str], None]
@@ -47,6 +48,10 @@ def extract_vehicle_data_v2(
         _progress("generating_summary")
         pro_data = generate_card_summary_from_twin(pro_data)
 
+        # 2.5 Deterministic financial validation
+        _progress("validating_prices")
+        pro_data = validate_and_flag_prices(pro_data)
+
         if _check_cancel():
             return "{}"
 
@@ -83,6 +88,10 @@ def process_single_twin(
     try:
         _progress("generating_summary")
         pro_data = generate_card_summary_from_twin(pro_data)
+
+        # 2.5 Deterministic financial validation
+        _progress("validating_prices")
+        pro_data = validate_and_flag_prices(pro_data)
 
         if _check_cancel():
             return "{}"

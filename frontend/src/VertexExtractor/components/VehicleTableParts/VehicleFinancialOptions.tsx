@@ -23,6 +23,7 @@ interface VehicleFinancialOptionsProps {
   isDealerOffer: boolean;
   offerDiscountPercentage: number;
   suggestedDiscountPct: number;
+  suggestedDiscountConfidence: number;
   activeDiscountPct: number;
 
   // Service Options CRUD
@@ -124,7 +125,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const {
     vehicle, totalCatalogPrice, activeFinalPrice, dynamicTotalOptionsPrice,
     discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
-    isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, activeDiscountPct,
+    isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
@@ -201,7 +202,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               >
                 <option value="offer">Z oferty ({isDealerOffer ? offerDiscountPercentage : 0}%)</option>
                 <option value="suggested" disabled={suggestedDiscountPct === 0}>
-                  Suger. BD ({suggestedDiscountPct}%)
+                  Suger. BD ({suggestedDiscountPct}%){suggestedDiscountConfidence > 0 ? ` [${suggestedDiscountConfidence}%]` : ''}
                 </option>
                 <option value="custom">Własny</option>
               </select>
@@ -515,7 +516,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
               Rocznik pojazdu
-                <LinkedIndicator tableName="samar_vintage_depreciation" isLinked={true} />
+                <LinkedIndicator tableName="ltr_admin_korekta_wr_roczniks" isLinked={true} />
                 {vintageAutoDetected && (
                   <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
                     AI

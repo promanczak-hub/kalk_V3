@@ -6,7 +6,6 @@ from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.extractor_models import (
     CardSummary,
-    BrochureSummary,
     OtherDocumentSummary,
 )
 from core.prompts import OVERRIDE_SYSTEM_PROMPT
@@ -31,8 +30,6 @@ def process_manual_override(original_json: dict, user_prompt: str) -> str:
     chosen_schema: Type[BaseModel]
     if doc_type_str == "Oferta na samochód":
         chosen_schema = CardSummary
-    elif doc_type_str == "Cennik ogólny modelu":
-        chosen_schema = BrochureSummary
     else:
         chosen_schema = OtherDocumentSummary
 

@@ -44,9 +44,9 @@ class ServiceCalculatorInput(BaseModel):
 
     # Normatywny przebieg floty (floor) — z control_center
     normatywny_przebieg_mc: int = Field(
-        default=2916,
+        default=1667,
         description=(
-            "Normatywny przebieg floty km/mc (= 35 000 km/rok). "
+            "Normatywny przebieg floty km/mc (= 20 000 km/rok). "
             "Floor dla kosztu serwisu."
         ),
     )
@@ -73,6 +73,13 @@ class ServiceCalculatorInput(BaseModel):
         description=(
             "Dodatkowe koszty serwisowania netto MIESIĘCZNIE. "
             "Doliczane do wyniku niezależnie od trybu."
+        ),
+    )
+    korekta_serwis_procent: float = Field(
+        default=0.0,
+        description=(
+            "Korekta kosztu serwisu w %. Dodatnia = drożej, ujemna = taniej. "
+            "Np. 0.05 = +5%, -0.10 = -10%. Stosowana do kosztu bazowego (km-ówka)."
         ),
     )
 
@@ -132,13 +139,22 @@ class ServiceCalculator:
         return self._calculate_km_based_monthly()
 
     def _calculate_km_based_monthly(self) -> float:
-        """Logika km-owa: stawka × effective_km / miesiące."""
+        """Logika km-owa: stawka × effective_km / miesiące + korekta %."""
         self._fetch_rate_from_db()
 
         floor_km = self.data.normatywny_przebieg_mc * self.data.okres
         effective_km = max(self.data.przebieg, floor_km)
 
         service_total = effective_km * self._rate_per_km
+
+        # Korekta serwis ±% (V1: KorektaSerwisProcent = 5% admin)
+        if self.data.korekta_serwis_procent != 0.0:
+            korekta = service_total * self.data.korekta_serwis_procent
+            service_total += korekta
+            logger.info(
+                f"Service correction: {self.data.korekta_serwis_procent:+.2%} "
+                f"= {korekta:+.2f} PLN"
+            )
 
         logger.info(
             f"Service km-based: effective_km={effective_km} "

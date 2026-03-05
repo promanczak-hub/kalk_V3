@@ -26,12 +26,19 @@ class AdditionalCostsCalculator:
         # Rejestracja / Karta (Zawsze doliczana w LTR, brak ukrytego checkboxa)
         total += self.settings.cost_registration
 
-        # Przygotowanie do Sprzedaży (Liniowo, V1 czasami mnożyło to przez korekty z SAMAR, ale spłaszczamy wg założeń ryczałtowych)
+        # Przygotowanie do Sprzedaży: stały koszt 1040 PLN netto + opcjonalna korekta
         if (
             hasattr(self.input_data, "add_sales_prep")
             and self.input_data.add_sales_prep
         ):
-            total += self.settings.cost_sales_prep
+            korekta = 0.0
+            if hasattr(self.input_data, "korekta_kosztu_przygotowania"):
+                korekta = float(self.input_data.korekta_kosztu_przygotowania or 0.0)
+            total += self.settings.cost_sales_prep + korekta
+
+        # TODO: Mock — czynsz za czas przygotowania do sprzedaży
+        # (CzasPrzygotowaniaDoSprzedazy = 2 dni × stawka_dzienna)
+        # Zostanie zaimplementowany po ustaleniu logiki z userem.
 
         return {
             "total_additional_costs": round(total, 2),

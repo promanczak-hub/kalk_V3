@@ -39,4 +39,4 @@ class ControlCenterSettings(BaseModel):
     cost_sales_prep: float
 
     # Normatywny przebieg floty (floor dla kosztu serwisu)
-    normatywny_przebieg_mc: int = 2916  # km/mc (= 35 000 km/rok)
+    normatywny_przebieg_mc: int = 1667  # km/mc (= 20 000 km/rok)

@@ -13,6 +13,7 @@ interface DebugStep {
   inputs: Record<string, any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   outputs: Record<string, any>;
+  metadata?: Record<string, {source: string, formula: string}>;
 }
 
 interface DebuggerState {
@@ -21,10 +22,19 @@ interface DebuggerState {
   error?: string;
 }
 
+interface AiChatState {
+  query: string;
+  response: string;
+  isLoading: boolean;
+  error?: string;
+}
+
 export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
   const [activeStep, setActiveStep] = useState<number>(1);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [overrides, setOverrides] = useState<Record<string, any>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [aiChats, setAiChats] = useState<Record<number, AiChatState>>({});
   const [months, setMonths] = useState<number>(48);
   
   const [state, setState] = useState<DebuggerState>({
@@ -106,7 +116,68 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
     });
   };
 
+  const handleNoteChange = (outputKey: string, value: string) => {
+    setNotes(prev => ({
+      ...prev,
+      [outputKey]: value
+    }));
+  };
+
+  const handleAiQueryChange = (step: number, value: string) => {
+    setAiChats(prev => ({
+      ...prev,
+      [step]: { ...(prev[step] || { response: "", isLoading: false }), query: value }
+    }));
+  };
+
+  const askAi = async (step: number) => {
+    const chat = aiChats[step];
+    if (!chat || !chat.query?.trim()) return;
+
+    const stepData = state.steps.find(s => s.step === step);
+    if (!stepData) return;
+
+    setAiChats(prev => ({
+      ...prev,
+      [step]: { ...prev[step], isLoading: true, error: undefined, response: "" }
+    }));
+
+    try {
+      const payload = {
+        step_name: stepData.name,
+        inputs: stepData.inputs,
+        outputs: stepData.outputs,
+        metadata: stepData.metadata,
+        query: chat.query
+      };
+
+      const res = await fetch(`http://localhost:8000/api/kalkulacje/debug-pipeline/${vehicle.id}/ask-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Błąd API: ${res.status} - ${txt}`);
+      }
+      
+      const data = await res.json();
+      setAiChats(prev => ({
+        ...prev,
+        [step]: { ...prev[step], isLoading: false, response: data.answer }
+      }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      setAiChats(prev => ({
+        ...prev,
+        [step]: { ...prev[step], isLoading: false, error: e.message }
+      }));
+    }
+  };
+
   const currentStepData = state.steps.find((s) => s.step === activeStep);
+  const currentAiChat = aiChats[activeStep] || { query: "", response: "", isLoading: false };
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/50 flex flex-col pt-10 px-10 pb-10">
@@ -133,9 +204,20 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
              </div>
              <button 
                onClick={handleApplyOverrides}
-               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors"
+               disabled={state.status === "loading"}
+               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-75 disabled:cursor-not-allowed flex items-center justify-center min-w-[180px]"
              >
-               Przelicz z Nadpisaniami
+               {state.status === "loading" ? (
+                 <>
+                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                   </svg>
+                   Przeliczanie...
+                 </>
+               ) : (
+                 "Przelicz z Nadpisaniami"
+               )}
              </button>
              <button 
                onClick={onClose}
@@ -205,14 +287,36 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                       <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
                         <table className="w-full text-sm">
                           <tbody>
-                            {Object.entries(currentStepData.outputs).map(([key, val]) => (
-                               <tr key={key} className="border-b border-emerald-100/50 last:border-0">
-                                 <td className="py-1.5 pr-4 text-emerald-800/70 font-mono text-xs">{key}</td>
-                                 <td className="py-1.5 text-right font-semibold text-emerald-900">
-                                   {typeof val === 'number' ? val.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(val)}
-                                 </td>
-                               </tr>
-                            ))}
+                            {Object.entries(currentStepData.outputs).map(([key, val]) => {
+                               const meta = currentStepData.metadata?.[key];
+                               return (
+                                 <tr key={key} className="border-b border-emerald-100/50 last:border-0">
+                                   <td className="py-3 pr-4">
+                                     <div className="flex justify-between items-center mb-1">
+                                       <span className="text-emerald-800/90 font-mono text-sm font-semibold">{key}</span>
+                                       <span className="text-right font-bold text-emerald-900 text-sm">
+                                         {typeof val === 'number' ? val.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(val)}
+                                       </span>
+                                     </div>
+                                     {meta && (
+                                       <div className="mt-2 pl-2 border-l-2 border-emerald-200">
+                                          <div className="text-[10px] text-emerald-700/80 mb-0.5"><span className="font-semibold">Źródło:</span> {meta.source}</div>
+                                          <div className="text-[10px] text-emerald-700/80"><span className="font-semibold">Wzór:</span> {meta.formula}</div>
+                                       </div>
+                                     )}
+                                     <div className="mt-2">
+                                        <textarea
+                                          className="w-full text-xs p-2 rounded border border-emerald-200 bg-white/50 focus:bg-white focus:ring-1 focus:ring-emerald-400 placeholder-emerald-400/60"
+                                          placeholder="Twoje uwagi do tego wyliczenia..."
+                                          rows={2}
+                                          value={notes[`${currentStepData.step}_${key}`] || ""}
+                                          onChange={(e) => handleNoteChange(`${currentStepData.step}_${key}`, e.target.value)}
+                                        />
+                                     </div>
+                                   </td>
+                                 </tr>
+                               );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -272,6 +376,57 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                             </div>
                           );
                         })}
+                     </div>
+                     
+                     {/* AI CHAT SECTION */}
+                     <div className="mt-8">
+                       <h4 className="text-xs font-bold uppercase tracking-wider text-purple-600 mb-3 border-b border-purple-200 pb-1 flex items-center">
+                         <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                         </svg>
+                         Zapytaj AI o ten krok
+                       </h4>
+                       <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                         <textarea
+                           className="w-full text-sm p-3 rounded-md border border-purple-200 focus:ring-2 focus:ring-purple-400 focus:border-purple-400 bg-white placeholder-purple-300"
+                           placeholder="Np. Dlaczego stawka za samochód zastępczy wynosi 0?"
+                           rows={3}
+                           value={currentAiChat.query}
+                           onChange={(e) => handleAiQueryChange(activeStep, e.target.value)}
+                         />
+                         <div className="mt-3 flex justify-end">
+                           <button
+                             onClick={() => askAi(activeStep)}
+                             disabled={currentAiChat.isLoading || !currentAiChat.query?.trim()}
+                             className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center"
+                           >
+                             {currentAiChat.isLoading ? (
+                               <>
+                                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                 </svg>
+                                 Myślenie...
+                               </>
+                             ) : "Zapytaj AI"}
+                           </button>
+                         </div>
+                         
+                         {currentAiChat.error && (
+                           <div className="mt-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded-md text-xs">
+                             {currentAiChat.error}
+                           </div>
+                         )}
+
+                         {currentAiChat.response && (
+                           <div className="mt-4 p-4 bg-white border border-purple-200 rounded-md shadow-sm">
+                             <div className="text-xs font-bold text-purple-800 mb-2">Odpowiedź AI:</div>
+                             <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed prose prose-sm prose-purple max-w-none">
+                               {currentAiChat.response}
+                             </div>
+                           </div>
+                         )}
+                       </div>
                      </div>
                   </div>
                 </div>

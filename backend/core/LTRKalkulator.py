@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, cast, Tuple
 from core.LTRSubCalculatorOpony import LTRSubCalculatorOpony
 from core.operations import OperationalCostsCalculator
-from core.LTRSubCalculatorFinanse import FinanceCalculator, FinanceInput
+from core.LTRSubCalculatorFinanse import FinanseCalculator, FinanseInput
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
 from core.LTRSubCalculatorKosztyDodatkowe import AdditionalCostsCalculator
@@ -278,16 +278,28 @@ class LTRKalkulator:
 
             vr_samar = rv_res["WR"]
 
-            # Obliczenie PMT TDD V1
-            finance_input = FinanceInput(
-                total_capex=capex_for_financing,
-                upfront_pct=self.input_data.initial_deposit_pct,
-                rv_net=vr_samar,
-                months=months,
-                wibor_pct=self.input_data.wibor_pct,
-                margin_pct=self.input_data.margin_pct,
+            # Obliczenie PMT (V1 parity — dwa warianty z/bez czynszu)
+            vat_rate_fin = getattr(self.settings, "vat_rate", 1.23)
+            if vat_rate_fin > 10.0:
+                vat_rate_fin = 1.0 + (vat_rate_fin / 100.0)
+            finance_input = FinanseInput(
+                WartoscPoczatkowaNetto=capex_for_financing,
+                WrPrzewidywanaCenaSprzedazy=vr_samar,
+                CzynszInicjalny=float(
+                    getattr(self.input_data, "CzynszKwota", 0.0) or 0.0
+                ),
+                CzynszProcent=float(
+                    getattr(self.input_data, "CzynszProcent", 0.0) or 0.0
+                ),
+                RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
+                StawkaVAT=vat_rate_fin,
+                Okres=months,
+                WIBORProcent=float(getattr(self.input_data, "wibor_pct", 0.0) or 0.0),
+                MarzaFinansowaProcent=float(
+                    getattr(self.input_data, "margin_pct", 0.0) or 0.0
+                ),
             )
-            finance_calc = FinanceCalculator(finance_input)
+            finance_calc = FinanseCalculator(finance_input)
             finance_res = finance_calc.calculate()
 
             # Wynik Opon z dict
@@ -297,7 +309,7 @@ class LTRKalkulator:
                 + tires_res["monthly_swaps"]
             )
             # Wynik Serwisu — nowy ServiceCalculator (ASO/nonASO z DB + floor normatywnego przebiegu)
-            normatywny_przebieg = getattr(self.settings, "normatywny_przebieg_mc", 2916)
+            normatywny_przebieg = getattr(self.settings, "normatywny_przebieg_mc", 1667)
             pakiet_serwisowy_val = float(
                 getattr(self.input_data, "pakiet_serwisowy", 0.0)
             )
@@ -394,13 +406,13 @@ class LTRKalkulator:
             kd_input = KosztDziennyInput(
                 utrata_wartosci_z_czynszem=utrata_z_czynszem,
                 utrata_wartosci_bez_czynszu=utrata_bez_czynszu,
-                koszt_finansowy=finance_res.total_interest,
+                koszt_finansowy=finance_res.SumaOdsetekZczynszem,
                 samochod_zastepczy_netto=rc_total,
                 koszty_dodatkowe_netto=additional_costs_total,
                 ubezpieczenie_netto=insurance_total,
                 opony_netto=tires_total,
                 serwis_netto=service_total,
-                suma_odsetek_bez_czynszu=finance_res.total_interest,
+                suma_odsetek_bez_czynszu=finance_res.SumaOdsetekBEZczynszu,
                 okres=months,
             )
             kd_result = KosztDziennyCalculator(kd_input).calculate()
@@ -410,7 +422,7 @@ class LTRKalkulator:
                 koszt_mc=kd_result.koszt_mc,
                 koszt_mc_bez_czynszu=kd_result.koszt_mc_bez_czynszu,
                 utrata_wartosci_netto=utrata_z_czynszem,
-                koszty_finansowe_netto=finance_res.total_interest,
+                koszty_finansowe_netto=finance_res.SumaOdsetekZczynszem,
                 ubezpieczenie_netto=insurance_total,
                 samochod_zastepczy_netto=rc_total,
                 koszty_dodatkowe_netto=additional_costs_total,
@@ -418,7 +430,7 @@ class LTRKalkulator:
                 serwis_netto=service_total,
                 okres=months,
                 marza=margin_pct,
-                czynsz_inicjalny=float(finance_res.initial_deposit_net),
+                czynsz_inicjalny=float(finance_res.CzynszInicjalnyNetto),
             )
             stawka_result = StawkaCalculator(stawka_input).calculate()
 
@@ -472,10 +484,25 @@ class LTRKalkulator:
                                 stawka_result.koszt_finansowy.koszt_plus_marza_korekta,
                                 2,
                             ),
-                            "monthly_pmt": round(finance_res.monthly_pmt_net, 2),
-                            "total_interest": finance_res.total_interest,
-                            "total_capital_repayment": finance_res.total_capital_repayment,
-                            "initial_deposit_net": finance_res.initial_deposit_net,
+                            "monthly_pmt_z_czynszem": round(
+                                finance_res.monthly_pmt_z_czynszem, 2
+                            ),
+                            "monthly_pmt_bez_czynszu": round(
+                                finance_res.monthly_pmt_bez_czynszu, 2
+                            ),
+                            "suma_odsetek_z_czynszem": round(
+                                finance_res.SumaOdsetekZczynszem, 2
+                            ),
+                            "suma_odsetek_bez_czynszu": round(
+                                finance_res.SumaOdsetekBEZczynszu, 2
+                            ),
+                            "czynsz_inicjalny_netto": round(
+                                finance_res.CzynszInicjalnyNetto, 2
+                            ),
+                            "czynsz_procent": round(
+                                finance_res.CzynszInicjalnyProcent, 2
+                            ),
+                            "wykup_kwota": round(finance_res.WykupKwota, 2),
                             "rozklad_marzy": round(
                                 stawka_result.koszt_finansowy.rozklad_marzy, 4
                             ),

@@ -47,3 +47,32 @@ Dodając nowy plik konfiguracyjny z mnożnikami, od razu pisz test w `pytest`:
 - Test dla popularnej marki (np. "Toyota").
 - Test dla marki premium (np. "Porsche").
 - **Najważniejsze:** Test dla marki/klasy **całkowicie zmyślonej i nieistniejącej w naszych konfiguracjach** (np. "MarkaX"). Twoja logika w tej sytuacji musi "przeżyć" bez zgłaszania Internal Server Error, aplikując wartość bazową.
+
+## 5. ZAKAZ SKRACANIA KLUCZOWYCH PĘTLI MATEMATYCZNYCH (V1 PARITY)
+
+Algorytmy w systemie (np. ubezpieczenie czy symulacja wartości rezydualnej) historycznie wykonywały się przez pełne 7 lat, nawet dla krótszych umów. Ten mechanizm ma zastosowanie biznesowe przy szacowaniu długoterminowych wskaźników i jest **konieczny**.
+
+**Zasady dotyczące pętli na przestrzeni czasu:**
+
+- **NIGDY** nie optymalizuj kodu poprzez przerywanie (`break`) 7-letniej (lub innej, sztywno zdefiniowanej) pętli tylko dlatego, że okres trwania leasingu jest krótszy (np. 4 lata / 48 miesięcy).
+- Obliczenia zawsze muszą przejść przez wymaganą liczbę iteracji (np. `self.LICZBA_LAT = 7`).
+- Jeśli w bazie dla wyższych lat (np. rok 7) brakuje wpisów w stawkach, **ZASTOSUJ FALLBACK** z ostatniego dostępnego roku lub pierwszego roku bazowego (by zapewnić "miękkie lądowanie" z zachowaniem struktury algorytmu), ale nie wykraczaj poza zdefiniowaną liczbę potrąceń i nie skracaj obliczeń przestrzennych.
+
+## 6. 🔒 ZAMROŻONE MODUŁY (NIE MODYFIKOWAĆ)
+
+Poniższe pliki przeszły pełen audyt V1↔V3 i są zatwierdzone przez użytkownika.
+**AI NIE MOŻE modyfikować tych plików bez wyraźnej komendy: "Odmroź moduł X".**
+
+| Plik                                                 | Audyt      | Opis zmian                                                                         |
+| ---------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| `backend/core/LTRSubCalculatorOpony.py`              | 2026-03-05 | ×4 usunięto (DB = cena za komplet), fallbacki → ValueError                         |
+| `backend/core/LTRSubCalculatorKosztyDodatkowe.py`    | 2026-03-05 | korekta przygotowania dodana, cost_sales_prep=1040, TODO mock czynszu              |
+| `backend/core/LTRSubCalculatorSamochodZastepczy.py`  | 2026-03-05 | logika identyczna V1=V3, stawki potwierdzone                                       |
+| `backend/core/samar_rv.py`                           | 2026-03-05 | 6-krokowy algorytm WR, 4-level cascade body correction, 7-lat compound deprecjacja |
+| `backend/core/LTRSubCalculatorUtrataWartosciNew.py`  | 2026-03-05 | wrapper SAMAR→LTR, konwersja brutto/netto, resolver class/engine ID                |
+| `backend/core/LTRSubCalculatorSerwisNew.py`          | 2026-03-05 | stawka km SAMAR, floor=1667 km/mc (20k/yr), korekta%, power_band                   |
+| `backend/core/LTRSubCalculatorCenaZakupu.py`         | 2026-03-05 | netto-based CAPEX, transport+opony+GSM+pakiet, rabat discountable/non-disc         |
+| `backend/core/LTRSubCalculatorAmortyzacja.py`        | 2026-03-05 | logika identyczna V1=V3, guard okres≤0                                             |
+| `backend/core/LTRSubCalculatorKosztDzienny.py`       | 2026-03-05 | logika identyczna V1=V3, coeff=30.4, wymaga suma_odsetek_bez_czynszu z Finanse     |
+| `backend/core/LTRSubCalculatorBudzetMarketingowy.py` | 2026-03-05 | logika identyczna V1=V3, jedno mnożenie WR×VAT×budżet%                             |
+| `backend/core/LTRSubCalculatorUbezpieczenie.py`      | 2026-03-05 | pętla 7-lat, doubezp kradzież/nauka=False (OK), fallback stawek                    |

@@ -216,7 +216,7 @@ export default function CalculatorPanel() {
         replacement_car_enabled: toggles.replacement_car !== false,
         add_gsm_subscription: toggles.gps_required !== false,
         add_hook_installation: toggles.hook_installation === true,
-        z_oponami: true,
+        z_oponami: toggles.z_oponami !== false,
         klasa_opony_string: stanJson.tire_params?.tire_class || "Medium",
         srednica_felgi: stanJson.tire_params?.rim_diameter || null,
         liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : parseFloat(stanJson.tire_params?.tire_count_mode) || null,

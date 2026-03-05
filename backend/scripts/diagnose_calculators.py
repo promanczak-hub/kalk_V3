@@ -209,7 +209,7 @@ def diagnose_vehicle(
         service_input = ServiceCalculatorInput(
             z_serwisem=True,
             opcja_serwisowa="ASO",
-            normatywny_przebieg_mc=getattr(settings, "normatywny_przebieg_mc", 2916),
+            normatywny_przebieg_mc=getattr(settings, "normatywny_przebieg_mc", 1667),
             samar_class_id=int(vehicle.get("klasa_wr_id", 0) or 0),
             engine_type_id=int(vehicle.get("engine_type_id", 1) or 1),
             power_kw=float(vehicle.get("power_kw", 100) or 100),

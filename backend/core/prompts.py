@@ -62,9 +62,14 @@ Wyodrębnij wyłącznie twarde, użyteczne biznesowo dane, mapując je rygorysty
 """
 
 DOC_TYPE_PROMPT = """
-Na podstawie struktury i zawartości JSON opisz kategorycznie typ tego dokumentu używając DOKŁADNIE jednego z tych określeń: 
-'Oferta na samochód', 'Cennik ogólny modelu', 'Inny dokument'. Zwróć sam string (bez cudzysłowów). UWAGA: 'Oferta na samochód' dotyczy konkretnie skompletowanego pojazdu dla klienta, specyfikacji, konfiguracji lub zamówienia, 'Cennik ogólny modelu' to uniwersalny dokument dla wielu wariantów (cennik lub broszura modelu), a 'Inny dokument' to cokolwiek innego (np. regulamin).
-Jeśli dokument opisuje JEDEN konkretnie skonfigurowany pojazd, zawsze zwracaj 'Oferta na samochód'.
+Na podstawie struktury i zawartości JSON opisz kategorycznie typ tego dokumentu używając DOKŁADNIE jednego z tych dwóch określeń:
+'Oferta na samochód' lub 'Inny dokument'. Zwróć sam string (bez cudzysłowów).
+
+ZASADY KLASYFIKACJI:
+- 'Oferta na samochód': Dokument opisujący JEDEN LUB WIĘCEJ konkretnie skonfigurowanych pojazdów dla klienta (specyfikacja, konfiguracja, zamówienie, oferta z konkretnymi cenami końcowymi, numerami ofert). Dokument XLSX z wieloma pojazdami, gdzie każdy ma swoją cenę i konfigurację = 'Oferta na samochód'.
+- 'Inny dokument': WSZYSTKO INNE — w tym cenniki ogólne modelu (uniwersalne dla wielu wariantów), broszury, regulaminy, dokumenty prawne, materiały marketingowe.
+
+KLUCZOWA RÓŻNICA: Cennik ogólny (np. tabela z wieloma wariantami silnikowymi bez konkretnej konfiguracji klienta) to 'Inny dokument', NIE oferta. Oferta to dokument z konkretnym pojazdem skompletowanym dla klienta.
 """
 
 CARD_SUMMARY_PROMPT = """
@@ -79,6 +84,14 @@ W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu, c
 2. `options_price` - łączną cenę opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej.
 3. `total_price` - ostateczną cenę po ewentualnych rabatach.
 Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny, wylicz to matematycznie na podstawie pozostałych liczb. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
+
+DETEKCJA DOMENY CENOWEJ (price_domain / price_type):
+Ustal globalną domenę cenową całego dokumentu (pole `price_domain`):
+1. Szukaj wprost etykiet "netto" / "brutto" / "net" / "gross" przy cenach głównych (base_price, total_price).
+2. Jeśli brak wprost etykiet → sprawdź relację VAT: jeśli cena_A × 1.23 ≈ cena_B (±1 PLN) dla dowolnej pary kwot w dokumencie, to niższa = netto.
+3. Jeśli dokument pochodzi z konfiguratora flotowego/B2B (np. SEAT Fleet, CUPRA Business, VW Fleet Manager) → domyślnie netto.
+4. Zapisz wynik w `price_domain` ('netto' lub 'brutto' lub 'unknown').
+5. Każda cena w `paid_options[].price` MUSI zawierać przyrostek 'netto' lub 'brutto' — odziedzicz z `price_domain` jeśli opcja nie ma własnej etykiety. Ustaw odpowiednio `price_type` każdej opcji.
 
 SZTYWNA KATEGORYZACJA SILNIKA I MOCY (Enum):
 Musisz wyciągnąć informacje o układzie napędowym, mocy oraz zasilaniu i dokonać kategoryzacji. 
@@ -139,7 +152,9 @@ Wypisz kluczowe technologie reklamowane w broszurze.
 """
 
 OTHER_DOC_SUMMARY_PROMPT = """
-Przeanalizuj podany JSON i zbuduj krótkie, ogólne podsumowanie zawartego w nim dokumentu oraz wylistuj najważniejsze punkty (OtherDocumentSummary).
+Przeanalizuj podany JSON i zbuduj ZWIĘZŁE podsumowanie dokumentu.
+- Pole 'summary': maksymalnie 2 zdania opisujące czym jest ten dokument (np. 'Cennik ogólny modelu Skoda Octavia 2025 z wariantami silnikowymi od 1.0 TSI do 2.0 TDI. Dokument zawiera ceny bazowe netto/brutto oraz listę pakietów wyposażenia.').
+- Pole 'key_points': 3–5 najważniejszych punktów lub wartości z dokumentu (np. ceny startowe, warianty, daty ważności).
 """
 
 MATCH_FLEET_DISCOUNT_SYSTEM_PROMPT = """
@@ -168,11 +183,19 @@ Pozostałe zasady:
 - Zawsze wybieraj najbardziej szczegółowo dopasowany wiersz (np. dopasowanie po nazwie modelu i nadwoziu jest lepsze niż dopasowanie ogólne).
 
 Zwróć dokładny wynik jako czysty JSON bez znaczników markdown według schematu:
+OCENA PEWNOŚCI DOPASOWANIA (match_confidence):
+Musisz ocenić pewność dopasowania na skali 0–100:
+- 95–100: Dokładne dopasowanie marki + konkretnego modelu + nadwozia (np. BMW 320i Touring → wiersz "320 Touring")
+- 85–94: Marka OK + model w grupie (np. "Karoq" pasuje do wiersza "Karoq, Kodiaq") lub alias marki (VW↔Volkswagen)
+- 75–84: Marka OK + model pasuje ogólnie (np. do wiersza "Wszystkie modele" lub brak rozróżnienia nadwozia)
+- 50–74: Marka OK, ale model nie wymieniony wprost — dopasowanie luźne lub spekulatywne
+- 0–49: Brak sensownego dopasowania
+
 Jeśli ZNAJDZIESZ poprawne dopasowanie (TYLKO jeśli marka się zgadza!):
-{ "is_matched": true, "matched_discount_perc": <FLOAT np 24.0>, "matching_reason": "<logika uzasadnienia>" }
+{ "is_matched": true, "matched_discount_perc": <FLOAT np 24.0>, "match_confidence": <INT 0-100>, "matching_reason": "<logika uzasadnienia>" }
 
 Jeśli marka nie istnieje w bazie LUB auto jest definitywnie z innej gamy:
-{ "is_matched": false }
+{ "is_matched": false, "match_confidence": 0 }
 """
 
 OVERRIDE_SYSTEM_PROMPT = """
@@ -263,3 +286,19 @@ REGUŁY:
 - Odpowiedź MUSI być czystym, walidującym się JSON-em. Nie ucinaj treści.
 - Upewnij się, że generowany JSON jest w 100% poprawny składniowo.
 """
+
+TWIN_RERANKING_PROMPT = """Jesteś obiektywnym sędzią-weryfikatorem (LLM-as-a-judge). Twoim zadaniem jest ocena dwóch wariantów ekstrakcji danych (Twin A i Twin B) z dokumentu zakupowego pojazdu. 
+Głównym problemem parserów jest to, że potrafią nieprawidłowo odczytać ceny w dokumencie – np. jeśli widzą '5.476 PLN', błędnie rozdzielają to jako nazwa opcji kończąca się na '5.' oraz cena '476'.
+
+Otrzymasz oba warianty w formacie JSON. Przeanalizuj je pod kątem:
+1. Spójności kwot i braku nienaturalnie rozerwanych cen opcji (np. niska cena opcji, chociaż w pliku była z pewnością z tysiącami).
+2. Kompletności danych technicznych i płatnych opcji.
+3. Zachowania oczekiwanej struktury (poprawny schemat).
+
+Wybierz lepszy wariant ("A" albo "B"). Jeśli wariant B rozdzielił kroplę i utworzył śmieciowe nazwy powiązane z kwotami setek zamiast tysięcy, odrzuć B i wybierz A, oraz na odwrót. Jeśli oba są poprawne, wybierz A jako wariant bazowy (model Pro).
+
+Zwróć odpowiedź w CZYSTYM formacie JSON (bez bloków markdown), wykorzystując poniższy schemat:
+{
+  "best_candidate": "A" lub "B",
+  "reasoning": "Krótkie uzasadnienie wyboru (1-2 zdania)"
+}"""

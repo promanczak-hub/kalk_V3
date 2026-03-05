@@ -69,12 +69,33 @@ print(f"Kwota zakupu brutto do symulacji RV: {BASE_PRICE * 1.23}")
 base_price_net = BASE_PRICE
 
 
+# Ustawienia dodatkowe:
+class MockSettings:
+    def __init__(self):
+        self.wymagane_doubezpieczenie_kradziezy = False
+        self.wymagane_od_ryzyk_nauka_jazdy = False
+        self.marza_ubezpieczenie_procent = MARGIN  # Ubezpieczenie stosuje marze?
+        self.sredni_przebieg_dla_szkody = 30000.0
+        self.srednia_wartosc_szkody = 1500.0
+        self.ins_avg_damage_value = 1500.0
+        self.ins_avg_damage_mileage = 30000.0
+        self.ins_theft_doub_pct = 0.0
+        self.ins_driving_school_doub_pct = 0.0
+        self.samar_rv_apply_options_depreciation = False
+        self.samar_rv_base_mileage = 15000
+        self.samar_rv_mileage_unit_km = 1000
+
+
+mock_settings = MockSettings()
+
+
 # 1. Obliczamy RV żeby mieć amortyzację.
 class MockInputData:
     def __init__(self):
         self.pricing_margin_pct = MARGIN
         self.factory_options = []
         self.service_options = []
+        self.settings = mock_settings
 
 
 mock_input = MockInputData()
@@ -91,24 +112,13 @@ vr_samar = rv_res["WR"]
 print(f"Wartość rezydualna z SAMAR (netto): {vr_samar}")
 
 # Obliczamy miesięczną wartość amortyzacyjną (jak V1)
+from core.LTRSubCalculatorAmortyzacja import AmortyzacjaCalculator, AmortyzacjaInput
+
 amort_input = AmortyzacjaInput(wp=base_price_net, wr=vr_samar, okres=MONTHS)
 amort_result = AmortyzacjaCalculator(amort_input).calculate()
 procent_amortyzacji_miesiecznie = amort_result.amortyzacja_procent
 
 print(f"Amortyzacja miesięcznie: {procent_amortyzacji_miesiecznie}")
-
-
-# Ustawienia dodatkowe:
-class MockSettings:
-    def __init__(self):
-        self.wymagane_doubezpieczenie_kradziezy = False
-        self.wymagane_od_ryzyk_nauka_jazdy = False
-        self.marza_ubezpieczenie_procent = MARGIN  # Ubezpieczenie stosuje marze?
-        self.sredni_przebieg_dla_szkody = 30000.0
-        self.srednia_wartosc_szkody = 1500.0
-
-
-mock_settings = MockSettings()
 
 # Wywołujemy nowy kalkulator
 ins_calc = InsuranceCalculator(

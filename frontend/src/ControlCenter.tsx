@@ -4,7 +4,6 @@ import RmsCrudPanel from "./RmsCrud/RmsCrudPanel";
 import RabatyCrudPanel from "./RabatyCrud/RabatyCrudPanel";
 import EnginesCrudPanel from "./EnginesCrud/EnginesCrudPanel";
 import TabelaOponCrudPanel from "./TabelaOponCrud/TabelaOponCrudPanel";
-import BrandCorrectionCrudPanel from "./BrandCorrectionCrud/BrandCorrectionCrudPanel";
 import GlobalSettingsPanel from "./GlobalSettingsPanel";
 import SamarMasterPanel from "./SamarMasterPanel";
 
@@ -21,7 +20,6 @@ export default function ControlCenter() {
           <Tab label="Tabela rabaty" />
           <Tab label="Tabele Napędy" />
           <Tab label="Tabela Opon" />
-          <Tab label="Korekta Marka" />
         </Tabs>
       </Box>
 
@@ -31,7 +29,6 @@ export default function ControlCenter() {
       {activeTab === 3 && <RabatyCrudPanel />}
       {activeTab === 4 && <EnginesCrudPanel />}
       {activeTab === 5 && <TabelaOponCrudPanel />}
-      {activeTab === 6 && <BrandCorrectionCrudPanel />}
     </Box>
   );
 }

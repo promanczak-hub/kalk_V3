@@ -192,7 +192,15 @@ class PrzedzialMocy(str, Enum):
 
 class PaidOption(BaseModel):
     name: str = Field(description="Nazwa płatnej opcji")
-    price: str = Field(description="Cena płatnej opcji (np. '2750 PLN' lub '0 PLN')")
+    price: str = Field(
+        description="Cena płatnej opcji z walutą i typem netto/brutto "
+        "(np. '2750 PLN netto' lub '5476 PLN brutto')"
+    )
+    price_type: str = Field(
+        default="unknown",
+        description="Typ ceny: 'netto', 'brutto' lub 'unknown'. "
+        "Wywniosuj z etykiet w dokumencie lub odziedzicz z price_domain.",
+    )
     category: str = Field(
         description="Kategoria opcji (np. 'Fabryczna' lub 'Serwisowa/Akcesoria')"
     )
@@ -219,6 +227,13 @@ class ServiceEquipment(BaseModel):
 
 
 class CardSummary(BaseModel):
+    price_domain: str = Field(
+        default="unknown",
+        description="Globalna domena cenowa całego dokumentu: 'netto' lub 'brutto'. "
+        "Ustal na podstawie etykiet przy cenach głównych, relacji VAT (×1.23) "
+        "między kwotami, lub kontekstu dokumentu (konfigurator B2B → netto). "
+        "Jeśli nie da się ustalić → 'unknown'.",
+    )
     base_price: str = Field(
         description="Cena katalogowa bazowa (bez rabatów i opustów) wraz z walutą i przyrostkiem 'netto' lub 'brutto' wywnioskowanym z relacji kwot lub wprost z dokumentu (np. '100 000 PLN netto'). Zwróć 'Brak' jeśli nie znaleziono."
     )

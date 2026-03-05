@@ -1,5 +1,6 @@
-import type { FleetVehicleView } from "../../types";
+import type { FleetVehicleView, PriceValidation } from "../../types";
 import { parsePriceToNumber } from "./PriceDualFormat";
+import { PriceValidationBanner } from "./PriceValidationBanner";
 
 interface VehicleFinancialCardProps {
   vehicle: FleetVehicleView;
@@ -69,6 +70,12 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
     return null;
   }
 
+  // Extract validation flags from synthesis_data.card_summary._validation
+  const cardSummary = vehicle.synthesis_data?.card_summary as
+    | Record<string, unknown>
+    | undefined;
+  const validation = cardSummary?._validation as PriceValidation | undefined;
+
   const breakdownRows: { label: string; value: string; bold?: boolean; negative?: boolean }[] = [
     {
       label: "Cena bazowa",
@@ -104,6 +111,11 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
       </div>
 
       <div className="p-5 space-y-5">
+        {/* Price validation warnings */}
+        {validation && !validation.is_valid && (
+          <PriceValidationBanner validation={validation} />
+        )}
+
         {/* Metric tiles */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <MetricTile

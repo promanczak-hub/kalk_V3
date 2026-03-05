@@ -45,8 +45,105 @@ export function VehicleRowCard({
 
   // Save Setup state
   const [isSavingSetup, setIsSavingSetup] = useState(false);
+  const [isSavingFields, setIsSavingFields] = useState(false);
+  const [isRemappingClassification, setIsRemappingClassification] = useState(false);
 
+  // Direct save: patch card_summary JSON + top-level columns
+  const handleDirectSave = async (fields: Record<string, string>) => {
+    setIsSavingFields(true);
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
 
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+      if (!updatedJson.card_summary) updatedJson.card_summary = {};
+
+      // Map of field keys that go into card_summary JSON
+      const cardSummaryKeys = new Set([
+        "trim_level", "body_style", "vehicle_class", "powertrain",
+        "fuel", "transmission", "wheels", "emissions", "exterior_color",
+        "configuration_code",
+      ]);
+
+      // Top-level column updates
+      const columnUpdates: Record<string, unknown> = {};
+
+      for (const [key, value] of Object.entries(fields)) {
+        if (cardSummaryKeys.has(key)) {
+          updatedJson.card_summary[key] = value;
+        }
+        if (key === "brand" || key === "model") {
+          columnUpdates[key] = value;
+        }
+        if (key === "offer_number") {
+          columnUpdates.offer_number = value;
+        }
+        if (key === "configuration_code") {
+          updatedJson.configuration_code = value;
+        }
+      }
+
+      columnUpdates.synthesis_data = updatedJson;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update(columnUpdates)
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+      onRefresh();
+    } catch (err) {
+      console.error("Error saving vehicle fields", err);
+      alert("B\u0142\u0105d zapisu: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
+    } finally {
+      setIsSavingFields(false);
+    }
+  };
+
+  // Re-run Flash classification (SAMAR, engine, service class)
+  const handleRemapClassification = async () => {
+    if (!vehicle.synthesis_data) return;
+    setIsRemappingClassification(true);
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${baseUrl}/api/extract/remap-classification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ original_json: vehicle.synthesis_data }),
+      });
+
+      if (!res.ok) throw new Error("B\u0142\u0105d klasyfikacji");
+      const data = await res.json();
+
+      // Save the new mapped data to Supabase
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+      updatedJson.mapped_ai_data = data;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData(data);
+      onRefresh();
+    } catch (err) {
+      console.error("Remap classification error", err);
+      alert("B\u0142\u0105d przeliczania klasyfikacji: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
+    } finally {
+      setIsRemappingClassification(false);
+    }
+  };
 
 
   // Financial parameters (defaults from control_center)
@@ -164,6 +261,24 @@ export function VehicleRowCard({
 
 
 
+  // Determine price domain from deterministic backend detection
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const priceDomain: string = ((vehicle.synthesis_data as any)?.card_summary?._price_domain) || "unknown";
+
+  /** Convert a parsed price to netto, respecting the option's price_type or global domain. */
+  const toNettoAware = (rawPrice: number, priceStr?: string, optPriceType?: string): number => {
+    if (rawPrice === 0) return 0;
+    // Priority: option-level price_type > detected string label > global domain
+    const type = optPriceType && optPriceType !== "unknown"
+      ? optPriceType
+      : priceStr?.toLowerCase().includes("brutto")
+        ? "brutto"
+        : priceStr?.toLowerCase().includes("netto")
+          ? "netto"
+          : priceDomain;
+    return type === "brutto" ? Math.round((rawPrice / 1.23) * 100) / 100 : rawPrice;
+  };
+
   // Local state for CRUD operations on Service Options
   const initialServiceOptions = useMemo(() => {
     return vehicle.paid_options?.filter(
@@ -171,12 +286,13 @@ export function VehicleRowCard({
     ).map(o => ({
        id: crypto.randomUUID(),
        name: o.name,
-       price_net: o.price ? parsePriceToNumber(o.price) : 0,
+       price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
        category: o.category || "Opcja Serwisowa",
        // @ts-ignore
        include_in_wr: o.include_in_wr || false
     })) || [];
-  }, [vehicle.paid_options]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicle.paid_options, priceDomain]);
 
   const initialFactoryOptions = useMemo(() => {
     const opts = vehicle.paid_options?.filter(
@@ -184,8 +300,9 @@ export function VehicleRowCard({
     ).map(o => ({
        id: crypto.randomUUID(),
        name: o.name,
-       price_net: o.price ? parsePriceToNumber(o.price) : 0,
-       category: o.category || "Fabryczna"
+       price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
+       category: o.category || "Fabryczna",
+       no_discount: (o as any).no_discount === true
     })) || [];
 
     if (vehicle.exterior_color && vehicle.exterior_color !== "Brak") {
@@ -206,20 +323,21 @@ export function VehicleRowCard({
 
         if (match) {
           const priceStr = match[1] || match[0];
-          priceNet = parsePriceToNumber(priceStr);
+          priceNet = toNettoAware(parsePriceToNumber(priceStr), priceStr);
           name = `Lakier: ${vehicle.exterior_color
             .replace(match[0], "")
             .replace(/\(\s*\)/, "")
             .trim()}`;
         }
-        opts.unshift({ id: crypto.randomUUID(), name, price_net: priceNet, category: "Fabryczna" });
+        opts.unshift({ id: crypto.randomUUID(), name, price_net: priceNet, category: "Fabryczna", no_discount: false });
       }
     }
     return opts;
-  }, [vehicle.paid_options, vehicle.exterior_color]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicle.paid_options, vehicle.exterior_color, priceDomain]);
 
    const [customServiceOptions, setCustomServiceOptions] = useState<{id: string, name: string, price_net: number, category: string, effects?: ModificationEffect, include_in_wr?: boolean}[]>([]);
-   const [customFactoryOptions, setCustomFactoryOptions] = useState<{id: string, name: string, price_net: number, category: string, effects?: ModificationEffect}[]>([]);
+   const [customFactoryOptions, setCustomFactoryOptions] = useState<{id: string, name: string, price_net: number, category: string, no_discount: boolean, effects?: ModificationEffect}[]>([]);
   
   // Set initial state only once or when vehicle completely changes
   useEffect(() => {
@@ -262,10 +380,14 @@ export function VehicleRowCard({
      setCustomFactoryOptions(prev => prev.filter(opt => opt.id !== id));
   };
 
+  const handleUpdateFactoryOptionNoDiscount = (id: string, noDiscount: boolean) => {
+     setCustomFactoryOptions(prev => prev.map(opt => opt.id === id ? { ...opt, no_discount: noDiscount } : opt));
+  };
+
   const handleAddManualFactoryOption = () => {
      setCustomFactoryOptions(prev => [
        ...prev, 
-       { id: crypto.randomUUID(), name: "Nowa Opcja Fabryczna", price_net: 0, category: "Fabryczna" }
+       { id: crypto.randomUUID(), name: "Nowa Opcja Fabryczna", price_net: 0, category: "Fabryczna", no_discount: false }
      ]);
   };
 
@@ -403,7 +525,8 @@ export function VehicleRowCard({
            name: opt.name,
            category: opt.category,
            price: String(opt.price_net) + " PLN netto",
-           price_net: opt.price_net
+           price_net: opt.price_net,
+           no_discount: opt.no_discount
         })),
         ...customServiceOptions.map(opt => ({
            name: opt.name,
@@ -439,6 +562,20 @@ export function VehicleRowCard({
   const samarCandidates: { klasa: string; confidence: number }[] =
     ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { samar_candidates?: { klasa: string; confidence: number }[] })?.samar_candidates) || [];
 
+  // Extract Engine candidates for reranking dropdown
+  const engineCandidates: { klasa: string; confidence: number }[] =
+    ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
+
+  // Extract drive type from card_summary
+  const DRIVE_TYPE_MAP: Record<string, string> = {
+    "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
+    "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
+  };
+  const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
+    ?.card_summary?.drive_type as string | undefined;
+  const detectedDriveType = rawDriveType ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType) : "";
+  const driveType = mappedData?.drive_type || detectedDriveType;
+
   const handleSamarCategoryChange = async (newCategory: string) => {
     try {
       const { createClient } = await import("@supabase/supabase-js");
@@ -467,6 +604,75 @@ export function VehicleRowCard({
     } catch (err) {
       console.error("Error updating SAMAR category", err);
       alert("Błąd zapisu kategorii SAMAR: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
+  const handleEngineCategoryChange = async (newCategory: string) => {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.fuel = newCategory;
+
+      // Optimistically fetch category for immediate UI update
+      const enginesResp = await supabase.from('engines').select('category').eq('name', newCategory);
+      const newCategoryClass = enginesResp.data?.[0]?.category;
+      if (newCategoryClass) {
+         updatedJson.mapped_ai_data.engine_class = newCategoryClass;
+      }
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      // Update local state so UI reflects immediately
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        fuel: newCategory,
+        engine_class: newCategoryClass || prev?.engine_class || serverMappedData?.engine_class,
+      }));
+    } catch (err) {
+      console.error("Error updating Engine category", err);
+      alert("Błąd zapisu kategorii Silnika: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
+  const handleDriveTypeChange = async (newDriveType: string) => {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.drive_type = newDriveType;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        drive_type: newDriveType,
+      }));
+    } catch (err) {
+      console.error("Error updating drive type", err);
+      alert("Błąd zapisu napędu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
     }
   };
 
@@ -651,6 +857,7 @@ export function VehicleRowCard({
       : 0;
 
   const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
+  const suggestedDiscountConfidence = vehicle.suggested_discount_confidence || 0;
 
   let activeDiscountPct = 0;
   let activeFinalPrice = totalCatalogPrice;
@@ -848,6 +1055,7 @@ export function VehicleRowCard({
 
   return (
     <div
+      data-vehicle-id={vehicle.id}
       className={cn(
         "bg-white rounded-xl border transition-all duration-200 shadow-sm overflow-hidden group hover:shadow-md",
         isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-200"
@@ -863,6 +1071,10 @@ export function VehicleRowCard({
         formatCalculatedPrice={formatCalculatedPrice}
         samarCandidates={samarCandidates}
         onSamarCategoryChange={handleSamarCategoryChange}
+        engineCandidates={engineCandidates}
+        onEngineCategoryChange={handleEngineCategoryChange}
+        driveType={driveType}
+        onDriveTypeChange={handleDriveTypeChange}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
@@ -874,16 +1086,17 @@ export function VehicleRowCard({
           <div className="space-y-4 mb-6">
             <VehicleSummaryCard 
               vehicle={vehicle} 
-              onOverride={async (prompt) => {
-                await handleManualOverride(prompt);
-              }}
-              isOverriding={isOverriding}
+              onDirectSave={handleDirectSave}
+              isSaving={isSavingFields}
+              onRemapClassification={handleRemapClassification}
+              isRemapping={isRemappingClassification}
             />
             <VehicleEquipmentCard
               vehicle={vehicle}
               customFactoryOptions={customFactoryOptions}
               handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
               handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
+              handleUpdateFactoryOptionNoDiscount={handleUpdateFactoryOptionNoDiscount}
               handleRemoveFactoryOption={handleRemoveFactoryOption}
               handleAddManualFactoryOption={handleAddManualFactoryOption}
               activeDiscountPct={activeDiscountPct}
@@ -902,6 +1115,7 @@ export function VehicleRowCard({
              isDealerOffer={isDealerOffer}
              offerDiscountPercentage={offerDiscountPercentage}
              suggestedDiscountPct={suggestedDiscountPct}
+             suggestedDiscountConfidence={suggestedDiscountConfidence}
              activeDiscountPct={activeDiscountPct}
              customServiceOptions={customServiceOptions}
              handleUpdateServiceOptionName={handleUpdateServiceOptionName}

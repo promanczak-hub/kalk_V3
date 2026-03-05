@@ -1,15 +1,37 @@
 import { useState } from "react";
 import type { FleetVehicleView } from "../../types";
 import { PipelineDebugger } from "../PipelineDebugger";
-import { Pencil, Check, X, Loader2, Wand2 } from "lucide-react";
+import { Pencil, X, Loader2, RefreshCw, Save } from "lucide-react";
 
 interface VehicleSummaryCardProps {
   vehicle: FleetVehicleView;
-  onOverride?: (prompt: string) => Promise<void>;
-  isOverriding?: boolean;
+  onDirectSave?: (fields: Record<string, string>) => Promise<void>;
+  isSaving?: boolean;
+  onRemapClassification?: () => Promise<void>;
+  isRemapping?: boolean;
 }
 
 const EMPTY = "—";
+
+const DRIVE_TYPE_LABELS: Record<string, string> = {
+  "Napęd FWD": "4x2 (FWD)",
+  "Napęd RWD": "4x2 (RWD)",
+  "Napęd AWD": "4x4 (AWD)",
+  "FWD": "4x2 (FWD)",
+  "RWD": "4x2 (RWD)",
+  "AWD": "4x4 (AWD)",
+  "4x2": "4x2",
+  "4x4": "4x4",
+};
+
+function extractDriveType(vehicle: FleetVehicleView): string {
+  const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
+  if (!synth) return EMPTY;
+  const cs = synth.card_summary as Record<string, unknown> | undefined;
+  const raw = cs?.drive_type as string | undefined;
+  if (!raw) return EMPTY;
+  return DRIVE_TYPE_LABELS[raw] ?? raw;
+}
 
 function val(v: string | null | undefined): string {
   if (!v || v === "Brak" || v === "-") return EMPTY;
@@ -46,7 +68,7 @@ function Row({ label, value, isEditing, editValue, onEditChange }: RowProps) {
   );
 }
 
-export function VehicleSummaryCard({ vehicle, onOverride, isOverriding }: VehicleSummaryCardProps) {
+export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapClassification, isRemapping }: VehicleSummaryCardProps) {
   const [showDebugger, setShowDebugger] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
@@ -76,41 +98,42 @@ export function VehicleSummaryCard({ vehicle, onOverride, isOverriding }: Vehicl
   };
 
   const handleSave = async () => {
-    if (!onOverride) return;
+    if (!onDirectSave) return;
     
-    const changedFields: string[] = [];
-    const checkChange = (label: string, original: string, formattedLabel: string = label) => {
-      if (editValues[label] !== original) {
-        changedFields.push(`${formattedLabel}: ${editValues[label]}`);
+    const fields: Record<string, string> = {};
+    const collectIfChanged = (label: string, original: string, dbKey: string) => {
+      const edited = editValues[label] ?? "";
+      if (edited !== original && edited !== EMPTY) {
+        fields[dbKey] = edited;
       }
     };
 
-    checkChange("Marka", val(vehicle.brand));
-    checkChange("Model", val(vehicle.model));
-    checkChange("Wersja", val(vehicle.trim_level));
-    checkChange("Typ nadwozia", val(vehicle.body_style));
-    checkChange("Kategoria", val(vehicle.vehicle_class ?? vehicle.document_category));
-    checkChange("Napęd", val(vehicle.powertrain));
-    checkChange("Paliwo", val(vehicle.fuel));
-    checkChange("Skrzynia biegów", val(vehicle.transmission));
+    collectIfChanged("Marka", val(vehicle.brand), "brand");
+    collectIfChanged("Model", val(vehicle.model), "model");
+    collectIfChanged("Wersja", val(vehicle.trim_level), "trim_level");
+    collectIfChanged("Typ nadwozia", val(vehicle.body_style), "body_style");
+    collectIfChanged("Kategoria", val(vehicle.vehicle_class ?? vehicle.document_category), "vehicle_class");
+    collectIfChanged("Napęd", val(vehicle.powertrain), "powertrain");
+    collectIfChanged("Paliwo", val(vehicle.fuel), "fuel");
+    collectIfChanged("Skrzynia biegów", val(vehicle.transmission), "transmission");
     
     const currentWheels = vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY;
-    if (editValues["Koła"] !== currentWheels) {
-      changedFields.push(`Koła (średnica): ${editValues["Koła"].replace('"', '')}`);
+    const editedWheels = editValues["Koła"] ?? "";
+    if (editedWheels !== currentWheels && editedWheels !== EMPTY) {
+      fields["wheels"] = editedWheels.replace('"', '');
     }
     
-    checkChange("Emisja WLTP", val(vehicle.emissions), "Emisja (CO2/WLTP)");
-    checkChange("Kolor nadwozia", val(vehicle.exterior_color));
-    checkChange("Numer oferty", val(vehicle.offer_number));
-    checkChange("Kod konfiguracji", val(vehicle.configuration_code));
+    collectIfChanged("Emisja WLTP", val(vehicle.emissions), "emissions");
+    collectIfChanged("Kolor nadwozia", val(vehicle.exterior_color), "exterior_color");
+    collectIfChanged("Numer oferty", val(vehicle.offer_number), "offer_number");
+    collectIfChanged("Kod konfiguracji", val(vehicle.configuration_code), "configuration_code");
 
-    if (changedFields.length === 0) {
+    if (Object.keys(fields).length === 0) {
       setIsEditing(false);
       return;
     }
 
-    const prompt = `Zaktualizuj w 'card_summary' następujące pola: \n${changedFields.join("\n")}\nZastosuj tylko te zmiany, resztę wartości pozostaw bez zmian.`;
-    await onOverride(prompt);
+    await onDirectSave(fields);
     setIsEditing(false);
   };
 
@@ -141,6 +164,7 @@ export function VehicleSummaryCard({ vehicle, onOverride, isOverriding }: Vehicl
 
   const techRows = [
     { label: "Napęd", value: val(vehicle.powertrain) },
+    { label: "Oś napędowa", value: extractDriveType(vehicle) },
     { label: "Paliwo", value: val(vehicle.fuel) },
     { label: "Skrzynia biegów", value: val(vehicle.transmission) },
     { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
@@ -155,11 +179,13 @@ export function VehicleSummaryCard({ vehicle, onOverride, isOverriding }: Vehicl
 
   return (
     <div className="border border-slate-200 rounded bg-white relative">
-      {isOverriding && (
+      {(isSaving || isRemapping) && (
         <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded">
           <div className="flex items-center text-indigo-600 bg-white px-4 py-2 rounded-full shadow-sm border border-indigo-100">
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            <span className="text-sm font-medium">Trwa aktualizacja przez AI...</span>
+            <span className="text-sm font-medium">
+              {isRemapping ? "Przeliczanie klasyfikacji..." : "Zapisywanie zmian..."}
+            </span>
           </div>
         </div>
       )}
@@ -168,7 +194,7 @@ export function VehicleSummaryCard({ vehicle, onOverride, isOverriding }: Vehicl
           Karta podsumowania pojazdu
           {isEditing && (
             <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">
-              TRYB EDYCJI AI
+              TRYB EDYCJI
             </span>
           )}
         </h4>
@@ -184,23 +210,34 @@ export function VehicleSummaryCard({ vehicle, onOverride, isOverriding }: Vehicl
               </button>
               <button
                 onClick={handleSave}
-                disabled={isOverriding}
-                className="text-xs px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-md font-medium transition-colors flex items-center shadow-sm disabled:opacity-50"
+                disabled={isSaving}
+                className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-md font-medium transition-colors flex items-center shadow-sm disabled:opacity-50"
               >
-                {isOverriding ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5 mr-1.5" />}
-                Zapisz i przelicz AI
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                Zapisz zmiany
               </button>
             </>
           ) : (
             <>
               <button
                 onClick={startEditing}
-                disabled={isOverriding || !onOverride}
+                disabled={isSaving || !onDirectSave}
                 className="text-xs px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-md font-medium transition-colors flex items-center shadow-sm border border-slate-200 disabled:opacity-50"
               >
                 <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                Edytuj AI
+                Edytuj
               </button>
+              {onRemapClassification && (
+                <button
+                  onClick={onRemapClassification}
+                  disabled={isRemapping}
+                  className="text-xs px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-md font-medium transition-colors flex items-center shadow-sm border border-violet-100 disabled:opacity-50"
+                  title="Przelicz klasyfikację pojazdu (SAMAR, silnik, serwis) na podstawie aktualnych danych"
+                >
+                  {isRemapping ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                  Przelicz klasyfikację
+                </button>
+              )}
               <button
                 onClick={() => setShowDebugger(true)}
                 className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md font-medium transition-colors flex items-center shadow-sm border border-indigo-100"

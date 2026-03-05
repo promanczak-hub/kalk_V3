@@ -18,6 +18,7 @@ export interface CalculatorInputV3 {
   transmission: string;
   body_type: string;
 
+  z_oponami: boolean;
   all_season_tires: boolean;
   replacement_car_enabled: boolean;
   wibor_pct: number;
@@ -108,6 +109,7 @@ export const CalculatorSettingsPanelV3: React.FC<
   const [serviceOptions, setServiceOptions] = useState(initialServiceOpts);
 
   // LTR V3 Flags
+  const [zOponami, setZOponami] = useState(true);
   const [allSeasonTires, setAllSeasonTires] = useState(false);
   const [replacementCar, setReplacementCar] = useState(true);
 
@@ -166,6 +168,7 @@ export const CalculatorSettingsPanelV3: React.FC<
       fuel,
       transmission,
       body_type: bodyType,
+      z_oponami: zOponami,
       all_season_tires: allSeasonTires,
       replacement_car_enabled: replacementCar,
       wibor_pct: wiborPct,
@@ -352,7 +355,17 @@ export const CalculatorSettingsPanelV3: React.FC<
             <h4 className="font-medium text-slate-700 mb-3 border-b pb-2">
               Parametry Usług LTR (Long-Term Rental)
             </h4>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={zOponami}
+                  onChange={(e) => setZOponami(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 mr-3"
+                />
+                <span className="text-sm text-slate-700">Czy z oponami</span>
+              </label>
+
               <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                 <input
                   type="checkbox"

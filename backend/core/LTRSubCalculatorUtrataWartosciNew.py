@@ -1,62 +1,96 @@
-from typing import Dict, Any, cast
+"""
+Wrapper: LTRSubCalculatorUtrataWartosciNew (V3).
 
-from core.database import supabase
-from core.samar_rv import SamarRVCalculator
+Adapter pomiędzy LTRKalkulator a nowym SamarRVCalculator.
+Zachowuje interfejs `calculate_values()` zwracający dict z kluczami:
+  WR, WR_Gross, WRdlaLO, UtrataWartosciBEZczynszu
+wymagany przez LTRKalkulator.build_matrix().
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, Optional
+
+from core.samar_rv import RVInput, RVOutput, SamarRVCalculator, get_samar_class_id
+
+logger = logging.getLogger(__name__)
 
 
 class LTRSubCalculatorUtrataWartosciNew:
-    """Kalkulator Utraty Wartości SAMAR (V3).
+    """Kalkulator Utraty Wartości SAMAR (V3) — wrapper.
 
-    Deleguje obliczenie RV do ``SamarRVCalculator`` (tabele V2),
-    a następnie dodaje wrapper: WRdlaLO, UtrataWartosciBEZczynszu,
-    konwersję brutto→netto i korektę ręczną.
+    Deleguje obliczenie RV do ``SamarRVCalculator`` (algorytm Excel JŁ),
+    a następnie konwertuje wynik na format wymagany przez LTRKalkulator.
     """
 
     def __init__(self, vehicle_data: Dict[str, Any], calc_input: Any) -> None:
         self.vehicle = vehicle_data
         self.input = calc_input
 
-        # Delegat – właściwy silnik RV
-        self.rv_engine = SamarRVCalculator(vehicle_data, calc_input)
+        # Resolve SAMAR class + engine_id
+        class_name = self.vehicle.get("Segment", "") or ""
+        self.samar_class_id = get_samar_class_id(class_name) or int(
+            self.vehicle.get("klasa_wr_id", 0) or 0
+        )
+        self.engine_id = int(self.vehicle.get("engine_type_id", 1) or 1)
 
-        # Parametry globalne z bazy
-        self.vat_rate = self._fetch_global_param("VAT", fallback=1.23)
-        self.przewidywana_cena_lo = self._fetch_global_param(
-            "PrzewidywanaCenaSprzedazyLO", fallback=0.0
+        # Brand
+        self.brand_name = (
+            (self.vehicle.get("brand") or self.vehicle.get("Marka") or "")
+            .strip()
+            .upper()
         )
 
-        # Normalizacja VAT rate
-        if self.vat_rate > 2.0:
-            self.vat_rate = 1.0 + (self.vat_rate / 100.0)
-        elif self.vat_rate < 1.0:
-            self.vat_rate = 1.23
+        # Paint type ID
+        self.paint_type_id: Optional[int] = None
+        raw_paint = self.vehicle.get("paint_type_id")
+        if raw_paint:
+            self.paint_type_id = int(raw_paint)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+        # Body type ID
+        self.body_type_id: Optional[int] = None
+        raw_body = self.vehicle.get("body_type_id")
+        if raw_body:
+            self.body_type_id = int(raw_body)
 
-    def _fetch_global_param(self, param_name: str, fallback: float) -> float:
-        """Pobiera parametry globalne z tabeli ``LTRAdminParametry_czak``."""
-        try:
-            response = (
-                supabase.table("LTRAdminParametry_czak")
-                .select("col_2")
-                .ilike("col_1", param_name)
-                .limit(1)
-                .execute()
-            )
-            if response.data and len(response.data) > 0:
-                row = cast(Dict[str, Any], response.data[0])
-                val = row.get("col_2")
-                if val is not None:
-                    return float(str(val).replace(",", "."))
-        except Exception:
-            pass
-        return fallback
+        # Zabudowa flag
+        self.zabudowa_apr_wr = bool(self.vehicle.get("zabudowa_apr_wr", False))
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+        # Rocznik — priority: calc_input.vehicle_vintage → vehicle dict
+        vintage_raw = getattr(self.input, "vehicle_vintage", None)
+        if not vintage_raw and isinstance(self.input, dict):
+            vintage_raw = self.input.get("vehicle_vintage")
+        if not vintage_raw:
+            vintage_raw = self.vehicle.get("rocznik", "current")
+        self.rocznik = str(vintage_raw or "current")
+
+        # Is metalic — priority: calc_input.is_metalic → vehicle dict
+        is_meta = getattr(self.input, "is_metalic", None)
+        if is_meta is None and isinstance(self.input, dict):
+            is_meta = self.input.get("is_metalic")
+        if is_meta is None:
+            is_meta = bool(self.vehicle.get("is_metalic", True))
+        self.is_metalic = bool(is_meta)
+
+        # VAT
+        self.vat_rate = self._resolve_vat()
+
+    def _resolve_vat(self) -> float:
+        """Pobiera stawkę VAT z ustawień lub domyślną."""
+        vat = 1.23
+        if hasattr(self.input, "settings"):
+            settings = self.input.settings
+            raw_vat = getattr(settings, "vat_rate", None)
+            if raw_vat:
+                vat = float(raw_vat)
+                if vat > 10.0:
+                    vat = 1.0 + (vat / 100.0)
+                elif vat < 1.0:
+                    vat = 1.23
+        return vat
+
+    # ── Public API (backward-compatible) ──────────────────────────
 
     def calculate_values(
         self,
@@ -64,46 +98,47 @@ class LTRSubCalculatorUtrataWartosciNew:
         total_km: int,
         base_vehicle_capex_gross: float,
         options_capex_gross: float,
-    ) -> Dict[str, float]:
-        """Zwraca słownik z WR, WRdlaLO oraz UtrataWartosciBEZczynszu (netto)."""
+    ) -> Dict[str, Any]:
+        """Zwraca słownik z WR, WRdlaLO, UtrataWartosciBEZczynszu.
 
-        # 1. WR Brutto z SamarRVCalculator (operuje na brutto)
-        wr_brutto = self.rv_engine.calculate_rv(
+        LTRKalkulator przekazuje ceny BRUTTO. Konwertujemy na netto
+        dla SamarRVCalculator, a wynik zwracamy w netto.
+        """
+        # Konwersja brutto → netto
+        base_net = base_vehicle_capex_gross / self.vat_rate
+        options_net = options_capex_gross / self.vat_rate
+
+        # Manual WR correction
+        manual_wr = 0.0
+        if hasattr(self.input, "manual_wr_correction"):
+            manual_wr = float(getattr(self.input, "manual_wr_correction", 0.0))
+        elif isinstance(self.input, dict):
+            manual_wr = float(self.input.get("manual_wr_correction", 0.0))
+
+        rv_input = RVInput(
+            samar_class_id=self.samar_class_id,
+            engine_id=self.engine_id,
+            brand_name=self.brand_name,
             months=months,
             total_km=total_km,
-            base_vehicle_capex=base_vehicle_capex_gross,
-            options_capex=options_capex_gross,
+            capex_base_net=base_net,
+            capex_options_net=options_net,
+            paint_type_id=self.paint_type_id,
+            is_metalic=self.is_metalic,
+            body_type_id=self.body_type_id,
+            rocznik=self.rocznik,
+            zabudowa_apr_wr=self.zabudowa_apr_wr,
+            manual_wr_correction=manual_wr,
         )
 
-        # 2. Korekta ręczna WR
-        korekta_reczna_wr = 0.0
-        if hasattr(self.input, "manual_wr_correction"):
-            korekta_reczna_wr = float(getattr(self.input, "manual_wr_correction", 0.0))
-        elif isinstance(self.input, dict) and "manual_wr_correction" in self.input:
-            korekta_reczna_wr = float(self.input.get("manual_wr_correction", 0.0))
-
-        wr_brutto += korekta_reczna_wr * self.vat_rate
-
-        # 3. Clamp WR do 5–95% ceny zakupu
-        laczna_cena_zakupu_brutto = base_vehicle_capex_gross + options_capex_gross
-        min_rv = laczna_cena_zakupu_brutto * 0.05
-        max_rv = laczna_cena_zakupu_brutto * 0.95
-        wr_brutto = max(min_rv, min(max_rv, wr_brutto))
-
-        # 4. Konwersje na netto
-        wr_net = wr_brutto / self.vat_rate
-
-        # 5. WRdlaLO
-        wr_lo_brutto = wr_brutto * (1.0 + self.przewidywana_cena_lo)
-        wr_lo_net = wr_lo_brutto / self.vat_rate
-
-        # 6. UtrataWartosciBEZczynszu
-        utrata_brutto = max(laczna_cena_zakupu_brutto - wr_brutto, 0.0)
-        utrata_net = utrata_brutto / self.vat_rate
+        rv_calc = SamarRVCalculator(rv_input)
+        result: RVOutput = rv_calc.calculate()
 
         return {
-            "WR_Gross": float(wr_brutto),
-            "WR": float(wr_net),
-            "WRdlaLO": float(wr_lo_net),
-            "UtrataWartosciBEZczynszu": float(utrata_net),
+            "WR_Gross": result.wr_net * self.vat_rate,
+            "WR": result.wr_net,
+            "WRdlaLO": result.wr_lo_net,
+            "UtrataWartosciBEZczynszu": result.utrata_wartosci_net,
+            "WR_percent": result.wr_percent,
+            "debug": result.debug,
         }

@@ -52,21 +52,32 @@ class InsuranceCalculator:
         else:
             srednia_szkoda_calosc = 0.0
 
+        # Zapamiętujemy ostatnią znaną stawkę (przydatne jako fallback dla brakujących lat)
+        last_known_rate = None
+        if self.insurance_rates:
+            last_known_rate = self.insurance_rates[0]
+
         for year in range(1, self.LICZBA_LAT + 1):
+            v1 = year * 12
+            v2 = (year - 1) * 12
+
             # Znajdź stawkę ubezpieczeniową dla danego roku z tabeli
             rok_rate = next(
                 (r for r in self.insurance_rates if r.get("KolejnyRok") == year), None
             )
 
-            # Fallback dla brakującego roku - z the base / first year
+            # Zgodnie z wytycznymi z GEMINI.md, system nie powinien crashować - miękkie lądowanie z ostatnio znaną stawką
+            if not rok_rate and last_known_rate:
+                rok_rate = last_known_rate
+
             if not rok_rate:
-                # User requested NO fallback. If no rate for year exist in specific table, error.
-                raise ValueError(
-                    f"No insurance rate found for year {year} and no fallback allowed."
-                )
+                # Ostateczny fallback, jeżeli baza jest kompletnie pusta
+                stawka_ac = 0.025
+                skladka_oc = 1200.0
             else:
                 stawka_ac = float(rok_rate.get("StawkaBazowaAC", 0.025))
                 skladka_oc = float(rok_rate.get("SkladkaOC", 1200.0))
+                last_known_rate = rok_rate
 
             liczba_miesiecy_przed_rokiem = (year - 1) * 12
             depreciation_factor = 1.0 - (
