@@ -66,7 +66,7 @@ export function NetGrossInput({ netValue, onChangeNet }: NetGrossInputProps): JS
           placeholder="0.00"
           title="Kwota Netto"
         />
-        <div className="bg-slate-50 border border-slate-200 rounded-r px-1.5 sm:px-2 py-1.5 text-[10px] font-bold text-slate-500 uppercase flex items-center h-[34px]">
+        <div className="bg-slate-50 border border-slate-200 rounded-r px-1.5 sm:px-2 py-1.5 text-xs font-bold text-slate-500 uppercase flex items-center h-[34px]">
           Netto
         </div>
       </div>
@@ -81,7 +81,7 @@ export function NetGrossInput({ netValue, onChangeNet }: NetGrossInputProps): JS
           placeholder="0.00"
           title="Kwota Brutto"
         />
-        <div className="bg-slate-50 border border-slate-200 rounded-r px-1.5 sm:px-2 py-1.5 text-[10px] font-bold text-slate-500 uppercase flex items-center h-[34px]">
+        <div className="bg-slate-50 border border-slate-200 rounded-r px-1.5 sm:px-2 py-1.5 text-xs font-bold text-slate-500 uppercase flex items-center h-[34px]">
           Brutto
         </div>
       </div>

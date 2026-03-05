@@ -58,13 +58,25 @@ def detect_vehicle_count(
             "Policz ile RÓŻNYCH pojazdów (różnych modeli/konfiguracji) "
             "jest opisanych w tym dokumencie.\n\n"
             "ZASADY LICZENIA:\n"
-            "- Każdy ODRĘBNY model pojazdu = 1 pojazd "
-            "(np. TRAFIC COMBI, KANGOO VAN, SYMBIOZ to 3 pojazdy)\n"
-            "- W arkuszu Excel (XLSX) każdy arkusz/zakładka z osobnym pojazdem = 1 pojazd\n"
-            "- Arkusz 'Podsumowanie' lub 'Summary' NIE jest osobnym pojazdem\n"
-            "- Jeśli jest jeden cennik z wieloma wersjami silnikowymi JEDNEGO modelu = 1 pojazd\n"
-            "- Różne marki/modele = różne pojazdy "
-            "(np. Renault Austral + Dacia Duster = 2 pojazdy)\n\n"
+            "- Każdy ODRĘBNY model pojazdu = 1 osobny pojazd.\n"
+            "- Różne modele od TEGO SAMEGO producenta to OSOBNE pojazdy! "
+            "Przykład: Lexus ES + Lexus RX + Lexus NX = 3 pojazdy.\n"
+            "- Różne marki w jednym dokumencie = osobne pojazdy. "
+            "Przykład: Toyota Corolla + Lexus NX = 2 pojazdy.\n"
+            "- W arkuszu Excel (XLSX) każdy arkusz/zakładka z osobnym pojazdem "
+            "= 1 pojazd (arkusz 'Podsumowanie'/'Summary' NIE jest osobnym pojazdem).\n"
+            "- W pliku PDF szukaj osobnych sekcji cenowych, osobnych tabel specyfikacji, "
+            "osobnych kodów konfiguracji lub osobnych numerów ofert — "
+            "każda taka sekcja = 1 pojazd.\n"
+            "- WYJĄTEK: Jeśli jest JEDEN cennik z wieloma wersjami silnikowymi "
+            "JEDNEGO modelu (np. Skoda Octavia 1.0 TSI / 1.5 TSI / 2.0 TDI) "
+            "= 1 pojazd (cennik ogólny).\n\n"
+            "PRZYKŁADY:\n"
+            "- PDF z ofertą na Lexus ES 300h, Lexus RX 450h i Lexus NX 350h → 3\n"
+            "- PDF z ofertą na Renault Trafic, Kangoo Van, Master → 3\n"
+            "- XLSX z 9 arkuszami, każdy z innym Renault → 9\n"
+            "- PDF cennik Skoda Octavia z 4 wersjami silnika → 1\n"
+            "- PDF z Toyota Yaris + Lexus UX → 2\n\n"
             "ODPOWIEDZ WYŁĄCZNIE jedną liczbą całkowitą. "
             "Nic więcej, żadnych wyjaśnień.\n"
             "ODPOWIEDŹ:"
@@ -87,6 +99,7 @@ def detect_vehicle_count(
             config=config,
         )
         raw_text = (getattr(response, "text", "1") or "1").strip()
+        print(f"[MULTI-VEHICLE] Raw Flash response: '{raw_text}'")
         # Extract first number if Flash adds extra text
         digits = (
             "".join(c for c in raw_text.split()[0] if c.isdigit()) if raw_text else "1"
@@ -167,14 +180,33 @@ def detect_and_split_vehicles(
     if count <= 1:
         return None
 
+    print(
+        f"[MULTI-VEHICLE] Flash detected {count} vehicles, "
+        f"sending to Pro for extraction..."
+    )
     vehicles = extract_multi_vehicle_twins(
         document_data, mime_type, expected_count=count
     )
 
     if len(vehicles) < 2:
+        # Retry once — Pro sometimes needs a stronger hint
         print(
-            "[MULTI-VEHICLE] Pro could not extract multiple twins, fallback to single"
+            f"[MULTI-VEHICLE] Pro returned {len(vehicles)} twin(s) "
+            f"(expected {count}), retrying..."
+        )
+        vehicles = extract_multi_vehicle_twins(
+            document_data, mime_type, expected_count=count
+        )
+
+    if len(vehicles) < 2:
+        print(
+            f"[MULTI-VEHICLE] Pro could not extract multiple twins "
+            f"after retry (got {len(vehicles)}), fallback to single"
         )
         return None
 
+    print(
+        f"[MULTI-VEHICLE] Successfully extracted {len(vehicles)} "
+        f"vehicles (Flash expected {count})"
+    )
     return vehicles

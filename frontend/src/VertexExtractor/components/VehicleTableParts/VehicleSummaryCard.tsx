@@ -62,7 +62,7 @@ export function VehicleSummaryCard({ vehicle }: VehicleSummaryCardProps) {
       <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Identyfikacja */}
         <div>
-          <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
             Identyfikacja
           </h5>
           <table className="w-full">
@@ -76,7 +76,7 @@ export function VehicleSummaryCard({ vehicle }: VehicleSummaryCardProps) {
 
         {/* Specyfikacja techniczna */}
         <div>
-          <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
             Specyfikacja techniczna
           </h5>
           <table className="w-full">
@@ -90,7 +90,7 @@ export function VehicleSummaryCard({ vehicle }: VehicleSummaryCardProps) {
 
         {/* Metadane */}
         <div>
-          <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
             Metadane oferty
           </h5>
           <table className="w-full">

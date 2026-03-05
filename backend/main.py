@@ -105,6 +105,10 @@ class CalculatorInput(BaseModel):
     liczba_kompletow_opon: Optional[float] = Field(
         default=None, description="Ręczna liczba kompletów (opcjonalna)"
     )
+    srednica_felgi: Optional[int] = Field(
+        default=None,
+        description="Średnica felgi w calach (z plakietki pojazdu). Wymagana gdy z_oponami=True.",
+    )
 
     # Podatki i Finanse (PMT)
     wibor_pct: float = Field(default=5.0, description="WIBOR %")
@@ -137,6 +141,17 @@ class CalculatorInput(BaseModel):
     service_cost_type: str = Field(
         default="ASO",
         description="Rodzaj kosztów serwisowych: 'ASO' lub 'nonASO'",
+    )
+    pakiet_serwisowy: float = Field(
+        default=0.0,
+        description=(
+            "Dedykowany pakiet serwisowy netto na kontrakt. "
+            "Jeśli > 0, zastępuje logikę km-ową."
+        ),
+    )
+    inne_koszty_serwisowania_netto: float = Field(
+        default=0.0,
+        description="Dodatkowe koszty serwisowania netto MIESIĘCZNIE.",
     )
     vehicle_vintage: str = Field(
         default="current",
@@ -177,7 +192,6 @@ class EngineType(BaseModel):
     name: str
     category: str
     description: Optional[str] = None
-    fuel_group_id: int = 1
 
 
 class SamarClass(BaseModel):
@@ -195,6 +209,14 @@ class SamarServiceCost(BaseModel):
     power_band: str
     cost_aso_per_km: float
     cost_non_aso_per_km: float
+
+
+class ReplacementCarRate(BaseModel):
+    id: Optional[str] = None
+    samar_class_id: int
+    samar_class_name: str = ""
+    average_days_per_year: float = 6.5
+    daily_rate_net: float
 
 
 class BrandCorrection(BaseModel):
@@ -310,6 +332,140 @@ async def update_engine(engine: EngineType) -> EngineType:
 async def delete_engine(engine_id: int) -> Dict[str, str]:
     try:
         supabase.table("engines").delete().eq("id", engine_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Depreciation Rates (per engine × samar_class × year) ---
+
+
+class DepreciationRate(BaseModel):
+    id: Optional[int] = None
+    samar_class_id: int
+    fuel_type_id: int  # references engines.id (1:1)
+    year: int
+    base_depreciation_percent: float = 0.0
+    options_depreciation_percent: float = 0.0
+
+
+@app.get("/api/depreciation-rates", tags=["Control Center"])
+async def get_depreciation_rates(
+    samar_class_id: Optional[int] = None,
+) -> List[DepreciationRate]:
+    try:
+        query = supabase.table("samar_class_depreciation_rates").select("*")
+        if samar_class_id is not None:
+            query = query.eq("samar_class_id", samar_class_id)
+        response = (
+            query.order("samar_class_id").order("fuel_type_id").order("year").execute()
+        )
+        response_data = cast(Any, response.data)
+        return [DepreciationRate(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/depreciation-rates", tags=["Control Center"])
+async def upsert_depreciation_rate(rate: DepreciationRate) -> DepreciationRate:
+    try:
+        data = rate.model_dump(exclude_unset=True)
+        if not data.get("id"):
+            data.pop("id", None)
+        response = (
+            supabase.table("samar_class_depreciation_rates").upsert(data).execute()
+        )
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to upsert rate")
+        response_data = cast(Any, response.data[0])
+        return DepreciationRate(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/depreciation-rates/bulk", tags=["Control Center"])
+async def bulk_upsert_depreciation_rates(
+    rates: List[DepreciationRate],
+) -> Dict[str, Any]:
+    try:
+        data_list = []
+        for rate in rates:
+            d = rate.model_dump(exclude_unset=True)
+            if not d.get("id"):
+                d.pop("id", None)
+            data_list.append(d)
+        response = (
+            supabase.table("samar_class_depreciation_rates").upsert(data_list).execute()
+        )
+        return {"status": "success", "count": len(response.data)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/depreciation-rates/{rate_id}", tags=["Control Center"])
+async def delete_depreciation_rate(rate_id: int) -> Dict[str, str]:
+    try:
+        supabase.table("samar_class_depreciation_rates").delete().eq(
+            "id", rate_id
+        ).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Mileage Corrections (per engine × samar_class) ---
+
+
+class MileageCorrection(BaseModel):
+    id: Optional[int] = None
+    samar_class_id: int
+    fuel_type_id: int  # references engines.id (1:1)
+    under_threshold_percent: float = 0.0
+    over_threshold_percent: float = 0.0
+
+
+@app.get("/api/mileage-corrections", tags=["Control Center"])
+async def get_mileage_corrections(
+    samar_class_id: Optional[int] = None,
+) -> List[MileageCorrection]:
+    try:
+        query = supabase.table("samar_class_mileage_corrections").select("*")
+        if samar_class_id is not None:
+            query = query.eq("samar_class_id", samar_class_id)
+        response = query.order("samar_class_id").order("fuel_type_id").execute()
+        response_data = cast(Any, response.data)
+        return [MileageCorrection(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/mileage-corrections/bulk", tags=["Control Center"])
+async def bulk_upsert_mileage_corrections(
+    corrections: List[MileageCorrection],
+) -> Dict[str, Any]:
+    try:
+        data_list = []
+        for c in corrections:
+            d = c.model_dump(exclude_unset=True)
+            if not d.get("id"):
+                d.pop("id", None)
+            data_list.append(d)
+        response = (
+            supabase.table("samar_class_mileage_corrections")
+            .upsert(data_list)
+            .execute()
+        )
+        return {"status": "success", "count": len(response.data)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/mileage-corrections/{correction_id}", tags=["Control Center"])
+async def delete_mileage_correction(correction_id: int) -> Dict[str, str]:
+    try:
+        supabase.table("samar_class_mileage_corrections").delete().eq(
+            "id", correction_id
+        ).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -630,6 +786,50 @@ async def upsert_brand_correction(item: BrandCorrection) -> BrandCorrection:
 async def delete_brand_correction(item_id: str) -> Dict[str, str]:
     try:
         supabase.table("samar_brand_corrections").delete().eq("id", item_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Replacement Car Rates CRUD ──
+
+
+@app.get("/api/replacement-car-rates", tags=["Control Center"])
+async def get_replacement_car_rates() -> List[ReplacementCarRate]:
+    try:
+        response = (
+            supabase.table("replacement_car_rates")
+            .select("*")
+            .order("samar_class_id")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [ReplacementCarRate(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/replacement-car-rates", tags=["Control Center"])
+async def upsert_replacement_car_rate(item: ReplacementCarRate) -> ReplacementCarRate:
+    try:
+        data = item.model_dump(exclude_unset=True)
+        if not data.get("id"):
+            data.pop("id", None)
+        response = supabase.table("replacement_car_rates").upsert(data).execute()
+        if not response.data:
+            raise HTTPException(
+                status_code=500, detail="Nie udało się zapisać stawki zastępczego"
+            )
+        response_data = cast(Any, response.data[0])
+        return ReplacementCarRate(**response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/replacement-car-rates/{item_id}", tags=["Control Center"])
+async def delete_replacement_car_rate(item_id: str) -> Dict[str, str]:
+    try:
+        supabase.table("replacement_car_rates").delete().eq("id", item_id).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

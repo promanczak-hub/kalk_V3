@@ -44,34 +44,38 @@ class SamarRVCalculator:
         self.class_config = self._fetch_class_config()
 
     def _map_fuel_type(self, fuel_str: Optional[str]) -> int:
-        """Mapuje nazwę napędu na fuel_group_id (1=Benzyna, 2=Diesel, 3=Alternatywne).
+        """Mapuje nazwę napędu na engines.id (1:1 z tabelą engines).
 
-        Odpytuje tabelę engines po nazwie. Fallback: heurystyka substring.
+        Odpytuje tabelę engines po nazwie. Fallback: heurystyka substring → ilike.
         """
         if not fuel_str:
-            return 1
+            return 1  # Domyślnie Benzyna (PB), engines.id=1
         try:
             res = (
                 supabase.table("engines")
-                .select("fuel_group_id")
+                .select("id")
                 .eq("name", fuel_str)
                 .limit(1)
                 .execute()
             )
             if res.data and len(res.data) > 0:
-                return int(res.data[0].get("fuel_group_id", 1))
+                return int(res.data[0]["id"])
         except Exception:
             pass
-        # Fallback heuristic for legacy/unmapped values
-        fuel = fuel_str.lower()
-        if "diesel" in fuel or "(on)" in fuel:
-            return 2
-        if any(
-            kw in fuel
-            for kw in ("elektr", "hybr", "phev", "hev", "bev", "fcev", "lpg", "wodór")
-        ):
-            return 3
-        return 1
+        # Fallback: partial match via ilike
+        try:
+            res = (
+                supabase.table("engines")
+                .select("id")
+                .ilike("name", f"%{fuel_str}%")
+                .limit(1)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return int(res.data[0]["id"])
+        except Exception:
+            pass
+        return 1  # Fallback: Benzyna (PB)
 
     def _fetch_class_config(self) -> Dict[str, Any]:
         """Pobiera parametry konfiguracyjne dla Klasy SAMAR"""
@@ -153,14 +157,35 @@ class SamarRVCalculator:
         return 0.0
 
     def get_body_correction(self) -> float:
-        """Korekta za rodzaj zabudowy (zostaje na razie stary słownik lub ew. zero, dopóki klient nie zmieni)"""
-        # Możemy docelowo wyłączyć to, ale zostawię to kompatybilne.
-        # Wg notatek wyłączamy markę, o zabudowie nic nie było, ale może zróbmy 0.0
+        """Korekta za rodzaj zabudowy"""
         return 0.0
 
     def get_vintage_correction(self, rocznik: str) -> float:
         """Korekta za rocznik pojazdu"""
-        # Dla uproszczenia (starszy rocznik szybciej traci), na razie 0.0, aby skupić się na SAMAR
+        return 0.0
+
+    def get_brand_correction(self) -> float:
+        """Korekta za markę z legacy tabeli ltr_admin_korekta_wr_markas.
+
+        Filtruje po klasa_wr_id, rodzaj_paliwa (=fuel_type_id) i marka_id.
+        """
+        marka_id = self.vehicle.get("MakeId") or self.vehicle.get("marka_id")
+        if not marka_id:
+            return 0.0
+        try:
+            res = (
+                supabase.table("ltr_admin_korekta_wr_markas")
+                .select("korekta_procent")
+                .eq("klasa_wr_id", self.class_id)
+                .eq("rodzaj_paliwa", self.fuel_type_id)
+                .eq("marka_id", int(marka_id))
+                .limit(1)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                return float(res.data[0].get("korekta_procent", 0.0))
+        except Exception:
+            pass
         return 0.0
 
     def get_mileage_correction(self) -> Dict[str, float]:
@@ -204,7 +229,7 @@ class SamarRVCalculator:
         # 1. Pobranie bazy %
         # base_pct in year 0 is our 48 or 48WR% base equivalent (or year 0 base)
         year_0_rates = self.get_depreciation_rates(0)
-        base_pct = year_0_rates["base"]
+        base_pct = year_0_rates["base"] + self.get_brand_correction()
 
         # Wartość bazowego auta po latach (baza z roku 0 np) netto
         wr_wartosc_po_latach = base_pct * base_vehicle_capex

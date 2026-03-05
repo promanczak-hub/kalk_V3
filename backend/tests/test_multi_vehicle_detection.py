@@ -70,6 +70,21 @@ class TestDetectVehicleCount:
         result = detect_vehicle_count(b"fake_pdf_bytes", "application/pdf")
         assert result == 1
 
+    def test_parses_response_with_extra_text(self, _patch_client: MagicMock) -> None:
+        """Flash sometimes adds text like '3 pojazdy' instead of just '3'."""
+        _patch_client.models.generate_content.return_value = FakeResponse("3 pojazdy")
+        result = detect_vehicle_count(b"fake_pdf_bytes", "application/pdf")
+        assert result == 3
+
+    def test_parses_large_count(self, _patch_client: MagicMock) -> None:
+        """Support XLSX files with many sheets/vehicles."""
+        _patch_client.models.generate_content.return_value = FakeResponse("9")
+        result = detect_vehicle_count(
+            b"fake_xlsx_bytes",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        assert result == 9
+
 
 class TestExtractMultiVehicleTwins:
     """Tests for Gemini Pro multi-twin extraction."""
@@ -90,6 +105,44 @@ class TestExtractMultiVehicleTwins:
         assert len(result) == 2
         assert result[0]["brand"] == "Renault"
         assert result[1]["brand"] == "Dacia"
+
+    def test_same_brand_different_models(self, _patch_client: MagicMock) -> None:
+        """Multiple models from the same brand should be separate vehicles."""
+        payload = {
+            "vehicle_count": 3,
+            "vehicles": [
+                {"brand": "Lexus", "model": "ES", "digital_twin": {}},
+                {"brand": "Lexus", "model": "RX", "digital_twin": {}},
+                {"brand": "Lexus", "model": "NX", "digital_twin": {}},
+            ],
+        }
+        _patch_client.models.generate_content.return_value = FakeResponse(
+            json.dumps(payload)
+        )
+
+        result = extract_multi_vehicle_twins(b"bytes", "application/pdf", 3)
+        assert len(result) == 3
+        assert all(v["brand"] == "Lexus" for v in result)
+        models = {v["model"] for v in result}
+        assert models == {"ES", "RX", "NX"}
+
+    def test_mixed_brands(self, _patch_client: MagicMock) -> None:
+        """File with different brands should return them all."""
+        payload = {
+            "vehicle_count": 2,
+            "vehicles": [
+                {"brand": "Toyota", "model": "Corolla", "digital_twin": {}},
+                {"brand": "Lexus", "model": "NX", "digital_twin": {}},
+            ],
+        }
+        _patch_client.models.generate_content.return_value = FakeResponse(
+            json.dumps(payload)
+        )
+
+        result = extract_multi_vehicle_twins(b"bytes", "application/pdf", 2)
+        assert len(result) == 2
+        brands = {v["brand"] for v in result}
+        assert brands == {"Toyota", "Lexus"}
 
     def test_returns_empty_on_no_vehicles_key(self, _patch_client: MagicMock) -> None:
         _patch_client.models.generate_content.return_value = FakeResponse(
@@ -140,12 +193,57 @@ class TestDetectAndSplitVehicles:
         assert result is not None
         assert len(result) == 3
 
-    def test_falls_back_to_none_when_pro_fails(self, _patch_client: MagicMock) -> None:
-        # Flash says 5 vehicles, but Pro fails
+    def test_retries_when_pro_returns_too_few(self, _patch_client: MagicMock) -> None:
+        """If Pro returns < 2 on first try, retry once."""
+        payload_ok = {
+            "vehicle_count": 3,
+            "vehicles": [
+                {"brand": "Lexus", "model": "ES", "digital_twin": {}},
+                {"brand": "Lexus", "model": "RX", "digital_twin": {}},
+                {"brand": "Lexus", "model": "NX", "digital_twin": {}},
+            ],
+        }
+
+        _patch_client.models.generate_content.side_effect = [
+            FakeResponse("3"),  # Flash: 3 vehicles
+            FakeResponse("{}"),  # Pro attempt 1: fails
+            FakeResponse(json.dumps(payload_ok)),  # Pro attempt 2: succeeds
+        ]
+
+        result = detect_and_split_vehicles(b"bytes", "application/pdf")
+        assert result is not None
+        assert len(result) == 3
+
+    def test_falls_back_to_none_when_pro_fails_twice(
+        self, _patch_client: MagicMock
+    ) -> None:
+        """If Pro fails both attempts, fall back to single vehicle."""
         _patch_client.models.generate_content.side_effect = [
             FakeResponse("5"),
-            FakeResponse("invalid json"),
+            FakeResponse("invalid json"),  # Pro attempt 1
+            FakeResponse("invalid json"),  # Pro attempt 2
         ]
 
         result = detect_and_split_vehicles(b"bytes", "application/pdf")
         assert result is None
+
+    def test_same_brand_multi_model_scenario(self, _patch_client: MagicMock) -> None:
+        """Same brand, different models should produce separate vehicles."""
+        payload = {
+            "vehicle_count": 3,
+            "vehicles": [
+                {"brand": "Lexus", "model": "ES 300h", "digital_twin": {}},
+                {"brand": "Lexus", "model": "RX 450h", "digital_twin": {}},
+                {"brand": "Lexus", "model": "NX 350h", "digital_twin": {}},
+            ],
+        }
+
+        _patch_client.models.generate_content.side_effect = [
+            FakeResponse("3"),
+            FakeResponse(json.dumps(payload)),
+        ]
+
+        result = detect_and_split_vehicles(b"bytes", "application/pdf")
+        assert result is not None
+        assert len(result) == 3
+        assert all(v["brand"] == "Lexus" for v in result)

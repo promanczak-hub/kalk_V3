@@ -194,31 +194,31 @@ export const CalculatorSettingsPanelV3: React.FC<
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Marka</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Marka</label>
                 <input type="text" value={brand} onChange={e => setBrand(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Marka" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Model</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Model</label>
                 <input type="text" value={model} onChange={e => setModel(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Model" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Wersja</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Wersja</label>
                 <input type="text" value={version} onChange={e => setVersion(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Wersja" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Silnik</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Silnik</label>
                 <input type="text" value={engine} onChange={e => setEngine(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Silnik" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Paliwo</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Paliwo</label>
                 <input type="text" value={fuel} onChange={e => setFuel(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Paliwo" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Skrzynia</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Skrzynia</label>
                 <input type="text" value={transmission} onChange={e => setTransmission(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Skrzynia" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider">Nadwozie</label>
+                <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wider">Nadwozie</label>
                 <input type="text" value={bodyType} onChange={e => setBodyType(e.target.value)} className="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Nadwozie" />
               </div>
             </div>

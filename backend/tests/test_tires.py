@@ -1,91 +1,259 @@
+"""Testy jednostkowe LTRSubCalculatorOpony.
+
+Pokrywają:
+- kolumnę DB z dropdown (Fix 4)
+- capex_initial_set (Fix 3)
+- walidację srednica_felgi (Fix 1)
+- sezonowe / wielosezonowe warianty
+- progi przebiegowe
+"""
+
+import pytest
+from unittest.mock import patch, MagicMock
 from core.LTRSubCalculatorOpony import LTRSubCalculatorOpony
 
 
-def test_seasonal_tires_basic():
-    """
-    Test 1: Verify seasonal tire cost calculation for 3 years / 90,000 km.
-    Expected: 1 set needed, 6 swaps (2/year), 6 storage units (2/year).
-    """
-    calc = LTRSubCalculatorOpony(
-        all_season_tires=False,
-        tire_buyback=0.0,
-        srednica_felgi=16,
-        klasa_opony="budget",
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _mock_supabase() -> MagicMock:
+    """Zwraca mock supabase, który nie odpytuje bazy."""
+    mock = MagicMock()
+    # _fetch_global_param → pusty wynik → fallback
+    mock.table.return_value.select.return_value.ilike.return_value.limit.return_value.execute.return_value.data = []
+    # _fetch_tire_configurations → pusty wynik → defaults
+    mock.table.return_value.select.return_value.execute.return_value.data = []
+    # _fetch_tire_cost → pusty wynik → fallback 375.0
+    mock.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+    return mock
+
+
+def _make_calc(
+    klasa: str = "Medium",
+    srednica: int = 16,
+    z_oponami: bool = True,
+) -> LTRSubCalculatorOpony:
+    """Tworzy kalkulator z zamockowanym Supabase."""
+    with patch("core.LTRSubCalculatorOpony.supabase", _mock_supabase()):
+        calc = LTRSubCalculatorOpony(
+            z_oponami=z_oponami,
+            klasa_opony_string=klasa,
+            srednica_felgi=srednica,
+        )
+    return calc
+
+
+# ---------------------------------------------------------------------------
+# Fix 4: Mapowanie klasy opon → kolumna DB
+# ---------------------------------------------------------------------------
+
+
+class TestTireColumnMapping:
+    """Klasa opon z dropdown → kolumna w tabeli koszty_opon."""
+
+    @pytest.mark.parametrize(
+        "dropdown_value,expected_column",
+        [
+            ("Budget", "budget"),
+            ("Medium", "medium"),
+            ("Premium", "premium"),
+            ("Wzmocnione Budget", "wzmocnione_budget"),
+            ("Wzmocnione Medium", "wzmocnione_medium"),
+            ("Wzmocnione Premium", "wzmocnione_premium"),
+            ("Wielosezon Budget", "wielosezon_budget"),
+            ("Wielosezon Medium", "wielosezon_medium"),
+            ("Wielosezon Premium", "wielosezon_premium"),
+            ("Wielosezon Wzmocnione Budget", "wielosezon_wzmocnione_budget"),
+            ("Wielosezon Wzmocnione Medium", "wielosezon_wzmocnione_medium"),
+            ("Wielosezon Wzmocnione Premium", "wielosezon_wzmocnione_premium"),
+        ],
     )
+    def test_column_mapping(self, dropdown_value: str, expected_column: str) -> None:
+        calc = _make_calc(klasa=dropdown_value)
+        assert calc._get_tire_column_name() == expected_column
 
-    # Mocking DB calls for consistent test results
-    calc.swap_cost = 120.0
-    calc.storage_cost = 216.0
-    calc.tire_set_price = 1000.0  # Assumed price for 16" budget
+    def test_all_season_flag_from_wielosezon(self) -> None:
+        calc = _make_calc(klasa="Wielosezon Medium")
+        assert calc.all_season is True
 
-    months = 36
-    mileage = 90000
+    def test_no_all_season_for_regular(self) -> None:
+        calc = _make_calc(klasa="Premium")
+        assert calc.all_season is False
 
-    total_cost_dict = calc.calculate_cost(months, mileage)
-    total_cost = total_cost_dict["total_monthly_tire_cost"] * months
+    def test_empty_string_defaults_to_medium(self) -> None:
+        calc = _make_calc(klasa="")
+        assert calc._get_tire_column_name() == "medium"
 
-    # Expected calculations:
-    # 1. Sets Needed: < 120k -> 1 additional set
-    # 2. Hardware Cost: 1 set * 1000.0 = 1000.0
-    # 3. Swap Cost: (36 / 12) * 2 * 120.0 = 6 * 120 = 720.0
-    # 4. Storage Cost: (36 / 12) * 2 * 216.0 = 6 * 216 = 1296.0
-    # Total = 1000 + 720 + 1296 = 3016.0
-
-    assert total_cost == 3016.0
-
-
-def test_all_season_tires_basic():
-    """
-    Test 2: Verify all-season tire cost calculation for 4 years / 100,000 km.
-    Expected: 2 sets needed, ~2 swaps (100k/60k rounded up), 0 storage.
-    """
-    calc = LTRSubCalculatorOpony(
-        all_season_tires=True,
-        tire_buyback=0.0,
-        srednica_felgi=17,
-        klasa_opony="premium",
-    )
-
-    calc.swap_cost = 120.0
-    calc.storage_cost = 216.0
-    calc.tire_set_price = 2000.0  # Assumed price for 17" premium all-season
-
-    months = 48
-    mileage = 100000
-
-    total_cost_dict = calc.calculate_cost(months, mileage)
-    total_cost = total_cost_dict["total_monthly_tire_cost"] * months
-
-    # Expected calculations:
-    # 1. Sets Needed: 100000 < 120k -> 2 additional sets? (Actually V1 logic for AS: mileage / 60k rounded up. 100k -> 2 sets needed total. But hardware cost is proportional: base + ((100k - 60k)/60k)*base)
-    # Hardware Cost (V1 logic proportional):
-    # Base: 2000.0
-    # Add: ((100000 - 60000) / 60000) * 2000.0 = (40000 / 60000) * 2000.0 = 0.6666... * 2000.0 = 1333.33
-    # Total Hardware: 3333.33
-    # 2. Swaps (All Season logic): ceil(100000 / 60000) = 2. Swaps = 2 * 120.0 = 240.0
-    # 3. Storage: 0.0
-    # Total = 3333.33 + 240.0 = 3573.33
-
-    assert round(total_cost, 2) == 3573.33
+    def test_whitespace_stripped(self) -> None:
+        calc = _make_calc(klasa="  Budget  ")
+        assert calc._get_tire_column_name() == "budget"
 
 
-def test_mileage_edge_cases():
-    """
-    Test 3: Mileage threshold edge cases (exactly 60k, exactly 120k)
-    """
-    calc = LTRSubCalculatorOpony(
-        all_season_tires=True, tire_buyback=0.0, srednica_felgi=16, klasa_opony="budget"
-    )
+# ---------------------------------------------------------------------------
+# Fix 3: capex_initial_set
+# ---------------------------------------------------------------------------
 
-    calc.swap_cost = 100.0
-    calc.storage_cost = 200.0
-    calc.tire_set_price = 1000.0
 
-    # Exactly 60k -> Hardware: base (1000), Swaps: ceil(60k/60k)=1 -> 1*100=100. Total = 1100
-    c1 = calc.calculate_cost(24, 60000)
-    assert round(c1["total_monthly_tire_cost"] * 24, 2) == 1100.0
+class TestCapexInitialSet:
+    """Pierwszy komplet opon → CAPEX, reszta → OponyNetto."""
 
-    # Exactly 120k -> Hardware: 1000 + ((120k-60k)/60k)*1000 = 1000 + 1000 = 2000
-    # Swaps: ceil(120k/60k)=2 -> 2*100=200. Total = 2200
-    c2 = calc.calculate_cost(48, 120000)
-    assert round(c2["total_monthly_tire_cost"] * 48, 2) == 2200.0
+    def test_capex_returned_in_result(self) -> None:
+        calc = _make_calc(klasa="Medium", srednica=16)
+        calc.tire_set_price = 1500.0
+        calc.swap_cost = 120.0
+        calc.storage_cost_per_year = 216.0
+
+        result = calc.calculate_cost(months=36, total_km=90000)
+
+        assert "capex_initial_set" in result
+        assert result["capex_initial_set"] == 1500.0
+
+    def test_opony_netto_excludes_first_set(self) -> None:
+        calc = _make_calc(klasa="Medium", srednica=16)
+        calc.tire_set_price = 1000.0
+        calc.swap_cost = 120.0
+        calc.storage_cost_per_year = 216.0
+
+        result = calc.calculate_cost(months=36, total_km=90000)
+
+        # total_km=90_000 < 120_000 → 1 set → hw_cost = tire_set_price
+        # remaining = max(1000 - 1000, 0) = 0
+        # swaps = 120 * 3 * 2 = 720
+        # storage = 216 * 3 * 2 = 1296
+        # OponyNetto = 0 + 720 + 1296 = 2016
+        assert result["OponyNetto"] == 2016.0
+        assert result["capex_initial_set"] == 1000.0
+
+    def test_capex_zero_when_z_oponami_false(self) -> None:
+        calc = _make_calc(klasa="Medium", srednica=16, z_oponami=False)
+        result = calc.calculate_cost(months=36, total_km=90000)
+
+        assert result["capex_initial_set"] == 0.0
+        assert result["OponyNetto"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: Walidacja srednica_felgi
+# ---------------------------------------------------------------------------
+
+
+class TestSrednicaValidation:
+    """srednica_felgi jest wymagana gdy z_oponami=True."""
+
+    def test_raises_when_srednica_zero_and_z_oponami(self) -> None:
+        with pytest.raises(ValueError, match="srednica_felgi"):
+            with patch("core.LTRSubCalculatorOpony.supabase", _mock_supabase()):
+                LTRSubCalculatorOpony(
+                    z_oponami=True,
+                    klasa_opony_string="Medium",
+                    srednica_felgi=0,
+                )
+
+    def test_no_error_when_z_oponami_false(self) -> None:
+        with patch("core.LTRSubCalculatorOpony.supabase", _mock_supabase()):
+            calc = LTRSubCalculatorOpony(
+                z_oponami=False,
+                klasa_opony_string="Medium",
+                srednica_felgi=0,
+            )
+        result = calc.calculate_cost(months=36, total_km=90000)
+        assert result["OponyNetto"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Kalkulacje: sezonowe vs wielosezonowe
+# ---------------------------------------------------------------------------
+
+
+class TestSeasonalCalculation:
+    """Opony sezonowe (nie wielosezon)."""
+
+    def test_basic_seasonal_36m_90k(self) -> None:
+        calc = _make_calc(klasa="Budget", srednica=16)
+        calc.swap_cost = 120.0
+        calc.storage_cost_per_year = 216.0
+        calc.tire_set_price = 1000.0
+
+        result = calc.calculate_cost(months=36, total_km=90000)
+
+        # HW: 1 set (90k < 120k) = 1000
+        # capex_initial = 1000 → remaining = 0
+        # swaps: 120 * 3 * 2 = 720
+        # storage: 216 * 3 * 2 = 1296
+        assert result["capex_initial_set"] == 1000.0
+        assert result["OponyNetto"] == 2016.0
+        assert result["IloscOpon"] == 1.0
+
+
+class TestAllSeasonCalculation:
+    """Opony wielosezonowe."""
+
+    def test_basic_allseason_48m_100k(self) -> None:
+        calc = _make_calc(klasa="Wielosezon Premium", srednica=17)
+        calc.swap_cost = 120.0
+        calc.storage_cost_per_year = 216.0
+        calc.tire_set_price = 2000.0
+
+        result = calc.calculate_cost(months=48, total_km=100000)
+
+        # HW proportional: 2000 + ((100k-60k)/60k)*2000 = 2000 + 1333.33 = 3333.33
+        # capex = 2000 → remaining = 1333.33
+        # swaps: ceil(100k/60k)=2 → 2*120 = 240
+        # storage: 0 (wielosezon)
+        # OponyNetto = 1333.33 + 240 = 1573.33
+        assert result["capex_initial_set"] == 2000.0
+        assert round(result["OponyNetto"], 2) == 1573.33
+        assert result["IloscOpon"] == 2.0
+
+    def test_allseason_storage_is_zero(self) -> None:
+        calc = _make_calc(klasa="Wielosezon Medium", srednica=16)
+        calc.tire_set_price = 1000.0
+        calc.swap_cost = 100.0
+        calc.storage_cost_per_year = 999.0  # should be ignored
+
+        result = calc.calculate_cost(months=24, total_km=50000)
+
+        assert result["monthly_storage"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Progi przebiegowe
+# ---------------------------------------------------------------------------
+
+
+class TestMileageThresholds:
+    """Progi przebiegowe dla liczby kompletów."""
+
+    def test_exactly_60k_allseason(self) -> None:
+        calc = _make_calc(klasa="Wielosezon Budget", srednica=16)
+        calc.tire_set_price = 1000.0
+        calc.swap_cost = 100.0
+        calc.storage_cost_per_year = 0.0
+
+        result = calc.calculate_cost(months=24, total_km=60000)
+
+        # 60k <= threshold_1 → 1 set
+        # HW = 1000 (base, no extra)
+        # capex = 1000 → remaining = 0
+        # swaps: ceil(60k/60k)=1 → 100
+        assert result["IloscOpon"] == 1.0
+        assert result["capex_initial_set"] == 1000.0
+        assert result["OponyNetto"] == 100.0
+
+    def test_exactly_120k_allseason(self) -> None:
+        calc = _make_calc(klasa="Wielosezon Budget", srednica=16)
+        calc.tire_set_price = 1000.0
+        calc.swap_cost = 100.0
+        calc.storage_cost_per_year = 0.0
+
+        result = calc.calculate_cost(months=48, total_km=120000)
+
+        # 120k <= threshold_2 → 2 sets
+        # HW = 1000 + ((120k-60k)/60k)*1000 = 2000
+        # capex = 1000 → remaining = 1000
+        # swaps: ceil(120k/60k)=2 → 200
+        assert result["IloscOpon"] == 2.0
+        assert result["capex_initial_set"] == 1000.0
+        assert result["OponyNetto"] == 1200.0

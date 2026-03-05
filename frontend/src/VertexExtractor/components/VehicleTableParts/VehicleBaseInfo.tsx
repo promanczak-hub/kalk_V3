@@ -1,7 +1,9 @@
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, Check, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import type { FleetVehicleView } from "../../types";
 import { PriceDualFormat } from "./PriceDualFormat";
+import { SamarCategoryDropdown } from "./SamarCategoryDropdown";
+import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
 export interface MappedData {
   brand: string;
@@ -14,6 +16,11 @@ export interface MappedData {
   engine_class?: string;
 }
 
+interface SamarCandidate {
+  klasa: string;
+  confidence: number;
+}
+
 interface VehicleBaseInfoProps {
   vehicle: FleetVehicleView;
   mappedData?: MappedData | null;
@@ -22,6 +29,11 @@ interface VehicleBaseInfoProps {
   activeFinalPrice: number;
   totalCatalogPrice: number;
   formatCalculatedPrice: (val: number) => string;
+  samarCandidates?: SamarCandidate[];
+  onSamarCategoryChange?: (newCategory: string) => void;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  crossCardAlerts?: DiscountAlert[];
 }
 
 function detectPowerBand(
@@ -67,7 +79,7 @@ function hasValue(v: string | null | undefined): boolean {
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-0.5 rounded text-[10px] font-medium text-slate-600">
+    <span className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-0.5 rounded text-xs font-medium text-slate-600">
       {children}
     </span>
   );
@@ -81,6 +93,11 @@ export function VehicleBaseInfo({
   activeFinalPrice,
   totalCatalogPrice,
   formatCalculatedPrice,
+  samarCandidates = [],
+  onSamarCategoryChange,
+  isSelected = false,
+  onToggleSelect,
+  crossCardAlerts = [],
 }: VehicleBaseInfoProps) {
   const powerBand = detectPowerBand(vehicle);
 
@@ -89,6 +106,26 @@ export function VehicleBaseInfo({
       className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-4 cursor-pointer select-none"
       onClick={onToggleExpand}
     >
+      {/* Selection checkbox */}
+      {onToggleSelect && (
+        <div
+          className="flex-shrink-0 pt-0.5"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+        >
+          <div
+            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
+              isSelected
+                ? "bg-blue-500 border-blue-500"
+                : "border-slate-300 hover:border-blue-400"
+            }`}
+          >
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        </div>
+      )}
       {/* Date & Meta */}
       <div className="flex-shrink-0 w-full sm:w-36 flex flex-col gap-1 pt-0.5">
         <span className="text-xs text-slate-500 tabular-nums">
@@ -115,7 +152,7 @@ export function VehicleBaseInfo({
           )}
           {mappedData && (
             <span
-              className="text-[10px] text-slate-500 hidden sm:inline-block"
+              className="text-xs text-slate-500 hidden sm:inline-block"
               title="Klasyfikacja AI"
             >
               {mappedData.vehicle_type} · {mappedData.fuel} · {mappedData.transmission}
@@ -130,25 +167,34 @@ export function VehicleBaseInfo({
         </p>
 
         {/* Metadata tags — all monochrome */}
-        <div className="flex gap-1.5 mt-1.5 flex-wrap">
+        <div className="flex gap-2 mt-1.5 flex-wrap items-center">
           {vehicle.suggested_discount_pct != null && (
             <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
           )}
           {vehicle.synthesis_data && vehicle.suggested_discount_pct == null && (
             <Tag>Brak rabatu</Tag>
           )}
-          {mappedData?.samar_category && (
+          {mappedData?.samar_category && onSamarCategoryChange ? (
+            <SamarCategoryDropdown
+              currentCategory={mappedData.samar_category}
+              candidates={samarCandidates}
+              onCategoryChange={onSamarCategoryChange}
+            />
+          ) : mappedData?.samar_category ? (
             <Tag>SAMAR: {mappedData.samar_category}</Tag>
-          )}
+          ) : null}
           {mappedData?.engine_class && (
             <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
           )}
           {powerBand && <Tag>Serwis: {powerBand}</Tag>}
-          {hasValue(vehicle.emissions) && (
-            <Tag>WLTP: {vehicle.emissions}</Tag>
-          )}
-          {hasValue(vehicle.wheels) && (
-            <Tag>Koła: {vehicle.wheels}</Tag>
+          {crossCardAlerts.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded text-xs font-semibold text-amber-700 animate-in fade-in duration-300"
+              title={`Inna oferta (${crossCardAlerts[0].siblingOfferNumber || "brak nr"}) ma rabat ${crossCardAlerts[0].siblingDiscountPct}% vs ${crossCardAlerts[0].currentDiscountPct}%`}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.)
+            </span>
           )}
         </div>
       </div>
@@ -158,7 +204,7 @@ export function VehicleBaseInfo({
         <div className="flex flex-col items-end">
           {activeFinalPrice > 0 && activeFinalPrice !== totalCatalogPrice ? (
             <>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
+              <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
                 Suma Całkowita
               </span>
               <span className="text-lg font-semibold tracking-tight text-slate-900 tabular-nums">
@@ -170,7 +216,7 @@ export function VehicleBaseInfo({
             </>
           ) : vehicle.base_price && vehicle.base_price !== "Brak" ? (
             <>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
+              <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
                 Cena Katalogowa
               </span>
               <span className="text-lg font-semibold tracking-tight text-slate-800 tabular-nums">

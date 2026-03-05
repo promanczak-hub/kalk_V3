@@ -57,7 +57,6 @@ const INITIAL_DATA: V1DataOption = {
   RozmiarOpon: { Szerokosc: "215", Profil: "60", Litera: "R", Srednica: "16" },
   KlasaOpon: "BLIZNIACZE",
   LiczbaKompletowOponSelected: "Automatycznie",
-  OdkupOpon: false,
   InneKosztySerwisowania: 0.0,
   PakietSerwisowy: 0.0,
   PakietSerwisowyNazwa: null,

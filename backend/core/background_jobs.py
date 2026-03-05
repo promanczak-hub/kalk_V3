@@ -108,7 +108,7 @@ def _finalize_vehicle(
         trim = mapped_data.get("trim")
         transmission = mapped_data.get("transmission")
 
-        samar_code, samar_name = map_to_samar_class(
+        samar_code, samar_name, samar_candidates = map_to_samar_class(
             brand=brand,
             model=model,
             segment=segment,
@@ -117,6 +117,7 @@ def _finalize_vehicle(
             transmission=transmission,
         )
         mapped_data["samar_category"] = samar_name
+        mapped_data["samar_candidates"] = samar_candidates
 
         fuel = mapped_data.get("fuel")
         if fuel:
@@ -229,6 +230,10 @@ def process_and_save_document_bg(
         _update_progress(supabase, file_id, "detecting_vehicles")
         print(f"[BG TASK] Faza 0: Wykrywanie liczby pojazdów w {file_name}...")
         multi_vehicles = detect_and_split_vehicles(gemini_data, gemini_mime)
+        print(
+            f"[BG TASK] Faza 0 wynik: "
+            f"{'multi (' + str(len(multi_vehicles)) + ' pojazdów)' if multi_vehicles else 'single vehicle'}"
+        )
 
         if _is_cancelled(cancel_event):
             _update_progress(supabase, file_id, "cancelled")

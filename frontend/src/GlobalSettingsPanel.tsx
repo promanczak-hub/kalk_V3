@@ -148,7 +148,7 @@ export default function GlobalSettingsPanel() {
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {FIELDS.filter((f) => f.group === group).map((field) => (
               <div key={field.key}>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
                   {field.label}
                 </label>
                 <div className="flex items-center gap-1">
@@ -160,7 +160,7 @@ export default function GlobalSettingsPanel() {
                     onChange={(e) => handleChange(String(field.key), e.target.value)}
                   />
                   {field.unit && (
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{field.unit}</span>
+                    <span className="text-xs text-slate-400 whitespace-nowrap">{field.unit}</span>
                   )}
                 </div>
               </div>
@@ -169,7 +169,7 @@ export default function GlobalSettingsPanel() {
         </div>
       ))}
 
-      <div className="text-[10px] text-slate-400 text-center">
+      <div className="text-xs text-slate-400 text-center">
         Normatywny przebieg: {data.normatywny_przebieg_mc} km/mc = {Math.round(data.normatywny_przebieg_mc * 12)} km/rok
       </div>
     </div>

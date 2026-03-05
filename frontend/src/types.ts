@@ -84,7 +84,6 @@ export interface V1DataOption {
   };
   KlasaOpon: string;
   LiczbaKompletowOponSelected: string;
-  OdkupOpon: boolean;
 
   // Korekty
   InneKosztySerwisowania: number;

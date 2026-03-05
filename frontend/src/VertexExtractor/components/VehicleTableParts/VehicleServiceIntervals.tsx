@@ -53,7 +53,7 @@ export function VehicleServiceIntervals({
         
         <div className="flex flex-col items-end gap-2">
           {(!vehicle.service_interval_km || !vehicle.service_interval_months) && (
-             <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 whitespace-nowrap hidden sm:inline-block">
+             <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 whitespace-nowrap hidden sm:inline-block">
                Brak pełnych danych
              </span>
           )}

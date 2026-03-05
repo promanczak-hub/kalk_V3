@@ -94,7 +94,7 @@ function CellDetail({
           />
         </div>
         <div className="text-right">
-          <div className="text-[10px] text-slate-400 uppercase">WR SAMAR netto</div>
+          <div className="text-xs text-slate-400 uppercase">WR SAMAR netto</div>
           <div className="text-xs font-bold text-emerald-700">{fmtPLN(cell.rv_samar_net)} PLN</div>
         </div>
       </div>
@@ -103,10 +103,10 @@ function CellDetail({
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-slate-200">
-            <th className="pb-1 text-[10px] text-left font-bold text-slate-400 uppercase w-[40%]">Składnik</th>
-            <th className="pb-1 text-[10px] text-right font-bold text-slate-400 uppercase w-[20%]">Baza netto</th>
-            <th className="pb-1 text-[10px] text-right font-bold text-slate-400 uppercase w-[20%]">Marża</th>
-            <th className="pb-1 text-[10px] text-right font-bold text-slate-400 uppercase w-[20%]">Cena netto</th>
+            <th className="pb-1 text-xs text-left font-bold text-slate-400 uppercase w-[40%]">Składnik</th>
+            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[20%]">Baza netto</th>
+            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[20%]">Marża</th>
+            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[20%]">Cena netto</th>
           </tr>
         </thead>
         <tbody>
@@ -130,7 +130,7 @@ function CellDetail({
       {/* Margin adjustment */}
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-200">
         <div className="flex items-center gap-3">
-          <label className="text-[10px] font-bold text-slate-500 uppercase">Dodatkowa marża (PLN/mc):</label>
+          <label className="text-xs font-bold text-slate-500 uppercase">Dodatkowa marża (PLN/mc):</label>
           <input
             type="number"
             step="10"
@@ -141,7 +141,7 @@ function CellDetail({
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <div className="text-[10px] text-slate-400">Cena końcowa netto</div>
+            <div className="text-xs text-slate-400">Cena końcowa netto</div>
             <div className="text-base font-bold text-blue-700 tabular-nums">{fmtPLN(adjustedTotal)} PLN</div>
           </div>
           <button className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm">
@@ -218,6 +218,7 @@ export default function CalculatorPanel() {
         add_hook_installation: toggles.hook_installation === true,
         z_oponami: true,
         klasa_opony_string: stanJson.tire_params?.tire_class || "Medium",
+        srednica_felgi: stanJson.tire_params?.rim_diameter || null,
         liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : parseFloat(stanJson.tire_params?.tire_count_mode) || null,
         korekta_kosztu_opon: stanJson.tire_params?.tire_cost_correction_enabled !== false,
         koszt_opon_korekta: stanJson.tire_params?.tire_cost_correction || 0,
@@ -349,10 +350,10 @@ export default function CalculatorPanel() {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-[10px] font-bold text-slate-400 uppercase">
+                          <div className="text-xs font-bold text-slate-400 uppercase">
                             {cell.months} miesięcy
                           </div>
-                          <div className="text-[10px] text-slate-400">
+                          <div className="text-xs text-slate-400">
                             {(cell.total_km / 1000).toFixed(0)}k km ({cell.km_per_year.toLocaleString("pl-PL")} km/rok)
                           </div>
                         </div>

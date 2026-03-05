@@ -97,13 +97,13 @@ export function HeroSection({ images, setImages }: HeroSectionProps) {
               <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
                  <div className="flex justify-between w-full">
                     {img.isMain ? (
-                      <span className="bg-indigo-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm flex items-center">
+                      <span className="bg-indigo-600 text-white text-xs uppercase font-bold px-2 py-0.5 rounded shadow-sm flex items-center">
                         <Star className="w-3 h-3 mr-1 fill-current" /> Główne
                       </span>
                     ) : (
                       <button 
                          onClick={() => setMainImage(img.id)}
-                         className="bg-white/90 text-slate-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded shadow-sm hover:bg-white flex items-center"
+                         className="bg-white/90 text-slate-700 text-xs uppercase font-bold px-2 py-0.5 rounded shadow-sm hover:bg-white flex items-center"
                       >
                         Ustaw jako główne
                       </button>
@@ -120,7 +120,7 @@ export function HeroSection({ images, setImages }: HeroSectionProps) {
                  <button 
                    onClick={() => processWithNanoBanana(img.id)}
                    disabled={isProcessingAI}
-                   className="w-full bg-gradient-to-r from-violet-600/90 to-indigo-600/90 hover:from-violet-500 hover:to-indigo-500 text-white text-[10px] font-medium py-1.5 rounded flex items-center justify-center shadow-sm disabled:opacity-50"
+                   className="w-full bg-gradient-to-r from-violet-600/90 to-indigo-600/90 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-medium py-1.5 rounded flex items-center justify-center shadow-sm disabled:opacity-50"
                  >
                    {isProcessingAI ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
                    Clean Background (NanoBanana)

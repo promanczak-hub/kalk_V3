@@ -32,7 +32,7 @@ interface MetricProps {
 function MetricTile({ label, value, accent }: MetricProps) {
   return (
     <div className="border border-slate-200 rounded p-4 flex flex-col">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
+      <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
         {label}
       </span>
       <span
@@ -124,7 +124,7 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
 
         {/* Breakdown table */}
         <div>
-          <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
             Rozkład ceny
           </h5>
           <table className="w-full text-sm">

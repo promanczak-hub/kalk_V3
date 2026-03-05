@@ -21,20 +21,19 @@ class LTRSubCalculatorOpony:
         self.koszt_opon_korekta = koszt_opon_korekta
         self.sets_needed_override = sets_needed_override
 
-        # Text Parsing
-        klasa_lower = klasa_opony_string.lower() if klasa_opony_string else "medium"
-        self.all_season = "wielosezonowe" in klasa_lower
-
-        # Parse base class
-        if "budget" in klasa_lower or "budżet" in klasa_lower:
-            self.klasa_opony = "budget"
-        elif "premium" in klasa_lower:
-            self.klasa_opony = "premium"
-        else:
-            self.klasa_opony = "medium"  # Default fallback
+        # Mapowanie klasy opon na kolumnę DB:
+        # Frontend dropdown value (np. "Wielosezon Wzmocnione Budget")
+        # → kolumna DB: wielosezon_wzmocnione_budget
+        klasa_lower = (
+            klasa_opony_string.strip().lower() if klasa_opony_string else "medium"
+        )
+        self.tire_column_name = klasa_lower.replace(" ", "_")
+        self.all_season = "wielosezon" in klasa_lower
 
         # Only fetch database data if module is active
         if self.z_oponami:
+            if not self.srednica_felgi:
+                raise ValueError("srednica_felgi jest wymagana gdy z_oponami=True")
             # Fetch global parameters from LTRAdminParametry_czak
             self.storage_cost_per_year = self._fetch_global_param(
                 "OponyPrzechowywane", fallback=216.0
@@ -114,13 +113,12 @@ class LTRSubCalculatorOpony:
         return defaults
 
     def _get_tire_column_name(self) -> str:
-        """Mapuje parametry opony na odpowiednią kolumnę w tabeli koszty_opon."""
-        # Kolumny to: budget, medium, premium, wzmocnione_budget, wielosezon_budget, wielosezon_wzmocnione_budget itp.
-        prefix = ""
-        if self.all_season:
-            prefix += "wielosezon_"
+        """Zwraca nazwę kolumny w tabeli koszty_opon.
 
-        return prefix + self.klasa_opony
+        Mapowanie 1:1 z dropdown'u frontendowego:
+        'Wielosezon Wzmocnione Budget' → 'wielosezon_wzmocnione_budget'
+        """
+        return self.tire_column_name
 
     def _fetch_tire_cost(self) -> float:
         """Pobiera cenę jednej opony danej średnicy i klasy."""
@@ -205,12 +203,20 @@ class LTRSubCalculatorOpony:
                 return result
 
     def calculate_cost(self, months: int, total_km: int) -> Dict[str, Any]:
-        """Kalkuluje techniczne koszty opon dla danego wariantu."""
+        """Kalkuluje techniczne koszty opon dla danego wariantu.
+
+        capex_initial_set: koszt pierwszego kompletu opon → CAPEX (rata leasingowa)
+        OponyNetto: pozostałe koszty opon → koszt techniczny kontraktu
+        """
         if not self.z_oponami:
             return {
                 "OponyNetto": 0.0,
                 "Koszt1KplOpon": 0.0,
                 "IloscOpon": 0.0,
+                "capex_initial_set": 0.0,
+                "monthly_storage": 0.0,
+                "monthly_swaps": 0.0,
+                "monthly_hardware": 0.0,
             }
 
         if months <= 0:
@@ -224,27 +230,24 @@ class LTRSubCalculatorOpony:
         storage_total = 0.0
 
         if self.all_season:
-            # W V1 getCenaPrzekladkiNetto: Math.Ceiling(_tabele.Przebieg / 60000.0m) * cenaPrzekladkiNetto
             swaps_total = math.ceil(total_km / 60000.0) * self.swap_cost
-            storage_total = 0.0  # W V1: return 0m
+            storage_total = 0.0
         else:
-            # W V1: cenaPrzekladkiNetto * liczbaLat * 2
             swaps_total = self.swap_cost * years * 2
-            # W V1 getKosztPrzechowywaniaOponNetto: (Kwota) * liczbaLat * 2
             storage_total = self.storage_cost_per_year * years * 2
 
-        lacznyKosztOpon = total_hw_cost
-        cenaPrzekladkinNet = swaps_total
-        przechowywanieOponNet = storage_total
+        # Pierwszy komplet → CAPEX, reszta → koszt techniczny
+        capex_initial = self.tire_set_price
+        remaining_hw_cost = max(total_hw_cost - capex_initial, 0.0)
 
-        wynik_netto = lacznyKosztOpon + cenaPrzekladkinNet + przechowywanieOponNet
+        wynik_netto = remaining_hw_cost + swaps_total + storage_total
 
         return {
             "OponyNetto": wynik_netto,
             "Koszt1KplOpon": self.tire_set_price,
             "IloscOpon": sets_needed,
-            # Diagnostic / debug output for UI integration
+            "capex_initial_set": capex_initial,
             "monthly_storage": storage_total / months,
             "monthly_swaps": swaps_total / months,
-            "monthly_hardware": total_hw_cost / months,
+            "monthly_hardware": remaining_hw_cost / months,
         }

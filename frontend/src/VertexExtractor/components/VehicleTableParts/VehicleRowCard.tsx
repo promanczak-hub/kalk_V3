@@ -12,18 +12,24 @@ import type { ExtractedServiceOption } from "../../../components/Calculator/Serv
 import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
-import { VehicleFinancialCard } from "./VehicleFinancialCard";
+import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
   handleOpenSavedJson: (id: string, titleName: string) => void;
   onRefresh: () => void;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  crossCardAlerts?: DiscountAlert[];
 }
 
 export function VehicleRowCard({
   vehicle,
   handleOpenSavedJson,
   onRefresh,
+  isSelected = false,
+  onToggleSelect,
+  crossCardAlerts = [],
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
@@ -36,6 +42,9 @@ export function VehicleRowCard({
   const [brochureData, setBrochureData] = useState<any | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
   const [isGeneratingBrochure, setIsGeneratingBrochure] = useState(false);
+
+  // Save Setup state
+  const [isSavingSetup, setIsSavingSetup] = useState(false);
 
 
 
@@ -60,6 +69,11 @@ export function VehicleRowCard({
   const [tireCountMode, setTireCountMode] = useState<string>("auto");
   const [tireCostCorrectionEnabled, setTireCostCorrectionEnabled] = useState(true);
   const [tireCostCorrection, setTireCostCorrection] = useState<number>(0);
+  const [rimDiameter, setRimDiameter] = useState<number | null>(() => {
+    const wheels = vehicle.wheels || "";
+    const match = wheels.match(/(\d{2})/);
+    return match ? parseInt(match[1], 10) : null;
+  });
 
   // Service cost type (ASO / nonASO)
   const [serviceCostType, setServiceCostType] = useState<"ASO" | "nonASO">("ASO");
@@ -94,6 +108,46 @@ export function VehicleRowCard({
     };
     fetchDefaults();
   }, []);
+
+  // Restore saved calculator_setup from synthesis_data on load
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setup = (vehicle.synthesis_data as any)?.calculator_setup;
+    if (!setup) return;
+    // Financial params
+    if (setup.financial_params) {
+      const fp = setup.financial_params;
+      if (fp.wibor_pct != null) setWiborPct(fp.wibor_pct);
+      if (fp.margin_pct != null) setMarginPct(fp.margin_pct);
+      if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);
+      if (fp.depreciation_pct != null) setDepreciationPct(fp.depreciation_pct);
+      if (fp.initial_deposit_pct != null) setInitialDepositPct(fp.initial_deposit_pct);
+      if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
+    }
+    // Toggles
+    if (setup.toggles) {
+      const t = setup.toggles;
+      if (t.express_pays_insurance != null) setExpressPaysInsurance(t.express_pays_insurance);
+      if (t.replacement_car != null) setReplacementCar(t.replacement_car);
+      if (t.gps_required != null) setGpsRequired(t.gps_required);
+      if (t.include_servicing != null) setIncludeServicing(t.include_servicing);
+      if (t.hook_installation != null) setHookInstallation(t.hook_installation);
+    }
+    // Tire params
+    if (setup.tire_params) {
+      const tp = setup.tire_params;
+      if (tp.tire_class != null) setTireClass(tp.tire_class);
+      if (tp.tire_count_mode != null) setTireCountMode(tp.tire_count_mode);
+      if (tp.tire_cost_correction_enabled != null) setTireCostCorrectionEnabled(tp.tire_cost_correction_enabled);
+      if (tp.tire_cost_correction != null) setTireCostCorrection(tp.tire_cost_correction);
+      if (tp.rim_diameter != null) setRimDiameter(tp.rim_diameter);
+    }
+    // Other
+    if (setup.service_cost_type) setServiceCostType(setup.service_cost_type);
+    if (setup.vehicle_vintage) setVehicleVintage(setup.vehicle_vintage);
+    if (setup.is_metalic != null) setIsMetalic(setup.is_metalic);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicle.id]);
 
 
 
@@ -262,6 +316,64 @@ export function VehicleRowCard({
 
   const [isSavingServices, setIsSavingServices] = useState(false);
 
+  const handleSaveSetup = async () => {
+    setIsSavingSetup(true);
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      updatedJson.calculator_setup = {
+        financial_params: {
+          wibor_pct: wiborPct,
+          margin_pct: marginPct,
+          pricing_margin_pct: pricingMarginPct,
+          depreciation_pct: depreciationPct,
+          initial_deposit_pct: initialDepositPct,
+          other_service_costs: otherServiceCosts,
+        },
+        toggles: {
+          express_pays_insurance: expressPaysInsurance,
+          replacement_car: replacementCar,
+          gps_required: gpsRequired,
+          include_servicing: includeServicing,
+          hook_installation: hookInstallation,
+        },
+        tire_params: {
+          tire_class: tireClass,
+          tire_count_mode: tireCountMode,
+          tire_cost_correction_enabled: tireCostCorrectionEnabled,
+          tire_cost_correction: tireCostCorrection,
+          rim_diameter: rimDiameter,
+        },
+        service_cost_type: serviceCostType,
+        vehicle_vintage: vehicleVintage,
+        is_metalic: isMetalic,
+        discount: {
+          active_discount_pct: activeDiscountPct,
+          active_final_price: activeFinalPrice,
+        },
+        saved_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error saving calculator setup", err);
+      alert("Błąd podczas zapisu setupu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    } finally {
+      setIsSavingSetup(false);
+    }
+  };
+
   const handleSaveAllOptions = async () => {
     setIsSavingServices(true);
     try {
@@ -311,6 +423,41 @@ export function VehicleRowCard({
 
   const serverMappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
   const mappedData = localMappedData || serverMappedData;
+
+  // Extract SAMAR candidates for reranking dropdown
+  const samarCandidates: { klasa: string; confidence: number }[] =
+    ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { samar_candidates?: { klasa: string; confidence: number }[] })?.samar_candidates) || [];
+
+  const handleSamarCategoryChange = async (newCategory: string) => {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.samar_category = newCategory;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      // Update local state so UI reflects immediately
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        samar_category: newCategory,
+      }));
+    } catch (err) {
+      console.error("Error updating SAMAR category", err);
+      alert("Błąd zapisu kategorii SAMAR: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
 
   const handleMapDataSilent = async () => {
     if (!vehicle.synthesis_data) return;
@@ -364,24 +511,6 @@ export function VehicleRowCard({
     "processing", "uploading", "detecting_vehicles", "extracting_twin",
     "generating_summary", "matching_discounts", "mapping_data",
   ]);
-
-  const renderOptionName = (name: string) => {
-    if (processingStatuses.has(vehicle.verification_status || "")) return <>{name}</>;
-    
-    const modKeyword = " (modyfikacja użytkownika)";
-    if (name.includes(modKeyword)) {
-      return (
-        <span className="inline-flex items-center flex-wrap gap-1.5">
-          <span>{name.replace(modKeyword, "")}</span>
-          <span className="inline-flex items-center rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-            <Wand2 className="w-2.5 h-2.5 mr-1" />
-            Modyfikacja użytkownika
-          </span>
-        </span>
-      );
-    }
-    return <>{name}</>;
-  };
 
   const handleManualOverride = async () => {
     if (!overridePrompt.trim()) return;
@@ -536,7 +665,7 @@ export function VehicleRowCard({
 
   const dynamicTotalOptionsPrice = factoryOptionsPriceTotal + customServiceOptionsPriceTotal;
 
-  const hasFactoryOptions = customFactoryOptions.length > 0;
+
 
   const isProcessing = processingStatuses.has(normalizedStatus);
 
@@ -652,6 +781,11 @@ export function VehicleRowCard({
         activeFinalPrice={activeFinalPrice}
         totalCatalogPrice={totalCatalogPrice}
         formatCalculatedPrice={formatCalculatedPrice}
+        samarCandidates={samarCandidates}
+        onSamarCategoryChange={handleSamarCategoryChange}
+        isSelected={isSelected}
+        onToggleSelect={onToggleSelect}
+        crossCardAlerts={crossCardAlerts}
       />
 
       {isExpanded && (
@@ -659,8 +793,15 @@ export function VehicleRowCard({
           {/* Business-style data visualizations */}
           <div className="space-y-4 mb-6">
             <VehicleSummaryCard vehicle={vehicle} />
-            <VehicleEquipmentCard vehicle={vehicle} />
-            <VehicleFinancialCard vehicle={vehicle} />
+            <VehicleEquipmentCard
+              vehicle={vehicle}
+              customFactoryOptions={customFactoryOptions}
+              handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
+              handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
+              handleRemoveFactoryOption={handleRemoveFactoryOption}
+              handleAddManualFactoryOption={handleAddManualFactoryOption}
+              activeDiscountPct={activeDiscountPct}
+            />
           </div>
 
           <VehicleFinancialOptions 
@@ -676,14 +817,6 @@ export function VehicleRowCard({
              offerDiscountPercentage={offerDiscountPercentage}
              suggestedDiscountPct={suggestedDiscountPct}
              activeDiscountPct={activeDiscountPct}
-             formatCalculatedPrice={formatCalculatedPrice}
-             customFactoryOptions={customFactoryOptions}
-             handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
-             handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
-             handleRemoveFactoryOption={handleRemoveFactoryOption}
-             handleAddManualFactoryOption={handleAddManualFactoryOption}
-             hasFactoryOptions={hasFactoryOptions}
-             renderOptionName={renderOptionName}
              customServiceOptions={customServiceOptions}
              handleUpdateServiceOptionName={handleUpdateServiceOptionName}
              handleUpdateServiceOptionPrice={handleUpdateServiceOptionPrice}
@@ -726,6 +859,8 @@ export function VehicleRowCard({
              setTireCostCorrectionEnabled={setTireCostCorrectionEnabled}
              tireCostCorrection={tireCostCorrection}
              setTireCostCorrection={setTireCostCorrection}
+             rimDiameter={rimDiameter}
+             setRimDiameter={setRimDiameter}
              // Service cost type
              serviceCostType={serviceCostType}
              setServiceCostType={setServiceCostType}
@@ -737,6 +872,7 @@ export function VehicleRowCard({
              isMetalicAutoDetected={autoDetectMetalic()}
              // Price context for czynsz inicjalny calculations
              activeFinalPriceForDeposit={activeFinalPrice}
+             crossCardAlerts={crossCardAlerts}
           />
 
 
@@ -747,6 +883,10 @@ export function VehicleRowCard({
                  onClick={async (e) => {
                    e.stopPropagation();
                    try {
+                     // 1. Save setup to synthesis_data first
+                     await handleSaveSetup();
+
+                     // 2. Create kalkulacja
                      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
                      const resp = await fetch(`${baseUrl}/api/kalkulacje`, {
                        method: "POST",
@@ -774,6 +914,7 @@ export function VehicleRowCard({
                               tire_count_mode: tireCountMode,
                               tire_cost_correction_enabled: tireCostCorrectionEnabled,
                               tire_cost_correction: tireCostCorrection,
+                              rim_diameter: rimDiameter,
                             },
                             service_cost_type: serviceCostType,
                             vehicle_vintage: vehicleVintage,
@@ -805,10 +946,15 @@ export function VehicleRowCard({
                      alert("Nie udało się utworzyć kalkulacji. Sprawdź logi serwera.");
                    }
                  }}
-                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all shadow-sm"
+                 disabled={isSavingSetup}
+                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                >
-                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                 Zrób kalkulację
+                 {isSavingSetup ? (
+                   <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                 ) : (
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                 )}
+                 {isSavingSetup ? "Zapisywanie setupu..." : "Zrób kalkulację"}
                </button>
 
                <button
@@ -954,7 +1100,7 @@ export function VehicleRowCard({
                      {isOverriding ? "Korygowanie..." : "Zastosuj"}
                    </button>
                  </div>
-                 <p className="text-[10px] text-slate-500 mt-2">
+                 <p className="text-xs text-slate-500 mt-2">
                    Algorytm chirurgicznie zedytuje wyłącznie zlecane parametry w obrębie Cyfrowego Bliźniaka, zachowując 100% spójności reszty dokumentu. Zmiana widoczna będzie po odświeżeniu.
                  </p>
                </div>

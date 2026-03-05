@@ -105,15 +105,6 @@ export default function AdditionalOptionsSection({
                 }
                 label="Uwzględniaj serwisowanie (TR)"
               />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={data.OdkupOpon}
-                    onChange={(e) => handleUpdate("OdkupOpon", e.target.checked)}
-                  />
-                }
-                label="Odkup opon od klienta na start"
-              />
 
               <Box sx={{ mt: 2, display: "flex", gap: 2 }}>
                 <TextField

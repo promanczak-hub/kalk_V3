@@ -202,9 +202,19 @@ Działaj jako ekspert ds. analizy dokumentów flotowych.
 KRYTYCZNE ZADANIE: Przeanalizuj załączony dokument i ustal, ile OSOBNYCH pojazdów jest w nim opisanych.
 Następnie dla KAŻDEGO pojazdu stwórz osobny, pełny cyfrowy bliźniak.
 
-DEFINICJA "osobnego pojazdu": Samochód z własną marką, modelem, wersją silnikową i/lub ceną.
-Jeśli dokument zawiera np. 3 konfiguracje różnych aut (choć od tego samego dealera) — to 3 pojazdy.
-UWAGA: Ogólny cennik modelu (np. "cennik Skoda Octavia" z wieloma wersjami silnikowymi) to NIE jest multi-vehicle — to jest jeden cennik. Multi-vehicle dotyczy sytuacji, gdy w jednym pliku jest kilka KONKRETNYCH ofert/konfiguracji na RÓŻNE modele lub różne pełne zestawy samochodów.
+DEFINICJA "osobnego pojazdu":
+- Samochód z własną marką, modelem, wersją silnikową i/lub ceną.
+- Różne modele od TEGO SAMEGO producenta (np. ES + RX + NX od jednej marki) = OSOBNE pojazdy.
+- Różne marki w jednym dokumencie (np. Toyota Corolla + Lexus NX) = OSOBNE pojazdy.
+- W PDF szukaj osobnych sekcji cenowych, osobnych tabel specyfikacji,
+  osobnych kodów konfiguracji lub osobnych numerów ofert.
+- W XLSX każdy arkusz z osobnym pojazdem = osobny pojazd.
+
+WYJĄTEK (NIE multi-vehicle):
+- Ogólny cennik jednego modelu z wieloma wariantami silnikowymi (np. "cennik Skoda Octavia"
+  z wersjami 1.0 TSI / 1.5 TSI / 2.0 TDI) — to JEDEN cennik, nie multi-vehicle.
+
+NIE hardkoduj żadnych marek, modeli ani segmentów — mogą być dowolne.
 
 Dla KAŻDEGO znalezionego pojazdu stwórz kompletnego cyfrowego bliźniaka wg tych zasad:
 - Wyodrębnij hierarchiczną strukturę (nagłówki, sekcje) specyficzną dla tego pojazdu.

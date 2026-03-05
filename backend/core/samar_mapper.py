@@ -1,4 +1,7 @@
-"""Dynamic SAMAR class mapper using KlasaSAMAR_czak dictionary + Gemini Flash."""
+"""Dynamic SAMAR class mapper using KlasaSAMAR_czak dictionary + Gemini Flash.
+
+Returns ALL candidates ranked by confidence (reranking model).
+"""
 
 import json
 import os
@@ -53,19 +56,26 @@ def map_to_samar_class(
     body_style: str | None = None,
     trim: str | None = None,
     transmission: str | None = None,
-) -> Tuple[str, str]:
-    """Dynamically classify a vehicle into an official SAMAR class.
+) -> Tuple[str, str, list[dict]]:
+    """Dynamically classify a vehicle into SAMAR classes with reranking.
 
     Queries ``KlasaSAMAR_czak`` for the full dictionary, then asks
-    Gemini Flash to pick the single best match.
+    Gemini Flash to rank ALL classes by probability.
 
     Returns
     -------
-    tuple[str, str]
-        ``(short_code, full_class_name)`` e.g. ``("D", "PODSTAWOWA D ŚREDNIA")``.
-        Falls back to ``("UNKNOWN", "INNE - WYMAGA RĘCZNEGO MAPOWANIA")`` on error.
+    tuple[str, str, list[dict]]
+        ``(short_code, best_class_name, ranked_candidates)``
+        where ``ranked_candidates`` is a list of
+        ``{"klasa": "...", "confidence": 0.95}`` sorted desc.
+        Falls back to ``("UNKNOWN", "INNE - WYMAGA RĘCZNEGO MAPOWANIA", [])``
+        on error.
     """
-    fallback = ("UNKNOWN", "INNE - WYMAGA RĘCZNEGO MAPOWANIA")
+    fallback: Tuple[str, str, list[dict]] = (
+        "UNKNOWN",
+        "INNE - WYMAGA RĘCZNEGO MAPOWANIA",
+        [],
+    )
 
     if not brand and not model:
         return fallback
@@ -78,6 +88,9 @@ def map_to_samar_class(
 
     if not samar_dict:
         return fallback
+
+    # Extract unique class names for the prompt
+    unique_classes = list(dict.fromkeys(row["klasa"] for row in samar_dict))
 
     # Build a compact representation for the prompt
     dict_text = "\n".join(
@@ -97,16 +110,20 @@ Pojazd do klasyfikacji:
 - Typ nadwozia: {body_style or "brak danych"}
 - Segment: {segment or "brak danych"}
 
-ZADANIE: Przypisz ten pojazd do DOKŁADNIE JEDNEJ klasy z powyższego słownika.
+ZADANIE: Oceń prawdopodobieństwo przynależności tego pojazdu do KAŻDEJ klasy z powyższego słownika.
+Dla KAŻDEJ klasy przypisz confidence (0.0-1.0) — jak bardzo ten pojazd pasuje do danej klasy.
 Szukaj marki i modelu w listach przykładowych modeli. Zwróć SZCZEGÓLNĄ uwagę na typ nadwozia oraz wersję. 
 Na przykład, ten sam wiodący model (jak 'VW Crafter' lub 'Ford Transit') może występować jako auto dostawcze ("S. DOSTAWCZE I CIĘŻAROWE..." lub "DOSTAWCZE") 
 w wariancie 'Furgon' / ciężarowym, albo jako auto osobowe/bus ("MINIBUS I MINIBUS" lub "VANY...") w wariancie 'Osobowy' / 'Tourneo'.
-Zawsze wybieraj najbardziej adekwatną klasę biorąc pod uwagę czy to osobówka, czy auto użytkowe/cargo.
+Zawsze bierz pod uwagę czy to osobówka, czy auto użytkowe/cargo.
 
 KRYTYCZNE REGUŁY ROZRÓŻNIANIA (bezwzględnie przestrzegaj):
 1. Jeśli typ nadwozia (body_style) to 'Furgon', 'Panel Van', 'Van dostawczy', 'Dostawczy', 'Cargo', 'Skrzyniowy', 'Podwozie' lub 'Chłodnia' — NIGDY nie klasyfikuj jako MINIBUS. Użyj odpowiedniej klasy dostawczej: 'S. DOSTAWCZE I CIĘŻAROWE CIĘŻKIE DOSTAWCZE', 'S. DOSTAWCZE I CIĘŻAROWE ŚREDNIE DOSTAWCZE' lub 'S. DOSTAWCZE I CIĘŻAROWE KOMBI VAN'.
 2. Klasa MINIBUS I MINIBUS jest WYŁĄCZNIE dla wariantów osobowych (przeszklonych, z siedzeniami pasażerskimi), np. 'Tourneo', 'Kombi', 'Bus', 'Osobowy', 'Caravelle', 'Multivan'.
 3. Jeśli wersja/trim zawiera słowa 'L1H1', 'L2H2', 'L3H2', 'L4H3' itp. (oznaczenia rozstawów/wysokości furgonów) — to ZAWSZE jest furgon dostawczy, nie minibus.
+
+WAŻNE: Musisz ocenić WSZYSTKIE {len(unique_classes)} klas. Klasy, do których pojazd absolutnie nie pasuje, powinny dostać confidence bliskie 0.0.
+Posortuj wyniki od najwyższego do najniższego confidence.
 """
 
     try:
@@ -120,24 +137,48 @@ KRYTYCZNE REGUŁY ROZRÓŻNIANIA (bezwzględnie przestrzegaj):
                 response_schema={
                     "type": "object",
                     "properties": {
-                        "klasa": {
-                            "type": "string",
-                            "description": "Dokładna nazwa klasy SAMAR ze słownika, np. 'PODSTAWOWA D ŚREDNIA'.",
+                        "candidates": {
+                            "type": "array",
+                            "description": (
+                                "Wszystkie klasy SAMAR posortowane "
+                                "od najwyższego confidence."
+                            ),
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "klasa": {
+                                        "type": "string",
+                                        "description": "Nazwa klasy SAMAR.",
+                                    },
+                                    "confidence": {
+                                        "type": "number",
+                                        "description": "Pewność 0.0-1.0.",
+                                    },
+                                },
+                                "required": ["klasa", "confidence"],
+                            },
                         },
                     },
-                    "required": ["klasa"],
+                    "required": ["candidates"],
                 },
             ),
         )
 
         resp_text = getattr(response, "text", "{}") or "{}"
         result = json.loads(resp_text)
-        matched_class = result.get("klasa", "").strip()
+        candidates = result.get("candidates", [])
 
-        if matched_class:
-            # Derive a short code from the class name
-            code = _extract_short_code(matched_class)
-            return (code, matched_class)
+        # Sort by confidence descending (safety net)
+        candidates.sort(key=lambda c: c.get("confidence", 0), reverse=True)
+
+        # Filter out zero-confidence noise
+        candidates = [c for c in candidates if c.get("confidence", 0) > 0.01]
+
+        if candidates:
+            best = candidates[0]
+            best_class = best["klasa"].strip()
+            code = _extract_short_code(best_class)
+            return (code, best_class, candidates)
 
     except Exception as exc:
         print(f"[SAMAR MAPPER] Gemini error: {exc}")
@@ -146,7 +187,7 @@ KRYTYCZNE REGUŁY ROZRÓŻNIANIA (bezwzględnie przestrzegaj):
 
 
 def _extract_short_code(class_name: str) -> str:
-    """Extract a short segment code like 'D' or 'Csuv' from a full SAMAR class name.
+    """Extract a short segment code from a full SAMAR class name.
 
     Examples
     --------

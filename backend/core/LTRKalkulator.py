@@ -96,30 +96,22 @@ def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
 
 @lru_cache(maxsize=128)
 def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
-    """Pobiera parametry auta zastępczego dla klasy pojazdu"""
+    """Pobiera parametry auta zastępczego z tabeli replacement_car_rates"""
     try:
         from core.database import supabase
 
-        # Pobierz dla konkretnej klasy
+        # Pobierz z replacement_car_rates dla konkretnej klasy SAMAR
         if klasa_id:
             res = (
-                supabase.table("ltr_admin_stawka_zastepczy")
+                supabase.table("replacement_car_rates")
                 .select("*")
-                .eq("KlasaId", klasa_id)
+                .eq("samar_class_id", klasa_id)
                 .execute()
             )
             if res.data and len(res.data) > 0:
                 return cast(Dict[str, Any], res.data[0])
 
-        # Fallback dla null / default
-        res = (
-            supabase.table("ltr_admin_stawka_zastepczy")
-            .select("*")
-            .is_("KlasaId", "null")
-            .execute()
-        )
-        if res.data:
-            return cast(Dict[str, Any], res.data[0])
+        # Fallback: brak danych dla tej klasy — zwróć pusty dict (koszt = 0)
     except Exception as e:
         print(f"Error fetching replacement car rate: {e}")
     return {}
@@ -167,7 +159,7 @@ class LTRKalkulator:
         self.tires_calc = LTRSubCalculatorOpony(
             z_oponami=getattr(self.input_data, "z_oponami", True),
             klasa_opony_string=getattr(self.input_data, "klasa_opony_string", ""),
-            srednica_felgi=16,  # bedzie przesloniete ponizej
+            srednica_felgi=getattr(self.input_data, "srednica_felgi", 0) or 0,
             korekta_kosztu=getattr(self.input_data, "korekta_kosztu_opon", False),
             koszt_opon_korekta=getattr(self.input_data, "koszt_opon_korekta", 0.0),
             sets_needed_override=getattr(
@@ -226,6 +218,9 @@ class LTRKalkulator:
             discount_pct=self.input_data.discount_pct,
             add_gsm_device=True,
             gsm_hardware_cost=gsm_cost,
+            pakiet_serwisowy_net=float(
+                getattr(self.input_data, "pakiet_serwisowy", 0.0)
+            ),
         )
 
         calc = PurchasePriceCalculator(pp_input)
@@ -249,6 +244,13 @@ class LTRKalkulator:
 
         vehicle_capex, options_capex = self._calculate_capex()
         capex = vehicle_capex + options_capex
+
+        # Instantiate RV calculator once (shared across all months)
+        from core.LTRSubCalculatorUtrataWartosciNew import (
+            LTRSubCalculatorUtrataWartosciNew,
+        )
+
+        rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
 
         # Opcje pod Wartość Rezydualną (Zawsze Fabryczne + Serwisowe z include_in_wr)
         base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
@@ -279,11 +281,6 @@ class LTRKalkulator:
             )
 
             # 3. Finansowanie i Utrata Wartości (SAMAR SQL Subcalculator / UtrataWartosciNew)
-            from core.LTRSubCalculatorUtrataWartosciNew import (
-                LTRSubCalculatorUtrataWartosciNew,
-            )
-
-            rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
 
             # VAT Rate to apply gross math
             vat_rate = getattr(self.settings, "vat_rate", 1.23)
@@ -321,6 +318,16 @@ class LTRKalkulator:
             )
             # Wynik Serwisu — nowy ServiceCalculator (ASO/nonASO z DB + floor normatywnego przebiegu)
             normatywny_przebieg = getattr(self.settings, "normatywny_przebieg_mc", 2916)
+            pakiet_serwisowy_val = float(
+                getattr(self.input_data, "pakiet_serwisowy", 0.0)
+            )
+            inne_koszty_val = float(
+                getattr(
+                    self.input_data,
+                    "inne_koszty_serwisowania_netto",
+                    0.0,
+                )
+            )
             service_input = ServiceCalculatorInput(
                 z_serwisem=True,
                 opcja_serwisowa=self._opcja_serwisowa,
@@ -336,6 +343,8 @@ class LTRKalkulator:
                 else 100.0,
                 przebieg=total_km,
                 okres=months,
+                pakiet_serwisowy=pakiet_serwisowy_val,
+                inne_koszty_serwisowania_netto=inne_koszty_val,
             )
             service_calc = ServiceCalculator(service_input)
             service_from_new = service_calc.calculate()

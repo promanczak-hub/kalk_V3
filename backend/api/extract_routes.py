@@ -204,3 +204,159 @@ async def cancel_processing(request: CancelProcessingRequest) -> Dict[str, Any]:
     except Exception as e:
         print(f"Error cancelling processing: {e}")
         raise HTTPException(status_code=500, detail="Failed to cancel processing")
+
+
+# --- Batch Delete ---
+
+
+class BatchDeleteRequest(BaseModel):
+    vehicle_ids: list[str]
+
+
+@router.post("/delete-vehicles-batch")
+async def delete_vehicles_batch(request: BatchDeleteRequest) -> Dict[str, Any]:
+    """Delete multiple vehicles in a single transaction."""
+    if not request.vehicle_ids:
+        raise HTTPException(status_code=400, detail="No vehicle IDs provided.")
+
+    try:
+        print(f"Batch deleting {len(request.vehicle_ids)} vehicles")
+        supabase_client.table("vehicle_synthesis").delete().in_(
+            "id", request.vehicle_ids
+        ).execute()
+
+        return {
+            "status": "success",
+            "deleted_count": len(request.vehicle_ids),
+        }
+    except Exception as e:
+        print(f"Error batch deleting vehicles: {e}")
+        raise HTTPException(status_code=500, detail="Failed to batch delete")
+
+
+# --- AI Vehicle Comparison ---
+
+
+class CompareVehiclesRequest(BaseModel):
+    vehicle_ids: list[str]
+
+
+def _extract_comparison_payload(
+    synthesis_data: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """
+    Extract key fields for comparison prompt.
+    Includes: card_summary, technical_data, mapped_ai_data,
+    paid_options, standard_equipment, visual_identity.
+    """
+    if not synthesis_data:
+        return {}
+
+    payload: dict[str, Any] = {}
+
+    # Card summary (prices, powertrain, emissions, fuel, body)
+    card = synthesis_data.get("card_summary")
+    if card:
+        payload["card_summary"] = card
+
+    # Technical data (dimensions, weights, engine, EV range)
+    tech = synthesis_data.get("technical_data")
+    if tech:
+        payload["technical_data"] = tech
+
+    # Mapped AI classification (SAMAR, engine class)
+    mapped = synthesis_data.get("mapped_ai_data")
+    if mapped:
+        payload["mapped_ai_data"] = mapped
+
+    # Equipment
+    std_equip = synthesis_data.get("standard_equipment")
+    if std_equip:
+        payload["standard_equipment"] = std_equip
+
+    opt_equip = synthesis_data.get("optional_equipment")
+    if opt_equip:
+        payload["optional_equipment"] = opt_equip
+
+    # Visual identity
+    visual = synthesis_data.get("visual_identity")
+    if visual:
+        payload["visual_identity"] = visual
+
+    # Financing options
+    financing = synthesis_data.get("financing")
+    if financing:
+        payload["financing"] = financing
+
+    # Service equipment
+    svc = synthesis_data.get("service_equipment")
+    if svc:
+        payload["service_equipment"] = svc
+
+    return payload
+
+
+@router.post("/compare-vehicles")
+async def compare_vehicles(request: CompareVehiclesRequest) -> Dict[str, Any]:
+    """
+    Compare 2-5 vehicles using Gemini Flash.
+    Extracts key data from synthesis_data and produces a markdown comparison.
+    """
+    import google.generativeai as genai
+
+    if len(request.vehicle_ids) < 2:
+        raise HTTPException(status_code=400, detail="Minimum 2 vehicles required.")
+    if len(request.vehicle_ids) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 vehicles.")
+
+    try:
+        # Fetch vehicles
+        result = (
+            supabase_client.table("vehicle_synthesis")
+            .select("id, brand, model, trim_level, synthesis_data")
+            .in_("id", request.vehicle_ids)
+            .execute()
+        )
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Vehicles not found.")
+
+        # Build comparison payloads
+        vehicle_payloads = []
+        for row in result.data:
+            name = f"{row.get('brand', '?')} {row.get('model', '')} {row.get('trim_level', '')}".strip()
+            payload = _extract_comparison_payload(row.get("synthesis_data"))
+            vehicle_payloads.append({"name": name, "data": payload})
+
+        # Build prompt
+        vehicles_json = json.dumps(vehicle_payloads, ensure_ascii=False, indent=2)
+
+        prompt = f"""Jesteś ekspertem ds. floty samochodowej. Porównaj poniższe pojazdy w zwięzłej, profesjonalnej tabeli markdown.
+
+WYMAGANIA:
+1. Tabela z kolumnami: Cecha | {" | ".join(v["name"] for v in vehicle_payloads)}
+2. Uwzględnij: cena katalogowa, rabat, cena po rabacie, moc, silnik, napęd, skrzynia, emisje WLTP, spalanie, masa własna/DMC, wymiary, koła, typ nadwozia
+3. Dodaj sekcję "Wyposażenie standardowe" — pokaż kluczowe różnice (co jeden ma, a drugi nie)
+4. Dodaj sekcję "Opcje płatne" — pokaż łączną wartość opcji i najważniejsze pozycje
+5. Na końcu dodaj krótkie **Podsumowanie** (2-3 zdania) — value for money, TCO, rekomendacja
+6. Bądź MAKSYMALNIE ZWIĘZŁY. Nie powtarzaj danych z tabeli w podsumowaniu.
+7. Wszystkie ceny w PLN, masy w kg, wymiary w mm.
+
+DANE POJAZDÓW:
+{vehicles_json}"""
+
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(prompt)
+
+        markdown_result = response.text if response.text else "Brak wyniku."
+
+        return {"markdown": markdown_result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error comparing vehicles: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Vehicle comparison failed: {str(e)}",
+        )
