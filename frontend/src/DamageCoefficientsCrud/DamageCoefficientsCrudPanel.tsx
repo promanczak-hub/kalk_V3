@@ -35,7 +35,6 @@ interface DamageCoefficient {
   klasa_wr_id: number | null;
   wsp_sredni_przebieg: number;
   wsp_wartosc_szkody: number;
-  samar_klasa_wr?: { nazwa: string } | null;
 }
 
 export default function DamageCoefficientsCrudPanel() {
@@ -113,7 +112,6 @@ export default function DamageCoefficientsCrudPanel() {
   const handleSave = async () => {
     try {
       const payload = { ...formData };
-      delete (payload as Record<string, unknown>)["samar_klasa_wr"];
 
       const resp = await fetch(
         `${BASE_URL}/api/samar-rv/insurance-coefficients`,

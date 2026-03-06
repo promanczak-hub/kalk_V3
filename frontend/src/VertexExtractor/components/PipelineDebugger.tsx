@@ -29,6 +29,55 @@ interface AiChatState {
   error?: string;
 }
 
+// --- V1 Diagnostyka helpers ---
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fmt = (v: any): string => {
+  if (v === null || v === undefined) return "-";
+  const n = Number(v);
+  return isNaN(n) ? String(v) : n.toFixed(4);
+};
+
+const V1_SECTION_NAMES: Record<number, string> = {
+  1: "OPONY",
+  2: "KOSZTY DODATKOWE",
+  3: "SAMOCHÓD ZASTĘPCZY",
+  4: "SERWIS",
+  5: "CENA ZAKUPU (wartości netto)",
+  6: "UTRATA WARTOŚCI (NOWA)",
+  7: "AMORTYZACJA",
+  8: "UBEZPIECZENIE",
+  9: "FINANSOWE",
+  10: "KOSZT DZIENNY",
+  11: "MARŻA NA KONTRAKCIE / OFEROWANA STAWKA",
+  12: "BUDŻET MARKETINGOWY",
+};
+
+function V1Section({ title, rows }: { title: string; rows: [string, string, boolean?][] }) {
+  return (
+    <table className="w-full border-collapse border border-slate-400 text-[13px]">
+      <thead>
+        <tr>
+          <td colSpan={2} className="bg-slate-100 border border-slate-400 px-2 py-1 font-bold text-slate-800 text-[13px]">
+            {title}
+          </td>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, value, bold], i) => (
+          <tr key={i}>
+            <td className={`border border-slate-300 px-2 py-0.5 text-slate-700 whitespace-nowrap ${bold ? "font-bold" : ""}`}>
+              {label}
+            </td>
+            <td className={`border border-slate-300 px-2 py-0.5 text-right tabular-nums ${bold ? "font-bold text-slate-900" : "text-slate-700"}`}>
+              {value}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
   const [activeStep, setActiveStep] = useState<number>(1);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +85,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [aiChats, setAiChats] = useState<Record<number, AiChatState>>({});
   const [months, setMonths] = useState<number>(48);
+  const [viewMode, setViewMode] = useState<"pipeline" | "diagnostyka">("pipeline");
   
   const [state, setState] = useState<DebuggerState>({
     status: "idle",
@@ -187,8 +237,20 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6 bg-slate-50 shrink-0">
           <div className="flex items-center space-x-4">
             <h2 className="text-lg font-bold text-slate-800">Pipeline Debugger</h2>
-            <div className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md font-medium">
-              Real Data Mode
+            {/* View mode toggle */}
+            <div className="flex bg-slate-200 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode("pipeline")}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "pipeline" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >Pipeline</button>
+              <button
+                onClick={() => setViewMode("diagnostyka")}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "diagnostyka" ? "bg-white text-amber-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >Diagnostyka V1</button>
             </div>
             <span className="text-sm text-slate-500 font-mono">{vehicle.id}</span>
           </div>
@@ -232,7 +294,107 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
 
         {/* CONTENT */}
         <div className="flex-1 flex overflow-hidden">
-          
+
+          {viewMode === "diagnostyka" ? (
+            /* ============ DIAGNOSTYKA V1 — FLAT REPORT ============ */
+            <div className="flex-1 bg-white overflow-y-auto p-6">
+              {state.status === "loading" && state.steps.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">Ładowanie diagnostyki...</div>
+              ) : state.status === "error" ? (
+                <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-md">
+                  <strong>Błąd wyliczeń:</strong> {state.error}
+                </div>
+              ) : (
+                <div className="max-w-3xl mx-auto space-y-6 font-mono text-[13px]">
+                  <div className="text-center text-xs text-slate-400 mb-2 font-sans">Diagnostyka przeliczenie — {months} msc</div>
+
+                  {/* GŁÓWNE PARAMETRY */}
+                  <V1Section title={`GŁÓWNE PARAMETRY (${vehicle.id?.slice(0,8)})`} rows={[
+                    ["Marka", vehicle.brand || "-"],
+                    ["Model", vehicle.model || "-"],
+                    ["OkresUżytkowania", String(months)],
+                    ["Przebieg", String(Math.round((vehicle.przebieg_bazowy || 140000) / (vehicle.okres_bazowy || 48) * months))],
+                    ["CenaCennikowa", fmt(vehicle.base_price_net)],
+                    ["Rabat %", fmt(vehicle.discount_pct)],
+                    ["Rabat kwotowo", fmt((vehicle.base_price_net || 0) * (vehicle.discount_pct || 0) / 100)],
+                    ["Opcje fabryczne (suma)", fmt((vehicle.factory_options || []).reduce((s: number, o: {price_net?: number}) => s + (o.price_net || 0), 0))],
+                    ["Marża", fmt(vehicle.pricing_margin_pct)],
+                    ["ZOponami", vehicle.z_oponami ? "✓" : ""],
+                    ["SamochodZastępczy", vehicle.replacement_car_enabled ? "✓" : ""],
+                    ["WIBOR %", fmt(vehicle.wibor_pct)],
+                    ["Marża Finansowa %", fmt(vehicle.margin_pct)],
+                  ]} />
+
+                  {/* WYNIK NETTO — summary */}
+                  {(() => {
+                    const findStep = (n: number) => state.steps.find(s => s.step === n);
+                    const s1 = findStep(1);
+                    const s2 = findStep(2);
+                    const s3 = findStep(3);
+                    const s4 = findStep(4);
+                    const s5 = findStep(5);
+                    const s6 = findStep(6);
+                    const s8 = findStep(8);
+                    const s9 = findStep(9);
+                    const s10 = findStep(10);
+                    const s11 = findStep(11);
+                    const s12 = findStep(12);
+                    return (
+                      <V1Section title="WYNIK NETTO" rows={[
+                        ["Cena zakupu", fmt(s5?.outputs?.capex_for_financing), true],
+                        ["Serwis", fmt(s4?.outputs?.service_total)],
+                        ["Opony", fmt(s1?.outputs?.tires_total)],
+                        ["Ubezpieczenie", fmt(s8?.outputs?.insurance_total)],
+                        ["Koszty dodatkowe", fmt(s2?.outputs?.additional_costs_total)],
+                        ["Samochód zastępczy", fmt(s3?.outputs?.rc_total)],
+                        ["Finansowe", fmt(s9?.outputs?.koszt_finansowy)],
+                        ["Utrata wartości", fmt(s6?.outputs?.utrata_z_czynszem)],
+                        ["Koszt dzienny", fmt(s10?.outputs?.koszt_dzienny)],
+                        ["Marża na kontrakcie", fmt(s11?.outputs?.marza_na_kontrakcie)],
+                        ["Oferowana stawka", fmt(s11?.outputs?.oferowana_stawka), true],
+                        ["Budżet marketingowy korekta", fmt(s12?.outputs?.korekta_wr_maks)],
+                      ]} />
+                    );
+                  })()}
+
+                  {/* Per-step sections */}
+                  {state.steps.map((step) => (
+                    <V1Section
+                      key={step.step}
+                      title={V1_SECTION_NAMES[step.step] || step.name.toUpperCase()}
+                      rows={Object.entries(step.outputs).map(([k, v]) => [
+                        k,
+                        typeof v === "number" ? v.toFixed(4) : String(v ?? ""),
+                        // Bold the last/main output per section
+                        k === Object.keys(step.outputs)[Object.keys(step.outputs).length - 1],
+                      ])}
+                    />
+                  ))}
+
+                  {/* Inputs detail sections */}
+                  {state.steps.map((step) => {
+                    const inputEntries = Object.entries(step.inputs).filter(
+                      ([, v]) => typeof v !== "object" || v === null
+                    );
+                    if (inputEntries.length === 0) return null;
+                    return (
+                      <details key={`inp-${step.step}`} className="group">
+                        <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-600">
+                          Szczegóły wejść: {step.name}
+                        </summary>
+                        <V1Section
+                          title={`WEJŚCIA — ${step.name}`}
+                          rows={inputEntries.map(([k, v]) => [k, String(v ?? "")])}
+                        />
+                      </details>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ============ PIPELINE MODE (original) ============ */
+            <>
           {/* SIDEBAR - STEPS */}
           <div className="w-64 bg-slate-50 border-r border-slate-200 overflow-y-auto shrink-0 py-4">
              {state.status === "loading" && state.steps.length === 0 ? (
@@ -438,6 +600,8 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                 </div>
             )}
           </div>
+          </>
+          )}
 
         </div>
       </div>

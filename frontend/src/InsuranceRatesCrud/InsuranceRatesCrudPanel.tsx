@@ -36,7 +36,6 @@ interface InsuranceRate {
   StawkaBazowaAC: number;
   SkladkaOC: number;
   KlasaId: number | null;
-  samar_klasa_wr?: { nazwa: string } | null;
 }
 
 export default function InsuranceRatesCrudPanel() {
@@ -114,7 +113,6 @@ export default function InsuranceRatesCrudPanel() {
   const handleSave = async () => {
     try {
       const payload = { ...formData };
-      delete (payload as Record<string, unknown>)["samar_klasa_wr"];
 
       const resp = await fetch(`${BASE_URL}/api/samar-rv/insurance-rates`, {
         method: "POST",
