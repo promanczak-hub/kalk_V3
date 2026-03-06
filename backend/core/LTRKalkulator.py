@@ -65,10 +65,11 @@ def get_samar_klasa_from_db(klasa_id: str) -> Dict[str, Any]:
 
 @lru_cache(maxsize=128)
 def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
-    """Pobiera tabelę ubezpieczeń dla danej klasy (bez fallbacku na null)"""
+    """Pobiera tabelę ubezpieczeń dla danej klasy z fallbackiem na domyślne (NULL)."""
     try:
         from core.database import supabase
 
+        # 1. Szukaj stawek dla konkretnej klasy
         if klasa_id:
             res = (
                 supabase.table("ltr_admin_ubezpieczenia")
@@ -78,6 +79,16 @@ def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
             )
             if res.data and len(res.data) > 0:
                 return cast(List[Dict[str, Any]], res.data)
+
+        # 2. Fallback: stawki domyślne (KlasaId IS NULL)
+        res_default = (
+            supabase.table("ltr_admin_ubezpieczenia")
+            .select("*")
+            .is_("KlasaId", "null")
+            .execute()
+        )
+        if res_default.data and len(res_default.data) > 0:
+            return cast(List[Dict[str, Any]], res_default.data)
 
     except Exception as e:
         print(f"Error fetching insurance rates: {e}")
@@ -190,14 +201,15 @@ class LTRKalkulator:
             )
 
         # W nowej architekturze V3 moduł GSM zawsze doliczany jest do Ceny Zakupu.
-        gsm_cost = self.settings.cost_gsm_device + self.settings.cost_gsm_installation
-
         pp_input = PurchasePriceInput(
             base_price_net=base_net,
             options=options,
             discount_pct=self.input_data.discount_pct,
-            add_gsm_device=True,
-            gsm_hardware_cost=gsm_cost,
+            add_gsm_to_capex=True,
+            gsm_device_cost_net=float(getattr(self.settings, "cost_gsm_device", 469.0)),
+            gsm_installation_cost_net=float(
+                getattr(self.settings, "cost_gsm_installation", 150.0)
+            ),
             pakiet_serwisowy_net=float(
                 getattr(self.input_data, "pakiet_serwisowy", 0.0)
             ),

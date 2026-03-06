@@ -8,6 +8,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,7 +35,7 @@ body {
       transparent 25%
     );
   background-attachment: fixed;
-  font-family: "Inter", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif;
+  font-family: "Geist", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif;
   min-height: 100vh;
 }
 

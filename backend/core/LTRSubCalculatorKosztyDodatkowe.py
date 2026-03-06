@@ -23,6 +23,10 @@ class AdditionalCostsCalculator:
         if self.input_data.add_hook_installation:
             total += self.settings.cost_hook_installation
 
+        # Wymontowanie Kraty
+        if self.input_data.add_grid_dismantling:
+            total += self.settings.cost_grid_dismantling
+
         # Rejestracja / Karta (Zawsze doliczana w LTR, brak ukrytego checkboxa)
         total += self.settings.cost_registration
 

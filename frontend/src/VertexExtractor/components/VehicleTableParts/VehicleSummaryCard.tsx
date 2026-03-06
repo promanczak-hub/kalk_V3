@@ -33,6 +33,15 @@ function extractDriveType(vehicle: FleetVehicleView): string {
   return DRIVE_TYPE_LABELS[raw] ?? raw;
 }
 
+function extractSeats(vehicle: FleetVehicleView): string {
+  const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
+  if (!synth) return EMPTY;
+  const cs = synth.card_summary as Record<string, unknown> | undefined;
+  const seats = cs?.number_of_seats;
+  if (seats == null) return EMPTY;
+  return String(seats);
+}
+
 function val(v: string | null | undefined): string {
   if (!v || v === "Brak" || v === "-") return EMPTY;
   return v;
@@ -86,6 +95,7 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
       "Koła": vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY,
       "Emisja WLTP": val(vehicle.emissions),
       "Kolor nadwozia": val(vehicle.exterior_color),
+      "Ilość miejsc": extractSeats(vehicle),
       "Numer oferty": val(vehicle.offer_number),
       "Kod konfiguracji": val(vehicle.configuration_code),
     });
@@ -125,6 +135,7 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     
     collectIfChanged("Emisja WLTP", val(vehicle.emissions), "emissions");
     collectIfChanged("Kolor nadwozia", val(vehicle.exterior_color), "exterior_color");
+    collectIfChanged("Ilość miejsc", extractSeats(vehicle), "number_of_seats");
     collectIfChanged("Numer oferty", val(vehicle.offer_number), "offer_number");
     collectIfChanged("Kod konfiguracji", val(vehicle.configuration_code), "configuration_code");
 
@@ -170,6 +181,7 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
     { label: "Emisja WLTP", value: val(vehicle.emissions) },
     { label: "Kolor nadwozia", value: val(vehicle.exterior_color) },
+    { label: "Ilość miejsc", value: extractSeats(vehicle) },
   ];
 
   const metaRows = [

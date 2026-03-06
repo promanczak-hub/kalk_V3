@@ -1,9 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Any, Dict, Optional, List, cast
 from datetime import datetime
 import uuid
+import logging
 from core.database import supabase
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/kalkulacje", tags=["kalkulacje"])
 
@@ -20,6 +23,19 @@ class AskAiRequest(BaseModel):
     query: str
 
 
+class StatusUpdateRequest(BaseModel):
+    status: str
+
+
+VALID_STATUSES = [
+    "szkic_vertex",
+    "w_opracowaniu",
+    "gotowa",
+    "wyslana",
+    "archiwum",
+]
+
+
 class KalkulacjaResponse(BaseModel):
     id: str
     numer_kalkulacji: str
@@ -29,6 +45,20 @@ class KalkulacjaResponse(BaseModel):
     created_at: str
     updated_at: str
     stan_json: Optional[dict] = None
+
+
+class KalkulacjaListItem(BaseModel):
+    id: str
+    numer_kalkulacji: str
+    status: str
+    dane_pojazdu: Optional[str] = None
+    cena_netto: Optional[float] = None
+    created_at: str
+    updated_at: str
+    body_type: Optional[str] = None
+    fuel_type: Optional[str] = None
+    discount_pct: Optional[float] = None
+    options_count: int = 0
 
 
 @router.post("", response_model=KalkulacjaResponse)
@@ -61,19 +91,42 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=List[KalkulacjaResponse])
+def _extract_list_fields(row: Dict[str, Any]) -> KalkulacjaListItem:
+    """Extract enriched fields from stan_json for list view."""
+    sj = cast(Dict[str, Any], row.get("stan_json") or {})
+    vehicle_mapped = cast(Dict[str, Any], sj.get("vehicle_mapped") or {})
+    discount_block = cast(Dict[str, Any], sj.get("discount") or {})
+
+    factory_opts = sj.get("factory_options") or []
+    service_opts = sj.get("service_options") or []
+
+    return KalkulacjaListItem(
+        id=row["id"],
+        numer_kalkulacji=row["numer_kalkulacji"],
+        status=row.get("status", "szkic_vertex"),
+        dane_pojazdu=row.get("dane_pojazdu"),
+        cena_netto=row.get("cena_netto"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        body_type=vehicle_mapped.get("body_type"),
+        fuel_type=vehicle_mapped.get("fuel_type"),
+        discount_pct=discount_block.get("active_discount_pct"),
+        options_count=len(factory_opts) + len(service_opts),
+    )
+
+
+@router.get("", response_model=List[KalkulacjaListItem])
 def get_kalkulacje():
     try:
         res = (
             supabase.table("ltr_kalkulacje")
-            .select(
-                "id, numer_kalkulacji, status, dane_pojazdu, cena_netto, created_at, updated_at"
-            )
+            .select("*")
             .order("created_at", desc=True)
             .execute()
         )
-        return res.data
+        return [_extract_list_fields(r) for r in res.data]
     except Exception as e:
+        logger.exception("GET /kalkulacje failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -85,6 +138,73 @@ def get_kalkulacja(kalk_id: str):
             raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
         return res.data[0]
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{kalk_id}")
+def delete_kalkulacja(kalk_id: str):
+    """Hard-delete a kalkulacja by ID."""
+    try:
+        res = supabase.table("ltr_kalkulacje").delete().eq("id", kalk_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
+        return {"status": "deleted", "id": kalk_id}
+    except Exception as e:
+        logger.exception("DELETE /kalkulacje/%s failed", kalk_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{kalk_id}/duplicate", response_model=KalkulacjaResponse)
+def duplicate_kalkulacja(kalk_id: str):
+    """Clone an existing kalkulacja with a new ID and numer."""
+    try:
+        res = supabase.table("ltr_kalkulacje").select("*").eq("id", kalk_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
+
+        original = res.data[0]
+        now = datetime.now()
+        short_uuid = uuid.uuid4().hex[:6].upper()
+        new_numer = f"KALK/{now.year}/{now.month:02d}/{short_uuid}"
+
+        new_data = {
+            "numer_kalkulacji": new_numer,
+            "status": "szkic_vertex",
+            "stan_json": original.get("stan_json", {}),
+            "dane_pojazdu": original.get("dane_pojazdu", "Kopia"),
+            "cena_netto": original.get("cena_netto", 0.0),
+        }
+
+        insert_res = supabase.table("ltr_kalkulacje").insert(new_data).execute()
+        if not insert_res.data:
+            raise HTTPException(status_code=500, detail="Błąd duplikacji")
+        return insert_res.data[0]
+    except Exception as e:
+        logger.exception("DUPLICATE /kalkulacje/%s failed", kalk_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{kalk_id}/status")
+def update_kalkulacja_status(kalk_id: str, req: StatusUpdateRequest):
+    """Update status of a kalkulacja (workflow transition)."""
+    if req.status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nieprawidłowy status '{req.status}'. "
+            f"Dozwolone: {', '.join(VALID_STATUSES)}",
+        )
+    try:
+        res = (
+            supabase.table("ltr_kalkulacje")
+            .update({"status": req.status})
+            .eq("id", kalk_id)
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
+        return {"status": "updated", "id": kalk_id, "new_status": req.status}
+    except Exception as e:
+        logger.exception("PATCH status /kalkulacje/%s failed", kalk_id)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -136,6 +256,12 @@ def generate_matrix_from_extracted_v3(vehicle_id: str, req: dict):
             pricing_margin_pct=req.get("pricing_margin_pct", 15.0),
             depreciation_pct=req.get("depreciation_pct"),
             initial_deposit_pct=req.get("initial_deposit_pct", 0.0),
+            # Flagi kosztów dodatkowych (globalne kwoty z CC, tu ON/OFF per kalkulacja)
+            add_gsm_subscription=req.get("add_gsm_subscription", True),
+            add_hook_installation=req.get("add_hook_installation", False),
+            add_grid_dismantling=req.get("add_grid_dismantling", False),
+            add_registration=req.get("add_registration", True),
+            add_sales_prep=req.get("add_sales_prep", True),
         )
 
         # 3. Call Calculation Engine
@@ -210,6 +336,12 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
             inne_koszty_serwisowania_netto=req.get(
                 "inne_koszty_serwisowania_netto", 0.0
             ),
+            # Flagi kosztów dodatkowych (globalne kwoty z CC, tu ON/OFF per kalkulacja)
+            add_gsm_subscription=req.get("add_gsm_subscription", True),
+            add_hook_installation=req.get("add_hook_installation", False),
+            add_grid_dismantling=req.get("add_grid_dismantling", False),
+            add_registration=req.get("add_registration", True),
+            add_sales_prep=req.get("add_sales_prep", True),
         )
 
         # 3. Handle overrides and months for execution

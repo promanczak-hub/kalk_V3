@@ -433,6 +433,44 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
                 card_summary["power_range"] = "HIGH (201 KM i więcej)"
             print(f"[BACKFILL] power_range: '{card_summary['power_range']}'")
 
+    # --- 7. Deterministic paint type override ---
+    # AI sometimes misclassifies metallic paint as non-metallic.
+    # Override is_metalic_paint based on keywords in exterior_color.
+    exterior_color = str(card_summary.get("exterior_color", "")).strip().lower()
+    if exterior_color and exterior_color not in ("brak", "none", "null"):
+        metallic_keywords = (
+            "metalik",
+            "metalic",
+            "metallic",
+            "perłow",
+            "pearl",
+            "xirallic",
+            "mica",
+            "special efekt",
+            "dwuwarstwow",
+        )
+        is_keyword_metallic = any(kw in exterior_color for kw in metallic_keywords)
+
+        nonmetallic_keywords = ("solido", "uni ", "akrylow", "jednowarstwow")
+        is_keyword_nonmetallic = any(
+            kw in exterior_color for kw in nonmetallic_keywords
+        )
+
+        current_flag = card_summary.get("is_metalic_paint")
+
+        if is_keyword_metallic and current_flag is not True:
+            card_summary["is_metalic_paint"] = True
+            print(
+                f"[BACKFILL] is_metalic_paint: OVERRIDE → True "
+                f"(keyword w exterior_color: '{exterior_color}')"
+            )
+        elif is_keyword_nonmetallic and current_flag is not False:
+            card_summary["is_metalic_paint"] = False
+            print(
+                f"[BACKFILL] is_metalic_paint: OVERRIDE → False "
+                f"(keyword w exterior_color: '{exterior_color}')"
+            )
+
     return card_summary
 
 

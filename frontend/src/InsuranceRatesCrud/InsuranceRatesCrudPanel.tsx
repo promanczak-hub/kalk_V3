@@ -25,9 +25,9 @@ import { Edit, Trash2, Plus } from "lucide-react";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
-interface SamarClass {
+interface KlasaWr {
   id: number;
-  name: string;
+  nazwa: string;
 }
 
 interface InsuranceRate {
@@ -41,7 +41,7 @@ interface InsuranceRate {
 
 export default function InsuranceRatesCrudPanel() {
   const [data, setData] = useState<InsuranceRate[]>([]);
-  const [samarClasses, setSamarClasses] = useState<SamarClass[]>([]);
+  const [klasaWrList, setKlasaWrList] = useState<KlasaWr[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,11 +61,11 @@ export default function InsuranceRatesCrudPanel() {
 
   const fetchDependencies = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/samar-classes`).catch(
+      const res = await fetch(`${BASE_URL}/api/samar-rv/classes`).catch(
         () => null,
       );
       if (res?.ok) {
-        setSamarClasses(await res.json());
+        setKlasaWrList(await res.json());
       }
     } catch (e) {
       console.error(e);
@@ -89,8 +89,8 @@ export default function InsuranceRatesCrudPanel() {
 
   const getClassName = (klasaId: number | null): string => {
     if (klasaId === null) return "— Domyślna (null) —";
-    const found = samarClasses.find((c) => c.id === klasaId);
-    return found ? found.name : `Klasa ID: ${klasaId}`;
+    const found = klasaWrList.find((c) => c.id === klasaId);
+    return found ? found.nazwa : `Klasa ID: ${klasaId}`;
   };
 
   const handleOpen = (item?: InsuranceRate) => {
@@ -102,7 +102,7 @@ export default function InsuranceRatesCrudPanel() {
         KolejnyRok: 1,
         StawkaBazowaAC: 0,
         SkladkaOC: 0,
-        KlasaId: samarClasses.length > 0 ? samarClasses[0].id : null,
+        KlasaId: klasaWrList.length > 0 ? klasaWrList[0].id : null,
       });
       setEditingId(null);
     }
@@ -307,9 +307,9 @@ export default function InsuranceRatesCrudPanel() {
             }}
           >
             <MenuItem value="null">— Domyślna (null) —</MenuItem>
-            {samarClasses.map((c) => (
+            {klasaWrList.map((c) => (
               <MenuItem key={c.id} value={c.id}>
-                {c.name}
+                {c.nazwa}
               </MenuItem>
             ))}
           </TextField>

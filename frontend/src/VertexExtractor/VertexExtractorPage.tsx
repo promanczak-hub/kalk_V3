@@ -1,7 +1,6 @@
 import { useVehicles } from "./hooks/useVehicles";
 import { useDocumentProcessing } from "./hooks/useDocumentProcessing";
 
-import { Header } from "./components/Header";
 import { UploadZone } from "./components/UploadZone";
 import { DocumentList } from "./components/DocumentList";
 import { VehicleTable } from "./components/VehicleTable";
@@ -33,7 +32,6 @@ export default function VertexExtractorPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-orange-100">
       <main className="w-full px-4 py-8 md:py-16 md:px-8">
-        <Header />
 
         <UploadZone onFilesSelected={handleFiles} />
 

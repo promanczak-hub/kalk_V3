@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import type { FleetVehicleView } from "../../types";
 import { PriceDualFormat } from "./PriceDualFormat";
@@ -47,6 +47,15 @@ interface VehicleBaseInfoProps {
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
   onScrollToVehicle?: (vehicleId: string) => void;
+  readinessResult?: {
+    overall_status: "ready" | "partial" | "not_ready";
+    samar_class_id: number | null;
+    fuel_type_id: number | null;
+    checks: { param: string; status: string; value: string }[];
+    critical_count: number;
+    warning_count: number;
+    resolve_error?: string;
+  } | null;
 }
 
 function detectPowerBand(
@@ -94,7 +103,7 @@ function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span
       className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-1 rounded text-xs font-medium text-slate-600"
-      style={{ fontFamily: "'VT323', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+      style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
     >
       {children}
     </span>
@@ -115,7 +124,7 @@ function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: s
     <span className="inline-flex items-center">
       <select
         className="text-xs border border-slate-200 bg-slate-50 rounded px-1.5 py-1 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
-        style={{ fontFamily: "'VT323', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
         value={current || ""}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
@@ -125,6 +134,92 @@ function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: s
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
+    </span>
+  );
+}
+
+/** Subtle mid-dot separator between logical badge groups */
+function Separator() {
+  return (
+    <span
+      className="text-slate-300 select-none px-0.5"
+      style={{ fontSize: "0.75rem", lineHeight: 1 }}
+      aria-hidden="true"
+    >
+      ·
+    </span>
+  );
+}
+
+/** Readiness badge — shows SAMAR data availability with hover tooltip */
+function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const statusConfig = {
+    ready:     { icon: CheckCircle,  color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Gotowe" },
+    partial:   { icon: AlertCircle,  color: "text-amber-600",   bg: "bg-amber-50",   border: "border-amber-200",   label: "Częściowo" },
+    not_ready: { icon: XCircle,      color: "text-red-600",     bg: "bg-red-50",     border: "border-red-200",     label: "Brak danych" },
+  };
+
+  const cfg = statusConfig[result.overall_status];
+  const Icon = cfg.icon;
+
+  return (
+    <span
+      className="relative inline-flex items-center"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span
+        className={`inline-flex items-center gap-1 border ${cfg.border} ${cfg.bg} px-2 py-1 rounded text-xs font-medium ${cfg.color} cursor-default`}
+        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+      >
+        <Icon className="w-3.5 h-3.5" />
+        {cfg.label}
+      </span>
+
+      {showTooltip && (
+        <div
+          ref={tooltipRef}
+          className="absolute left-0 top-full mt-1 z-50 w-72 bg-white rounded-lg shadow-xl border border-slate-200 p-3 animate-in fade-in slide-in-from-top-1 duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+            Gotowość kalkulacyjna SAMAR
+          </div>
+          {result.resolve_error && (
+            <div className="text-xs text-red-600 font-medium mb-2 p-1.5 bg-red-50 rounded border border-red-100">
+              {result.resolve_error}
+            </div>
+          )}
+          {result.checks.length > 0 && (
+            <div className="space-y-1">
+              {result.checks.map((check, i) => {
+                const icon = check.status === "ok" ? "🟢" : check.status === "warn" ? "🟡" : "🔴";
+                return (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-700">
+                      {icon} {check.param}
+                    </span>
+                    <span className={`font-mono text-[10px] ${
+                      check.status === "ok" ? "text-emerald-600" : check.status === "warn" ? "text-amber-600" : "text-red-600"
+                    }`}>
+                      {check.value}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {result.samar_class_id != null && (
+            <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400">
+              SAMAR ID: {result.samar_class_id} · Fuel ID: {result.fuel_type_id}
+            </div>
+          )}
+        </div>
+      )}
     </span>
   );
 }
@@ -152,7 +247,7 @@ function CodeTag({ children }: { children: React.ReactNode }) {
           ? "border-green-400 bg-green-50 text-green-700"
           : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:border-slate-400"
       }`}
-      style={{ fontFamily: "'VT323', monospace" }}
+      style={{ fontFamily: "'Geist Mono', monospace" }}
       onClick={handleCopy}
       title="Kliknij, aby skopiować"
     >
@@ -184,6 +279,7 @@ export function VehicleBaseInfo({
   onToggleSelect,
   crossCardAlerts = [],
   onScrollToVehicle,
+  readinessResult,
 }: VehicleBaseInfoProps) {
   const powerBand = detectPowerBand(vehicle);
 
@@ -295,65 +391,98 @@ export function VehicleBaseInfo({
         </button>
       </div>
 
-      {/* ── Row 2: Codes + Tags — full width, wraps freely ── */}
-      <div className="flex gap-2 mt-2 flex-wrap items-center ml-0 sm:ml-8">
-        {hasValue(vehicle.offer_number) && (
-          <CodeTag>{vehicle.offer_number}</CodeTag>
-        )}
-        {hasValue(vehicle.configuration_code) && (
-          <CodeTag>{vehicle.configuration_code}</CodeTag>
-        )}
-        {vehicle.suggested_discount_pct != null && (
-          <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
-        )}
-        {vehicle.synthesis_data && vehicle.suggested_discount_pct == null && (
-          <Tag>Brak rabatu</Tag>
-        )}
-        {mappedData?.samar_category && onSamarCategoryChange ? (
-          <SamarCategoryDropdown
-            currentCategory={mappedData.samar_category}
-            candidates={samarCandidates}
-            onCategoryChange={onSamarCategoryChange}
-          />
-        ) : mappedData?.samar_category ? (
-          <Tag>SAMAR: {mappedData.samar_category}</Tag>
-        ) : null}
-        {mappedData?.engine_class && onEngineCategoryChange ? (
-          <EngineCategoryDropdown
-            currentCategory={mappedData.fuel}
-            candidates={engineCandidates}
-            onCategoryChange={onEngineCategoryChange}
-          />
-        ) : mappedData?.engine_class ? (
-          <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
-        ) : null}
-        {powerBand && <Tag>Serwis: {powerBand}</Tag>}
-        <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
-        {crossCardAlerts.length > 0 && (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
-            title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"} z rabatem ${crossCardAlerts[0].siblingDiscountPct}%`}
-            onClick={(e) => {
-              e.stopPropagation();
-              const targetId = crossCardAlerts[0].siblingVehicleId;
-              if (onScrollToVehicle) {
-                onScrollToVehicle(targetId);
-              } else {
-                const el = document.querySelector(`[data-vehicle-id="${targetId}"]`);
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                  el.classList.add("ring-4", "ring-amber-300");
-                  setTimeout(() => el.classList.remove("ring-4", "ring-amber-300"), 2000);
-                }
-              }
-            }}
-          >
-            <AlertTriangle className="w-3 h-3" />
-            Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.) →
-          </button>
-        )}
-      </div>
+      {/* ── Row 2: Badges — fixed order with group separators ── */}
+      {(() => {
+        /* Determine which groups have content for smart separator placement */
+        const hasIdGroup = hasValue(vehicle.offer_number) || hasValue(vehicle.configuration_code);
+        const hasRabatGroup = vehicle.suggested_discount_pct != null || (vehicle.synthesis_data && vehicle.suggested_discount_pct == null);
+        const hasClassGroup = !!mappedData?.samar_category || !!mappedData?.engine_class;
+        const hasServiceGroup = !!powerBand || !!driveType;
+        const hasStatusGroup = !!readinessResult || crossCardAlerts.length > 0;
+
+        return (
+          <div className="flex gap-2 mt-2 flex-wrap items-center ml-0 sm:ml-8">
+            {/* ① Identyfikacja: nr oferty, kod konfiguracji */}
+            {hasValue(vehicle.offer_number) && (
+              <CodeTag>{vehicle.offer_number}</CodeTag>
+            )}
+            {hasValue(vehicle.configuration_code) && (
+              <CodeTag>{vehicle.configuration_code}</CodeTag>
+            )}
+
+            {/* ·  separator  · */}
+            {hasIdGroup && hasRabatGroup && <Separator />}
+
+            {/* ② Warunki: rabat */}
+            {vehicle.suggested_discount_pct != null && (
+              <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
+            )}
+            {vehicle.synthesis_data && vehicle.suggested_discount_pct == null && (
+              <Tag>Brak rabatu</Tag>
+            )}
+
+            {/* ·  separator  · */}
+            {(hasIdGroup || hasRabatGroup) && hasClassGroup && <Separator />}
+
+            {/* ③ Klasyfikacja: SAMAR, silnik */}
+            {mappedData?.samar_category && onSamarCategoryChange ? (
+              <SamarCategoryDropdown
+                currentCategory={mappedData.samar_category}
+                candidates={samarCandidates}
+                onCategoryChange={onSamarCategoryChange}
+              />
+            ) : mappedData?.samar_category ? (
+              <Tag>SAMAR: {mappedData.samar_category}</Tag>
+            ) : null}
+            {mappedData?.engine_class && onEngineCategoryChange ? (
+              <EngineCategoryDropdown
+                currentCategory={mappedData.fuel}
+                candidates={engineCandidates}
+                onCategoryChange={onEngineCategoryChange}
+              />
+            ) : mappedData?.engine_class ? (
+              <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
+            ) : null}
+
+            {/* ·  separator  · */}
+            {(hasIdGroup || hasRabatGroup || hasClassGroup) && hasServiceGroup && <Separator />}
+
+            {/* ④ Serwis: poziom, napęd */}
+            {powerBand && <Tag>Serwis: {powerBand}</Tag>}
+            <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
+
+            {/* ·  separator  · */}
+            {(hasIdGroup || hasRabatGroup || hasClassGroup || hasServiceGroup) && hasStatusGroup && <Separator />}
+
+            {/* ⑤ Status: gotowość, alerty */}
+            {readinessResult && <ReadinessBadge result={readinessResult} />}
+            {crossCardAlerts.length > 0 && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
+                title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"} z rabatem ${crossCardAlerts[0].siblingDiscountPct}%`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const targetId = crossCardAlerts[0].siblingVehicleId;
+                  if (onScrollToVehicle) {
+                    onScrollToVehicle(targetId);
+                  } else {
+                    const el = document.querySelector(`[data-vehicle-id="${targetId}"]`);
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      el.classList.add("ring-4", "ring-amber-300");
+                      setTimeout(() => el.classList.remove("ring-4", "ring-amber-300"), 2000);
+                    }
+                  }
+                }}
+              >
+                <AlertTriangle className="w-3 h-3" />
+                Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.) →
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

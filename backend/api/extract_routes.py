@@ -236,6 +236,44 @@ def proxy_pdf(url: str):
         raise HTTPException(status_code=500, detail="Failed to proxy PDF")
 
 
+_MIME_MAP: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+}
+
+
+@router.get("/doc-proxy")
+def proxy_document(url: str):
+    """Universal document proxy — returns correct Content-Type for PDF/XLSX/XLS."""
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    from urllib.parse import urlparse
+    import os
+
+    try:
+        parsed = urlparse(url)
+        ext = os.path.splitext(parsed.path)[1].lower()
+        media_type = _MIME_MAP.get(ext, "application/octet-stream")
+
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return Response(
+            content=response.content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'inline; filename="document{ext}"',
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",
+                "Cross-Origin-Resource-Policy": "cross-origin",
+            },
+        )
+    except Exception as e:
+        print(f"Error proxying document: {e}")
+        raise HTTPException(status_code=500, detail="Failed to proxy document")
+
+
 class DeleteVehicleRequest(BaseModel):
     vehicle_id: str
 

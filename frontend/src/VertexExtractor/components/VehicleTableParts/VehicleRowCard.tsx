@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Database, ExternalLink, Loader2, Wand2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
@@ -7,11 +7,12 @@ import { VehicleBaseInfo } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 // VehicleServiceIntervals removed — service cost uses normatywny_przebieg_mc floor
-import { PDFViewerFrame } from "./PDFViewerFrame";
+import { DocumentViewerFrame } from "./PDFViewerFrame";
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
+import { RentalRatesMiniMatrix } from "./RentalRatesMiniMatrix";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
 interface VehicleRowCardProps {
@@ -65,7 +66,7 @@ export function VehicleRowCard({
       const cardSummaryKeys = new Set([
         "trim_level", "body_style", "vehicle_class", "powertrain",
         "fuel", "transmission", "wheels", "emissions", "exterior_color",
-        "configuration_code",
+        "configuration_code", "number_of_seats",
       ]);
 
       // Top-level column updates
@@ -185,15 +186,20 @@ export function VehicleRowCard({
     return "current";
   });
 
-  // Metalik auto-detection: LLM priority, fallback to keyword matching
+  // Metalik auto-detection: keyword matching overrides AI errors
   const autoDetectMetalic = (): boolean => {
     const cs = (vehicle.synthesis_data as any)?.card_summary;
+    // Step 1: keyword matching on exterior_color (highest priority — catches AI errors)
+    const color = (vehicle.exterior_color || "").toLowerCase();
+    const metallicKeywords = ["metalic", "metalik", "metallic", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"];
+    if (metallicKeywords.some(kw => color.includes(kw))) return true;
+    const nonMetallicKeywords = ["solido", "uni ", "akrylow", "jednowarstwow"];
+    if (nonMetallicKeywords.some(kw => color.includes(kw))) return false;
+    // Step 2: AI flag (only if keywords inconclusive)
     if (cs?.is_metalic_paint === true) return true;
     if (cs?.is_metalic_paint === false) return false;
-    // Fallback: keyword matching on exterior_color
-    const color = (vehicle.exterior_color || "").toLowerCase();
-    const keywords = ["metalic", "metalik", "metallic", "perłowy", "pearl", "mica", "xirallic", "special"];
-    return keywords.some(kw => color.includes(kw));
+    // Step 3: no data — default to false
+    return false;
   };
   const [isMetalic, setIsMetalic] = useState<boolean>(autoDetectMetalic());
 
@@ -565,6 +571,60 @@ export function VehicleRowCard({
   // Extract Engine candidates for reranking dropdown
   const engineCandidates: { klasa: string; confidence: number }[] =
     ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
+
+  // ── Readiness Check ──────────────────────────────────────────────
+  interface ReadinessCheck {
+    param: string;
+    status: string;
+    value: string;
+  }
+  interface ReadinessResult {
+    overall_status: "ready" | "partial" | "not_ready";
+    samar_class_id: number | null;
+    fuel_type_id: number | null;
+    checks: ReadinessCheck[];
+    critical_count: number;
+    warning_count: number;
+    resolve_error?: string;
+  }
+
+  const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
+
+  const fetchReadiness = useCallback(async () => {
+    const samarName = mappedData?.samar_category;
+    const engineName = mappedData?.fuel;
+    if (!samarName || !engineName) {
+      setReadinessResult(null);
+      return;
+    }
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const params = new URLSearchParams({
+        samar_class_name: samarName,
+        engine_name: engineName,
+        brand_name: vehicle.brand || "",
+      });
+      // Pass body_type if available
+      if (vehicle.body_style) {
+        params.set("body_type_name", vehicle.body_style);
+      }
+      // Pass paint type based on isMetalic toggle or exterior color info
+      const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
+      params.set("paint_type_name", paintTypeName);
+
+      const res = await fetch(`${baseUrl}/api/readiness-check?${params}`);
+      if (!res.ok) throw new Error("Readiness check failed");
+      const data: ReadinessResult = await res.json();
+      setReadinessResult(data);
+    } catch (err) {
+      console.error("Readiness check error:", err);
+      setReadinessResult(null);
+    }
+  }, [mappedData?.samar_category, mappedData?.fuel, vehicle.brand, vehicle.body_style, isMetalic]);
+
+  useEffect(() => {
+    fetchReadiness();
+  }, [fetchReadiness]);
 
   // Extract drive type from card_summary
   const DRIVE_TYPE_MAP: Record<string, string> = {
@@ -1078,6 +1138,7 @@ export function VehicleRowCard({
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
+        readinessResult={readinessResult}
       />
 
       {isExpanded && (
@@ -1090,6 +1151,38 @@ export function VehicleRowCard({
               isSaving={isSavingFields}
               onRemapClassification={handleRemapClassification}
               isRemapping={isRemappingClassification}
+            />
+            <RentalRatesMiniMatrix
+              vehicle={vehicle}
+              basePriceNet={toNettoAware(basePrice, vehicle.base_price || undefined)}
+              discountPct={activeDiscountPct}
+              defaultMarginPct={pricingMarginPct}
+              wiborPct={wiborPct}
+              marginPct={marginPct}
+              depreciationPct={depreciationPct}
+              initialDepositPct={initialDepositPct}
+              replacementCar={replacementCar}
+              gpsRequired={gpsRequired}
+              hookInstallation={hookInstallation}
+              includeServicing={includeServicing}
+              tireClass={tireClass}
+              tireCountMode={tireCountMode}
+              tireCostCorrectionEnabled={tireCostCorrectionEnabled}
+              tireCostCorrection={tireCostCorrection}
+              rimDiameter={rimDiameter}
+              serviceCostType={serviceCostType}
+              vehicleVintage={vehicleVintage}
+              isMetalic={isMetalic}
+              factoryOptions={customFactoryOptions.map((o) => ({
+                name: o.name,
+                price_net: o.price_net,
+                no_discount: (o as any).no_discount || false,
+              }))}
+              serviceOptions={customServiceOptions.map((o) => ({
+                name: o.name,
+                price_net: o.price_net,
+                include_in_wr: o.include_in_wr || false,
+              }))}
             />
             <VehicleEquipmentCard
               vehicle={vehicle}
@@ -1409,8 +1502,8 @@ export function VehicleRowCard({
              )}
 
               {isViewerOpen && vehicle.raw_pdf_url && (
-                 <PDFViewerFrame 
-                    rawPdfUrl={vehicle.raw_pdf_url} 
+                 <DocumentViewerFrame 
+                    rawDocUrl={vehicle.raw_pdf_url} 
                     brand={vehicle.brand || "?"} 
                     model={vehicle.model || "?"} 
                  />

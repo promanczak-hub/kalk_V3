@@ -8,7 +8,7 @@ from core.database import supabase
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 from core.LTRSubCalculatorAmortyzacja import AmortyzacjaCalculator, AmortyzacjaInput
 from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
-from core.LTRSubCalculatorFinanse import FinanceCalculator, FinanceInput
+from core.LTRSubCalculatorFinanse import FinanseCalculator, FinanseInput
 
 
 def get_rates(klasa_id):

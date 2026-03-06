@@ -71,7 +71,7 @@ export function SamarCategoryDropdown({
           }
         `}
         title={hasCandidates ? "Zmień klasę SAMAR" : currentCategory}
-        style={{ fontFamily: "'VT323', monospace", fontSize: "0.875rem" }}
+        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.875rem" }}
       >
         <span>SAMAR: {shortLabel(currentCategory)}</span>
         {hasCandidates && (

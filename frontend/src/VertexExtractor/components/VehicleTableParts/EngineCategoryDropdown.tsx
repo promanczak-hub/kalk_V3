@@ -71,7 +71,7 @@ export function EngineCategoryDropdown({
           }
         `}
         title={hasCandidates ? "Zmień napęd" : currentCategory}
-        style={{ fontFamily: "'VT323', monospace", fontSize: "0.875rem" }}
+        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.875rem" }}
       >
         <span>SILNIK: {shortLabel(currentCategory)}</span>
         {hasCandidates && (

@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional, cast
+import logging
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -911,6 +912,184 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Readiness Check ─────────────────────────────────────────────────
+
+# Cache dla mapowania silników – ładowany dynamicznie z tabeli `engines`.
+_engine_name_cache: Optional[Dict[str, int]] = None
+
+
+def _load_engine_name_map() -> Dict[str, int]:
+    """Ładuje mapowanie name.upper() → id z tabeli engines."""
+    global _engine_name_cache
+    if _engine_name_cache is not None:
+        return _engine_name_cache
+    try:
+        resp = supabase.table("engines").select("id, name").execute()
+        data = cast(Any, resp.data) or []
+        _engine_name_cache = {row["name"].strip().upper(): row["id"] for row in data}
+    except Exception:
+        logging.warning("Nie udało się załadować tabeli engines – pusty cache")
+        _engine_name_cache = {}
+    return _engine_name_cache
+
+
+def _resolve_engine_id(engine_name: str) -> Optional[int]:
+    """Mapuje nazwę silnika (np. 'Benzyna mHEV (PB-mHEV)') na engines.id."""
+    mapping = _load_engine_name_map()
+    normalized = engine_name.strip().upper()
+    # Exact match first
+    if normalized in mapping:
+        return mapping[normalized]
+    # Fuzzy: szukaj zawierania klucza w nazwie lub nazwy w kluczu
+    for key, fid in mapping.items():
+        if key in normalized or normalized in key:
+            return fid
+    return None
+
+
+@app.get("/api/readiness-check", tags=["Calculator"])
+async def readiness_check(
+    samar_class_name: str,
+    engine_name: str,
+    brand_name: str = "",
+    body_type_name: str = "",
+    paint_type_name: str = "",
+) -> Dict[str, Any]:
+    """Sprawdza gotowość danych SAMAR do kalkulacji WR."""
+    from core.samar_rv import check_rv_readiness, get_samar_class_id
+
+    # 1. Resolve nazwy → ID
+    samar_class_id = get_samar_class_id(samar_class_name)
+    fuel_type_id = _resolve_engine_id(engine_name)
+
+    if samar_class_id is None:
+        return {
+            "overall_status": "not_ready",
+            "samar_class_id": None,
+            "fuel_type_id": fuel_type_id,
+            "resolve_error": f"Nie znaleziono klasy SAMAR: '{samar_class_name}'",
+            "checks": [],
+            "critical_count": 1,
+            "warning_count": 0,
+        }
+
+    if fuel_type_id is None:
+        return {
+            "overall_status": "not_ready",
+            "samar_class_id": samar_class_id,
+            "fuel_type_id": None,
+            "resolve_error": f"Nie rozpoznano silnika: '{engine_name}'",
+            "checks": [],
+            "critical_count": 1,
+            "warning_count": 0,
+        }
+
+    # 1b. Resolve body_type_name → body_type_id (from body_types table)
+    resolved_body_type_id: Optional[int] = None
+    if body_type_name.strip():
+        try:
+            bt_norm = body_type_name.strip().upper()
+            bt_res = supabase.table("body_types").select("id, name").execute()
+            for row in bt_res.data or []:
+                if row["name"].strip().upper() == bt_norm:
+                    resolved_body_type_id = int(row["id"])
+                    break
+            # Fuzzy fallback: substring match
+            if resolved_body_type_id is None:
+                for row in bt_res.data or []:
+                    row_name = row["name"].strip().upper()
+                    if row_name in bt_norm or bt_norm in row_name:
+                        resolved_body_type_id = int(row["id"])
+                        break
+        except Exception as exc:
+            logging.warning("Resolve body_type_name błąd: %s", exc)
+
+    # 1c. Resolve paint_type_name → paint_type_id (from paint_types table)
+    resolved_paint_type_id: Optional[int] = None
+    if paint_type_name.strip():
+        try:
+            pt_norm = paint_type_name.strip().upper()
+            pt_res = supabase.table("paint_types").select("id, name").execute()
+            for row in pt_res.data or []:
+                if row["name"].strip().upper() == pt_norm:
+                    resolved_paint_type_id = int(row["id"])
+                    break
+            # Fuzzy fallback: substring match
+            if resolved_paint_type_id is None:
+                for row in pt_res.data or []:
+                    row_name = row["name"].strip().upper()
+                    if row_name in pt_norm or pt_norm in row_name:
+                        resolved_paint_type_id = int(row["id"])
+                        break
+        except Exception as exc:
+            logging.warning("Resolve paint_type_name błąd: %s", exc)
+
+    # 2. Wywołaj istniejący check_rv_readiness (zamrożony moduł)
+    checks = check_rv_readiness(
+        samar_class_id=samar_class_id,
+        engine_id=fuel_type_id,
+        brand_name=brand_name or "UNKNOWN",
+        body_type_id=resolved_body_type_id,
+        paint_type_id=resolved_paint_type_id,
+        rocznik="2026",
+    )
+
+    # 2b. Dodatkowy check: stawki serwisowe (samar_service_costs)
+    try:
+        svc_res = (
+            supabase.table("samar_service_costs")
+            .select("power_band")
+            .eq("samar_class_id", samar_class_id)
+            .eq("engine_type_id", fuel_type_id)
+            .execute()
+        )
+        svc_bands = {r["power_band"] for r in (svc_res.data or [])}
+        if svc_bands:
+            svc_item = type(checks[0])(
+                param="Stawki serwisowe",
+                status="ok",
+                value=f"{', '.join(sorted(svc_bands))}",
+            )
+        else:
+            svc_item = type(checks[0])(
+                param="Stawki serwisowe",
+                status="error",
+                value="brak wpisów",
+            )
+        checks.append(svc_item)
+    except Exception:
+        pass
+
+    # 3. Przelicz wynik — uproszczone wartości: ok→TAK, error→NIE, warn→opis
+    def _simplify_value(c):  # noqa: ANN001, ANN202
+        if c.status == "ok":
+            return "TAK"
+        if c.status == "error":
+            return "NIE"
+        return c.value  # warn — zachowaj opis braku
+
+    items = [
+        {"param": c.param, "status": c.status, "value": _simplify_value(c)}
+        for c in checks
+    ]
+    error_count = sum(1 for c in checks if c.status == "error")
+    warn_count = sum(1 for c in checks if c.status == "warn")
+
+    if error_count > 0:
+        overall = "not_ready"
+    else:
+        overall = "ready"
+
+    return {
+        "overall_status": overall,
+        "samar_class_id": samar_class_id,
+        "fuel_type_id": fuel_type_id,
+        "checks": items,
+        "critical_count": error_count,
+        "warning_count": warn_count,
+    }
 
 
 # ── Body Type WR Corrections CRUD (Sparse) ──

@@ -29,7 +29,7 @@ function App() {
     },
     typography: {
       fontFamily:
-        '"Inter", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
+        '"Geist", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
       fontSize: 13,
     },
     components: {
@@ -136,11 +136,14 @@ function App() {
       <div
         style={{
           minHeight: "100vh",
-          padding: "24px",
-          maxWidth: "1400px",
-          margin: "0 auto",
+          padding: "24px 32px",
         }}
       >
+        {/* Express Car Rental Logo */}
+        <Box sx={{ mb: 2 }}>
+          <img src="/express-logo.png" alt="Express Car Rental" style={{ height: 40 }} />
+        </Box>
+
         <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
           <Tabs
             value={currentTab}
@@ -151,14 +154,14 @@ function App() {
             scrollButtons="auto"
             aria-label="Nawigacja"
           >
-            <Tab value={0} label="Vertex Extractor" />
+            <Tab value={0} label="Ekstrakcja Danych" />
             <Tab value={1} label="Kalkulacje" />
             <Tab 
               value={2} 
               label={editingTitle ? `Kalkulacja: ${editingTitle}` : "Edytor"} 
               sx={{ display: editingTitle ? 'flex' : 'none' }} 
             />
-            <Tab value={3} label="Control Center (Parametry Globalne)" />
+            <Tab value={3} label="Control Center" />
           </Tabs>
         </Box>
 

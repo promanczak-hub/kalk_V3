@@ -142,6 +142,11 @@ Na podstawie daty waznosci oferty, roku modelowego, roku produkcji, daty dokumen
 - True: pojazd z biezacego lub przyszlego rocznika produkcji.
 - False: pojazd wyprodukowany w roku poprzednim (ubiegloroczny).
 - null: brak wystarczajacych danych do oceny.
+
+ILOŚĆ MIEJSC (number_of_seats):
+Wyciągnij liczbę miejsc siedzących (łącznie z kierowcą) z danych technicznych, specyfikacji lub homologacji pojazdu.
+- Zwróć jako liczbę całkowitą (np. 5, 7, 3, 9).
+- Jeśli brak informacji, zostaw null.
 """
 
 BROCHURE_SUMMARY_PROMPT = """

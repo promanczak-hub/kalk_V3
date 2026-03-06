@@ -74,22 +74,36 @@ def check_rv_readiness(
     """Sprawdza pokrycie parametrów w DB przed kalkulacją."""
     checks: list[ReadinessItem] = []
 
-    # 1. WR bazy (year=0 in depreciation_rates)
+    # 1. WR bazy + deprecjacja (ta sama tabela samar_class_depreciation_rates)
     try:
         res = (
             supabase.table("samar_class_depreciation_rates")
-            .select("base_depreciation_percent")
+            .select("year, base_depreciation_percent")
             .eq("samar_class_id", samar_class_id)
             .eq("fuel_type_id", engine_id)
-            .eq("year", 0)
-            .limit(1)
             .execute()
         )
-        if res.data:
-            pct = res.data[0]["base_depreciation_percent"]
+        rows = res.data or []
+        years_found = len(rows)
+        # Szukamy WR bazy (year=0)
+        base_row = next((r for r in rows if int(r["year"]) == 0), None)
+
+        if base_row and years_found >= 8:
+            pct = float(base_row["base_depreciation_percent"]) * 100
             checks.append(
                 ReadinessItem(
-                    "WR bazy (klasa×silnik)", "ok", f"{float(pct) * 100:.0f}%"
+                    "WR bazy (klasa×silnik)",
+                    "ok",
+                    f"{pct:.0f}%, {years_found} lat",
+                )
+            )
+        elif base_row:
+            pct = float(base_row["base_depreciation_percent"]) * 100
+            checks.append(
+                ReadinessItem(
+                    "WR bazy (klasa×silnik)",
+                    "warn",
+                    f"{pct:.0f}%, tylko {years_found} lat",
                 )
             )
         else:
@@ -98,29 +112,6 @@ def check_rv_readiness(
             )
     except Exception:
         checks.append(ReadinessItem("WR bazy (klasa×silnik)", "error", "błąd DB"))
-
-    # 2. Deprecjacja roczna (years 1-7)
-    try:
-        res = (
-            supabase.table("samar_class_depreciation_rates")
-            .select("year")
-            .eq("samar_class_id", samar_class_id)
-            .eq("fuel_type_id", engine_id)
-            .execute()
-        )
-        years_found = len(res.data or [])
-        if years_found >= 8:
-            checks.append(
-                ReadinessItem("Deprecjacja roczna", "ok", f"{years_found} lat")
-            )
-        elif years_found > 0:
-            checks.append(
-                ReadinessItem("Deprecjacja roczna", "warn", f"tylko {years_found} lat")
-            )
-        else:
-            checks.append(ReadinessItem("Deprecjacja roczna", "error", "brak danych"))
-    except Exception:
-        checks.append(ReadinessItem("Deprecjacja roczna", "error", "błąd DB"))
 
     # 3. Korekta marka
     try:

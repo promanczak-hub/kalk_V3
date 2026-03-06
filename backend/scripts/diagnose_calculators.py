@@ -353,24 +353,31 @@ def diagnose_vehicle(
 
     # ── KROK 9: FINANSE (PMT) ──
     try:
-        from core.LTRSubCalculatorFinanse import FinanceCalculator, FinanceInput
+        from core.LTRSubCalculatorFinanse import FinanseCalculator, FinanseInput
 
-        finance_input = FinanceInput(
-            total_capex=capex_for_financing,
-            upfront_pct=0.0,
-            rv_net=vr_samar,
-            months=MONTHS,
-            wibor_pct=5.0,
-            margin_pct=2.0,
+        vat_rate_diag = getattr(settings, "vat_rate", 1.23)
+        if vat_rate_diag > 10.0:
+            vat_rate_diag = 1.0 + (vat_rate_diag / 100.0)
+
+        finance_input = FinanseInput(
+            WartoscPoczatkowaNetto=capex_for_financing,
+            WrPrzewidywanaCenaSprzedazy=vr_samar,
+            CzynszInicjalny=0.0,
+            CzynszProcent=0.0,
+            RodzajCzynszu="Kwotowo",
+            StawkaVAT=vat_rate_diag,
+            Okres=MONTHS,
+            WIBORProcent=5.0,
+            MarzaFinansowaProcent=2.0,
         )
-        finance_calc = FinanceCalculator(finance_input)
+        finance_calc = FinanseCalculator(finance_input)
         finance_res = finance_calc.calculate()
-        finance_total_interest = finance_res.total_interest
-        finance_initial_deposit = finance_res.initial_deposit_net
+        finance_total_interest = finance_res.SumaOdsetekZczynszem
+        finance_initial_deposit = finance_res.CzynszInicjalnyNetto
         msg = (
-            f"PMT_mc={finance_res.monthly_pmt_net:.2f}, "
-            f"total_interest={finance_total_interest:.2f}, "
-            f"deposit={finance_initial_deposit:.2f}"
+            f"PMT_z_cz={finance_res.monthly_pmt_z_czynszem:.2f}, "
+            f"odsetki_z={finance_res.SumaOdsetekZczynszem:.2f}, "
+            f"odsetki_bez={finance_res.SumaOdsetekBEZczynszu:.2f}"
         )
         print(f"  {OK}  {step_header(9, 'Fi', 'Finanse (PMT)')} → {msg}")
         results["9_Finanse"] = f"OK: {msg}"
