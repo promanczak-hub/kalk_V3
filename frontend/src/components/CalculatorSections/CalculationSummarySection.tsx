@@ -132,16 +132,14 @@ export default function CalculationSummarySection({
               <Grid size={{ xs: 6 }}>
                 <TextField
                   fullWidth
-                  label="Procent Amortyzacji"
-                  type="number"
-                  inputProps={{ step: 0.01 }}
-                  value={(data.ProcentAmortyzacji * 100).toFixed(2)}
-                  onChange={(e) => handleUpdate("ProcentAmortyzacji", (parseFloat(e.target.value) || 0) / 100)}
+                  disabled
+                  label="Procent Amortyzacji (Auto)"
+                  value={data.ProcentAmortyzacji ? (data.ProcentAmortyzacji * 100).toFixed(2) : "—"}
                   size="small"
                   InputProps={{
                     endAdornment: <InputAdornment position="end">%</InputAdornment>,
                   }}
-                  sx={{ bgcolor: "#fafafa" }}
+                  helperText="Obliczany dynamicznie z WP, WR i okresu"
                 />
               </Grid>
             </Grid>

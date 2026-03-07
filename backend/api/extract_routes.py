@@ -131,7 +131,7 @@ async def map_vehicle_data(request: MapDataRequest) -> Dict[str, Any]:
 @router.post("/extract/remap-classification")
 async def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
     """
-    Full classification pipeline: Flash mapper → SAMAR → Engine.
+    Full classification pipeline: Flash mapper → Engine → SAMAR.
     Returns mapped_ai_data with samar_category, engine_class, candidates.
     """
     from core.samar_mapper import map_to_samar_class
@@ -146,25 +146,9 @@ async def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
         card_summary = request.original_json.get("card_summary", {})
         brand = mapped_data.get("brand") or request.original_json.get("brand")
         model = mapped_data.get("model") or request.original_json.get("model")
-
-        # Step 2: SAMAR classification
-        segment = card_summary.get("segment") or card_summary.get("car_segment")
-        body_style = card_summary.get("body_style")
         trim = mapped_data.get("trim_level")
-        transmission = mapped_data.get("transmission")
 
-        samar_code, samar_name, samar_candidates = map_to_samar_class(
-            brand=brand,
-            model=model,
-            segment=segment,
-            body_style=body_style,
-            trim=trim,
-            transmission=transmission,
-        )
-        mapped_data["samar_category"] = samar_name
-        mapped_data["samar_candidates"] = samar_candidates
-
-        # Step 3: Engine classification
+        # Step 2: Engine classification (first — doesn't depend on SAMAR)
         powertrain_data = (
             card_summary.get("powertrain", {})
             if isinstance(card_summary.get("powertrain"), dict)
@@ -200,7 +184,25 @@ async def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
             except Exception as db_e:
                 print(f"[REMAP] Engine fallback DB error: {db_e}")
 
-        print(f"[REMAP] Done: SAMAR={samar_name}, Engine={eng_name}/{eng_cat}")
+        # Step 3: SAMAR classification (last — uses full context incl. seats)
+        segment = card_summary.get("segment") or card_summary.get("car_segment")
+        body_style = card_summary.get("body_style")
+        transmission = mapped_data.get("transmission")
+        seats_raw = card_summary.get("number_of_seats")
+
+        samar_code, samar_name, samar_candidates = map_to_samar_class(
+            brand=brand,
+            model=model,
+            segment=segment,
+            body_style=body_style,
+            trim=trim,
+            transmission=transmission,
+            number_of_seats=int(seats_raw) if seats_raw else None,
+        )
+        mapped_data["samar_category"] = samar_name
+        mapped_data["samar_candidates"] = samar_candidates
+
+        print(f"[REMAP] Done: Engine={eng_name}/{eng_cat}, SAMAR={samar_name}")
         return mapped_data
 
     except Exception as e:

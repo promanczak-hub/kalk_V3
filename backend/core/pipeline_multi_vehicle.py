@@ -7,6 +7,7 @@ If only 1 vehicle, returns early and lets the standard pipeline handle it.
 """
 
 import json
+import logging
 from typing import Union
 
 from google.genai import types
@@ -14,6 +15,22 @@ from google.genai import types
 from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.prompts import MULTI_VEHICLE_DETECTION_PROMPT
+
+logger = logging.getLogger(__name__)
+
+# Polish word-to-number mapping for Flash responses
+_WORD_TO_NUM: dict[str, int] = {
+    "jeden": 1,
+    "dwa": 2,
+    "trzy": 3,
+    "cztery": 4,
+    "pięć": 5,
+    "sześć": 6,
+    "siedem": 7,
+    "osiem": 8,
+    "dziewięć": 9,
+    "dziesięć": 10,
+}
 
 
 def _build_document_parts(
@@ -88,19 +105,32 @@ def detect_vehicle_count(
             config=config,
         )
         raw_text = (getattr(response, "text", "1") or "1").strip()
-        print(f"[MULTI-VEHICLE] Raw Flash response: '{raw_text}'")
+        logger.info("[MULTI-VEHICLE] Raw Flash response: '%s'", raw_text)
         # Extract first number if Flash adds extra text
         digits = (
             "".join(c for c in raw_text.split()[0] if c.isdigit()) if raw_text else "1"
         )
-        count = int(digits) if digits else 1
-        print(f"[MULTI-VEHICLE] Gemini Flash detected {count} vehicle(s)")
+        if digits:
+            count = int(digits)
+        else:
+            # Fallback: try Polish word-to-number
+            first_word = raw_text.split()[0].lower() if raw_text else ""
+            count = _WORD_TO_NUM.get(first_word, 1)
+            if count > 1:
+                logger.info(
+                    "[MULTI-VEHICLE] Parsed word '%s' as %d",
+                    first_word,
+                    count,
+                )
+        logger.info("[MULTI-VEHICLE] Gemini Flash detected %d vehicle(s)", count)
         return max(count, 1)
     except (ValueError, TypeError) as e:
-        print(f"[MULTI-VEHICLE] Could not parse vehicle count, defaulting to 1: {e}")
+        logger.warning(
+            "[MULTI-VEHICLE] Could not parse vehicle count, defaulting to 1: %s", e
+        )
         return 1
     except Exception as e:
-        print(f"[MULTI-VEHICLE] Detection error, defaulting to 1: {e}")
+        logger.warning("[MULTI-VEHICLE] Detection error, defaulting to 1: %s", e)
         return 1
 
 
@@ -143,17 +173,21 @@ def extract_multi_vehicle_twins(
 
         vehicles = data.get("vehicles", [])
         if not isinstance(vehicles, list) or len(vehicles) == 0:
-            print("[MULTI-VEHICLE] Pro returned no vehicles array, falling back")
+            logger.warning(
+                "[MULTI-VEHICLE] Pro returned no vehicles array, falling back"
+            )
             return []
 
-        print(f"[MULTI-VEHICLE] Gemini Pro extracted {len(vehicles)} vehicle twin(s)")
+        logger.info(
+            "[MULTI-VEHICLE] Gemini Pro extracted %d vehicle twin(s)", len(vehicles)
+        )
         return vehicles
 
     except json.JSONDecodeError as e:
-        print(f"[MULTI-VEHICLE] JSON decode error from Pro: {e}")
+        logger.warning("[MULTI-VEHICLE] JSON decode error from Pro: %s", e)
         return []
     except Exception as e:
-        print(f"[MULTI-VEHICLE] Extraction error: {e}")
+        logger.warning("[MULTI-VEHICLE] Extraction error: %s", e)
         return []
 
 
@@ -173,9 +207,9 @@ def detect_and_split_vehicles(
     if count <= 1:
         return None
 
-    print(
-        f"[MULTI-VEHICLE] Flash detected {count} vehicles, "
-        f"sending to Pro for extraction..."
+    logger.info(
+        "[MULTI-VEHICLE] Flash detected %d vehicles, sending to Pro for extraction...",
+        count,
     )
     vehicles = extract_multi_vehicle_twins(
         document_data, mime_type, expected_count=count
@@ -183,23 +217,33 @@ def detect_and_split_vehicles(
 
     if len(vehicles) < 2:
         # Retry once — Pro sometimes needs a stronger hint
-        print(
-            f"[MULTI-VEHICLE] Pro returned {len(vehicles)} twin(s) "
-            f"(expected {count}), retrying..."
+        logger.info(
+            "[MULTI-VEHICLE] Pro returned %d twin(s) (expected %d), retrying...",
+            len(vehicles),
+            count,
         )
         vehicles = extract_multi_vehicle_twins(
             document_data, mime_type, expected_count=count
         )
 
     if len(vehicles) < 2:
-        print(
-            f"[MULTI-VEHICLE] Pro could not extract multiple twins "
-            f"after retry (got {len(vehicles)}), fallback to single"
+        logger.warning(
+            "[MULTI-VEHICLE] Pro could not extract multiple twins "
+            "after retry (got %d), fallback to single",
+            len(vehicles),
         )
         return None
 
-    print(
-        f"[MULTI-VEHICLE] Successfully extracted {len(vehicles)} "
-        f"vehicles (Flash expected {count})"
+    if len(vehicles) != count:
+        logger.warning(
+            "[MULTI-VEHICLE] Count mismatch: Flash=%d vs Pro=%d",
+            count,
+            len(vehicles),
+        )
+
+    logger.info(
+        "[MULTI-VEHICLE] Successfully extracted %d vehicles (Flash expected %d)",
+        len(vehicles),
+        count,
     )
     return vehicles

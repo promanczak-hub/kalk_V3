@@ -44,7 +44,7 @@ export function VehicleEquipmentCard({
   const totalBrutto = totalNet * VAT;
 
   return (
-    <div className="border border-slate-200 rounded bg-white">
+    <div id="factory-options-section" className="border border-slate-200 rounded bg-white">
       {/* Header */}
       <div className="px-5 py-3 border-b border-slate-200 bg-slate-50">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">

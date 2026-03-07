@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import traceback
 from typing import Any
@@ -17,6 +18,8 @@ from core.prompts import (
     CARD_SUMMARY_PROMPT,
     OTHER_DOC_SUMMARY_PROMPT,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_price_str(raw: Any) -> str:
@@ -442,6 +445,7 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
             "metalik",
             "metalic",
             "metallic",
+            "metalizow",
             "perłow",
             "pearl",
             "xirallic",
@@ -500,8 +504,18 @@ def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) 
     else:
         doc_type_str = doc_type_str.strip()
 
-    # Safety net: If AI says "Inny dokument" but we see brand/model, force Offer.
-    if "Inny dokument" in doc_type_str and "brand" in pro_data and "model" in pro_data:
+    # Safety net: If AI says "Inny dokument" but we see real brand/model values,
+    # force it back to Offer. Check VALUE, not just key existence.
+    has_brand = bool((pro_data.get("brand") or "").strip())
+    has_model = bool((pro_data.get("model") or "").strip())
+    if "Inny dokument" in doc_type_str and has_brand and has_model:
+        logger.info(
+            "[DOC TYPE] AI said '%s' but brand='%s', model='%s' present. "
+            "Forcing 'Oferta na samochód'.",
+            doc_type_str,
+            pro_data.get("brand"),
+            pro_data.get("model"),
+        )
         doc_type_str = "Oferta na samochód"
 
     return doc_type_str

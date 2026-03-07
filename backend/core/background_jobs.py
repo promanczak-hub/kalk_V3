@@ -104,25 +104,10 @@ def _finalize_vehicle(
         if not model or model == "Brak":
             model = mapped_data.get("model", model)
 
-        from core.samar_mapper import map_to_samar_class
-
         card_summary = parsed_data.get("card_summary", {})
-        segment = card_summary.get("segment") or card_summary.get("car_segment")
-        body_style = card_summary.get("body_style")
         trim = mapped_data.get("trim")
-        transmission = mapped_data.get("transmission")
 
-        samar_code, samar_name, samar_candidates = map_to_samar_class(
-            brand=brand,
-            model=model,
-            segment=segment,
-            body_style=body_style,
-            trim=trim,
-            transmission=transmission,
-        )
-        mapped_data["samar_category"] = samar_name
-        mapped_data["samar_candidates"] = samar_candidates
-
+        # ── 1. Engine mapper (first — doesn't depend on SAMAR) ──
         from core.engine_mapper import map_to_engine_class
 
         powertrain = (
@@ -160,6 +145,26 @@ def _finalize_vehicle(
                     mapped_data["engine_class"] = engines_resp.data[0]["category"]
             except Exception as db_e:
                 print(f"[BG TASK] Błąd pobierania kategorii silnika fallback: {db_e}")
+
+        # ── 2. SAMAR mapper (last — uses full context incl. seats) ──
+        from core.samar_mapper import map_to_samar_class
+
+        segment = card_summary.get("segment") or card_summary.get("car_segment")
+        body_style = card_summary.get("body_style")
+        transmission = mapped_data.get("transmission")
+        seats_raw = card_summary.get("number_of_seats")
+
+        samar_code, samar_name, samar_candidates = map_to_samar_class(
+            brand=brand,
+            model=model,
+            segment=segment,
+            body_style=body_style,
+            trim=trim,
+            transmission=transmission,
+            number_of_seats=int(seats_raw) if seats_raw else None,
+        )
+        mapped_data["samar_category"] = samar_name
+        mapped_data["samar_candidates"] = samar_candidates
 
         parsed_data["mapped_ai_data"] = mapped_data
 

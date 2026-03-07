@@ -42,6 +42,10 @@ class PipelineDebugger(LTRKalkulator):
 
         vehicle_capex, options_capex = self._calculate_capex()
         capex = vehicle_capex + options_capex
+        # V1 parity: WR curve uses FULL catalogue prices (no discount)
+        # vehicle_capex = discounted_base (for financing),
+        # but WR needs base_price_net (full catalogue) for depreciation curve
+        base_price_net_full = float(getattr(self.input_data, "base_price_net", 0))
 
         # KROK 1: Opony (Op)
         tires_res = self.tires_calc.calculate_cost(months=months, total_km=total_km)
@@ -180,7 +184,7 @@ class PipelineDebugger(LTRKalkulator):
             z_serwisem=True,
             opcja_serwisowa=self._opcja_serwisowa,
             normatywny_przebieg_mc=normatywny_przebieg,
-            samar_class_id=int(self.vehicle.get("klasa_wr_id", 0))
+            samar_class_id=int(self.vehicle.get("samar_class_id", 0))
             if self.vehicle
             else 0,
             engine_type_id=int(self.vehicle.get("engine_type_id", 1))
@@ -258,10 +262,13 @@ class PipelineDebugger(LTRKalkulator):
         if vat_rate > 10.0:
             vat_rate = 1.0 + (vat_rate / 100.0)
 
+        # V1 parity: WR depreciation curve uses full catalogue prices
+        # (no discount) to simulate market-rate value loss.
+        # base_wr_options already uses pre-discount option prices (line 251).
         rv_res = rv_calc.calculate_values(
             months=months,
             total_km=total_km,
-            base_vehicle_capex_gross=vehicle_capex * vat_rate,
+            base_vehicle_capex_gross=base_price_net_full * vat_rate,
             options_capex_gross=(base_wr_options + tires_capex) * vat_rate,
         )
 
@@ -298,7 +305,7 @@ class PipelineDebugger(LTRKalkulator):
                 "inputs": {
                     "months": months,
                     "total_km": total_km,
-                    "base_vehicle_capex_gross": vehicle_capex * vat_rate,
+                    "base_vehicle_capex_gross": base_price_net_full * vat_rate,
                     "options_capex_gross": (base_wr_options + tires_capex) * vat_rate,
                 },
                 "outputs": {

@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Union, Callable, Optional
 
 from core.pipeline_digital_twin import extract_digital_twin_from_pdf
@@ -10,6 +11,8 @@ from core.pipeline_price_validator import validate_and_flag_prices
 # Type alias for progress/cancel callbacks
 ProgressCallback = Callable[[str], None]
 CancelCheck = Callable[[], bool]
+
+logger = logging.getLogger(__name__)
 
 
 def extract_vehicle_data_v2(
@@ -61,8 +64,8 @@ def extract_vehicle_data_v2(
 
         return json.dumps(pro_data, ensure_ascii=False)
 
-    except Exception as e:
-        print(f"Error in modular extractor pipeline: {e}")
+    except Exception:
+        logger.exception("Error in modular extractor pipeline")
         return "{}"
 
 
@@ -101,8 +104,8 @@ def process_single_twin(
 
         return json.dumps(pro_data, ensure_ascii=False)
 
-    except Exception as e:
-        print(f"Error in single-twin pipeline: {e}")
+    except Exception:
+        logger.exception("Error in single-twin pipeline")
         return "{}"
 
 
@@ -112,6 +115,6 @@ def process_manual_override_v2(original_json: dict, user_prompt: str) -> str:
     """
     try:
         return process_manual_override(original_json, user_prompt)
-    except Exception as e:
-        print(f"Error in manual override pipeline: {e}")
+    except Exception:
+        logger.exception("Error in manual override pipeline")
         return json.dumps(original_json, ensure_ascii=False)

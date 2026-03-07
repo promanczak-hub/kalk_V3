@@ -94,6 +94,8 @@ def _call_gemini_flash(client, contents) -> dict:
     fallback_config = types.GenerateContentConfig(
         temperature=0.0,
         max_output_tokens=8192,
+        response_mime_type="application/json",
+        response_schema=FlatVehicleExtractionSchema,
         system_instruction=FALLBACK_STRUCTURED_PROMPT_FLASH,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )

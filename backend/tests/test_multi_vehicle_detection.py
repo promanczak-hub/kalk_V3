@@ -29,7 +29,7 @@ class FakeResponse:
 @pytest.fixture()
 def _patch_client():
     """Patch the Gemini client builder."""
-    with patch("core.pipeline_multi_vehicle._build_gemini_client") as mock_builder:
+    with patch("core.pipeline_multi_vehicle.get_gemini_client") as mock_builder:
         mock_client = MagicMock()
         mock_builder.return_value = mock_client
         yield mock_client

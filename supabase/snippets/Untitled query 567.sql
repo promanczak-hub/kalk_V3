@@ -1,0 +1,1 @@
+SELECT * FROM vehicle_synthesis LIMIT 5;

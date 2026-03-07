@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, X, ZoomIn, ZoomOut, Maximize2, RotateCcw } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import * as XLSX from "xlsx";
 
@@ -186,7 +186,12 @@ function ExcelViewer({ rawDocUrl, brand, model }: ExcelViewerProps) {
   );
 }
 
-/* ── PDF sub-component (existing logic, extracted) ────── */
+/* ── PDF sub-component — continuous scroll + zoom ────── */
+
+const ZOOM_STEP = 0.15;
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 4.0;
+const DEVICE_PIXEL_RATIO = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
 interface PDFViewerProps {
   rawDocUrl: string;
@@ -195,35 +200,33 @@ interface PDFViewerProps {
 }
 
 function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pageRefsMap = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [scale, setScale] = useState<number | "fit-width">("fit-width");
+  const [resolvedScale, setResolvedScale] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const renderGenRef = useRef(0);
 
+  /* ── Load PDF ── */
   useEffect(() => {
     let cancelled = false;
-
     const loadPdf = async () => {
       setIsLoading(true);
       setError(null);
-
       try {
         const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
         const proxyUrl = `${baseUrl}/api/doc-proxy?url=${encodeURIComponent(rawDocUrl)}`;
-
         const response = await fetch(proxyUrl);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
         const arrayBuffer = await response.arrayBuffer();
         const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
         if (!cancelled) {
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
-          setCurrentPage(1);
         }
       } catch (err) {
         if (!cancelled) {
@@ -234,49 +237,148 @@ function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
         if (!cancelled) setIsLoading(false);
       }
     };
-
     loadPdf();
     return () => { cancelled = true; };
   }, [rawDocUrl]);
 
-  const renderPage = useCallback(async () => {
-    if (!pdfDoc || !canvasRef.current || !containerRef.current) return;
+  /* ── Compute fit-width scale ── */
+  const computeFitScale = useCallback(async () => {
+    if (!pdfDoc || !scrollContainerRef.current) return 1;
+    const page = await pdfDoc.getPage(1);
+    const vp = page.getViewport({ scale: 1.0 });
+    const containerWidth = scrollContainerRef.current.clientWidth - 48; // padding
+    return containerWidth / vp.width;
+  }, [pdfDoc]);
 
-    try {
-      const page = await pdfDoc.getPage(currentPage);
-      const containerWidth = containerRef.current.clientWidth - 32;
-      const unscaledViewport = page.getViewport({ scale: 1.0 });
-      const fitScale = containerWidth / unscaledViewport.width;
-      const viewport = page.getViewport({ scale: fitScale });
+  /* ── Render all pages ── */
+  const renderAllPages = useCallback(async () => {
+    if (!pdfDoc) return;
+    const gen = ++renderGenRef.current;
 
-      const canvas = canvasRef.current;
-      const context = canvas.getContext("2d");
-      if (!context) return;
-
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      await page.render({
-        canvasContext: context,
-        viewport,
-        canvas,
-      }).promise;
-    } catch (err) {
-      console.error("PDF.js Render Error:", err);
+    let actualScale: number;
+    if (scale === "fit-width") {
+      actualScale = await computeFitScale();
+    } else {
+      actualScale = scale;
     }
-  }, [pdfDoc, currentPage]);
+    setResolvedScale(actualScale);
 
-  useEffect(() => { renderPage(); }, [renderPage]);
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      if (gen !== renderGenRef.current) return; // pre-empted
+      const canvas = pageRefsMap.current.get(i);
+      if (!canvas) continue;
 
+      try {
+        const page = await pdfDoc.getPage(i);
+        if (gen !== renderGenRef.current) return;
+
+        const viewport = page.getViewport({ scale: actualScale * DEVICE_PIXEL_RATIO });
+        const cssViewport = page.getViewport({ scale: actualScale });
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = `${cssViewport.width}px`;
+        canvas.style.height = `${cssViewport.height}px`;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) continue;
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      } catch (err) {
+        console.error(`PDF.js Render Error (page ${i}):`, err);
+      }
+    }
+  }, [pdfDoc, scale, computeFitScale]);
+
+  useEffect(() => { renderAllPages(); }, [renderAllPages]);
+
+  /* ── Re-render on window resize (fit-width) ── */
   useEffect(() => {
-    const handleResize = () => renderPage();
+    if (scale !== "fit-width") return;
+    const handleResize = () => renderAllPages();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [renderPage]);
+  }, [scale, renderAllPages]);
 
-  const goToPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
-  const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
+  /* ── Track visible page via IntersectionObserver ── */
+  useEffect(() => {
+    if (!scrollContainerRef.current || totalPages === 0) return;
 
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let topMostPage = currentPage;
+        let topMostY = Infinity;
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const pageNum = Number(entry.target.getAttribute("data-page"));
+            const rect = entry.boundingClientRect;
+            if (rect.top < topMostY) {
+              topMostY = rect.top;
+              topMostPage = pageNum;
+            }
+          }
+        }
+        setCurrentPage(topMostPage);
+      },
+      {
+        root: scrollContainerRef.current,
+        threshold: [0, 0.1, 0.25, 0.5],
+      }
+    );
+
+    pageRefsMap.current.forEach((canvas) => {
+      observer.observe(canvas);
+    });
+
+    return () => observer.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalPages, pdfDoc, resolvedScale]);
+
+  /* ── Zoom handlers ── */
+  const handleZoomIn = () => {
+    setScale((prev) => {
+      const current = prev === "fit-width" ? resolvedScale : prev;
+      return Math.min(ZOOM_MAX, current + ZOOM_STEP);
+    });
+  };
+
+  const handleZoomOut = () => {
+    setScale((prev) => {
+      const current = prev === "fit-width" ? resolvedScale : prev;
+      return Math.max(ZOOM_MIN, current - ZOOM_STEP);
+    });
+  };
+
+  const handleFitWidth = () => setScale("fit-width");
+  const handleReset = () => setScale(1);
+
+  const zoomPercentage = Math.round((scale === "fit-width" ? resolvedScale : scale) * 100);
+
+  /* ── Mouse-wheel zoom (Ctrl+Scroll) ── */
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      if (e.deltaY < 0) handleZoomIn();
+      else handleZoomOut();
+    };
+    container.addEventListener("wheel", handler, { passive: false });
+    return () => container.removeEventListener("wheel", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedScale]);
+
+  /* ── Register canvas ref ── */
+  const setCanvasRef = useCallback((pageNum: number) => (el: HTMLCanvasElement | null) => {
+    if (el) {
+      pageRefsMap.current.set(pageNum, el);
+    } else {
+      pageRefsMap.current.delete(pageNum);
+    }
+  }, []);
+
+  /* ── Loading state ── */
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -305,34 +407,72 @@ function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
 
   if (!pdfDoc) return null;
 
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+
   return (
     <>
-      {/* Pagination toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200 shrink-0">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200 shrink-0 flex-wrap gap-2">
         <span className="text-xs font-medium text-slate-500">
           {brand} {model}
         </span>
-        <div className="flex items-center gap-2">
+
+        {/* Page indicator */}
+        <span className="text-xs font-semibold text-slate-700 min-w-[80px] text-center">
+          Strona {currentPage} / {totalPages}
+        </span>
+
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1">
           <button
-            onClick={goToPrevPage}
-            disabled={currentPage <= 1}
+            onClick={handleZoomOut}
+            disabled={zoomPercentage <= Math.round(ZOOM_MIN * 100)}
             className="p-1.5 rounded-md hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            title="Poprzednia strona"
+            title="Pomniejsz"
           >
-            <ChevronLeft className="w-4 h-4 text-slate-600" />
+            <ZoomOut className="w-4 h-4 text-slate-600" />
           </button>
-          <span className="text-xs font-semibold text-slate-700 min-w-[80px] text-center">
-            {currentPage} / {totalPages}
+
+          <span className="text-[11px] font-semibold text-slate-600 min-w-[44px] text-center tabular-nums">
+            {zoomPercentage}%
           </span>
+
           <button
-            onClick={goToNextPage}
-            disabled={currentPage >= totalPages}
+            onClick={handleZoomIn}
+            disabled={zoomPercentage >= Math.round(ZOOM_MAX * 100)}
             className="p-1.5 rounded-md hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            title="Następna strona"
+            title="Powiększ"
           >
-            <ChevronRight className="w-4 h-4 text-slate-600" />
+            <ZoomIn className="w-4 h-4 text-slate-600" />
+          </button>
+
+          <div className="w-px h-4 bg-slate-200 mx-1" />
+
+          <button
+            onClick={handleFitWidth}
+            className={`p-1.5 rounded-md transition-colors ${
+              scale === "fit-width"
+                ? "bg-blue-100 text-blue-700"
+                : "hover:bg-slate-100 text-slate-600"
+            }`}
+            title="Dopasuj do szerokości"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={handleReset}
+            className={`p-1.5 rounded-md transition-colors ${
+              scale === 1
+                ? "bg-blue-100 text-blue-700"
+                : "hover:bg-slate-100 text-slate-600"
+            }`}
+            title="Rozmiar 1:1 (100%)"
+          >
+            <RotateCcw className="w-4 h-4" />
           </button>
         </div>
+
         <a
           href={rawDocUrl}
           target="_blank"
@@ -343,16 +483,22 @@ function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
         </a>
       </div>
 
-      {/* Canvas area */}
+      {/* Scrollable pages area */}
       <div
-        ref={containerRef}
-        className="overflow-y-auto flex justify-center bg-slate-200/60 p-4"
+        ref={scrollContainerRef}
+        className="overflow-auto bg-slate-200/60"
         style={{ maxHeight: "85vh" }}
       >
-        <canvas
-          ref={canvasRef}
-          className="shadow-lg rounded bg-white block"
-        />
+        <div className="flex flex-col items-center gap-4 py-4 px-4">
+          {pageNumbers.map((pageNum) => (
+            <canvas
+              key={pageNum}
+              data-page={pageNum}
+              ref={setCanvasRef(pageNum)}
+              className="shadow-lg rounded bg-white block"
+            />
+          ))}
+        </div>
       </div>
     </>
   );

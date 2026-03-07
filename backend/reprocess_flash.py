@@ -2,8 +2,8 @@
 
 Pobiera rekordy z vehicle_synthesis i re-runuje:
 1. AI Mapper (Flash) → brand, model, fuel, transmission, vehicle_type
-2. SAMAR Mapper (Flash) → samar_category, samar_candidates
-3. Engine Mapper (Flash) → fuel (uściślone), engine_class, engine_candidates
+2. Engine Mapper (Flash) → fuel (uściślone), engine_class, engine_candidates
+3. SAMAR Mapper (Flash) → samar_category, samar_candidates (uses seats + full context)
 
 Użycie:
     python reprocess_flash.py                     # wszystkie completed
@@ -88,31 +88,12 @@ def _reprocess_single(
         f"     ✓ brand={new_brand}, model={new_model}, fuel={mapped_data.get('fuel')}"
     )
 
-    # ── Step 2: SAMAR Mapper (Flash) ──
-    print("     → Step 2/3: SAMAR Mapper...")
+    # Shared context from card_summary
     card_summary = synthesis.get("card_summary", {})
-    segment = card_summary.get("segment") or card_summary.get("car_segment")
-    body_style = card_summary.get("body_style")
     trim = mapped_data.get("trim_level")
-    transmission = mapped_data.get("transmission")
 
-    try:
-        samar_code, samar_name, samar_candidates = map_to_samar_class(
-            brand=new_brand,
-            model=new_model,
-            segment=segment,
-            body_style=body_style,
-            trim=trim,
-            transmission=transmission,
-        )
-        mapped_data["samar_category"] = samar_name
-        mapped_data["samar_candidates"] = samar_candidates
-        print(f"     ✓ SAMAR={samar_name} ({samar_code})")
-    except Exception as exc:
-        print(f"     ✗ SAMAR Mapper error: {exc}")
-
-    # ── Step 3: Engine Mapper (Flash) ──
-    print("     → Step 3/3: Engine Mapper...")
+    # ── Step 2: Engine Mapper (Flash) — first, doesn't depend on SAMAR ──
+    print("     → Step 2/3: Engine Mapper...")
     powertrain = (
         card_summary.get("powertrain", {})
         if isinstance(card_summary.get("powertrain"), dict)
@@ -152,6 +133,29 @@ def _reprocess_single(
                 print(f"     ⚠ Engine DB fallback error: {db_exc}")
     except Exception as exc:
         print(f"     ✗ Engine Mapper error: {exc}")
+
+    # ── Step 3: SAMAR Mapper (Flash) — last, uses full context incl. seats ──
+    print("     → Step 3/3: SAMAR Mapper...")
+    segment = card_summary.get("segment") or card_summary.get("car_segment")
+    body_style = card_summary.get("body_style")
+    transmission = mapped_data.get("transmission")
+    seats_raw = card_summary.get("number_of_seats")
+
+    try:
+        samar_code, samar_name, samar_candidates = map_to_samar_class(
+            brand=new_brand,
+            model=new_model,
+            segment=segment,
+            body_style=body_style,
+            trim=trim,
+            transmission=transmission,
+            number_of_seats=int(seats_raw) if seats_raw else None,
+        )
+        mapped_data["samar_category"] = samar_name
+        mapped_data["samar_candidates"] = samar_candidates
+        print(f"     ✓ SAMAR={samar_name} ({samar_code})")
+    except Exception as exc:
+        print(f"     ✗ SAMAR Mapper error: {exc}")
 
     # ── Merge & Save ──
     synthesis["mapped_ai_data"] = mapped_data

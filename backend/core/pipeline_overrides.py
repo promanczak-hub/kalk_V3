@@ -1,14 +1,20 @@
 import json
+import logging
+from typing import Type
+
 from google.genai import types
+from pydantic import BaseModel
 
 from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
-
 from core.json_utils import clean_json_response
 from core.extractor_models import (
     CardSummary,
     OtherDocumentSummary,
 )
+from core.pipeline_price_validator import validate_and_flag_prices
 from core.prompts import OVERRIDE_SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 def process_manual_override(original_json: dict, user_prompt: str) -> str:
@@ -23,9 +29,6 @@ def process_manual_override(original_json: dict, user_prompt: str) -> str:
     # Determine type to select the right schema for the prompt
     metadata = original_json.get("digital_twin", {}).get("metadata", {})
     doc_type_str = metadata.get("document_type", "Oferta na samochód")
-
-    from pydantic import BaseModel
-    from typing import Type
 
     chosen_schema: Type[BaseModel]
     if doc_type_str == "Oferta na samochód":
@@ -61,4 +64,9 @@ def process_manual_override(original_json: dict, user_prompt: str) -> str:
 
     # Update original_json with patched data
     original_json["card_summary"] = new_card_summary
+
+    # Re-validate prices after LLM modification
+    original_json = validate_and_flag_prices(original_json)
+    logger.info("[OVERRIDE] Re-walidacja cen po override zakończona")
+
     return json.dumps(original_json, ensure_ascii=False)

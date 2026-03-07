@@ -34,7 +34,7 @@ const FIELDS: FieldDef[] = [
   { key: "default_wibor", label: "WIBOR domyślny", unit: "%", step: "0.01", group: "Parametry Finansowe" },
   { key: "bank_spread", label: "Bank Spread (marża finansowa)", unit: "%", step: "0.01", group: "Parametry Finansowe" },
   { key: "default_ltr_margin", label: "Marża sprzedaży LTR", unit: "%", step: "0.1", group: "Parametry Finansowe" },
-  { key: "default_depreciation_pct", label: "Amortyzacja domyślna", unit: "%/mc", step: "0.0001", group: "Parametry Finansowe" },
+  // default_depreciation_pct removed — auto-calculated per matrix cell by backend
   { key: "vat_rate", label: "Stawka VAT", unit: "%", step: "1", group: "Parametry Finansowe" },
 
   // Serwis / Flota

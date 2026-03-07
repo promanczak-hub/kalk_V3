@@ -13,6 +13,7 @@ from api.budget_finder_routes import router as budget_finder_router
 from api.calculator_excel_data_routes import router as calculator_excel_data_router
 from api.extract_routes import router as extract_router
 from api.homologation_routes import router as homologation_router
+from api.param_preview import router as param_preview_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -25,6 +26,7 @@ app.include_router(kalkulacje_router, prefix="/api")
 app.include_router(budget_finder_router, prefix="/api")  # type: ignore
 app.include_router(calculator_excel_data_router, prefix="/api")
 app.include_router(homologation_router, prefix="/api")
+app.include_router(param_preview_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -87,7 +89,7 @@ class CalculatorInput(BaseModel):
     )
 
     pricing_margin_pct: float = Field(
-        default=0.0, description="Marża z poziomu UI (preset/suwak)"
+        default=15.0, description="Marża sprzedaży % z poziomu UI (preset/suwak)"
     )
     settings: CalculationSettings = Field(
         default_factory=lambda: CalculationSettings(
@@ -846,6 +848,24 @@ async def delete_body_type(body_type_id: int) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/match-body-type", tags=["Calculator"])
+async def match_body_type_endpoint(
+    body_style_raw: str = "",
+) -> Dict[str, Any]:
+    """Fuzzy-match raw body_style → body_types with score."""
+    from core.body_type_matcher import match_body_type
+
+    result = match_body_type(body_style_raw)
+    return {
+        "matched_body_type_id": result.matched_body_type_id,
+        "matched_name": result.matched_name,
+        "vehicle_class": result.vehicle_class,
+        "score": result.score,
+        "match_method": result.match_method,
+        "raw_input": result.raw_input,
+    }
+
+
 @app.get("/api/replacement-car-rates", tags=["Control Center"])
 async def get_replacement_car_rates() -> List[ReplacementCarRate]:
     try:
@@ -986,25 +1006,21 @@ async def readiness_check(
             "warning_count": 0,
         }
 
-    # 1b. Resolve body_type_name → body_type_id (from body_types table)
+    # 1b. Resolve body_type_name → body_type_id (via fuzzy matcher)
+    from core.body_type_matcher import match_body_type
+
     resolved_body_type_id: Optional[int] = None
+    body_match_info: Dict[str, Any] = {}
     if body_type_name.strip():
-        try:
-            bt_norm = body_type_name.strip().upper()
-            bt_res = supabase.table("body_types").select("id, name").execute()
-            for row in bt_res.data or []:
-                if row["name"].strip().upper() == bt_norm:
-                    resolved_body_type_id = int(row["id"])
-                    break
-            # Fuzzy fallback: substring match
-            if resolved_body_type_id is None:
-                for row in bt_res.data or []:
-                    row_name = row["name"].strip().upper()
-                    if row_name in bt_norm or bt_norm in row_name:
-                        resolved_body_type_id = int(row["id"])
-                        break
-        except Exception as exc:
-            logging.warning("Resolve body_type_name błąd: %s", exc)
+        bt_match = match_body_type(body_type_name)
+        resolved_body_type_id = bt_match.matched_body_type_id
+        body_match_info = {
+            "matched_name": bt_match.matched_name,
+            "vehicle_class": bt_match.vehicle_class,
+            "score": bt_match.score,
+            "match_method": bt_match.match_method,
+            "raw_input": bt_match.raw_input,
+        }
 
     # 1c. Resolve paint_type_name → paint_type_id (from paint_types table)
     resolved_paint_type_id: Optional[int] = None
@@ -1089,6 +1105,7 @@ async def readiness_check(
         "checks": items,
         "critical_count": error_count,
         "warning_count": warn_count,
+        "body_match": body_match_info,
     }
 
 

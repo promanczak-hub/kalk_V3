@@ -4,13 +4,20 @@ Returns ALL candidates ranked by confidence (reranking model).
 """
 
 import json
+import logging
 import os
+import time
 from typing import Tuple
 
 from google.genai import types
 from supabase import Client, create_client
 
 from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+
+logger = logging.getLogger(__name__)
+
+_CACHE_TTL_SECONDS = 300  # 5 minutes
+_samar_cache: dict = {"data": None, "ts": 0.0}
 
 
 def _build_samar_client() -> Client:
@@ -24,7 +31,16 @@ def _fetch_samar_dictionary(client: Client) -> list[dict]:
     """Fetch SAMAR class dictionary rows from ``KlasaSAMAR_czak``.
 
     Returns a list of dicts: ``[{"klasa": "PODSTAWOWA D ŚREDNIA", "modele": "1. Alfa Romeo ..."}]``
+    Uses in-memory cache with 5-minute TTL.
     """
+    now = time.monotonic()
+    if _samar_cache["data"] and (now - _samar_cache["ts"]) < _CACHE_TTL_SECONDS:
+        logger.debug(
+            "[SAMAR MAPPER] Using cached dictionary (%d rows)",
+            len(_samar_cache["data"]),
+        )
+        return _samar_cache["data"]
+
     response = (
         client.table("KlasaSAMAR_czak")
         .select("col_1, col_8, col_9")
@@ -37,6 +53,10 @@ def _fetch_samar_dictionary(client: Client) -> list[dict]:
         modele = (row.get("col_8") or "").strip()
         if klasa and modele:
             rows.append({"klasa": klasa, "modele": modele})
+
+    _samar_cache["data"] = rows
+    _samar_cache["ts"] = now
+    logger.info("[SAMAR MAPPER] Refreshed cache: %d rows", len(rows))
     return rows
 
 
@@ -47,6 +67,7 @@ def map_to_samar_class(
     body_style: str | None = None,
     trim: str | None = None,
     transmission: str | None = None,
+    number_of_seats: int | None = None,
 ) -> Tuple[str, str, list[dict]]:
     """Dynamically classify a vehicle into SAMAR classes with reranking.
 
@@ -100,6 +121,7 @@ Pojazd do klasyfikacji:
 - Skrzynia biegów: {transmission or "brak danych"}
 - Typ nadwozia: {body_style or "brak danych"}
 - Segment: {segment or "brak danych"}
+- Ilość miejsc: {number_of_seats or "brak danych"}
 
 ZADANIE: Oceń prawdopodobieństwo przynależności tego pojazdu do KAŻDEJ klasy z powyższego słownika.
 Dla KAŻDEJ klasy przypisz confidence (0.0-1.0) — jak bardzo ten pojazd pasuje do danej klasy.
@@ -112,6 +134,7 @@ KRYTYCZNE REGUŁY ROZRÓŻNIANIA (bezwzględnie przestrzegaj):
 1. Jeśli typ nadwozia (body_style) to 'Furgon', 'Panel Van', 'Van dostawczy', 'Dostawczy', 'Cargo', 'Skrzyniowy', 'Podwozie' lub 'Chłodnia' — NIGDY nie klasyfikuj jako MINIBUS. Użyj odpowiedniej klasy dostawczej: 'S. DOSTAWCZE I CIĘŻAROWE CIĘŻKIE DOSTAWCZE', 'S. DOSTAWCZE I CIĘŻAROWE ŚREDNIE DOSTAWCZE' lub 'S. DOSTAWCZE I CIĘŻAROWE KOMBI VAN'.
 2. Klasa MINIBUS I MINIBUS jest WYŁĄCZNIE dla wariantów osobowych (przeszklonych, z siedzeniami pasażerskimi), np. 'Tourneo', 'Kombi', 'Bus', 'Osobowy', 'Caravelle', 'Multivan'.
 3. Jeśli wersja/trim zawiera słowa 'L1H1', 'L2H2', 'L3H2', 'L4H3' itp. (oznaczenia rozstawów/wysokości furgonów) — to ZAWSZE jest furgon dostawczy, nie minibus.
+4. Jeśli ilość miejsc >= 6, rozważ klasy MINIBUS / VANY (jeśli body_style potwierdza wariant osobowy/przeszklony). Jeśli ilość miejsc <= 3 i typ nadwozia to furgon → preferuj klasy dostawcze.
 
 WAŻNE: Musisz ocenić WSZYSTKIE {len(unique_classes)} klas. Klasy, do których pojazd absolutnie nie pasuje, powinny dostać confidence bliskie 0.0.
 Posortuj wyniki od najwyższego do najniższego confidence.
@@ -173,7 +196,7 @@ Posortuj wyniki od najwyższego do najniższego confidence.
             return (code, best_class, candidates)
 
     except Exception as exc:
-        print(f"[SAMAR MAPPER] Gemini error: {exc}")
+        logger.exception("[SAMAR MAPPER] Gemini error: %s", exc)
 
     return fallback
 

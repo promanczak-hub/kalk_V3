@@ -14,6 +14,9 @@ interface VehicleFinancialOptionsProps {
   totalCatalogPrice: number;
   activeFinalPrice: number;
   dynamicTotalOptionsPrice: number;
+  discountableOptionsTotal: number;
+  nonDiscountableOptionsTotal: number;
+  serviceOptionsTotal: number;
   // Discount state
   discountMode: "offer" | "suggested" | "custom";
   setDiscountMode: (mode: "offer" | "suggested" | "custom") => void;
@@ -85,6 +88,20 @@ interface VehicleFinancialOptionsProps {
   // Czynsz inicjalny netto/brutto
   activeFinalPriceForDeposit: number;
   crossCardAlerts?: DiscountAlert[];
+  // Live param preview from backend
+  paramPreview?: {
+    service: { found: boolean; rate_per_km: number; type: string; power_band: string };
+    tires: { found: boolean; set_price_net: number; rim_diameter: number; tire_class: string };
+    vintage: { found: boolean; correction_pct: number; label: string };
+    color: { found: boolean; correction_pct: number; label: string };
+    replacement_car: { found: boolean; daily_rate_net: number; avg_days_year: number };
+  } | null;
+  controlCenter?: {
+    cost_gsm_device: number;
+    cost_gsm_installation: number;
+    cost_gsm_subscription_monthly: number;
+    cost_hook_installation: number;
+  } | null;
 }
 
 const TIRE_CLASS_OPTIONS = [
@@ -126,6 +143,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     vehicle, totalCatalogPrice, activeFinalPrice, dynamicTotalOptionsPrice,
     discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
     isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
+    discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
@@ -144,6 +162,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     isMetalic, setIsMetalic, isMetalicAutoDetected,
     hookAutoDetected, vintageAutoDetected,
     activeFinalPriceForDeposit,
+    paramPreview,
+    controlCenter,
   } = props;
 
   const crossCardAlerts = props.crossCardAlerts ?? [];
@@ -177,7 +197,6 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     ? dynamicTotalOptionsPrice
     : dynamicTotalOptionsPrice * 1.23;
   const basePriceNum = totalCatalogPrice - optionsInSourceDomain;
-  const discountAmount = totalCatalogPrice - activeFinalPrice;
 
   return (
     <>
@@ -265,23 +284,83 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 </tr>
               </thead>
               <tbody>
+                {/* Cena bazowa (katalogowa) */}
                 <tr className="border-b border-slate-100">
                   <td className="py-2.5 text-xs text-slate-500">Cena bazowa</td>
                   <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{basePriceNum > 0 ? fmtPLN(toNetto(basePriceNum)) : "—"}</td>
                   <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{basePriceNum > 0 ? fmtPLN(toBrutto(basePriceNum)) : "—"}</td>
                 </tr>
-                <tr className="border-b border-slate-100">
-                  <td className="py-2.5 text-xs text-slate-500">Opcje fabryczne</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{dynamicTotalOptionsPrice > 0 ? fmtPLN(dynamicTotalOptionsPrice) : "—"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{dynamicTotalOptionsPrice > 0 ? fmtPLN(dynamicTotalOptionsPrice * 1.23) : "—"}</td>
-                </tr>
-                {discountAmount > 0 && (
+
+                {/* Opcje rabatowane */}
+                {discountableOptionsTotal > 0 && (
                   <tr className="border-b border-slate-100">
-                    <td className="py-2.5 text-xs text-slate-500">Rabat ({activeDiscountPct}%)</td>
-                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">({fmtPLN(toNetto(discountAmount))})</td>
-                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-500">({fmtPLN(toBrutto(discountAmount))})</td>
+                    <td className="py-2.5 text-xs text-slate-500">Opcje rabatowane</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{fmtPLN(discountableOptionsTotal)}</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{fmtPLN(discountableOptionsTotal * 1.23)}</td>
                   </tr>
                 )}
+
+                {/* Rabat — shows after discountable items */}
+                {activeDiscountPct > 0 && (
+                  <>
+                    <tr className="border-b border-slate-100 bg-emerald-50/40">
+                      <td className="py-2.5 text-xs font-medium text-emerald-700">
+                        Rabat ({activeDiscountPct}%)
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums text-sm text-emerald-600">
+                        ({fmtPLN(toNetto(basePriceNum) * (activeDiscountPct / 100) + discountableOptionsTotal * (activeDiscountPct / 100))})
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-700">
+                        ({fmtPLN(toBrutto(basePriceNum) * (activeDiscountPct / 100) + discountableOptionsTotal * 1.23 * (activeDiscountPct / 100))})
+                      </td>
+                    </tr>
+
+                    {/* Subtotal po rabacie */}
+                    <tr className="border-b border-slate-200">
+                      <td className="py-2 text-xs font-semibold text-slate-600">Suma po rabacie</td>
+                      <td className="py-2 text-right tabular-nums text-sm font-semibold text-slate-600">
+                        {fmtPLN((toNetto(basePriceNum) + discountableOptionsTotal) * (1 - activeDiscountPct / 100))}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-sm font-semibold text-slate-600">
+                        {fmtPLN((toBrutto(basePriceNum) + discountableOptionsTotal * 1.23) * (1 - activeDiscountPct / 100))}
+                      </td>
+                    </tr>
+                  </>
+                )}
+
+                {/* Opcje fabryczne nierabatowane */}
+                {nonDiscountableOptionsTotal > 0 && (
+                  <tr className="border-b border-slate-100">
+                    <td className="py-2.5 text-xs text-slate-500 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 hover:text-blue-600 transition-colors cursor-pointer group/link"
+                        onClick={() => {
+                          const el = document.getElementById("factory-options-section");
+                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                        title="Przejdź do sekcji Opcje Fabryczne"
+                      >
+                        Opcje fabryczne nierabatowane
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover/link:text-blue-500 transition-colors"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
+                      </button>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wider">bez rabatu</span>
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{fmtPLN(nonDiscountableOptionsTotal)}</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{fmtPLN(nonDiscountableOptionsTotal * 1.23)}</td>
+                  </tr>
+                )}
+
+                {/* Usługi serwisowe (always non-discountable) */}
+                {serviceOptionsTotal > 0 && (
+                  <tr className="border-b border-slate-100">
+                    <td className="py-2.5 text-xs text-slate-500">Usługi serwisowe</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{fmtPLN(serviceOptionsTotal)}</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{fmtPLN(serviceOptionsTotal * 1.23)}</td>
+                  </tr>
+                )}
+
+                {/* Cena końcowa */}
                 <tr className="border-t-2 border-slate-300">
                   <td className="py-2.5 text-sm font-semibold text-slate-900">Cena końcowa</td>
                   <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(toNetto(activeFinalPrice))}</td>
@@ -363,7 +442,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
                 Średnica felgi
-                <LinkedIndicator tableName="koszty_opon" isLinked={rimDiameter !== null} />
+                <LinkedIndicator tableName="koszty_opon" isLinked={!!(paramPreview?.tires?.found && rimDiameter)} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl` : undefined} />
               </label>
               <div className="flex items-center gap-1.5">
                 <input
@@ -392,7 +471,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
                 Klasa opon
-                <LinkedIndicator tableName="koszty_opon" isLinked={true} />
+                <LinkedIndicator tableName="koszty_opon" isLinked={!!paramPreview?.tires?.found} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl (${paramPreview.tires.tire_class})` : undefined} />
               </label>
               <select
                 className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
@@ -500,7 +579,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
                 Rodzaj kosztów serwisu
-                <LinkedIndicator tableName="samar_service_costs" isLinked={true} />
+                <LinkedIndicator tableName="samar_service_costs" isLinked={!!paramPreview?.service?.found} previewValue={paramPreview?.service?.found ? `${paramPreview.service.rate_per_km} PLN/km (${paramPreview.service.type}, ${paramPreview.service.power_band})` : undefined} />
               </label>
               <select
                 className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
@@ -516,7 +595,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
               Rocznik pojazdu
-                <LinkedIndicator tableName="ltr_admin_korekta_wr_roczniks" isLinked={true} />
+                <LinkedIndicator tableName="ltr_admin_korekta_wr_roczniks" isLinked={!!paramPreview?.vintage?.found} previewValue={paramPreview?.vintage?.found ? `${(paramPreview.vintage.correction_pct * 100).toFixed(1)}% (${paramPreview.vintage.label})` : undefined} />
                 {vintageAutoDetected && (
                   <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
                     AI
@@ -537,7 +616,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
                 Lakier metalik
-                <LinkedIndicator tableName="samar_color_depreciation" isLinked={true} />
+                <LinkedIndicator tableName="paint_types" isLinked={!!paramPreview?.color?.found} previewValue={paramPreview?.color?.found ? `${(paramPreview.color.correction_pct * 100).toFixed(1)}% (${paramPreview.color.label})` : undefined} />
               </label>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1.5 px-2 border border-slate-200 rounded bg-white">
                 <input
@@ -564,11 +643,11 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             </label>
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
               <input type="checkbox" checked={replacementCar} onChange={e => setReplacementCar(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
-              <span className="flex items-center">Samochód zastępczy <LinkedIndicator tableName="replacement_car_rates" isLinked={true} /></span>
+              <span className="flex items-center">Samochód zastępczy <LinkedIndicator tableName="replacement_car_rates" isLinked={!!paramPreview?.replacement_car?.found} previewValue={paramPreview?.replacement_car?.found ? `${paramPreview.replacement_car.daily_rate_net} PLN/doba, ${paramPreview.replacement_car.avg_days_year} dni/rok` : undefined} /></span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
               <input type="checkbox" checked={gpsRequired} onChange={e => setGpsRequired(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
-              <span className="flex items-center">GPS wymagane <LinkedIndicator tableName="control_center" isLinked={true} /></span>
+              <span className="flex items-center">GPS wymagane <LinkedIndicator tableName="control_center" isLinked={true} previewValue={controlCenter ? `urz. ${controlCenter.cost_gsm_device} + mont. ${controlCenter.cost_gsm_installation} + ${controlCenter.cost_gsm_subscription_monthly}/mc` : undefined} /></span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
               <input type="checkbox" checked={includeServicing} onChange={e => setIncludeServicing(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
@@ -576,7 +655,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             </label>
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
               <input type="checkbox" checked={hookInstallation} onChange={e => setHookInstallation(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
-              <span className="flex items-center">Hak holowniczy <LinkedIndicator tableName="control_center" isLinked={true} />
+              <span className="flex items-center">Hak holowniczy <LinkedIndicator tableName="control_center" isLinked={true} previewValue={controlCenter ? `${controlCenter.cost_hook_installation} PLN` : undefined} />
                 {hookAutoDetected && (
                   <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
                     AI

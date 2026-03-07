@@ -128,14 +128,30 @@ Bądź precyzyjny, ale szukaj szeroko w obrębie danego kontekstu.
 Wyciągnij 'body_style' i 'trim_level' jako dwie oddzielne wartości w obiekcie, nie dokładaj ich na końcu innych stringów typu model.
 
 DETEKCJA LAKIERU (is_metalic_paint):
-Oceń rodzaj lakieru nadwozia na podstawie opisu koloru w dokumencie:
-- True: lakier metaliczny, perłowy, xirallic, mica, special efekt, dwuwarstwowy, 'metallic', 'pearl' - nawet jeśli jest w cenie bazowej (za darmo).
-- False: lakier bazowy, akrylowy, jednowarstwowy, solido, 'uni' lub brak wzmianki o typie premium.
-- null: brak informacji o kolorze lakieru.
-Chodzi o kategorie/technologie lakieru, NIE o jego cene.
+Oceń TECHNOLOGIĘ lakieru nadwozia, stosując poniższe drzewko decyzyjne krok po kroku:
+
+KROK 1 — Szukaj jawnych słów kluczowych w opisie koloru:
+  → Jeśli znajdziesz KTÓREKOLWIEK z: metalik, metalic, metallic, metalizowany, met., perłowy, pearl, xirallic, mica, special efekt, dwuwarstwowy, nacré → STOP → True.
+  → Jeśli znajdziesz KTÓREKOLWIEK z: solido, uni, akrylowy, jednowarstwowy, bazowy → STOP → False.
+
+KROK 2 — Jeśli brak jawnych słów, sprawdź CENĘ lakieru:
+  → Dopłata > 0 PLN za lakier (nawet 100 PLN) → z 95% prawdopodobieństwem to metalik/perłowy → True.
+  → Lakier w cenie bazowej (0 PLN) i brak słów kluczowych → przejdź do KROK 3.
+
+KROK 3 — Ocena kontekstowa (gdy brak słów kluczowych i brak ceny):
+  → Współczesne samochody w ~90% mają lakier metalik/perłowy jako standard. Nazwy typu "Moon White", "Quartz Grey", "Lava Blue", "Magnetic Brown", "Brilliant Silver", "Deep Black", "Energy Blue", "Candy White" — to prawie zawsze metalik, nawet bez dopisku.
+  → Ustaw True, CHYBA ŻE masz mocne przesłanki (>80% pewności) że to lakier bazowy (np. biały niemetalizowany fleet, solido).
+
+KROK 4 — Brak JAKIEJKOLWIEK informacji o kolorze → null.
+
+WAŻNE: Chodzi o technologię lakieru, NIE o cenę. Darmowy metalik (w cenie bazowej) = True.
 
 DETEKCJA HAKA (has_tow_hook):
-Sprawdz czy w konfiguracji, opcjach lub wyposazeniu standardowym wystepuje hak holowniczy (lub przygotowanie pod hak). True = jest, False = wprost nie ma, null = brak informacji.
+Sprawdź, czy w dokumencie WPROST wymieniono hak holowniczy. Stosuj poniższe zasady:
+- True: TYLKO jeśli hak holowniczy (lub przygotowanie pod hak, zaczep holowniczy, "Anhängevorrichtung", "Towbar", "Tow hook") jest WPROST wymieniony w wyposażeniu standardowym, opcjach płatnych lub specyfikacji technicznej pojazdu.
+- False: Jeśli dokument WPROST wyklucza hak (np. "bez haka") lub jest to kompletna specyfikacja pojazdu bez wzmianki o haku.
+- null: Jeśli dokument nie wspomina o haku w żaden sposób (ani pozytywnie, ani negatywnie).
+KRYTYCZNE: NIE zgaduj! Jeśli nie widzisz dosłownie słowa "hak" / "hook" / "holowniczy" / "Anhänger" w liście wyposażenia lub opcji — ustaw null, NIGDY True.
 
 DETEKCJA ROCZNIKA (is_current_year_vehicle):
 Na podstawie daty waznosci oferty, roku modelowego, roku produkcji, daty dokumentu lub innych wskazowek ocen:

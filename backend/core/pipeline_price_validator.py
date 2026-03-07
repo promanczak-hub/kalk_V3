@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _SUM_TOLERANCE_PCT = 0.2  # base + options vs total (2‰)
 _OPTIONS_TOLERANCE_PCT = 0.2  # sum(paid_options) vs declared options_price (2‰)
 _SINGLE_OPTION_MAX_RATIO = 0.50  # single option > 50% of base → alert
-_MIN_REALISTIC_PRICE = 5_000.0  # below 5k PLN → suspicious vehicle price
+_MIN_REALISTIC_PRICE = 70_000.0  # below 70k PLN → suspicious vehicle price
 _MAX_REALISTIC_PRICE = 3_000_000.0  # above 3M PLN → suspicious
 
 
@@ -117,6 +117,12 @@ def validate_card_summary_prices(
     # ── Rule 5: base <= total ──
     _check_base_vs_total(report, base, total)
 
+    # ── Rule 6: Detect base/total swap ──
+    _check_base_total_swap(report, base, options, total)
+
+    # ── Rule 7: Flag unparseable paid_option prices ──
+    _check_unparseable_options(report, paid_options)
+
     _log_report(report)
     return report
 
@@ -130,9 +136,10 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     Returns pro_data with enriched card_summary.
     """
     card_summary = pro_data.get("card_summary")
-    if not card_summary or not isinstance(card_summary, dict):
+    if not isinstance(card_summary, dict):
         return pro_data
 
+    # Allow empty dict to still get _validation flags
     report = validate_card_summary_prices(card_summary)
     card_summary["_validation"] = report.to_dict()
 
@@ -436,3 +443,97 @@ def _log_report(report: ValidationReport) -> None:
     for w in report.warnings:
         log_fn = logger.warning if w.severity == "WARNING" else logger.error
         log_fn(f"[PRICE VALIDATOR] {w.severity}: {w.message}")
+
+
+def _check_base_total_swap(
+    report: ValidationReport,
+    base: ParsedPrice | None,
+    options: ParsedPrice | None,
+    total: ParsedPrice | None,
+) -> None:
+    """Detect if LLM swapped base_price and total_price.
+
+    Heuristic: if base > total AND (total + options ≈ base),
+    then the fields were likely swapped.
+    """
+    if base is None or total is None:
+        return
+
+    if base.value <= total.value:
+        return  # Normal order
+
+    # Check if swap makes the sum work
+    options_val = options.value if options else 0.0
+    expected_total_if_swapped = total.value + options_val
+
+    # If "swapped base + options" is close to "swapped total" (which is original base)
+    if expected_total_if_swapped > 0:
+        diff_pct = (
+            abs(expected_total_if_swapped - base.value)
+            / expected_total_if_swapped
+            * 100
+        )
+        if diff_pct <= 2.0:  # Within 2% tolerance
+            report.add(
+                ValidationWarning(
+                    rule="BASE_TOTAL_SWAPPED",
+                    message=(
+                        f"base({base.value:.0f}) > total({total.value:.0f}) "
+                        f"i po zamianie suma się zgadza (Δ {diff_pct:.1f}%) — "
+                        f"LLM prawdopodobnie zamienił pola"
+                    ),
+                    severity="ERROR",
+                    expected=total.value,
+                    actual=base.value,
+                    diff_pct=diff_pct,
+                )
+            )
+            return
+
+    # Even without sum match, base > total is suspicious
+    report.add(
+        ValidationWarning(
+            rule="BASE_TOTAL_SWAPPED",
+            message=(
+                f"base({base.value:.0f}) > total({total.value:.0f}) — "
+                f"kolejność cen może być odwrócona"
+            ),
+            severity="WARNING",
+            expected=total.value,
+            actual=base.value,
+        )
+    )
+
+
+def _check_unparseable_options(
+    report: ValidationReport,
+    paid_options: list[Any],
+) -> None:
+    """Flag paid_options with missing or unparseable prices.
+
+    These require manual verification.
+    """
+    if not paid_options:
+        return
+
+    unparseable: list[str] = []
+    for opt in paid_options:
+        if not isinstance(opt, dict):
+            continue
+        price_str = opt.get("price", "")
+        name = opt.get("name", "<brak nazwy>")
+        parsed = parse_price_string(price_str)
+        if parsed is None:
+            unparseable.append(name)
+
+    if unparseable:
+        report.add(
+            ValidationWarning(
+                rule="OPTION_PRICE_UNPARSEABLE",
+                message=(
+                    f"{len(unparseable)} opcji z brakującą ceną — "
+                    f"wymaga weryfikacji: {', '.join(unparseable)}"
+                ),
+                severity="WARNING",
+            )
+        )

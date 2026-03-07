@@ -4,13 +4,20 @@ Returns ALL candidates ranked by confidence (reranking model).
 """
 
 import json
+import logging
 import os
+import time
 from typing import Tuple
 
 from google.genai import types
 from supabase import Client, create_client
 
 from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+
+logger = logging.getLogger(__name__)
+
+_CACHE_TTL_SECONDS = 300  # 5 minutes
+_engine_cache: dict = {"data": None, "ts": 0.0}
 
 
 def _build_engine_client() -> Client:
@@ -21,7 +28,18 @@ def _build_engine_client() -> Client:
 
 
 def _fetch_engine_dictionary(client: Client) -> list[dict]:
-    """Fetch engine dictionary rows from ``engines`` table."""
+    """Fetch engine dictionary rows from ``engines`` table.
+
+    Uses in-memory cache with 5-minute TTL.
+    """
+    now = time.monotonic()
+    if _engine_cache["data"] and (now - _engine_cache["ts"]) < _CACHE_TTL_SECONDS:
+        logger.debug(
+            "[ENGINE MAPPER] Using cached dictionary (%d rows)",
+            len(_engine_cache["data"]),
+        )
+        return _engine_cache["data"]
+
     response = client.table("engines").select("name, category, description").execute()
     rows: list[dict] = []
     for row in response.data:
@@ -32,6 +50,10 @@ def _fetch_engine_dictionary(client: Client) -> list[dict]:
             rows.append(
                 {"name": name, "category": category, "description": description}
             )
+
+    _engine_cache["data"] = rows
+    _engine_cache["ts"] = now
+    logger.info("[ENGINE MAPPER] Refreshed cache: %d rows", len(rows))
     return rows
 
 
@@ -69,7 +91,7 @@ def map_to_engine_class(
         sb_client = _build_engine_client()
         engine_dict = _fetch_engine_dictionary(sb_client)
     except Exception as e:
-        print(f"[ENGINE MAPPER] Supabase error: {e}")
+        logger.info("[ENGINE MAPPER] Supabase error: %s", e)
         return fallback
 
     if not engine_dict:
@@ -173,6 +195,6 @@ Posortuj wyniki od najwyższego do najniższego confidence.
             return (best_name, best_category, candidates)
 
     except Exception as exc:
-        print(f"[ENGINE MAPPER] Gemini error: {exc}")
+        logger.exception("[ENGINE MAPPER] Gemini error: %s", exc)
 
     return fallback

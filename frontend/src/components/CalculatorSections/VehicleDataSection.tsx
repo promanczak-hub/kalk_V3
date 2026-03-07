@@ -133,9 +133,27 @@ export default function VehicleDataSection({
                   handleUpdate("WersjaNadwozia", e.target.value)
                 }
               >
-                {bodyTypes.length > 0 ? (
-                  Object.entries(
-                    bodyTypes.reduce<Record<string, BodyTypeOption[]>>((acc, bt) => {
+              {(() => {
+                  // Map HomologacjaSelected → vehicle_class filter
+                  const classFilter =
+                    data.HomologacjaSelected === "Osobowy" ? "Osobowy"
+                    : data.HomologacjaSelected === "Dostawczy" || data.HomologacjaSelected === "Cieżarowy" ? "Dostawczy"
+                    : null; // show all if unknown
+
+                  const filtered = classFilter
+                    ? bodyTypes.filter((bt) => bt.vehicle_class === classFilter)
+                    : bodyTypes;
+
+                  if (filtered.length === 0 && bodyTypes.length === 0) {
+                    return <MenuItem disabled>Ładowanie...</MenuItem>;
+                  }
+
+                  if (filtered.length === 0) {
+                    return <MenuItem disabled>Brak typów nadwozia dla tej homologacji</MenuItem>;
+                  }
+
+                  return Object.entries(
+                    filtered.reduce<Record<string, BodyTypeOption[]>>((acc, bt) => {
                       (acc[bt.vehicle_class] = acc[bt.vehicle_class] || []).push(bt);
                       return acc;
                     }, {})
@@ -146,10 +164,8 @@ export default function VehicleDataSection({
                         {bt.name}
                       </MenuItem>
                     )),
-                  ])
-                ) : (
-                  <MenuItem disabled>Ładowanie...</MenuItem>
-                )}
+                  ]);
+                })()}
               </Select>
             </FormControl>
           </Grid>

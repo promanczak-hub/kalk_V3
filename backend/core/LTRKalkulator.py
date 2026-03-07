@@ -1,6 +1,6 @@
+import logging
 from typing import List, Dict, Any, cast, Tuple
 from core.LTRSubCalculatorOpony import LTRSubCalculatorOpony
-from core.operations import OperationalCostsCalculator
 from core.LTRSubCalculatorFinanse import FinanseCalculator, FinanseInput
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
@@ -30,20 +30,133 @@ from core.LTRSubCalculatorStawka import (
 from functools import lru_cache
 
 
+_ENGINE_CATEGORY_TO_ID: Dict[str, int] = {
+    "BENZYNA": 1,
+    "PB": 1,
+    "BENZYNA MHEV": 1,
+    "PB-MHEV": 1,
+    "DIESEL": 2,
+    "ON": 2,
+    "DIESEL MHEV": 2,
+    "ON-MHEV": 2,
+    "HYBRYDA": 3,
+    "HEV": 3,
+    "PHEV": 4,
+    "ELEKTRYCZNY": 5,
+    "BEV": 5,
+    "EV": 5,
+    "LPG": 6,
+    "CNG": 7,
+    "HYBRYDA PLUG-IN": 4,
+}
+
+
+def _resolve_engine_type_id(engine_category: str) -> int:
+    """Mapuje engine_category (np. 'Benzyna mHEV (PB-mHEV)') → engine_type_id."""
+    if not engine_category:
+        return 1
+    upper = engine_category.strip().upper()
+    # Try direct match first
+    for key, eid in _ENGINE_CATEGORY_TO_ID.items():
+        if key in upper:
+            return eid
+    return 1  # fallback: benzyna
+
+
 @lru_cache(maxsize=128)
 def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
-    """Dodatkowa f-cja do pobrania auta z DB na podst vehicle_id"""
+    """Pobiera dane pojazdu z vehicle_synthesis i mapuje na słownik
+    zawierający pola wymagane przez sub-kalkulatory.
+
+    Kluczowe pola wynikowe:
+        - brand, model, Segment (full SAMAR name)
+        - samar_class_id (PK z samar_classes)
+        - klasa_wr_id (legacy WR ID → insurance/damage)
+        - engine_type_id, power_kw
+        - paint_type_id, body_type_id
+        - zabudowa_apr_wr, is_metalic, rocznik
+    """
     if not vid:
         return {}
     try:
         from core.database import supabase
 
-        res = supabase.table("pojazdy_master").select("*").eq("id", vid).execute()
-        if res.data and isinstance(res.data, list) and len(res.data) > 0:
-            res_dict = cast(Dict[str, Any], res.data[0])
-            return res_dict
-    except Exception:
-        pass
+        res = (
+            supabase.table("vehicle_synthesis")
+            .select("id, brand, model, synthesis_data, zabudowa_apr_wr")
+            .eq("id", vid)
+            .execute()
+        )
+        if not res.data or not isinstance(res.data, list) or len(res.data) == 0:
+            return cast(Dict[str, Any], {})
+
+        row = res.data[0]
+        sd = row.get("synthesis_data") or {}
+        cs = sd.get("card_summary") or {}
+        mai = sd.get("mapped_ai_data") or {}
+
+        # Resolve SAMAR class name → samar_classes row
+        samar_category = cs.get("samar_category") or mai.get("samar_category") or ""
+        samar_class_id = 0
+        klasa_wr_id = 0
+
+        if samar_category:
+            # Resolve from samar_classes table
+            cls_res = (
+                supabase.table("samar_classes")
+                .select("id, klasa_wr_id, name")
+                .execute()
+            )
+
+            # Normalize: strip "KLASA " to handle both old and new naming
+            # Old: "PODSTAWOWA D ŚREDNIA" vs New: "PODSTAWOWA Klasa D ŚREDNIA"
+            def _norm_samar(s: str) -> str:
+                return s.strip().upper().replace("KLASA ", "")
+
+            cat_norm = _norm_samar(samar_category)
+            for cls_row in cls_res.data or []:
+                db_name = str(cls_row.get("name", ""))
+                if _norm_samar(db_name) == cat_norm:
+                    samar_class_id = int(cls_row["id"])
+                    klasa_wr_id = int(cls_row.get("klasa_wr_id") or 0)
+                    break
+
+        # Engine type
+        engine_category = cs.get("engine_category", "") or ""
+        engine_type_id = _resolve_engine_type_id(engine_category)
+
+        # Power
+        power_kw_raw = cs.get("power_kw") or 0
+        if not power_kw_raw:
+            # Try to parse from powertrain string e.g. "1.5 TSI m-HEV (150 KM) 110 kW"
+            powertrain = cs.get("powertrain", "") or ""
+            import re
+
+            kw_match = re.search(r"(\d+)\s*kW", powertrain, re.IGNORECASE)
+            if kw_match:
+                power_kw_raw = int(kw_match.group(1))
+
+        vehicle_dict: Dict[str, Any] = {
+            "id": vid,
+            "brand": row.get("brand", ""),
+            "model": row.get("model", ""),
+            "Segment": samar_category,
+            "samar_class_id": samar_class_id,
+            "klasa_wr_id": klasa_wr_id,
+            "engine_type_id": engine_type_id,
+            "power_kw": float(power_kw_raw or 100),
+            "paint_type_id": cs.get("paint_type_id"),
+            "body_type_id": cs.get("body_type_id"),
+            "zabudowa_apr_wr": bool(row.get("zabudowa_apr_wr", False)),
+            "is_metalic": cs.get("is_metalic_paint", True),
+            "rocznik": cs.get("rocznik", "current"),
+        }
+        return vehicle_dict
+
+    except Exception as exc:
+        import logging
+
+        logging.warning("get_vehicle_from_db error for %s: %s", vid, exc)
     return cast(Dict[str, Any], {})
 
 
@@ -96,17 +209,51 @@ def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
 
 
 @lru_cache(maxsize=128)
-def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
-    """Pobiera parametry auta zastępczego z tabeli replacement_car_rates"""
+def _resolve_klasa_wr_to_samar_id(klasa_wr_id: str) -> int | None:
+    """Mapuje klasa_wr_id (WR) → samar_classes.id (PK)."""
     try:
         from core.database import supabase
 
-        # Pobierz z replacement_car_rates dla konkretnej klasy SAMAR
+        res = (
+            supabase.table("samar_classes")
+            .select("id")
+            .eq("klasa_wr_id", klasa_wr_id)
+            .limit(1)
+            .execute()
+        )
+        if res.data and len(res.data) > 0:
+            return int(res.data[0]["id"])
+    except Exception as e:
+        print(f"Error resolving klasa_wr_id={klasa_wr_id}: {e}")
+    return None
+
+
+@lru_cache(maxsize=128)
+def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
+    """Pobiera parametry auta zastępczego z tabeli replacement_car_rates.
+
+    UWAGA: klasa_id to klasa_wr_id z pojazdy_master (system WR).
+    replacement_car_rates używa samar_class_id (PK z samar_classes).
+    Wymagana translacja: klasa_wr_id → samar_classes.id → replacement_car_rates.
+    """
+    try:
+        from core.database import supabase
+
         if klasa_id:
+            # Krok 1: Przetłumacz klasa_wr_id → samar_classes.id (PK)
+            samar_pk = _resolve_klasa_wr_to_samar_id(klasa_id)
+            if samar_pk is None:
+                print(
+                    f"WARN: brak samar_classes z klasa_wr_id={klasa_id}"
+                    " — auto zastępcze = 0"
+                )
+                return {}
+
+            # Krok 2: Pobierz stawkę z replacement_car_rates
             res = (
                 supabase.table("replacement_car_rates")
                 .select("*")
-                .eq("samar_class_id", klasa_id)
+                .eq("samar_class_id", samar_pk)
                 .execute()
             )
             if res.data and len(res.data) > 0:
@@ -167,8 +314,7 @@ class LTRKalkulator:
         klasa_id = self.vehicle.get("klasa_wr_id", "")
         self.samar_klasa = get_samar_klasa_from_db(klasa_id) if klasa_id else {}
 
-        self.ops_calc = OperationalCostsCalculator(samar_klasa_data=self.samar_klasa)
-        # Service calculator (ASO/nonASO) — replaces ops_calc for service cost component
+        # Service calculator (ASO/nonASO)
         self.service_cost_type = getattr(self.input_data, "service_cost_type", "ASO")
         # Map frontend "nonASO" → backend pattern "NON-ASO"
         self._opcja_serwisowa = (
@@ -218,7 +364,18 @@ class LTRKalkulator:
         calc = PurchasePriceCalculator(pp_input)
         res = calc.calculate()
 
-        return res.discounted_base, res.total_options_capex
+        # total_options_capex is undiscounted sum — we need the discounted value.
+        # total_capex includes: discounted_base + disc_opts*factor + non_disc
+        #   + svc_opts + pakiet + transport + tires + gsm
+        # We want only: disc_opts*factor + non_disc + svc_opts + pakiet
+        discounted_options_capex = (
+            res.total_capex
+            - res.discounted_base
+            - res.tires_capex_net
+            - res.gsm_capex_net
+            - res.transport_fee_net
+        )
+        return res.discounted_base, discounted_options_capex
 
     def build_matrix(self) -> List[Dict[str, Any]]:
         """Przelicza wszystkie warianty i zwraca siatkę (List of Cells)"""
@@ -236,6 +393,8 @@ class LTRKalkulator:
 
         vehicle_capex, options_capex = self._calculate_capex()
         capex = vehicle_capex + options_capex
+        # V1 parity: WR curve uses full catalogue prices (no discount)
+        base_price_net_full = float(getattr(self.input_data, "base_price_net", 0))
 
         # Instantiate RV calculator once (shared across all months)
         from core.LTRSubCalculatorUtrataWartosciNew import (
@@ -267,10 +426,7 @@ class LTRKalkulator:
                 capex + tires_res["capex_initial_set"]
             )  # Wartość opony do rat
 
-            # 2. Koszty Techniczne/Operacyjne (legacy — kept for fallback)
-            ops_res = self.ops_calc.calculate_cost(
-                months=months, total_km=total_km, capex=capex_for_financing
-            )
+            # 2. Koszty Techniczne/Operacyjne — legacy ops_calc usunięty (Fix 2)
 
             # 3. Finansowanie i Utrata Wartości (SAMAR SQL Subcalculator / UtrataWartosciNew)
 
@@ -279,11 +435,11 @@ class LTRKalkulator:
             if vat_rate > 10.0:
                 vat_rate = 1.0 + (vat_rate / 100.0)
 
-            # Obliczamy Wartość Końcową (RV)
+            # V1 parity: WR curve uses full catalogue brutto (no discount)
             rv_res = rv_calc.calculate_values(
                 months=months,
                 total_km=total_km,
-                base_vehicle_capex_gross=vehicle_capex * vat_rate,
+                base_vehicle_capex_gross=base_price_net_full * vat_rate,
                 options_capex_gross=(base_wr_options + tires_res["capex_initial_set"])
                 * vat_rate,
             )
@@ -336,7 +492,7 @@ class LTRKalkulator:
                 z_serwisem=True,
                 opcja_serwisowa=self._opcja_serwisowa,
                 normatywny_przebieg_mc=normatywny_przebieg,
-                samar_class_id=int(self.vehicle.get("klasa_wr_id", 0))
+                samar_class_id=int(self.vehicle.get("samar_class_id", 0))
                 if self.vehicle
                 else 0,
                 engine_type_id=int(self.vehicle.get("engine_type_id", 1))
@@ -352,12 +508,17 @@ class LTRKalkulator:
             )
             service_calc = ServiceCalculator(service_input)
             service_from_new = service_calc.calculate()
-            # Use new calculator result if > 0, otherwise fallback to legacy ops_calc
-            service_base = (
-                service_from_new
-                if service_from_new > 0
-                else float(ops_res["monthly_service"])
-            )
+            # Use new ServiceCalculator result; warn if zero (no legacy fallback)
+            service_base = service_from_new
+            service_fallback_used = service_from_new <= 0
+            if service_fallback_used:
+                logging.warning(
+                    "ServiceCalculator returned 0 for months=%d, "
+                    "samar_class_id=%s, engine_type_id=%s — brak stawek serwisowych w DB",
+                    months,
+                    self.vehicle.get("samar_class_id", "?") if self.vehicle else "?",
+                    self.vehicle.get("engine_type_id", "?") if self.vehicle else "?",
+                )
 
             # --- SUB-KALKULATOR: AMORTYZACJA (V1 port) ---
             if getattr(self.input_data, "depreciation_pct", None) is not None:
@@ -595,6 +756,11 @@ class LTRKalkulator:
                         },
                     },
                     "status": "OK" if total_km <= 200000 else "WARNING_HIGH_KM",
+                    "warnings": {
+                        "service_fallback_used": service_fallback_used,
+                        "replacement_car_missing": rc_base == 0.0
+                        and self.input_data.replacement_car_enabled,
+                    },
                 }
             )
 

@@ -481,19 +481,19 @@ class SamarRVCalculator:
         return 0.0
 
     def _fetch_lo_param(self) -> float:
-        """PrzewidywanaCenaSprzedazyLO z control_center."""
+        """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
         try:
             res = (
                 supabase.table("control_center")
-                .select("value")
-                .eq("key", "PrzewidywanaCenaSprzedazyLO")
+                .select("przewidywana_cena_sprzedazy_lo")
                 .limit(1)
                 .execute()
             )
             if res.data:
-                return float(res.data[0].get("value", 0.0))
+                val = res.data[0].get("przewidywana_cena_sprzedazy_lo", 0.0)
+                return float(val) if val is not None else 0.0
         except Exception:
-            pass
+            logger.warning("Nie udało się pobrać PrzewidywanaCenaSprzedazyLO")
         return 0.0
 
     # ── Główna kalkulacja ─────────────────────────────────────────

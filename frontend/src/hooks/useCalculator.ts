@@ -64,7 +64,7 @@ const INITIAL_DATA: V1DataOption = {
   KalkulacjaWolumenowa: null,
   WiborProcent: 0.0482,
   MarzaFinansowaProcent: 0.022,
-  ProcentAmortyzacji: 0.0091,
+
   Opis: null,
   Prywatna: false,
   CenaCennikowaNetto: 164430.89,
@@ -123,7 +123,7 @@ export function useCalculator() {
           StawkaVat: (resp.data.vat_rate || 23) / 100,
           WiborProcent: (resp.data.default_wibor || 4.82) / 100,
           MarzaFinansowaProcent: (resp.data.default_ltr_margin || 1.35) / 100,
-          ProcentAmortyzacji: resp.data.default_depreciation_pct || 0.0091,
+
         }));
       }
     } catch (e) {

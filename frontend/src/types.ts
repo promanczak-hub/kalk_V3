@@ -93,7 +93,7 @@ export interface V1DataOption {
   KalkulacjaWolumenowa: string | null;
   WiborProcent: number;
   MarzaFinansowaProcent: number;
-  ProcentAmortyzacji: number;
+  ProcentAmortyzacji?: number;
   Opis: string | null;
   Prywatna: boolean;
 

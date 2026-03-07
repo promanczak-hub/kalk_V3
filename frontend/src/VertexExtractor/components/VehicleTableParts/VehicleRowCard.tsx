@@ -151,7 +151,7 @@ export function VehicleRowCard({
   const [wiborPct, setWiborPct] = useState<number>(5.85);
   const [marginPct, setMarginPct] = useState<number>(2.0);
   const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
-  const [depreciationPct, setDepreciationPct] = useState<number>(0.91);
+  const [depreciationPct, setDepreciationPct] = useState<number | null>(null);
   const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
   const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
 
@@ -191,7 +191,7 @@ export function VehicleRowCard({
     const cs = (vehicle.synthesis_data as any)?.card_summary;
     // Step 1: keyword matching on exterior_color (highest priority — catches AI errors)
     const color = (vehicle.exterior_color || "").toLowerCase();
-    const metallicKeywords = ["metalic", "metalik", "metallic", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"];
+    const metallicKeywords = ["metalic", "metalik", "metallic", "metalizow", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"];
     if (metallicKeywords.some(kw => color.includes(kw))) return true;
     const nonMetallicKeywords = ["solido", "uni ", "akrylow", "jednowarstwow"];
     if (nonMetallicKeywords.some(kw => color.includes(kw))) return false;
@@ -214,7 +214,7 @@ export function VehicleRowCard({
           if (settings.default_wibor) setWiborPct(settings.default_wibor);
           if (settings.bank_spread) setMarginPct(settings.bank_spread);
           if (settings.default_ltr_margin) setPricingMarginPct(settings.default_ltr_margin);
-          if (settings.default_depreciation_pct) setDepreciationPct(settings.default_depreciation_pct * 100);
+          // depreciation_pct auto-calculated by backend — do not override
         }
       } catch (e) {
         console.error("Failed to fetch control_center defaults", e);
@@ -259,7 +259,15 @@ export function VehicleRowCard({
     // Other
     if (setup.service_cost_type) setServiceCostType(setup.service_cost_type);
     if (setup.vehicle_vintage) setVehicleVintage(setup.vehicle_vintage);
-    if (setup.is_metalic != null) setIsMetalic(setup.is_metalic);
+    // Metalic: keyword detection always wins over saved value (keywords are deterministic)
+    if (setup.is_metalic != null) {
+      const keywordDetected = autoDetectMetalic();
+      const color = (vehicle.exterior_color || "").toLowerCase();
+      const hasKeyword = ["metalic", "metalik", "metallic", "metalizow", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"].some(kw => color.includes(kw))
+        || ["solido", "uni ", "akrylow", "jednowarstwow"].some(kw => color.includes(kw));
+      // If keywords found → trust keyword detection; otherwise use saved value
+      setIsMetalic(hasKeyword ? keywordDetected : setup.is_metalic);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.id]);
 
@@ -471,7 +479,7 @@ export function VehicleRowCard({
           wibor_pct: wiborPct,
           margin_pct: marginPct,
           pricing_margin_pct: pricingMarginPct,
-          depreciation_pct: depreciationPct,
+          depreciation_pct: null,  // auto-calculated by backend per cell
           initial_deposit_pct: initialDepositPct,
           other_service_costs: otherServiceCosts,
         },
@@ -586,6 +594,13 @@ export function VehicleRowCard({
     critical_count: number;
     warning_count: number;
     resolve_error?: string;
+    body_match?: {
+      matched_name: string | null;
+      vehicle_class: string | null;
+      score: number;
+      match_method: string;
+      raw_input: string;
+    };
   }
 
   const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
@@ -625,6 +640,62 @@ export function VehicleRowCard({
   useEffect(() => {
     fetchReadiness();
   }, [fetchReadiness]);
+
+  // ── Param Preview (live LinkedIndicator data) ─────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [paramPreview, setParamPreview] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [controlCenter, setControlCenter] = useState<any>(null);
+
+  // Fetch control center once on mount (global params)
+  useEffect(() => {
+    const fetchCC = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const res = await fetch(`${baseUrl}/api/control-center`);
+        if (res.ok) {
+          const data = await res.json();
+          setControlCenter(data);
+        }
+      } catch {
+        // silently fail
+      }
+    };
+    fetchCC();
+  }, []);
+
+  // Fetch param preview reactively when params change
+  const fetchParamPreview = useCallback(async () => {
+    const classId = readinessResult?.samar_class_id;
+    const engineId = readinessResult?.fuel_type_id;
+    if (!classId || !engineId) {
+      setParamPreview(null);
+      return;
+    }
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const params = new URLSearchParams({
+        samar_class_id: String(classId),
+        engine_type_id: String(engineId),
+        power_band: "MID",
+        service_type: serviceCostType,
+        tire_class: tireClass,
+        vehicle_vintage: vehicleVintage,
+        is_metalic: String(isMetalic),
+      });
+      if (rimDiameter) params.set("rim_diameter", String(rimDiameter));
+      const res = await fetch(`${baseUrl}/api/param-preview?${params}`);
+      if (res.ok) {
+        setParamPreview(await res.json());
+      }
+    } catch {
+      // silently fail
+    }
+  }, [readinessResult?.samar_class_id, readinessResult?.fuel_type_id, serviceCostType, tireClass, rimDiameter, vehicleVintage, isMetalic]);
+
+  useEffect(() => {
+    fetchParamPreview();
+  }, [fetchParamPreview]);
 
   // Extract drive type from card_summary
   const DRIVE_TYPE_MAP: Record<string, string> = {
@@ -922,15 +993,49 @@ export function VehicleRowCard({
   let activeDiscountPct = 0;
   let activeFinalPrice = totalCatalogPrice;
 
+  // We need option splits to properly compute discounted price
+  // These are in netto; convert to source domain below if needed
+  const factoryOptionsPriceTotal = customFactoryOptions.reduce((acc, curr) => acc + curr.price_net, 0);
+  const customServiceOptionsPriceTotal = customServiceOptions.reduce((acc, curr) => acc + curr.price_net, 0);
+
+  const dynamicTotalOptionsPrice = factoryOptionsPriceTotal + customServiceOptionsPriceTotal;
+
+  // Split factory options into discountable / non-discountable
+  const discountableOptionsTotal = customFactoryOptions
+    .filter(opt => !opt.no_discount)
+    .reduce((acc, curr) => acc + curr.price_net, 0);
+  const nonDiscountableOptionsTotal = customFactoryOptions
+    .filter(opt => opt.no_discount)
+    .reduce((acc, curr) => acc + curr.price_net, 0);
+
+  // Detect source price domain for proper netto/brutto-aware calculations
+  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
+  // Options are always stored as price_net - convert non-discountable to source domain
+  const nonDiscInSourceDomain = isSourceNetto
+    ? nonDiscountableOptionsTotal
+    : nonDiscountableOptionsTotal * 1.23;
+  const serviceInSourceDomain = isSourceNetto
+    ? customServiceOptionsPriceTotal
+    : customServiceOptionsPriceTotal * 1.23;
+  // discountableBase = totalCatalogPrice minus non-discountable minus service opts
+  const discountableBase = totalCatalogPrice - nonDiscInSourceDomain - serviceInSourceDomain;
+
   if (discountMode === "offer" && isDealerOffer) {
     activeDiscountPct = offerDiscountPercentage;
     activeFinalPrice = offerFinalPrice;
   } else if (discountMode === "suggested") {
     activeDiscountPct = suggestedDiscountPct;
-    activeFinalPrice = totalCatalogPrice * (1 - suggestedDiscountPct / 100);
+    // Discount only the discountable portion (base + discountable opts)
+    activeFinalPrice =
+      discountableBase * (1 - suggestedDiscountPct / 100)
+      + nonDiscInSourceDomain
+      + serviceInSourceDomain;
   } else if (discountMode === "custom") {
     activeDiscountPct = customDiscountPct;
-    activeFinalPrice = totalCatalogPrice * (1 - customDiscountPct / 100);
+    activeFinalPrice =
+      discountableBase * (1 - customDiscountPct / 100)
+      + nonDiscInSourceDomain
+      + serviceInSourceDomain;
   }
 
   const formatCalculatedPrice = (val: number) => {
@@ -938,11 +1043,6 @@ export function VehicleRowCard({
       const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
       return `${val.toFixed(2)} PLN ${isNetto ? 'netto' : 'brutto'}`;
   };
-
-  const factoryOptionsPriceTotal = customFactoryOptions.reduce((acc, curr) => acc + curr.price_net, 0);
-  const customServiceOptionsPriceTotal = customServiceOptions.reduce((acc, curr) => acc + curr.price_net, 0);
-
-  const dynamicTotalOptionsPrice = factoryOptionsPriceTotal + customServiceOptionsPriceTotal;
 
 
 
@@ -1159,7 +1259,7 @@ export function VehicleRowCard({
               defaultMarginPct={pricingMarginPct}
               wiborPct={wiborPct}
               marginPct={marginPct}
-              depreciationPct={depreciationPct}
+              depreciationPct={depreciationPct ?? 0}
               initialDepositPct={initialDepositPct}
               replacementCar={replacementCar}
               gpsRequired={gpsRequired}
@@ -1201,6 +1301,9 @@ export function VehicleRowCard({
              totalCatalogPrice={totalCatalogPrice}
              activeFinalPrice={activeFinalPrice}
              dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
+             discountableOptionsTotal={discountableOptionsTotal}
+             nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
+             serviceOptionsTotal={customServiceOptionsPriceTotal}
              discountMode={discountMode}
              setDiscountMode={setDiscountMode}
              customDiscountPctRaw={customDiscountPctRaw}
@@ -1227,7 +1330,7 @@ export function VehicleRowCard({
              setMarginPct={setMarginPct}
              pricingMarginPct={pricingMarginPct}
              setPricingMarginPct={setPricingMarginPct}
-             depreciationPct={depreciationPct}
+             depreciationPct={depreciationPct ?? 0}
              initialDepositPct={initialDepositPct}
              setInitialDepositPct={setInitialDepositPct}
              otherServiceCosts={otherServiceCosts}
@@ -1268,6 +1371,8 @@ export function VehicleRowCard({
              // Price context for czynsz inicjalny calculations
              activeFinalPriceForDeposit={activeFinalPrice}
              crossCardAlerts={crossCardAlerts}
+             paramPreview={paramPreview}
+             controlCenter={controlCenter}
           />
 
 
@@ -1293,7 +1398,7 @@ export function VehicleRowCard({
                               wibor_pct: wiborPct,
                               margin_pct: marginPct,
                               pricing_margin_pct: pricingMarginPct,
-                              depreciation_pct: depreciationPct,
+                              depreciation_pct: null,  // auto-calculated by backend per cell
                               initial_deposit_pct: initialDepositPct,
                               other_service_costs: otherServiceCosts,
                             },

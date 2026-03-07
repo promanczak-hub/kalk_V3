@@ -55,6 +55,13 @@ interface VehicleBaseInfoProps {
     critical_count: number;
     warning_count: number;
     resolve_error?: string;
+    body_match?: {
+      matched_name: string | null;
+      vehicle_class: string | null;
+      score: number;
+      match_method: string;
+      raw_input: string;
+    };
   } | null;
 }
 
@@ -211,6 +218,36 @@ function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* Body type match info */}
+          {result.body_match && result.body_match.raw_input && (
+            <div className="mt-2 pt-1.5 border-t border-slate-100">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Dopasowanie nadwozia
+              </div>
+              {result.body_match.score > 0 ? (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-700">
+                    {result.body_match.raw_input} → {result.body_match.matched_name}
+                  </span>
+                  <span className={`font-mono text-[10px] ${
+                    result.body_match.score >= 90 ? "text-emerald-600" : "text-amber-600"
+                  }`}>
+                    {result.body_match.score}% ({result.body_match.match_method})
+                  </span>
+                </div>
+              ) : (
+                <div className="text-xs text-red-600 font-medium p-1.5 bg-red-50 rounded border border-red-100">
+                  ⚠️ "{result.body_match.raw_input}" — brak dopasowania.
+                  Korekta WR za nadwozie = 0%
+                </div>
+              )}
+              {result.body_match.vehicle_class && (
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  Klasa: {result.body_match.vehicle_class}
+                </div>
+              )}
             </div>
           )}
           {result.samar_class_id != null && (

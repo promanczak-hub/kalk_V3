@@ -1,3 +1,1 @@
-ALTER TABLE samar_classes ADD COLUMN IF NOT EXISTS base_mileage_km INTEGER DEFAULT 140000;
-ALTER TABLE samar_classes ADD COLUMN IF NOT EXISTS mileage_threshold_km INTEGER DEFAULT 190000;
-ALTER TABLE samar_classes ADD COLUMN IF NOT EXISTS base_period_months INTEGER DEFAULT 48;
+SELECT DISTINCT jsonb_object_keys(synthesis_data->'mapped_ai_data') FROM vehicle_synthesis;

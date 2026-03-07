@@ -95,29 +95,87 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
   const fetchPipeline = async () => {
     setState((s) => ({ ...s, status: "loading", error: undefined }));
     try {
-      // Reconstruct payload as done in save & calc
+      // Extract pricing from synthesis_data (primary source)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sd = (vehicle.synthesis_data as Record<string, any>) || {};
+      const cs = sd?.card_summary || {};
+      const calcSetup = sd?.calculator_setup || {};
+      const finParams = calcSetup?.financial_params || {};
+      const tireParams = calcSetup?.tire_params || {};
+      const toggles = calcSetup?.toggles || {};
+      const discountBlock = calcSetup?.discount || {};
+
+      // ── Base price net: parse "154 250 zł brutto" → netto ──
+      let basePriceNet = 0;
+      const basePriceStr = cs.base_price || vehicle.base_price || "";
+      if (basePriceStr) {
+        const numMatch = String(basePriceStr).replace(/\s/g, "").match(/([\d,.]+)/);
+        if (numMatch) {
+          const parsed = parseFloat(numMatch[1].replace(",", "."));
+          const isBrutto = String(basePriceStr).toLowerCase().includes("brutto");
+          basePriceNet = isBrutto ? Math.round((parsed / 1.23) * 100) / 100 : parsed;
+        }
+      }
+
+      // ── Discount: from calculator_setup.discount or suggested ──
+      const discountPct = Number(
+        discountBlock.active_discount_pct
+        || cs.suggested_discount_pct
+        || vehicle.discount_pct
+        || 0
+      );
+
+      // ── Factory options: parse paid_options from card_summary ──
+      // Format in DB: [{name, price: "2650 zł brutto", category: "Fabryczna"}]
+      // Backend VehicleOptions requires: {name, price_net, price_gross, no_discount}
+      const paidOptions = cs.paid_options || [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const factoryOptions = paidOptions.map((opt: any) => {
+        let priceNet = 0;
+        if (opt.price) {
+          const priceMatch = String(opt.price).replace(/\s/g, "").match(/([\d,.]+)/);
+          if (priceMatch) {
+            const rawPrice = parseFloat(priceMatch[1].replace(",", "."));
+            const optIsBrutto = String(opt.price).toLowerCase().includes("brutto");
+            priceNet = optIsBrutto ? Math.round((rawPrice / 1.23) * 100) / 100 : rawPrice;
+          }
+        }
+        return {
+          name: opt.name || "",
+          price_net: priceNet,
+          price_gross: Math.round(priceNet * 1.23 * 100) / 100,
+          no_discount: opt.no_discount ?? false,
+        };
+      });
+
+      // Service options (empty for now — rarely present in card_summary)
+      const serviceOptions = cs.service_options || vehicle.service_options || [];
+
+      // ── Reconstruct payload from synthesis_data ──
       const payload = {
-        base_price_net: vehicle.base_price_net || 0,
-        discount_pct: vehicle.discount_pct || 0,
-        factory_options: vehicle.factory_options || [],
-        service_options: vehicle.service_options || [],
-        wibor_pct: vehicle.wibor_pct ?? 5.85,
-        margin_pct: vehicle.margin_pct ?? 2.0,
-        pricing_margin_pct: vehicle.pricing_margin_pct ?? 15.0,
-        depreciation_pct: vehicle.depreciation_pct,
-        initial_deposit_pct: vehicle.initial_deposit_pct || 0.0,
+        base_price_net: basePriceNet,
+        discount_pct: discountPct,
+        factory_options: factoryOptions,
+        service_options: serviceOptions,
+        wibor_pct: finParams.wibor_pct ?? vehicle.wibor_pct ?? 5.85,
+        margin_pct: finParams.margin_pct ?? vehicle.margin_pct ?? 2.0,
+        pricing_margin_pct: finParams.pricing_margin_pct ?? vehicle.pricing_margin_pct ?? 15.0,
+        depreciation_pct: finParams.depreciation_pct ?? vehicle.depreciation_pct,
+        initial_deposit_pct: finParams.initial_deposit_pct ?? vehicle.initial_deposit_pct ?? 0.0,
         z_oponami: vehicle.z_oponami ?? true,
-        klasa_opony_string: vehicle.klasa_opony_string || "Medium",
-        srednica_felgi: vehicle.wheels && vehicle.wheels !== "Brak" ? parseInt(vehicle.wheels) : 18,
-        korekta_kosztu_opon: vehicle.korekta_kosztu_opon || false,
-        koszt_opon_korekta: vehicle.koszt_opon_korekta || 0.0,
-        service_cost_type: vehicle.service_cost_type || "ASO",
+        klasa_opony_string: tireParams.tire_class || vehicle.klasa_opony_string || "Medium",
+        srednica_felgi: tireParams.rim_diameter || (vehicle.wheels && vehicle.wheels !== "Brak" ? parseInt(vehicle.wheels) : 18),
+        korekta_kosztu_opon: tireParams.tire_cost_correction_enabled ?? vehicle.korekta_kosztu_opon ?? false,
+        koszt_opon_korekta: tireParams.tire_cost_correction ?? vehicle.koszt_opon_korekta ?? 0.0,
+        service_cost_type: calcSetup.service_cost_type || vehicle.service_cost_type || "ASO",
         okres_bazowy: vehicle.okres_bazowy || 48,
         przebieg_bazowy: vehicle.przebieg_bazowy || 140000,
-        replacement_car_enabled: vehicle.replacement_car_enabled ?? true,
+        replacement_car_enabled: toggles.replacement_car ?? vehicle.replacement_car_enabled ?? true,
         pakiet_serwisowy: vehicle.pakiet_serwisowy || 0.0,
-        inne_koszty_serwisowania_netto: vehicle.inne_koszty_serwisowania_netto || 0.0,
-        
+        inne_koszty_serwisowania_netto: finParams.other_service_costs ?? vehicle.inne_koszty_serwisowania_netto ?? 0.0,
+        is_metalic: calcSetup.is_metalic ?? cs.is_metalic_paint ?? true,
+        vehicle_vintage: calcSetup.vehicle_vintage || "current",
+
         // Debugger specific fields
         overrides,
         months

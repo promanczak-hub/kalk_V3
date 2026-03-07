@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   Typography,
   CircularProgress,
   Chip,
 } from "@mui/material";
-import { Calculator, ChevronDown, ChevronUp, TrendingUp, DollarSign } from "lucide-react";
+import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,28 @@ interface MatrixCell {
   utrata_wartosci_bez_czynszu_net: number;
   breakdown: CellBreakdown;
   status: string;
+  warnings?: {
+    service_fallback_used?: boolean;
+    replacement_car_missing?: boolean;
+  };
 }
+
+interface CellOverrides {
+  pricing_margin_pct: number;
+  klasa_opony_string: string;
+  liczba_kompletow_opon: number | null;
+  z_oponami: boolean;
+  manual_wr_correction: number;
+  pakiet_serwisowy: number;
+  inne_koszty_serwisowania_netto: number;
+  service_cost_type: "ASO" | "nonASO";
+  replacement_car_enabled: boolean;
+  custom_months: number | null;        // null = use original
+  custom_km_per_year: number | null;   // null = use original
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Payload = Record<string, any>;
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
@@ -63,19 +84,87 @@ function CostRow({ label, component }: { label: string; component: CostComponent
   );
 }
 
-// ─── Expanded Cell Detail ────────────────────────────────────────────────────
+// ─── Expert Panel Input Helpers ──────────────────────────────────────────────
+
+function ExpertNumber({ label, value, onChange, step = 1, suffix, min }: {
+  label: string; value: number; onChange: (v: number) => void; step?: number; suffix?: string; min?: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label className="text-[11px] text-slate-500 font-medium shrink-0">{label}</label>
+      <div className="flex items-center gap-1">
+        <input
+          type="number"
+          step={step}
+          min={min}
+          className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-500 tabular-nums bg-white"
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        />
+        {suffix && <span className="text-[10px] text-slate-400">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ExpertToggle({ label, value, onChange }: {
+  label: string; value: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label className="text-[11px] text-slate-500 font-medium">{label}</label>
+      <button
+        onClick={() => onChange(!value)}
+        className={`relative w-8 h-4.5 rounded-full transition-colors duration-200 ${value ? 'bg-blue-500' : 'bg-slate-300'}`}
+      >
+        <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform duration-200 ${value ? 'left-4' : 'left-0.5'}`} />
+      </button>
+    </div>
+  );
+}
+
+function ExpertSelect({ label, value, options, onChange }: {
+  label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label className="text-[11px] text-slate-500 font-medium shrink-0">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// ─── Expanded Cell Detail with Expert Mode ───────────────────────────────────
 
 function CellDetail({
   cell,
-  marginAdj,
-  onMarginChange,
+  overrides,
+  isModified,
+  isRecalculating,
+  onOverridesChange,
+  onRecalculate,
+  onReset,
 }: {
   cell: MatrixCell;
-  marginAdj: number;
-  onMarginChange: (val: number) => void;
+  overrides: CellOverrides;
+  isModified: boolean;
+  isRecalculating: boolean;
+  onOverridesChange: (o: CellOverrides) => void;
+  onRecalculate: () => void;
+  onReset: () => void;
 }) {
   const bd = cell.breakdown;
-  const adjustedTotal = cell.price_net + marginAdj;
+  const [showExpert, setShowExpert] = useState(false);
+
+  const update = (partial: Partial<CellOverrides>) => {
+    onOverridesChange({ ...overrides, ...partial });
+  };
 
   return (
     <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 mt-2 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -92,6 +181,15 @@ function CellDetail({
             variant="outlined"
             sx={{ height: 20, fontSize: 10 }}
           />
+          {isModified && (
+            <Chip
+              label="⚙️ Zmodyfikowana"
+              size="small"
+              color="info"
+              variant="filled"
+              sx={{ height: 20, fontSize: 10 }}
+            />
+          )}
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-400 uppercase">WR SAMAR netto</div>
@@ -127,29 +225,149 @@ function CellDetail({
         </tfoot>
       </table>
 
-      {/* Margin adjustment */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-200">
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold text-slate-500 uppercase">Dodatkowa marża (PLN/mc):</label>
-          <input
-            type="number"
-            step="10"
-            className="w-24 text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 tabular-nums"
-            value={marginAdj}
-            onChange={(e) => onMarginChange(parseFloat(e.target.value) || 0)}
-          />
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="text-xs text-slate-400">Cena końcowa netto</div>
-            <div className="text-base font-bold text-blue-700 tabular-nums">{fmtPLN(adjustedTotal)} PLN</div>
-          </div>
-          <button className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm">
-            <DollarSign className="w-3.5 h-3.5 mr-1.5" />
-            Dostosuj cenę
-          </button>
-        </div>
+      {/* Expert Mode Toggle */}
+      <div className="mt-4 pt-3 border-t border-slate-200">
+        <button
+          onClick={() => setShowExpert(!showExpert)}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
+            showExpert
+              ? "bg-blue-100 text-blue-700 border border-blue-200"
+              : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          {showExpert ? "Zamknij tryb ekspercki" : "⚙️ Tryb ekspercki"}
+        </button>
       </div>
+
+      {/* Expert Panel */}
+      {showExpert && (
+        <div className="mt-3 p-3 bg-white rounded-lg border border-blue-100 animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
+            {/* Column 1: Marża i Finanse */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Marża i Kontrakt</div>
+              <ExpertNumber
+                label="Marża sprzedaży"
+                value={overrides.pricing_margin_pct}
+                onChange={(v) => update({ pricing_margin_pct: v })}
+                step={0.5}
+                suffix="%"
+                min={0}
+              />
+              <ExpertNumber
+                label="Okres (mc)"
+                value={overrides.custom_months ?? cell.months}
+                onChange={(v) => update({ custom_months: v > 0 ? v : null })}
+                step={6}
+                suffix="mc"
+                min={6}
+              />
+              <ExpertNumber
+                label="Kilometry/rok"
+                value={overrides.custom_km_per_year ?? cell.km_per_year}
+                onChange={(v) => update({ custom_km_per_year: v > 0 ? v : null })}
+                step={5000}
+                suffix="km"
+                min={5000}
+              />
+              <ExpertNumber
+                label="Korekta WR"
+                value={overrides.manual_wr_correction}
+                onChange={(v) => update({ manual_wr_correction: v })}
+                step={500}
+                suffix="PLN"
+              />
+            </div>
+
+            {/* Column 2: Serwis */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Serwis</div>
+              <ExpertSelect
+                label="Typ serwisu"
+                value={overrides.service_cost_type}
+                options={[
+                  { value: "ASO", label: "ASO" },
+                  { value: "nonASO", label: "Non-ASO" },
+                ]}
+                onChange={(v) => update({ service_cost_type: v as "ASO" | "nonASO" })}
+              />
+              <ExpertNumber
+                label="Pakiet serwisowy"
+                value={overrides.pakiet_serwisowy}
+                onChange={(v) => update({ pakiet_serwisowy: v })}
+                step={100}
+                suffix="PLN"
+                min={0}
+              />
+              <ExpertNumber
+                label="Inne koszty mc"
+                value={overrides.inne_koszty_serwisowania_netto}
+                onChange={(v) => update({ inne_koszty_serwisowania_netto: v })}
+                step={10}
+                suffix="PLN"
+                min={0}
+              />
+            </div>
+
+            {/* Column 3: Opony i Toggles */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Opony i Inne</div>
+              <ExpertToggle
+                label="Opony"
+                value={overrides.z_oponami}
+                onChange={(v) => update({ z_oponami: v })}
+              />
+              <ExpertSelect
+                label="Klasa opon"
+                value={overrides.klasa_opony_string}
+                options={[
+                  { value: "Budget", label: "Budget" },
+                  { value: "Medium", label: "Medium" },
+                  { value: "Premium", label: "Premium" },
+                ]}
+                onChange={(v) => update({ klasa_opony_string: v })}
+              />
+              <ExpertToggle
+                label="Auto zastępcze"
+                value={overrides.replacement_car_enabled}
+                onChange={(v) => update({ replacement_car_enabled: v })}
+              />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-blue-50">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onRecalculate}
+                disabled={isRecalculating}
+                className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRecalculating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <TrendingUp className="w-3.5 h-3.5" />
+                )}
+                {isRecalculating ? "Przeliczam..." : "Przelicz tę komórkę"}
+              </button>
+              {isModified && (
+                <button
+                  onClick={onReset}
+                  className="flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all border border-slate-200"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Resetuj
+                </button>
+              )}
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] text-slate-400 uppercase">Rata LTR netto</div>
+              <div className="text-lg font-bold text-blue-700 tabular-nums">{fmtPLN(cell.price_net)} PLN</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -158,15 +376,56 @@ function CellDetail({
 
 export default function CalculatorPanel() {
   const [cells, setCells] = useState<MatrixCell[]>([]);
+  const [originalCells, setOriginalCells] = useState<MatrixCell[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedCell, setExpandedCell] = useState<number | null>(null);
-  const [marginAdjustments, setMarginAdjustments] = useState<Record<number, number>>({});
+  const [cellOverrides, setCellOverrides] = useState<Record<number, CellOverrides>>({});
+  const [modifiedCells, setModifiedCells] = useState<Set<number>>(new Set());
+  const [recalculating, setRecalculating] = useState<number | null>(null);
+
+  // Store the base payload for per-cell recalculation
+  const basePayloadRef = useRef<Payload | null>(null);
+  const kmPerMonthRef = useRef<number>(0);
 
   // Read kalkulacja ID from URL
   const urlParams = new URLSearchParams(window.location.search);
   const kalkulacjaId = urlParams.get("id");
   const kalkulacjaNumer = urlParams.get("kalkulacja") || "Brak numeru";
+
+  // Build default overrides from base payload
+  const buildDefaultOverrides = (payload: Payload): CellOverrides => ({
+    pricing_margin_pct: payload.pricing_margin_pct ?? 15.0,
+    klasa_opony_string: payload.klasa_opony_string || "Medium",
+    liczba_kompletow_opon: payload.liczba_kompletow_opon ?? null,
+    z_oponami: payload.z_oponami !== false,
+    manual_wr_correction: payload.manual_wr_correction || 0,
+    pakiet_serwisowy: payload.pakiet_serwisowy || 0,
+    inne_koszty_serwisowania_netto: payload.inne_koszty_serwisowania_netto || 0,
+    service_cost_type: payload.service_cost_type || "ASO",
+    replacement_car_enabled: payload.replacement_car_enabled !== false,
+    custom_months: null,
+    custom_km_per_year: null,
+  });
+
+  // Get or initialize overrides for a cell
+  const getOverrides = (months: number): CellOverrides => {
+    if (cellOverrides[months]) return cellOverrides[months];
+    if (basePayloadRef.current) return buildDefaultOverrides(basePayloadRef.current);
+    return {
+      pricing_margin_pct: 15.0,
+      klasa_opony_string: "Medium",
+      liczba_kompletow_opon: null,
+      z_oponami: true,
+      manual_wr_correction: 0,
+      pakiet_serwisowy: 0,
+      inne_koszty_serwisowania_netto: 0,
+      service_cost_type: "ASO",
+      replacement_car_enabled: true,
+      custom_months: null,
+      custom_km_per_year: null,
+    };
+  };
 
   // Fetch matrix
   const fetchMatrix = useCallback(async () => {
@@ -191,8 +450,12 @@ export default function CalculatorPanel() {
       const mappedAi = stanJson.mapped_ai_data || {};
       const discount = stanJson.discount || {};
 
+      const okresBazowy = mappedAi.usage_months || 48;
+      const przebiegBazowy = mappedAi.total_km || 140000;
+      kmPerMonthRef.current = przebiegBazowy / okresBazowy;
+
       // 2. Build CalculatorInput payload from stan_json
-      const payload = {
+      const payload: Payload = {
         calculation_id: kalkulacjaId,
         vehicle_id: kalkData.vehicle_id || cardSummary.model || "unknown",
         base_price_net: parseFloat(cardSummary.base_price || cardSummary.total_price || "0"),
@@ -207,8 +470,8 @@ export default function CalculatorPanel() {
           price_net: o.price_net || 0,
           include_in_wr: o.include_in_wr || false,
         })),
-        okres_bazowy: mappedAi.usage_months || 48,
-        przebieg_bazowy: mappedAi.total_km || 140000,
+        okres_bazowy: okresBazowy,
+        przebieg_bazowy: przebiegBazowy,
         wibor_pct: financialParams.wibor_pct || 5.0,
         margin_pct: financialParams.margin_pct || 2.0,
         depreciation_pct: financialParams.depreciation_pct || null,
@@ -225,8 +488,15 @@ export default function CalculatorPanel() {
         service_cost_type: stanJson.service_cost_type || "ASO",
         vehicle_vintage: stanJson.vehicle_vintage || "current",
         is_metalic: stanJson.is_metalic === true,
+        pricing_margin_pct: financialParams.pricing_margin_pct ?? 15.0,
+        manual_wr_correction: 0,
+        pakiet_serwisowy: 0,
+        inne_koszty_serwisowania_netto: 0,
         settings: { settings_version_id: null, overrides: null },
       };
+
+      // Store base payload for per-cell recalculation
+      basePayloadRef.current = payload;
 
       // 3. Call calculate-matrix
       const matrixResp = await fetch(`${baseUrl}/api/calculate-matrix`, {
@@ -239,7 +509,11 @@ export default function CalculatorPanel() {
         throw new Error(`Błąd kalkulacji: ${errBody}`);
       }
       const matrixData = await matrixResp.json();
-      setCells(matrixData.cells || []);
+      const newCells = matrixData.cells || [];
+      setCells(newCells);
+      setOriginalCells(newCells);
+      setModifiedCells(new Set());
+      setCellOverrides({});
     } catch (err) {
       console.error("Matrix fetch error:", err);
       setError(err instanceof Error ? err.message : "Nieznany błąd");
@@ -252,8 +526,87 @@ export default function CalculatorPanel() {
     fetchMatrix();
   }, [fetchMatrix]);
 
-  const handleMarginChange = (months: number, val: number) => {
-    setMarginAdjustments((prev) => ({ ...prev, [months]: val }));
+  // ─── Per-cell recalculation ────────────────────────────────────────────────
+
+  const recalculateSingleCell = useCallback(async (months: number) => {
+    if (!basePayloadRef.current) return;
+    const ov = cellOverrides[months];
+    if (!ov) return;
+
+    setRecalculating(months);
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
+      // Build modified payload: apply expert overrides.
+      // If user specified custom months/km, use those; otherwise keep original cell's.
+      const effectiveMonths = ov.custom_months ?? months;
+      const effectiveKmYear = ov.custom_km_per_year;
+      let targetKm: number;
+      if (effectiveKmYear != null) {
+        targetKm = Math.round((effectiveKmYear / 12) * effectiveMonths);
+      } else {
+        targetKm = Math.round(kmPerMonthRef.current * effectiveMonths);
+      }
+
+      const modifiedPayload: Payload = {
+        ...basePayloadRef.current,
+        okres_bazowy: effectiveMonths,
+        przebieg_bazowy: targetKm,
+        // Apply expert overrides
+        pricing_margin_pct: ov.pricing_margin_pct,
+        klasa_opony_string: ov.klasa_opony_string,
+        liczba_kompletow_opon: ov.liczba_kompletow_opon,
+        z_oponami: ov.z_oponami,
+        manual_wr_correction: ov.manual_wr_correction,
+        pakiet_serwisowy: ov.pakiet_serwisowy,
+        inne_koszty_serwisowania_netto: ov.inne_koszty_serwisowania_netto,
+        service_cost_type: ov.service_cost_type,
+        replacement_car_enabled: ov.replacement_car_enabled,
+      };
+
+      const resp = await fetch(`${baseUrl}/api/calculate-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modifiedPayload),
+      });
+
+      if (!resp.ok) throw new Error("Błąd przeliczania komórki");
+      const data = await resp.json();
+      const newCells: MatrixCell[] = data.cells || [];
+
+      // Find the cell matching our effective months
+      const foundMonths = ov.custom_months ?? months;
+      const targetCell = newCells.find(c => c.months === foundMonths);
+      if (targetCell) {
+        setCells(prev => prev.map(c => c.months === months ? targetCell : c));
+        setModifiedCells(prev => new Set([...prev, months]));
+      }
+    } catch (err) {
+      console.error("Recalculation error:", err);
+    } finally {
+      setRecalculating(null);
+    }
+  }, [cellOverrides]);
+
+  const resetCell = (months: number) => {
+    const original = originalCells.find(c => c.months === months);
+    if (original) {
+      setCells(prev => prev.map(c => c.months === months ? original : c));
+    }
+    setCellOverrides(prev => {
+      const next = { ...prev };
+      delete next[months];
+      return next;
+    });
+    setModifiedCells(prev => {
+      const next = new Set(prev);
+      next.delete(months);
+      return next;
+    });
+  };
+
+  const handleOverridesChange = (months: number, overrides: CellOverrides) => {
+    setCellOverrides(prev => ({ ...prev, [months]: overrides }));
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -285,6 +638,11 @@ export default function CalculatorPanel() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {modifiedCells.size > 0 && (
+              <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
+                {modifiedCells.size} zmodyfikowana(e)
+              </span>
+            )}
             <button
               onClick={fetchMatrix}
               className="flex items-center text-xs font-semibold px-3 py-1.5 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors"
@@ -328,12 +686,29 @@ export default function CalculatorPanel() {
               Matryca rat LTR ({cells.length} wariantów)
             </h3>
 
+            {/* Data quality warnings */}
+            {cells.some(c => c.warnings?.service_fallback_used) && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
+                <span className="text-amber-600 text-sm">⚠️</span>
+                <span className="text-xs text-amber-800 font-medium">
+                  Brak stawek serwisowych SAMAR dla tego pojazdu — koszt serwisu = 0 PLN. Uzupełnij dane w Control Center.
+                </span>
+              </div>
+            )}
+            {cells.some(c => c.warnings?.replacement_car_missing) && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
+                <span className="text-amber-600 text-sm">⚠️</span>
+                <span className="text-xs text-amber-800 font-medium">
+                  Brak danych auta zastępczego dla tej klasy SAMAR — koszt = 0 PLN. Sprawdź mapowanie klasy WR → SAMAR.
+                </span>
+              </div>
+            )}
+
             {/* Matrix Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {cells.map((cell) => {
                 const isExpanded = expandedCell === cell.months;
-                const adj = marginAdjustments[cell.months] || 0;
-                const displayPrice = cell.price_net + adj;
+                const isMod = modifiedCells.has(cell.months);
 
                 return (
                   <div key={cell.months} className={isExpanded ? "sm:col-span-2 lg:col-span-3 xl:col-span-4" : ""}>
@@ -343,15 +718,20 @@ export default function CalculatorPanel() {
                       className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer hover:shadow-md ${
                         isExpanded
                           ? "bg-blue-50 border-blue-300 shadow-md"
-                          : cell.status === "OK"
-                            ? "bg-white border-slate-200 hover:border-blue-300"
-                            : "bg-amber-50/50 border-amber-200 hover:border-amber-400"
+                          : isMod
+                            ? "bg-blue-50/50 border-blue-200 hover:border-blue-400 ring-1 ring-blue-100"
+                            : cell.status === "OK"
+                              ? "bg-white border-slate-200 hover:border-blue-300"
+                              : "bg-amber-50/50 border-amber-200 hover:border-amber-400"
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-xs font-bold text-slate-400 uppercase">
-                            {cell.months} miesięcy
+                          <div className="flex items-center gap-1.5">
+                            <div className="text-xs font-bold text-slate-400 uppercase">
+                              {cell.months} miesięcy
+                            </div>
+                            {isMod && <Settings className="w-3 h-3 text-blue-500" />}
                           </div>
                           <div className="text-xs text-slate-400">
                             {(cell.total_km / 1000).toFixed(0)}k km ({cell.km_per_year.toLocaleString("pl-PL")} km/rok)
@@ -360,7 +740,7 @@ export default function CalculatorPanel() {
                         <div className="flex items-center gap-2">
                           <div className="text-right">
                             <div className="text-sm font-bold text-blue-700 tabular-nums">
-                              {fmtPLN(displayPrice)}
+                              {fmtPLN(cell.price_net)}
                             </div>
                             <div className="text-[9px] text-slate-400">PLN netto/mc</div>
                           </div>
@@ -373,12 +753,16 @@ export default function CalculatorPanel() {
                       </div>
                     </button>
 
-                    {/* Expanded Detail */}
+                    {/* Expanded Detail with Expert Mode */}
                     {isExpanded && (
                       <CellDetail
                         cell={cell}
-                        marginAdj={adj}
-                        onMarginChange={(val) => handleMarginChange(cell.months, val)}
+                        overrides={getOverrides(cell.months)}
+                        isModified={isMod}
+                        isRecalculating={recalculating === cell.months}
+                        onOverridesChange={(o) => handleOverridesChange(cell.months, o)}
+                        onRecalculate={() => recalculateSingleCell(cell.months)}
+                        onReset={() => resetCell(cell.months)}
                       />
                     )}
                   </div>

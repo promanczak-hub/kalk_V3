@@ -1,11 +1,19 @@
 import json
+import logging
 import os
-from supabase import create_client, Client
+
 from google.genai import types
+from supabase import Client, create_client
 
 from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
 from core.prompts import MATCH_FLEET_DISCOUNT_SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
+
+# ── Sanity range for LLM-returned discount percentage ──
+_MIN_DISCOUNT_PCT = 0.5
+_MAX_DISCOUNT_PCT = 60.0
 
 
 def match_fleet_discount(pro_data: dict) -> dict:
@@ -50,6 +58,8 @@ def match_fleet_discount(pro_data: dict) -> dict:
             return pro_data
 
         # ── Brand pre-check: skip LLM if brand doesn't exist in DB ──
+        # NOTE: Extend this mapping when adding new brand aliases.
+        # Future improvement: move to a DB table (e.g. brand_aliases).
         brand_aliases: dict[str, set[str]] = {
             "volkswagen": {"vw", "volkswagen", "vw osobowe", "vw dostawcze"},
             "vw": {"vw", "volkswagen", "vw osobowe", "vw dostawcze"},
@@ -58,6 +68,10 @@ def match_fleet_discount(pro_data: dict) -> dict:
             "seat": {"seat", "seat/cupra", "cupra"},
             "cupra": {"seat", "seat/cupra", "cupra"},
             "seat/cupra": {"seat", "seat/cupra", "cupra"},
+            "ds": {"ds", "ds automobiles"},
+            "ds automobiles": {"ds", "ds automobiles"},
+            "mercedes": {"mercedes", "mercedes-benz"},
+            "mercedes-benz": {"mercedes", "mercedes-benz"},
         }
 
         db_brands_raw: set[str] = {
@@ -77,9 +91,11 @@ def match_fleet_discount(pro_data: dict) -> dict:
         )
 
         if not vehicle_brand_aliases & db_brands_expanded:
-            print(
-                f"Brand '{extracted_brand}' not found in tabela_rabaty "
-                f"(available: {sorted(db_brands_raw)}). Skipping LLM call."
+            logger.info(
+                "Brand '%s' not found in tabela_rabaty "
+                "(available: %s). Skipping LLM call.",
+                extracted_brand,
+                sorted(db_brands_raw),
             )
             return pro_data
 
@@ -153,7 +169,7 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
         )
 
         resp_text = getattr(response, "text", "{}") or "{}"
-        print(f"RAW LLM RESPONSE: {resp_text}")
+        logger.info("RAW LLM RESPONSE: %s", resp_text)
         match_result = json.loads(clean_json_response(str(resp_text)))
 
         confidence = match_result.get("match_confidence", 0) if match_result else 0
@@ -163,29 +179,48 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
         flash_data["suggested_discount_confidence"] = confidence
 
         if match_result and match_result.get("is_matched"):
-            if confidence >= min_confidence_threshold:
+            # ── Sanity range check on discount percentage ──
+            raw_pct = match_result.get("matched_discount_perc", 0)
+            if raw_pct is not None and not (
+                _MIN_DISCOUNT_PCT <= raw_pct <= _MAX_DISCOUNT_PCT
+            ):
+                logger.warning(
+                    "Discount %.2f%% out of sane range [%.1f-%.1f], rejecting",
+                    raw_pct,
+                    _MIN_DISCOUNT_PCT,
+                    _MAX_DISCOUNT_PCT,
+                )
+                match_result["is_matched"] = False
+
+            if (
+                match_result.get("is_matched")
+                and confidence >= min_confidence_threshold
+            ):
                 flash_data["suggested_discount_pct"] = match_result.get(
                     "matched_discount_perc"
                 )
                 flash_data["suggested_discount_source"] = match_result.get(
                     "matching_reason"
                 )
-                print(
-                    f"Fleet discount match result (confidence={confidence}%): "
-                    f"{match_result}"
+                logger.info(
+                    "Fleet discount match result (confidence=%d%%): %s",
+                    confidence,
+                    match_result,
                 )
-            else:
-                print(
-                    f"Fleet discount match REJECTED — confidence {confidence}% "
-                    f"< threshold {min_confidence_threshold}%. "
-                    f"Would-be match: {match_result}"
+            elif match_result.get("is_matched"):
+                logger.info(
+                    "Fleet discount match REJECTED — confidence %d%% "
+                    "< threshold %d%%. Would-be match: %s",
+                    confidence,
+                    min_confidence_threshold,
+                    match_result,
                 )
         else:
-            print("No confident fleet discount matched.")
+            logger.info("No confident fleet discount matched.")
 
         pro_data["card_summary"] = flash_data
 
     except Exception as e:
-        print(f"Błąd podczas dopasowywania zniżek flotowych: {e}")
+        logger.exception("Błąd podczas dopasowywania zniżek flotowych: %s", e)
 
     return pro_data
