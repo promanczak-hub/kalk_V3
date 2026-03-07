@@ -1,5 +1,6 @@
 import type { MiniMatrixCell } from "./decision-center.types";
 import { fmtPLN2, getMarginTier } from "./decision-center.utils";
+import { AccordionBreakdown } from "./AccordionBreakdown";
 
 interface CostBreakdownPanelProps {
   cell: MiniMatrixCell;
@@ -190,6 +191,9 @@ export function CostBreakdownPanel({ cell }: CostBreakdownPanelProps) {
           />
         </div>
       </div>
+
+      {/* Accordion drill-down */}
+      <AccordionBreakdown cell={cell} />
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { HeatmapMatrix } from "./decision-center/HeatmapMatrix";
 import { CostBreakdownPanel } from "./decision-center/CostBreakdownPanel";
 import { BudgetFilter } from "./decision-center/BudgetFilter";
 import { RankingList } from "./decision-center/RankingList";
+import { StickyContextHeader } from "./decision-center/StickyContextHeader";
+import { ExploreMatrixButton } from "./decision-center/ExploreMatrixButton";
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +80,7 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
   // Decision center state
   const [selectedCellKey, setSelectedCellKey] = useState<string | null>(null);
   const [budgetMax, setBudgetMax] = useState<number | null>(null);
+  const [drillDownOpen, setDrillDownOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -367,6 +370,15 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
           {/* ── Decision Center Content ── */}
           {hasCalculated && cells.length > 0 && !error && (
             <>
+              {/* 0. Sticky Context Header */}
+              <StickyContextHeader
+                brand={vehicle.brand || ""}
+                model={vehicle.model || ""}
+                basePriceNet={basePriceNet}
+                baseMonths={48}
+                baseKmTotal={48 / 12 * 40000}
+              />
+
               {/* 1. KPI Summary Cards */}
               <DecisionCenterKPI cells={cells} budgetMax={budgetMax} />
 
@@ -388,10 +400,22 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
                 budgetMax={budgetMax}
               />
 
-              {/* 4. Cost Breakdown Panel (when cell selected) */}
-              {selectedCell && <CostBreakdownPanel cell={selectedCell} />}
+              {/* 4. Explore Matrix Button (when cell selected) */}
+              {selectedCell && (
+                <div className="mt-3">
+                  <ExploreMatrixButton
+                    isExpanded={drillDownOpen}
+                    onToggle={() => setDrillDownOpen((p) => !p)}
+                  />
+                </div>
+              )}
 
-              {/* 5. Ranking List */}
+              {/* 5. Cost Breakdown Panel (when cell selected & drill-down open) */}
+              {selectedCell && drillDownOpen && (
+                <CostBreakdownPanel cell={selectedCell} />
+              )}
+
+              {/* 6. Ranking List */}
               <RankingList cells={cells} budgetMax={budgetMax} />
 
               {/* Footnote */}

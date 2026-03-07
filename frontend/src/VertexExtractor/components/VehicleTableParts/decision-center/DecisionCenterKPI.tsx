@@ -1,6 +1,7 @@
 import { TrendingDown, TrendingUp, Star, Target } from "lucide-react";
 import type { MiniMatrixCell } from "./decision-center.types";
 import { fmtPLN, fmtKm, findBestCell, getMarginTier } from "./decision-center.utils";
+import { Sparkline } from "./Sparkline";
 
 interface DecisionCenterKPIProps {
   cells: MiniMatrixCell[];
@@ -13,24 +14,37 @@ interface KPICardProps {
   value: string;
   subtitle: string;
   gradient: string;
+  sparkData?: number[];
+  sparkColor?: string;
 }
 
-function KPICard({ icon, label, value, subtitle, gradient }: KPICardProps) {
+function KPICard({ icon, label, value, subtitle, gradient, sparkData, sparkColor }: KPICardProps) {
   return (
     <div
       className={`relative overflow-hidden rounded-xl p-4 ${gradient} border border-white/20 shadow-sm`}
     >
       <div className="flex items-start justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/70 mb-1">
             {label}
           </p>
-          <p className="text-xl font-black text-white tabular-nums leading-tight">
-            {value}
-          </p>
+          <div className="flex items-center">
+            <p className="text-xl font-black text-white tabular-nums leading-tight">
+              {value}
+            </p>
+            {sparkData && sparkData.length >= 2 && (
+              <Sparkline
+                data={sparkData}
+                width={56}
+                height={22}
+                strokeColor={sparkColor || "rgba(255,255,255,0.8)"}
+                fillColor={sparkColor ? `${sparkColor}20` : "rgba(255,255,255,0.1)"}
+              />
+            )}
+          </div>
           <p className="text-[10px] text-white/60 mt-1">{subtitle}</p>
         </div>
-        <div className="p-2 rounded-lg bg-white/10 backdrop-blur-sm">
+        <div className="p-2 rounded-lg bg-white/10 backdrop-blur-sm flex-shrink-0">
           {icon}
         </div>
       </div>
@@ -61,6 +75,23 @@ export function DecisionCenterKPI({ cells, budgetMax }: DecisionCenterKPIProps) 
     ? cells.filter((c) => c.price_net <= budgetMax).length
     : cells.length;
 
+  // Sparkline trends: group by months, take cheapest price per month
+  const monthGroups = new Map<number, MiniMatrixCell[]>();
+  for (const c of cells) {
+    const arr = monthGroups.get(c.months) || [];
+    arr.push(c);
+    monthGroups.set(c.months, arr);
+  }
+  const sortedMonths = [...monthGroups.keys()].sort((a, b) => a - b);
+  const priceTrend = sortedMonths.map((m) => {
+    const group = monthGroups.get(m)!;
+    return Math.min(...group.map((c) => c.price_net));
+  });
+  const marginTrend = sortedMonths.map((m) => {
+    const group = monthGroups.get(m)!;
+    return Math.max(...group.map((c) => c.marza_na_kontrakcie_pct * 100));
+  });
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
       <KPICard
@@ -69,6 +100,8 @@ export function DecisionCenterKPI({ cells, budgetMax }: DecisionCenterKPIProps) 
         value={`${fmtPLN(cheapest.price_net)} PLN`}
         subtitle={`${cheapest.months} mc • ${fmtKm(cheapest.km_per_year)} km/rok`}
         gradient="bg-gradient-to-br from-blue-600 to-blue-800"
+        sparkData={priceTrend}
+        sparkColor="rgba(147,197,253,0.9)"
       />
       <KPICard
         icon={<TrendingUp className="w-5 h-5 text-white/80" />}
@@ -76,6 +109,8 @@ export function DecisionCenterKPI({ cells, budgetMax }: DecisionCenterKPIProps) 
         value={`${highMarginPct.toFixed(1)}%`}
         subtitle={`${tier.label} • ${highestMargin.months} mc`}
         gradient="bg-gradient-to-br from-emerald-600 to-emerald-800"
+        sparkData={marginTrend}
+        sparkColor="rgba(110,231,183,0.9)"
       />
       <KPICard
         icon={<Star className="w-5 h-5 text-white/80" />}
