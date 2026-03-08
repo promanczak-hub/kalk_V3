@@ -706,6 +706,7 @@ class LTRKalkulator:
                                 "rozklad_marzy": round(
                                     stawka_result.koszt_opony.rozklad_marzy, 4
                                 ),
+                                "ilosc_opon": tires_res["IloscOpon"],
                             },
                             "insurance": {
                                 "base": round(

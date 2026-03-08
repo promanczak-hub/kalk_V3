@@ -18,7 +18,7 @@ export interface CellBreakdown {
   };
   technical: {
     service: CostComponent;
-    tires: CostComponent;
+    tires: CostComponent & { ilosc_opon?: number };
     insurance: CostComponent;
     replacement_car: CostComponent;
     additional_costs: CostComponent;

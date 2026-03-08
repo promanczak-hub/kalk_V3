@@ -3,7 +3,6 @@ import type { MiniMatrixCell } from "./decision-center.types";
 interface DecisionCenterKPIProps {
   cells: MiniMatrixCell[];
   selectedCell: MiniMatrixCell | null;
-  tireCountMode: string;
   tireClass: string;
   budgetMax: number | null;
 }
@@ -28,7 +27,6 @@ function Badge({ label, value }: { label: string; value: string }) {
 export function DecisionCenterKPI({
   cells,
   selectedCell,
-  tireCountMode,
   tireClass,
 }: DecisionCenterKPIProps) {
   if (cells.length === 0) return null;
@@ -41,11 +39,12 @@ export function DecisionCenterKPI({
   // If a cell is selected, show its data; otherwise show cheapest
   const activeCell = selectedCell || cheapest;
 
-  // Tire info: show per-cell cost when cell selected, otherwise global mode
-  const tireCost = activeCell.breakdown.technical.tires.price;
-  const tireLabel = tireCost > 0
-    ? `${fmtNum(Math.round(tireCost))} PLN/mc • ${tireClass}`
-    : `${tireCountMode === "auto" ? "auto" : tireCountMode + " kpl"} • ${tireClass}`;
+  // Tire info: show per-cell count + cost from backend
+  const tireData = activeCell.breakdown.technical.tires;
+  const tireSets = tireData.ilosc_opon ?? 0;
+  const tireLabel = tireSets > 0
+    ? `${tireSets} kpl • ${fmtNum(Math.round(tireData.price))} PLN/mc`
+    : `${tireClass}`;
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">

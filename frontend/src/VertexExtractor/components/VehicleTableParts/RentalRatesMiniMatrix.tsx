@@ -383,7 +383,6 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
               <DecisionCenterKPI
                 cells={cells}
                 selectedCell={selectedCell}
-                tireCountMode={tireCountMode}
                 tireClass={tireClass}
                 budgetMax={budgetMax}
               />
