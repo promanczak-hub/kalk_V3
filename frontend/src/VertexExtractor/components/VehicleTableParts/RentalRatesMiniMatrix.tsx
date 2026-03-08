@@ -379,8 +379,14 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
                 baseKmTotal={48 / 12 * 40000}
               />
 
-              {/* 1. KPI Summary Cards */}
-              <DecisionCenterKPI cells={cells} budgetMax={budgetMax} />
+              {/* 1. KPI Badges */}
+              <DecisionCenterKPI
+                cells={cells}
+                selectedCell={selectedCell}
+                tireCountMode={tireCountMode}
+                tireClass={tireClass}
+                budgetMax={budgetMax}
+              />
 
               {/* 2. Budget Filter */}
               <BudgetFilter
