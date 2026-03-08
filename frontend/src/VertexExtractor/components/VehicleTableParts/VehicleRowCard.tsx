@@ -12,6 +12,7 @@ import type { ExtractedServiceOption } from "../../../components/Calculator/Serv
 import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
+import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import { RentalRatesMiniMatrix } from "./RentalRatesMiniMatrix";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
@@ -1294,6 +1295,7 @@ export function VehicleRowCard({
               handleAddManualFactoryOption={handleAddManualFactoryOption}
               activeDiscountPct={activeDiscountPct}
             />
+            <VehicleFeaturesCard vehicleId={vehicle.id} />
           </div>
 
           <VehicleFinancialOptions 

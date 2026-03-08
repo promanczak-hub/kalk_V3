@@ -22,6 +22,7 @@ import {
 } from "@mui/material";
 import { Edit, Delete } from "@mui/icons-material";
 import { createClient } from "@supabase/supabase-js";
+import ConfigTableToolbar from '../components/ConfigTableToolbar';
 
 // Initialize Supabase client
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
@@ -168,13 +169,16 @@ export default function RabatyCrudPanel() {
           </Select>
         </FormControl>
 
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => handleOpenDialog()}
-        >
-          + Dodaj Rekord
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ConfigTableToolbar tableName="tabela_rabaty" tableLabel="Tabela Rabatów" onDataChanged={fetchRecords} />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => handleOpenDialog()}
+          >
+            + Dodaj Rekord
+          </Button>
+        </Box>
       </Box>
 
       <TableContainer component={Paper} sx={{ maxHeight: "70vh", overflow: "auto" }}>

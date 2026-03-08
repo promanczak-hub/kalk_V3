@@ -27,6 +27,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { RMSTablesSchema } from './rms_schema';
 import { supabase } from '../VertexExtractor/lib/supabaseClient';
+import ConfigTableToolbar from '../components/ConfigTableToolbar';
 
 export default function RmsCrudPanel() {
   const tableNames = Object.keys(RMSTablesSchema);
@@ -134,9 +135,12 @@ export default function RmsCrudPanel() {
           </Select>
         </FormControl>
         
-        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenAdd}>
-          Dodaj Rekord
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ConfigTableToolbar tableName={selectedTable} tableLabel={selectedTable} onDataChanged={fetchData} />
+          <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenAdd}>
+            Dodaj Rekord
+          </Button>
+        </Box>
       </Box>
       
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}

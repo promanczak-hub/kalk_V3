@@ -14,6 +14,8 @@ from api.calculator_excel_data_routes import router as calculator_excel_data_rou
 from api.extract_routes import router as extract_router
 from api.homologation_routes import router as homologation_router
 from api.param_preview import router as param_preview_router
+from api.features_routes import router as features_router
+from api.config_crud_routes import config_crud_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -27,6 +29,8 @@ app.include_router(budget_finder_router, prefix="/api")  # type: ignore
 app.include_router(calculator_excel_data_router, prefix="/api")
 app.include_router(homologation_router, prefix="/api")
 app.include_router(param_preview_router, prefix="/api")
+app.include_router(features_router, prefix="/api")
+app.include_router(config_crud_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -499,10 +503,22 @@ async def get_samar_classes() -> List[SamarClass]:
             czak_mapping = {}
 
         results = []
+        # czak_mapping uses old format (no "Klasa"), samar_classes uses new format
+        # Build a normalized czak lookup for fuzzy name matching
+        czak_norm_map: Dict[str, str] = {}
+        for raw_name, models in czak_mapping.items():
+            norm = raw_name.strip().upper().replace("KLASA ", "")
+            czak_norm_map[norm] = models
+
         for row in response_data:
             model = SamarClass(**row)
+            # Try exact match first, then normalized
             if model.name in czak_mapping:
                 model.example_models = czak_mapping[model.name]
+            else:
+                norm_key = model.name.strip().upper().replace("KLASA ", "")
+                if norm_key in czak_norm_map:
+                    model.example_models = czak_norm_map[norm_key]
             results.append(model)
 
         return results

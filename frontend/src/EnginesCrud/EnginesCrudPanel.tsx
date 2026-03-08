@@ -21,6 +21,7 @@ import {
   Chip,
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
+import ConfigTableToolbar from '../components/ConfigTableToolbar';
 
 interface EngineType {
   id?: number;
@@ -130,15 +131,18 @@ export default function EnginesCrudPanel() {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, alignItems: 'center' }}>
         <Typography variant="h6">Słownik Napędów (Samar)</Typography>
-        <Button
-          variant="contained"
-          startIcon={<Plus size={16} />}
-          onClick={() => handleOpen()}
-        >
-          Dodaj Napęd
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ConfigTableToolbar tableName="engines" tableLabel="Napędy (Engines)" onDataChanged={fetchData} />
+          <Button
+            variant="contained"
+            startIcon={<Plus size={16} />}
+            onClick={() => handleOpen()}
+          >
+            Dodaj Napęd
+          </Button>
+        </Box>
       </Box>
 
       {loading ? (

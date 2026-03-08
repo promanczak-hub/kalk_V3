@@ -12,6 +12,7 @@ import ControlCenter from "./ControlCenter";
 import KalkulacjeList from "./KalkulacjeList";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
+import { ReverseSearchPage } from "./VertexExtractor/components/ReverseSearchPage";
 
 function App() {
   const [mode, setMode] = useState<'light' | 'dark'>('light');
@@ -162,6 +163,7 @@ function App() {
               sx={{ display: editingTitle ? 'flex' : 'none' }} 
             />
             <Tab value={3} label="Control Center" />
+            <Tab value={4} label="Reverse Search" />
           </Tabs>
         </Box>
 
@@ -169,6 +171,7 @@ function App() {
         {currentTab === 1 && <KalkulacjeList />}
         {currentTab === 2 && <CalculatorPanel />}
         {currentTab === 3 && <ControlCenter />}
+        {currentTab === 4 && <ReverseSearchPage />}
       </div>
     </ThemeProvider>
   );
