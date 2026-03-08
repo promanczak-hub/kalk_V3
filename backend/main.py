@@ -980,8 +980,22 @@ async def readiness_check(
     """Sprawdza gotowość danych SAMAR do kalkulacji WR."""
     from core.samar_rv import check_rv_readiness, get_samar_class_id
 
-    # 1. Resolve nazwy → ID
+    # 1. Resolve nazwy → ID (z normalizacją starego/nowego formatu)
     samar_class_id = get_samar_class_id(samar_class_name)
+
+    # Fallback: jeśli exact match się nie udał, spróbuj bez 'Klasa '
+    if samar_class_id is None and samar_class_name.strip():
+        try:
+            resp = supabase.table("samar_classes").select("id, name").execute()
+            input_norm = samar_class_name.strip().upper().replace("KLASA ", "")
+            for row in resp.data or []:
+                db_norm = str(row.get("name", "")).strip().upper().replace("KLASA ", "")
+                if db_norm == input_norm:
+                    samar_class_id = int(row["id"])
+                    break
+        except Exception as exc:
+            logging.warning("Normalizacja SAMAR fallback error: %s", exc)
+
     fuel_type_id = _resolve_engine_id(engine_name)
 
     if samar_class_id is None:

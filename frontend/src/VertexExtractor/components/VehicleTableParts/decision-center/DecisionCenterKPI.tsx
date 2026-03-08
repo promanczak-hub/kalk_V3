@@ -38,12 +38,14 @@ export function DecisionCenterKPI({
     a.price_net < b.price_net ? a : b
   );
 
-  // Tire count display
-  const tireCountLabel =
-    tireCountMode === "auto" ? "auto" : `${tireCountMode} kpl`;
-
   // If a cell is selected, show its data; otherwise show cheapest
   const activeCell = selectedCell || cheapest;
+
+  // Tire info: show per-cell cost when cell selected, otherwise global mode
+  const tireCost = activeCell.breakdown.technical.tires.price;
+  const tireLabel = tireCost > 0
+    ? `${fmtNum(Math.round(tireCost))} PLN/mc • ${tireClass}`
+    : `${tireCountMode === "auto" ? "auto" : tireCountMode + " kpl"} • ${tireClass}`;
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -57,7 +59,7 @@ export function DecisionCenterKPI({
       />
       <Badge
         label="Opony"
-        value={`${tireCountLabel} • ${tireClass}`}
+        value={tireLabel}
       />
       <Badge
         label="Marża"
