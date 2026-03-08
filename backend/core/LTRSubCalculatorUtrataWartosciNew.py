@@ -54,8 +54,12 @@ class LTRSubCalculatorUtrataWartosciNew:
         if raw_body:
             self.body_type_id = int(raw_body)
 
-        # Zabudowa flag
+        # Zabudowa flag + type
         self.zabudowa_apr_wr = bool(self.vehicle.get("zabudowa_apr_wr", False))
+        self.zabudowa_type_id: Optional[int] = None
+        raw_zab = self.vehicle.get("zabudowa_type_id")
+        if raw_zab:
+            self.zabudowa_type_id = int(raw_zab)
 
         # Rocznik — priority: calc_input.vehicle_vintage → vehicle dict
         vintage_raw = getattr(self.input, "vehicle_vintage", None)
@@ -128,6 +132,7 @@ class LTRSubCalculatorUtrataWartosciNew:
             body_type_id=self.body_type_id,
             rocznik=self.rocznik,
             zabudowa_apr_wr=self.zabudowa_apr_wr,
+            zabudowa_type_id=self.zabudowa_type_id,
             manual_wr_correction=manual_wr,
         )
 

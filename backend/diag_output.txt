@@ -1,0 +1,597 @@
+=== COLUMNS ===
+  [0] OperatorSerwisu
+  [1] RozmiarSzerokosc
+  [2] RozmiarProfil
+  [3] RozmiarLitera
+  [4] RozmiarSrednica
+  [5] IndeksNosnosci
+  [6] IndeksPredkosci
+  [7] Marka
+  [8] Model
+  [9] Rodzaj
+  [10] Kod
+  [11] Info
+  [12] Uwagi
+  [13] NettoPoRabacie
+  [14] Netto
+  [15] Rabat
+  [16] BruttoPoRabacie
+  [17] Brutto
+  [18] Sezon
+  [19] KlasaOpon
+
+Column H name: 'Marka'
+Unique values in col H: ['Sailun', 'Hankook', 'Semperit', 'Pirelli', 'Semperit Speed  ', 'BARUM', 'Semperit ', 'Bridgestone', 'Continental', 'Premiorii', 'Gripmax', 'Dębica', 'SAILUN', 'Nexen', 'GOODYEAR', 'Kumho', 'Toyo', 'Goodride', 'Premiorri', 'Tourador', 'Kleber', 'Falken', 'Firestone', 'Westlake', 'CONTINENTAL', 'DEBICA', 'Laufenn', 'UNIROYAL', 'SAVA', 'Vredestein', 'Uniroyal', 'Yokohama', 'Barum', 'BFGOODRICH', 'DUNLOP', 'FULDA', 'Nokian', 'Point S', 'MICHELIN', 'Michelin', 'BFGoodrich', 'Viking', 'Goodyear', 'Dunlop', 'Fulda', 'Prinx', 'Sumitomo', 'Austone', 'Budżet', 'odkup opon']
+
+=== ALL 22 inch rows ===
+             Marka              KlasaOpon     Netto
+6198      MICHELIN               run flat   2230.89
+6323       Hankook               run flat   1655.50
+6324       Pirelli               run flat   2480.00
+6325   CONTINENTAL               run flat   1954.00
+6326   CONTINENTAL               run flat   1954.00
+6327      GOODYEAR               run flat   2045.00
+6328       Hankook               run flat   2145.50
+6329      MICHELIN               run flat   1960.16
+6330    Vredestein               run flat   1728.00
+6844      GOODYEAR               run flat   1895.00
+6845       Pirelli               run flat   2890.00
+6846   CONTINENTAL               run flat   2322.00
+6847       Hankook               run flat   1747.50
+6848      MICHELIN               run flat   2230.89
+6849    Vredestein               run flat   2183.00
+6898       Hankook               run flat   2188.00
+6899   CONTINENTAL               run flat   2153.00
+6900   CONTINENTAL               run flat   1994.00
+6901      MICHELIN               run flat   2183.74
+6902   CONTINENTAL               run flat   2094.00
+6903       Hankook               run flat   1646.00
+6904       Pirelli               run flat   3153.00
+6905    Vredestein               run flat   1747.00
+7185   CONTINENTAL               run flat   2013.00
+7186       Pirelli               run flat   2735.00
+7187      MICHELIN               run flat   2193.50
+7188    Vredestein               run flat   1756.00
+7271   Bridgestone               run flat   2632.00
+7272   Bridgestone               run flat   2658.00
+7273   CONTINENTAL               run flat   2012.00
+7274      GOODYEAR               run flat   2387.00
+7275       Hankook               run flat   1780.50
+7276       Hankook               run flat   1964.00
+7277       Hankook               run flat   1728.50
+7278       Pirelli               run flat   2778.00
+7279   CONTINENTAL               run flat   2012.00
+7280      GOODYEAR               run flat   2387.00
+7281      MICHELIN               run flat   2218.70
+7282       Pirelli               run flat   3019.00
+7283       Pirelli               run flat   2743.00
+7284       Pirelli               run flat   4119.00
+7285    Vredestein               run flat   1901.00
+7286    Vredestein  wielosezonowe premium   1801.00
+7287    Vredestein  wielosezonowe premium   1801.00
+7370      MICHELIN               run flat   2313.01
+7371   CONTINENTAL               run flat   2129.00
+7372   CONTINENTAL               run flat   2236.00
+7401   Bridgestone               run flat   2593.00
+7470   CONTINENTAL               run flat   2161.00
+7471       Hankook               run flat   1905.00
+7472      MICHELIN               run flat   2410.57
+7473       Pirelli               run flat   3666.00
+7498   CONTINENTAL               run flat   2003.00
+7499      GOODYEAR               run flat   2249.00
+7500       Hankook               run flat   2331.50
+7501       Hankook               run flat   1667.50
+7502       Pirelli               run flat   2635.00
+7503       Pirelli               run flat   2911.00
+7504   CONTINENTAL               run flat   2061.00
+7505      MICHELIN               run flat   2301.63
+7506      Yokohama                premium   2086.00
+7507    Vredestein  wielosezonowe premium   1729.00
+7508    Vredestein  wielosezonowe premium   1729.00
+7509    Vredestein               run flat   1821.00
+7510    Vredestein               run flat   1821.00
+7555   CONTINENTAL               run flat   2202.00
+7556   CONTINENTAL               run flat   2202.00
+7557      MICHELIN               run flat   2665.85
+7558       Pirelli               run flat   3127.00
+7559       Pirelli               run flat   3658.00
+7560       Pirelli               run flat   4680.00
+7561       Pirelli               run flat   3127.00
+7562   Bridgestone               run flat   2809.00
+7563   CONTINENTAL               run flat   2238.00
+7564       Pirelli               run flat   4680.00
+7565       Pirelli               run flat   4680.00
+7566    Vredestein               run flat   2126.00
+7567      Yokohama                premium   2086.00
+7568    Vredestein  wielosezonowe premium   2082.00
+7569    Vredestein  wielosezonowe premium   2082.00
+7621   Bridgestone               run flat   2771.00
+7622    BFGOODRICH   wielosezonowe medium   1913.82
+7623      MICHELIN  wielosezonowe premium   2469.11
+7624        Nokian  wielosezonowe premium   1859.35
+7625      Yokohama  wielosezonowe premium   1692.00
+7626   CONTINENTAL               run flat   2089.00
+7627      MICHELIN               run flat   2391.06
+7628       Pirelli               run flat   2683.00
+7629       Pirelli               run flat   2998.00
+7630       Pirelli               run flat   3006.00
+7687      Yokohama                premium   2012.00
+7688   CONTINENTAL               run flat   2608.00
+7689       Hankook               run flat   2025.50
+7690      MICHELIN               run flat   2484.55
+7691    Vredestein               run flat   2147.00
+7731   CONTINENTAL               run flat   2023.00
+7732       Hankook               run flat   2355.00
+7733   CONTINENTAL               run flat   2124.00
+7734      MICHELIN               run flat   2328.46
+7735       Pirelli               run flat   3709.00
+7774   CONTINENTAL               run flat   2012.00
+7775   CONTINENTAL               run flat   2096.00
+7815      MICHELIN               run flat   2385.37
+7824   CONTINENTAL               run flat   2355.00
+7825       Hankook               run flat   1985.50
+7826       Pirelli               run flat   3235.00
+7827      Yokohama                premium   2199.00
+7828    Vredestein               run flat   2165.00
+7852   CONTINENTAL               run flat   2330.00
+7853   CONTINENTAL               run flat   2330.00
+7854       Hankook               run flat   1980.50
+7855       Pirelli               run flat   3019.00
+7856       Pirelli               run flat   4421.00
+7877       Pirelli               run flat   5693.00
+7879       Pirelli               run flat   4020.00
+7880       Pirelli               run flat   5305.00
+7881   CONTINENTAL               run flat   2486.00
+7882      MICHELIN               run flat   3280.49
+7883       Pirelli               run flat   5305.00
+7884       Pirelli               run flat   5305.00
+7885      Yokohama                premium   2300.00
+7886    Vredestein               run flat   2204.00
+7887   CONTINENTAL               run flat   2230.00
+7888      MICHELIN               run flat   2869.11
+7889       Pirelli               run flat   3925.00
+7890       Pirelli               run flat  10044.00
+8571        Falken   wielosezonowe medium   1533.00
+9018      Michelin  wielosezonowe premium   1625.00
+9058      Michelin  wielosezonowe premium   1712.00
+9059      Michelin  wielosezonowe premium   2165.00
+9284    BFGoodrich   wielosezonowe medium   1883.00
+9613   Continental  wielosezonowe premium   1283.00
+9616   Continental  wielosezonowe premium   1958.00
+9618   Continental  wielosezonowe premium   1877.00
+10357     Goodyear  wielosezonowe premium   1968.00
+10544   Vredestein  wielosezonowe premium   1681.00
+10545   Vredestein  wielosezonowe premium   2005.00
+10546   Vredestein  wielosezonowe premium   1740.00
+11263     Yokohama  wielosezonowe premium   1841.00
+11291     Yokohama  wielosezonowe premium   1591.00
+11613     Michelin                premium   2744.00
+11619     Michelin                premium   2019.00
+11624     Michelin                premium   2697.00
+11638     Michelin                premium   1758.00
+11641     Michelin                premium   2039.00
+11651     Michelin                premium   2177.00
+11688     Michelin                premium   2056.00
+11697     Michelin                premium   1992.00
+11771     Michelin                premium   2076.00
+11814     Michelin                premium   2090.00
+11875     Michelin                premium   2139.00
+11886     Michelin                premium   2030.00
+11888     Michelin                premium   2050.00
+11898     Michelin                premium   2074.00
+11923     Michelin                premium   1910.00
+11936     Michelin                premium   2266.00
+11965     Michelin                premium   2036.00
+12412  Continental                premium   1463.00
+12413  Continental                premium   1463.00
+12414  Continental                premium   1463.00
+12431  Continental                premium   1427.00
+12476  Continental                premium   1649.00
+12488  Continental                premium   1505.00
+12489  Continental                premium   1645.00
+12490  Continental                premium   1615.00
+12522  Continental                premium   1538.00
+12533  Continental                premium   1491.00
+12534  Continental                premium   1491.00
+12543  Continental                premium   1627.00
+12544  Continental                premium   1691.00
+12555  Continental                premium   1617.00
+12562  Continental                premium   1607.00
+12563  Continental                premium   1530.00
+12564  Continental                premium   1559.00
+12571  Continental                premium   1730.00
+12572  Continental                premium   1648.00
+12573  Continental                premium   1648.00
+12574  Continental                premium   1692.00
+12581  Continental                premium   1563.00
+12586  Continental                premium   1793.00
+12594  Continental                premium   1530.00
+12595  Continental                premium   1655.00
+12603  Continental                premium   1552.00
+12604  Continental                premium   1666.00
+12612  Continental                premium   1709.00
+12616  Continental                premium   1714.00
+12617  Continental                premium   1714.00
+12618  Continental                premium   1714.00
+12622  Continental                premium   1956.00
+12623  Continental                premium   1823.00
+12635  Continental                premium   1491.00
+13311      Hankook                 medium   1626.50
+13325      Hankook                 medium   2309.00
+13344      Hankook                 medium   1862.00
+13419      Hankook                 medium   1968.00
+13441      Hankook                 medium   1749.50
+13443      Hankook                 medium   2067.00
+13444      Hankook                 medium   1654.50
+13457      Hankook                 medium   1695.50
+13462      Hankook                 medium   1648.00
+13463      Hankook                 medium   1698.00
+13464      Hankook                 medium   2177.50
+13476      Hankook                 medium   1663.00
+13477      Hankook                 medium   2138.50
+13481      Hankook                 medium   1942.00
+13488      Hankook                 medium   1810.00
+13489      Hankook                 medium   2037.00
+13491      Hankook                 medium   2160.00
+13498      Hankook                 medium   1894.50
+13501      Hankook                 medium   1890.00
+13503      Hankook                 medium   2244.00
+13504      Hankook                 medium   2017.50
+14219     Goodyear                premium   2015.00
+14223     Goodyear                premium   2223.00
+14295     Goodyear                premium   2426.00
+14296     Goodyear                premium   2324.00
+14321     Goodyear                premium   1896.00
+14354     Goodyear                premium   2262.00
+14395     Goodyear                premium   2488.00
+14449     Goodyear                premium   2266.00
+14450     Goodyear                premium   2117.00
+14459     Goodyear                premium   1976.00
+14460     Goodyear                premium   2128.00
+14463     Goodyear                premium   2149.00
+14465     Goodyear                premium   2279.00
+14467     Goodyear                premium   2169.00
+14469     Goodyear                premium   2151.00
+14471     Goodyear                premium   2467.00
+14474     Goodyear                premium   2536.00
+14477     Goodyear                premium   2307.00
+14478     Goodyear                premium   2687.00
+14487     Goodyear                premium   2598.00
+14538     Goodyear                premium   2564.00
+14775     Goodyear                premium   2223.00
+14808     Goodyear                premium   2151.00
+14874   Vredestein                premium   1845.00
+14875   Vredestein                premium   1880.00
+14876   Vredestein                premium   2012.00
+14877   Vredestein                premium   1597.00
+14878   Vredestein                premium   1596.00
+14879   Vredestein                premium   1682.00
+14880   Vredestein                premium   1866.00
+14881   Vredestein                premium   1601.00
+14882   Vredestein                premium   1536.00
+14883   Vredestein                premium   1502.00
+15325        Kumho                 medium   1417.00
+15375  Bridgestone                premium   3663.00
+15376  Bridgestone                premium   2271.00
+15377  Bridgestone                premium   2401.00
+15378  Bridgestone                premium   2166.00
+15379  Bridgestone                premium   2062.00
+15380  Bridgestone                premium   2114.00
+15381  Bridgestone                premium   2601.00
+15382  Bridgestone                premium   2192.00
+15383  Bridgestone                premium   2162.00
+15384  Bridgestone                premium   1958.00
+15385  Bridgestone                premium   2258.00
+15386  Bridgestone                premium   1853.00
+15387  Bridgestone                premium   2101.00
+15388  Bridgestone                premium   1818.00
+16197      Pirelli                premium   1707.00
+16218      Pirelli                premium   1928.00
+16219      Pirelli                premium   2045.00
+16243      Pirelli                premium   2081.00
+16244      Pirelli                premium   2488.00
+16294      Pirelli                premium   2158.00
+16305      Pirelli                premium   2258.00
+16344      Pirelli                premium   2005.00
+16359      Pirelli                premium   2154.00
+16360      Pirelli                premium   2154.00
+16361      Pirelli                premium   2315.00
+16362      Pirelli               run flat   3104.00
+16386      Pirelli                premium   2782.00
+16392      Pirelli                premium   2142.00
+16408      Pirelli                premium   2097.00
+16409      Pirelli                premium   2275.00
+16410      Pirelli                premium   2375.00
+16411      Pirelli                premium   2496.00
+16412      Pirelli                premium   3245.00
+16413      Pirelli                premium   3426.00
+16414      Pirelli                premium   3426.00
+16415      Pirelli                premium   3534.00
+16416      Pirelli                premium   3740.00
+16431      Pirelli                premium   2021.00
+16432      Pirelli                premium   2194.00
+16433      Pirelli                premium   2258.00
+16463      Pirelli                premium   2130.00
+16464      Pirelli                premium   2214.00
+16474      Pirelli                premium   1892.00
+16498      Pirelli                premium   2291.00
+16503      Pirelli                premium   2395.00
+16504      Pirelli                premium   2395.00
+16505      Pirelli                premium   2415.00
+16506      Pirelli               run flat   3329.00
+16514      Pirelli                premium   5088.00
+16515      Pirelli                premium   5470.00
+16518      Pirelli                premium   2955.00
+16519      Pirelli                premium   2955.00
+16520      Pirelli                premium   3607.00
+16521      Pirelli                premium   3880.00
+16522      Pirelli                premium   4267.00
+16523      Pirelli                premium   2886.00
+16524      Pirelli                premium   7338.00
+16525      Pirelli                premium   7338.00
+16526      Pirelli                premium   7338.00
+16571     Yokohama                premium   1923.00
+16661     Yokohama                premium   2103.00
+16663     Yokohama                premium   1892.00
+16668     Yokohama                premium   2331.00
+16670     Yokohama                premium   2056.00
+16693     Yokohama                premium   2129.00
+16694     Yokohama                premium   1815.00
+16722     Yokohama                premium   2043.00
+16753     Yokohama                premium   1927.00
+16754     Yokohama                premium   2258.00
+17211   BFGoodrich   wielosezonowe medium   1883.00
+17859  Bridgestone                premium   2166.00
+17860  Bridgestone                premium   2192.00
+17893  Bridgestone                premium   2062.00
+17894  Bridgestone                premium   2162.00
+17895  Bridgestone                premium   1958.00
+17896  Bridgestone                premium   1818.00
+17923  Bridgestone                premium   2271.00
+17924  Bridgestone                premium   2114.00
+17925  Bridgestone                premium   2258.00
+17926  Bridgestone                premium   1853.00
+17927  Bridgestone                premium   2101.00
+17960  Bridgestone                premium   2401.00
+17967  Bridgestone                premium   2601.00
+17969  Bridgestone                premium   3663.00
+18295  Continental  wielosezonowe premium   1283.00
+18300  Continental  wielosezonowe premium   1958.00
+18301  Continental  wielosezonowe premium   1877.00
+18727  Continental                premium   1463.00
+18731  Continental                premium   1427.00
+18732  Continental                premium   1463.00
+18769  Continental                premium   1463.00
+18813  Continental                premium   1645.00
+18814  Continental                premium   1615.00
+18833  Continental                premium   1649.00
+18837  Continental                premium   1505.00
+18860  Continental                premium   1538.00
+18862  Continental                premium   1491.00
+18865  Continental                premium   1491.00
+18873  Continental                premium   1627.00
+18891  Continental                premium   1691.00
+18899  Continental                premium   1491.00
+18900  Continental                premium   1648.00
+18902  Continental                premium   1530.00
+18906  Continental                premium   1730.00
+18907  Continental                premium   1607.00
+18917  Continental                premium   1617.00
+18919  Continental                premium   1559.00
+18921  Continental                premium   1648.00
+18922  Continental                premium   1692.00
+18925  Continental                premium   1563.00
+18931  Continental                premium   1552.00
+18932  Continental                premium   1655.00
+18937  Continental                premium   1666.00
+18946  Continental                premium   1793.00
+18949  Continental                premium   1530.00
+18959  Continental                premium   1714.00
+18961  Continental                premium   1709.00
+18963  Continental                premium   1714.00
+18970  Continental                premium   1714.00
+18971  Continental                premium   1956.00
+18972  Continental                premium   1823.00
+20710     Goodyear  wielosezonowe premium   1968.00
+21050     Goodyear                premium   2015.00
+21064     Goodyear                premium   1896.00
+21086     Goodyear                premium   2266.00
+21087     Goodyear                premium   2117.00
+21120     Goodyear                premium   2324.00
+21128     Goodyear                premium   1976.00
+21129     Goodyear                premium   2128.00
+21148     Goodyear                premium   2223.00
+21162     Goodyear                premium   2149.00
+21165     Goodyear                premium   2598.00
+21169     Goodyear                premium   2223.00
+21179     Goodyear                premium   2262.00
+21181     Goodyear                premium   2488.00
+21183     Goodyear                premium   2279.00
+21184     Goodyear                premium   2151.00
+21186     Goodyear                premium   2467.00
+21190     Goodyear                premium   2564.00
+21192     Goodyear                premium   2151.00
+21195     Goodyear                premium   2426.00
+21200     Goodyear                premium   2169.00
+21212     Goodyear                premium   2536.00
+21215     Goodyear                premium   2307.00
+21217     Goodyear                premium   2687.00
+21733      Hankook                 medium   1626.50
+21746      Hankook                 medium   1968.00
+21774      Hankook                 medium   2309.00
+21781      Hankook                 medium   1749.50
+21783      Hankook                 medium   2067.00
+21784      Hankook                 medium   1654.50
+21807      Hankook                 medium   1695.50
+21812      Hankook                 medium   1648.00
+21813      Hankook                 medium   1698.00
+21814      Hankook                 medium   2177.50
+21828      Hankook                 medium   1862.00
+21836      Hankook                 medium   1663.00
+21837      Hankook                 medium   2138.50
+21841      Hankook                 medium   1942.00
+21848      Hankook                 medium   1810.00
+21855      Hankook                 medium   2037.00
+21857      Hankook                 medium   2160.00
+21867      Hankook                 medium   1894.50
+21870      Hankook                 medium   1890.00
+21872      Hankook                 medium   2244.00
+21873      Hankook                 medium   2017.50
+22118        Kumho      wzmocnione medium   1417.00
+22572     Michelin  wielosezonowe premium   1712.00
+22581     Michelin  wielosezonowe premium   1625.00
+22595     Michelin  wielosezonowe premium   2165.00
+22818     Michelin                premium   1758.00
+22856     Michelin                premium   2036.00
+22886     Michelin                premium   2090.00
+22889     Michelin                premium   2030.00
+22898     Michelin                premium   2196.00
+22904     Michelin                premium   1992.00
+22914     Michelin                premium   2076.00
+22923     Michelin                premium   2074.00
+22935     Michelin                premium   2019.00
+22938     Michelin                premium   2039.00
+22953     Michelin                premium   2139.00
+22954     Michelin                premium   2050.00
+22957     Michelin                premium   1910.00
+22970     Michelin                premium   2056.00
+22985     Michelin                premium   2266.00
+22988     Michelin                premium   2177.00
+23002     Michelin                premium   2589.00
+23010     Michelin                premium   2744.00
+23011     Michelin                premium   2697.00
+24342      Pirelli                premium   1707.00
+24363      Pirelli                premium   1928.00
+24364      Pirelli                premium   2045.00
+24388      Pirelli                premium   2081.00
+24389      Pirelli                premium   2488.00
+24439      Pirelli                premium   2158.00
+24450      Pirelli                premium   2258.00
+24489      Pirelli                premium   2005.00
+24504      Pirelli                premium   2154.00
+24505      Pirelli                premium   2154.00
+24506      Pirelli                premium   2315.00
+24507      Pirelli                runflat   3104.00
+24531      Pirelli                premium   2782.00
+24537      Pirelli                premium   2142.00
+24553      Pirelli                premium   2097.00
+24554      Pirelli                premium   2275.00
+24555      Pirelli                premium   2375.00
+24556      Pirelli                premium   2496.00
+24557      Pirelli                premium   3245.00
+24558      Pirelli                premium   3426.00
+24559      Pirelli                premium   3426.00
+24560      Pirelli                premium   3534.00
+24561      Pirelli                premium   3740.00
+24576      Pirelli                premium   2021.00
+24577      Pirelli                premium   2194.00
+24578      Pirelli                premium   2258.00
+24608      Pirelli                premium   2130.00
+24609      Pirelli                premium   2214.00
+24619      Pirelli                premium   1892.00
+24643      Pirelli                premium   2291.00
+24648      Pirelli                premium   2395.00
+24649      Pirelli                premium   2395.00
+24650      Pirelli                premium   2415.00
+24651      Pirelli                runflat   3329.00
+24659      Pirelli                premium   5088.00
+24660      Pirelli                premium   5470.00
+24663      Pirelli                premium   2955.00
+24664      Pirelli                premium   2955.00
+24665      Pirelli                premium   3607.00
+24666      Pirelli                premium   3880.00
+24667      Pirelli                premium   4267.00
+24668      Pirelli                premium   2886.00
+24669      Pirelli                premium   7338.00
+24670      Pirelli                premium   7338.00
+24671      Pirelli                premium   7338.00
+25389   Vredestein  wielosezonowe premium   1740.00
+25398   Vredestein  wielosezonowe premium   1681.00
+25399   Vredestein  wielosezonowe premium   2005.00
+25579   Vredestein                premium   1502.00
+25597   Vredestein                premium   1682.00
+25598   Vredestein                premium   1536.00
+25606   Vredestein                premium   1596.00
+25607   Vredestein                premium   1601.00
+25619   Vredestein                premium   1597.00
+25620   Vredestein                premium   1866.00
+25627   Vredestein                premium   1880.00
+25633   Vredestein                premium   1845.00
+25637   Vredestein                premium   2012.00
+25904     Yokohama  wielosezonowe premium   2048.00
+25934     Yokohama  wielosezonowe premium   1620.00
+25936     Yokohama  wielosezonowe premium   1591.00
+26170     Yokohama                premium   1854.00
+26181     Yokohama                premium   1935.00
+26182     Yokohama                premium   2086.00
+26187     Yokohama                premium   2012.00
+26198     Yokohama                premium   2199.00
+26200     Yokohama                premium   2070.00
+26205     Yokohama                premium   2300.00
+26315       Budżet                premium   7430.00
+26316       Budżet                 medium   4950.00
+26317       Budżet  wielosezonowe premium   6534.00
+26318       Budżet               run flat  11330.00
+
+=== ALL 23 inch rows ===
+             Marka              KlasaOpon    Netto
+7511       Pirelli               run flat  4960.00
+7570      MICHELIN               run flat  2688.62
+7571       Pirelli               run flat  3407.00
+7736   CONTINENTAL               run flat  2165.00
+7737       Hankook               run flat  2065.50
+7738       Pirelli               run flat  3205.00
+7806      MICHELIN               run flat  2658.54
+7829      MICHELIN               run flat  2768.29
+7878       Pirelli               run flat  5620.00
+11645     Michelin                premium  2526.00
+11905     Michelin                premium  2426.00
+11966     Michelin                premium  2452.00
+12596  Continental                premium  1664.00
+13492      Hankook                 medium  2009.00
+16220      Pirelli                premium  3752.00
+16393      Pirelli                premium  3744.00
+16394      Pirelli                premium  4106.00
+16417      Pirelli                premium  2540.00
+16418      Pirelli                premium  3249.00
+16465      Pirelli                premium  2210.00
+16466      Pirelli                premium  4170.00
+16499      Pirelli                premium  2572.00
+16516      Pirelli                premium  4231.00
+16517      Pirelli                premium  4629.00
+16677     Yokohama                premium  2387.00
+16678     Yokohama                premium  2236.00
+18953  Continental                premium  1664.00
+21858      Hankook                 medium  2009.00
+22961     Michelin                premium  2452.00
+22995     Michelin                premium  2426.00
+23000     Michelin                premium  2526.00
+24365      Pirelli                premium  3752.00
+24538      Pirelli                premium  3744.00
+24539      Pirelli                premium  4106.00
+24562      Pirelli                premium  2540.00
+24563      Pirelli                premium  3249.00
+24610      Pirelli                premium  2210.00
+24611      Pirelli                premium  4170.00
+24644      Pirelli                premium  2572.00
+24661      Pirelli                premium  4231.00
+24662      Pirelli                premium  4629.00
+26169     Yokohama                premium  2498.00
+26199     Yokohama                premium  2264.00
+26319       Budżet                 medium  5350.00
+26320       Budżet  wielosezonowe premium  7300.00
+
+=== 22 inch, Marka=Budzet ONLY ===
+Empty DataFrame
+Columns: [Marka, KlasaOpon, Netto]
+Index: []
+
+=== 23 inch, Marka=Budzet ONLY ===
+Empty DataFrame
+Columns: [Marka, KlasaOpon, Netto]
+Index: []
+
+=== FULL BUDZET PRICE MATRIX ===
+Empty DataFrame
+Columns: []
+Index: []

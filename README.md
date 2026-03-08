@@ -30,6 +30,22 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 - Poetry
 - Konto / lokalne środowisko Supabase
 
+### ⚠️ KRYTYCZNE: Migracje w Docker Supabase
+
+> [!CAUTION]
+> **NIE wykonuj migracji danych (`supabase db reset`, `supabase migration up` itp.) na lokalnej instancji Docker Supabase!**
+>
+> Migracje mogą spowodować **nieodwracalną utratę wszystkich danych** w lokalnej bazie (tabele konfiguracyjne, cenniki, dane pojazdów itp.).
+>
+> **Co się wydarzyło:** W wyniku uruchomienia migracji na Dockerowym Supabase utracono komplet danych roboczych — cenniki opon, parametry SAMAR, tabele rabatów i inne dane konfiguracyjne, które były ręcznie importowane.
+>
+> **Zasady bezpieczeństwa:**
+>
+> - Przed jakąkolwiek migracją **zawsze** wykonaj backup bazy: `pg_dump` lub eksport z poziomu Control Center (XLSX).
+> - **NIE używaj `TRUNCATE TABLE`** na tabelach z danymi konfiguracyjnymi — komenda usuwa wszystkie rekordy bez możliwości cofnięcia i resetuje liczniki. Jeśli musisz wyczyścić dane, użyj `DELETE` z warunkiem `WHERE` lub zrób wcześniej backup.
+> - Zmiany schematu (DDL) aplikuj ręcznie przez SQL Editor w Supabase Studio (`http://127.0.0.1:54323`) lub przez dedykowane skrypty, **nie** przez `supabase db reset`.
+> - Traktuj dane w lokalnym Dockerze jako **dane produkcyjne** — nie ma automatycznego odtwarzania.
+
 ### 2. Konfiguracja zmiennych środowiskowych
 
 Utwórz pliki `.env` w odpowiednich katalogach (patrz sekcja `.env.example` lub skontaktuj się z zespołem po klucze).

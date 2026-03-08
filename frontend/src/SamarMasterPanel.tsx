@@ -24,6 +24,7 @@ import ServiceCostsCrudPanel from "./ServiceCostsCrud/ServiceCostsCrudPanel";
 import ReplacementCarCrudPanel from "./ReplacementCarCrud/ReplacementCarCrudPanel";
 import BrandCorrectionCrudPanel from "./BrandCorrectionCrud/BrandCorrectionCrudPanel";
 import BodyCorrectionsCrudPanel from "./BodyCorrectionsCrud/BodyCorrectionsCrudPanel";
+import ZabudowaCrudPanel from "./ZabudowaCrud/ZabudowaCrudPanel";
 import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
 
@@ -264,6 +265,7 @@ export default function SamarMasterPanel() {
     { label: "🚗 Auto Zastępcze", color: "#2196f3" },
     { label: "🏷️ Korekta Marka", color: "#9c27b0" },
     { label: "🚛 Korekta Nadwozia", color: "#795548" },
+    { label: "🏗️ Zabudowa", color: "#6d4c41" },
     { label: "🛡️ Ubezpieczenie", color: "#00897b" },
     { label: "💥 Wsp. Szkodowe", color: "#e65100" },
   ];
@@ -326,8 +328,9 @@ export default function SamarMasterPanel() {
       {subTab === 4 && <ReplacementCarCrudPanel />}
       {subTab === 5 && <BrandCorrectionCrudPanel />}
       {subTab === 6 && <BodyCorrectionsCrudPanel samarClassId={selectedClassId} />}
-      {subTab === 7 && <InsuranceRatesCrudPanel />}
-      {subTab === 8 && <DamageCoefficientsCrudPanel />}
+      {subTab === 7 && <ZabudowaCrudPanel />}
+      {subTab === 8 && <InsuranceRatesCrudPanel />}
+      {subTab === 9 && <DamageCoefficientsCrudPanel />}
     </Box>
   );
 }
