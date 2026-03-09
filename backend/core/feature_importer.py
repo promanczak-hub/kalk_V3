@@ -296,17 +296,20 @@ def import_features_to_db(
                 "language": "pl",
             }
             try:
-                sb.schema("reverse_search").table("universal_feature_aliases").upsert(
+                sb.schema("reverse_search").table("universal_feature_aliases").insert(
                     alias_data,
-                    on_conflict="feature_id,normalized_alias",
                 ).execute()
                 stats["aliases_created"] += 1
             except Exception as alias_err:
-                logger.warning(
-                    "Alias insert error for %s: %s",
-                    feat.feature_key,
-                    alias_err,
-                )
+                err_msg = str(alias_err)
+                if "duplicate" in err_msg.lower() or "unique" in err_msg.lower():
+                    pass  # already exists — skip silently
+                else:
+                    logger.warning(
+                        "Alias insert error for %s: %s",
+                        feat.feature_key,
+                        alias_err,
+                    )
 
             # Create enum values if applicable
             for i, ev in enumerate(feat.enum_values):

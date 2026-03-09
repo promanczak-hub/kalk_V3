@@ -13,7 +13,7 @@ import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
-import { RentalRatesMiniMatrix } from "./RentalRatesMiniMatrix";
+
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
 interface VehicleRowCardProps {
@@ -224,11 +224,20 @@ export function VehicleRowCard({
     fetchDefaults();
   }, []);
 
-  // Restore saved calculator_setup from synthesis_data on load
+  // Restore saved calculator_setup from synthesis_data on load or update
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const setup = (vehicle.synthesis_data as any)?.calculator_setup;
-    if (!setup) return;
+    
+    // Always sync auto-detected properties when synthesis_data changes if they are missing in setup
+    if (!setup) {
+      setIsMetalic(autoDetectMetalic());
+      const cs = (vehicle.synthesis_data as any)?.card_summary;
+      setHookInstallation(cs?.has_tow_hook === true);
+      setVehicleVintage(cs?.is_current_year_vehicle === false ? "previous" : "current");
+      return;
+    }
+
     // Financial params
     if (setup.financial_params) {
       const fp = setup.financial_params;
@@ -268,9 +277,11 @@ export function VehicleRowCard({
         || ["solido", "uni ", "akrylow", "jednowarstwow"].some(kw => color.includes(kw));
       // If keywords found → trust keyword detection; otherwise use saved value
       setIsMetalic(hasKeyword ? keywordDetected : setup.is_metalic);
+    } else {
+      setIsMetalic(autoDetectMetalic());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.id]);
+  }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color]);
 
 
 
@@ -1253,38 +1264,7 @@ export function VehicleRowCard({
               onRemapClassification={handleRemapClassification}
               isRemapping={isRemappingClassification}
             />
-            <RentalRatesMiniMatrix
-              vehicle={vehicle}
-              basePriceNet={toNettoAware(basePrice, vehicle.base_price || undefined)}
-              discountPct={activeDiscountPct}
-              defaultMarginPct={pricingMarginPct}
-              wiborPct={wiborPct}
-              marginPct={marginPct}
-              depreciationPct={depreciationPct ?? 0}
-              initialDepositPct={initialDepositPct}
-              replacementCar={replacementCar}
-              gpsRequired={gpsRequired}
-              hookInstallation={hookInstallation}
-              includeServicing={includeServicing}
-              tireClass={tireClass}
-              tireCountMode={tireCountMode}
-              tireCostCorrectionEnabled={tireCostCorrectionEnabled}
-              tireCostCorrection={tireCostCorrection}
-              rimDiameter={rimDiameter}
-              serviceCostType={serviceCostType}
-              vehicleVintage={vehicleVintage}
-              isMetalic={isMetalic}
-              factoryOptions={customFactoryOptions.map((o) => ({
-                name: o.name,
-                price_net: o.price_net,
-                no_discount: (o as any).no_discount || false,
-              }))}
-              serviceOptions={customServiceOptions.map((o) => ({
-                name: o.name,
-                price_net: o.price_net,
-                include_in_wr: o.include_in_wr || false,
-              }))}
-            />
+
             <VehicleEquipmentCard
               vehicle={vehicle}
               customFactoryOptions={customFactoryOptions}

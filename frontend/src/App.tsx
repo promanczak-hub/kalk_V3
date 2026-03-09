@@ -13,6 +13,7 @@ import KalkulacjeList from "./KalkulacjeList";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
 import { ReverseSearchPage } from "./VertexExtractor/components/ReverseSearchPage";
+import { CatalogLibraryPage } from "./VertexExtractor/components/CatalogLibraryPage";
 
 function App() {
   const [mode, setMode] = useState<'light' | 'dark'>('light');
@@ -164,6 +165,7 @@ function App() {
             />
             <Tab value={3} label="Control Center" />
             <Tab value={4} label="Reverse Search" />
+            <Tab value={5} label="Biblioteka Cenników" />
           </Tabs>
         </Box>
 
@@ -172,6 +174,7 @@ function App() {
         {currentTab === 2 && <CalculatorPanel />}
         {currentTab === 3 && <ControlCenter />}
         {currentTab === 4 && <ReverseSearchPage />}
+        {currentTab === 5 && <CatalogLibraryPage />}
       </div>
     </ThemeProvider>
   );

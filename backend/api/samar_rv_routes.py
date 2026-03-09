@@ -7,20 +7,13 @@ router = APIRouter(prefix="/api/samar-rv", tags=["SamarRV"])
 
 @router.get("/classes")
 def get_samar_classes() -> List[Dict[str, Any]]:
-    """Returns real SAMAR class names via samar_classes bridge table.
-    Format: {id: klasa_wr_id, nazwa: samar_class_name} for backward compat."""
+    """Returns SAMAR class list.
+    Format: {id: samar_class_id, nazwa: samar_class_name}."""
     try:
-        sc = (
-            supabase.table("samar_classes")
-            .select("id,name,klasa_wr_id")
-            .order("name")
-            .execute()
-        )
+        sc = supabase.table("samar_classes").select("id,name").order("name").execute()
         result: List[Dict[str, Any]] = []
         for r in sc.data:
-            wr_id = r.get("klasa_wr_id")
-            if wr_id is not None:
-                result.append({"id": wr_id, "nazwa": r["name"]})
+            result.append({"id": r["id"], "nazwa": r["name"]})
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -114,7 +107,7 @@ def get_insurance_rates() -> List[Dict[str, Any]]:
         res = (
             supabase.table("ltr_admin_ubezpieczenia")
             .select("*")
-            .order("KlasaId", desc=True)
+            .order("samar_class_id", desc=True)
             .order("KolejnyRok")
             .execute()
         )
@@ -147,7 +140,7 @@ def get_insurance_coefficients() -> List[Dict[str, Any]]:
         res = (
             supabase.table("ltr_admin_wspolczynniki_szkodowe")
             .select("*")
-            .order("klasa_wr_id", desc=True)
+            .order("samar_class_id", desc=True)
             .execute()
         )
         return cast(List[Dict[str, Any]], res.data)

@@ -1,0 +1,14 @@
+ltr_admin_korekta_wr_markas => ['klasa_wr_id']
+body_type_wr_corrections => (empty)
+samar_class_depreciation_rates => ['samar_class_id']
+samar_class_mileage_corrections => ['samar_class_id']
+samar_service_costs => ERR: {'message': "Could not find the table 'public.samar_service_costs' in the schema
+replacement_car_rates => ['samar_class_id', 'samar_class_name']
+service_rates_config => ERR: {'message': "Could not find the table 'public.service_rates_config' in the schem
+service_base_costs_config => ERR: {'message': "Could not find the table 'public.service_base_costs_config' in the 
+ltr_admin_korekta_wr_roczniks => (no samar ref cols)
+paint_types => (no samar ref cols)
+tyre_configurations => (no samar ref cols)
+koszty_opon => (no samar ref cols)
+samar_classes => ['klasa_wr_id', 'size_class']
+vehicle_synthesis => (empty)

@@ -71,7 +71,6 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
     Kluczowe pola wynikowe:
         - brand, model, Segment (full SAMAR name)
         - samar_class_id (PK z samar_classes)
-        - klasa_wr_id (legacy WR ID → insurance/damage)
         - engine_type_id, power_kw
         - paint_type_id, body_type_id
         - zabudowa_apr_wr, is_metalic, rocznik
@@ -98,15 +97,10 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
         # Resolve SAMAR class name → samar_classes row
         samar_category = cs.get("samar_category") or mai.get("samar_category") or ""
         samar_class_id = 0
-        klasa_wr_id = 0
 
         if samar_category:
             # Resolve from samar_classes table
-            cls_res = (
-                supabase.table("samar_classes")
-                .select("id, klasa_wr_id, name")
-                .execute()
-            )
+            cls_res = supabase.table("samar_classes").select("id, name").execute()
 
             # Normalize: strip "KLASA " to handle both old and new naming
             # Old: "PODSTAWOWA D ŚREDNIA" vs New: "PODSTAWOWA Klasa D ŚREDNIA"
@@ -118,7 +112,6 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
                 db_name = str(cls_row.get("name", ""))
                 if _norm_samar(db_name) == cat_norm:
                     samar_class_id = int(cls_row["id"])
-                    klasa_wr_id = int(cls_row.get("klasa_wr_id") or 0)
                     break
 
         # Engine type
@@ -142,7 +135,6 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
             "model": row.get("model", ""),
             "Segment": samar_category,
             "samar_class_id": samar_class_id,
-            "klasa_wr_id": klasa_wr_id,
             "engine_type_id": engine_type_id,
             "power_kw": float(power_kw_raw or 100),
             "paint_type_id": cs.get("paint_type_id"),
@@ -177,83 +169,40 @@ def get_samar_klasa_from_db(klasa_id: str) -> Dict[str, Any]:
 
 
 @lru_cache(maxsize=128)
-def get_insurance_rates_from_db(klasa_id: str) -> List[Dict[str, Any]]:
-    """Pobiera tabelę ubezpieczeń dla danej klasy z fallbackiem na domyślne (NULL)."""
+def get_insurance_rates_from_db(samar_class_id: str) -> List[Dict[str, Any]]:
+    """Pobiera tabelę ubezpieczeń dla danej klasy SAMAR (28 klas, 7 lat)."""
     try:
         from core.database import supabase
 
-        # 1. Szukaj stawek dla konkretnej klasy
-        if klasa_id:
+        if samar_class_id:
             res = (
                 supabase.table("ltr_admin_ubezpieczenia")
                 .select("*")
-                .eq("KlasaId", klasa_id)
+                .eq("samar_class_id", samar_class_id)
                 .execute()
             )
             if res.data and len(res.data) > 0:
                 return cast(List[Dict[str, Any]], res.data)
 
-        # 2. Fallback: stawki domyślne (KlasaId IS NULL)
-        res_default = (
-            supabase.table("ltr_admin_ubezpieczenia")
-            .select("*")
-            .is_("KlasaId", "null")
-            .execute()
-        )
-        if res_default.data and len(res_default.data) > 0:
-            return cast(List[Dict[str, Any]], res_default.data)
-
     except Exception as e:
-        print(f"Error fetching insurance rates: {e}")
+        logging.warning("Error fetching insurance rates: %s", e)
     return []
 
 
 @lru_cache(maxsize=128)
-def _resolve_klasa_wr_to_samar_id(klasa_wr_id: str) -> int | None:
-    """Mapuje klasa_wr_id (WR) → samar_classes.id (PK)."""
-    try:
-        from core.database import supabase
-
-        res = (
-            supabase.table("samar_classes")
-            .select("id")
-            .eq("klasa_wr_id", klasa_wr_id)
-            .limit(1)
-            .execute()
-        )
-        if res.data and len(res.data) > 0:
-            return int(res.data[0]["id"])
-    except Exception as e:
-        print(f"Error resolving klasa_wr_id={klasa_wr_id}: {e}")
-    return None
-
-
-@lru_cache(maxsize=128)
-def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
+def get_replacement_car_rate_from_db(samar_class_id: str) -> Dict[str, Any]:
     """Pobiera parametry auta zastępczego z tabeli replacement_car_rates.
 
-    UWAGA: klasa_id to klasa_wr_id z pojazdy_master (system WR).
-    replacement_car_rates używa samar_class_id (PK z samar_classes).
-    Wymagana translacja: klasa_wr_id → samar_classes.id → replacement_car_rates.
+    samar_class_id to PK z samar_classes.
     """
     try:
         from core.database import supabase
 
-        if klasa_id:
-            # Krok 1: Przetłumacz klasa_wr_id → samar_classes.id (PK)
-            samar_pk = _resolve_klasa_wr_to_samar_id(klasa_id)
-            if samar_pk is None:
-                print(
-                    f"WARN: brak samar_classes z klasa_wr_id={klasa_id}"
-                    " — auto zastępcze = 0"
-                )
-                return {}
-
-            # Krok 2: Pobierz stawkę z replacement_car_rates
+        if samar_class_id:
             res = (
                 supabase.table("replacement_car_rates")
                 .select("*")
-                .eq("samar_class_id", samar_pk)
+                .eq("samar_class_id", samar_class_id)
                 .execute()
             )
             if res.data and len(res.data) > 0:
@@ -261,28 +210,28 @@ def get_replacement_car_rate_from_db(klasa_id: str) -> Dict[str, Any]:
 
         # Fallback: brak danych dla tej klasy — zwróć pusty dict (koszt = 0)
     except Exception as e:
-        print(f"Error fetching replacement car rate: {e}")
+        logging.warning("Error fetching replacement car rate: %s", e)
     return {}
 
 
 @lru_cache(maxsize=128)
-def get_damage_coefficients_from_db(klasa_id: str) -> Dict[str, Any]:
+def get_damage_coefficients_from_db(samar_class_id: str) -> Dict[str, Any]:
     """Pobiera współczynniki szkodowe dla klasy pojazdu (bez fallbacku na null)"""
     try:
         from core.database import supabase
 
-        if klasa_id:
+        if samar_class_id:
             res = (
                 supabase.table("ltr_admin_wspolczynniki_szkodowe")
                 .select("*")
-                .eq("klasa_wr_id", klasa_id)
+                .eq("samar_class_id", samar_class_id)
                 .execute()
             )
             if res.data and len(res.data) > 0:
                 return cast(Dict[str, Any], res.data[0])
 
     except Exception as e:
-        print(f"Error fetching damage coefficients: {e}")
+        logging.warning("Error fetching damage coefficients: %s", e)
     return {}
 
 
@@ -311,8 +260,8 @@ class LTRKalkulator:
             vid = self.input_data.get("vehicle_id", "")
         self.vehicle = get_vehicle_from_db(vid) if vid else {}
 
-        klasa_id = self.vehicle.get("klasa_wr_id", "")
-        self.samar_klasa = get_samar_klasa_from_db(klasa_id) if klasa_id else {}
+        samar_id = str(self.vehicle.get("samar_class_id", ""))
+        self.samar_klasa = get_samar_klasa_from_db(samar_id) if samar_id else {}
 
         # Service calculator (ASO/nonASO)
         self.service_cost_type = getattr(self.input_data, "service_cost_type", "ASO")
@@ -533,9 +482,11 @@ class LTRKalkulator:
                 procent_amortyzacji_miesiecznie = amort_result.amortyzacja_procent
 
             # --- SUB-KALKULATOR: UBEZPIECZENIE ---
-            klasa_id = self.vehicle.get("klasa_wr_id", "") if self.vehicle else ""
-            insurance_rates = get_insurance_rates_from_db(klasa_id)
-            damage_coeffs = get_damage_coefficients_from_db(klasa_id)
+            s_class_id = (
+                str(self.vehicle.get("samar_class_id", "")) if self.vehicle else ""
+            )
+            insurance_rates = get_insurance_rates_from_db(s_class_id)
+            damage_coeffs = get_damage_coefficients_from_db(s_class_id)
             ins_calc = InsuranceCalculator(
                 insurance_rates=insurance_rates,  # type: ignore
                 damage_coefficients=damage_coeffs,  # type: ignore
@@ -551,7 +502,7 @@ class LTRKalkulator:
             )
 
             # --- SUB-KALKULATOR: SAMOCHÓD ZASTĘPCZY ---
-            rc_rate = get_replacement_car_rate_from_db(klasa_id)
+            rc_rate = get_replacement_car_rate_from_db(s_class_id)
             rc_calc = ReplacementCarCalculator(rc_rate)  # type: ignore
             rc_res = rc_calc.calculate_cost(
                 months=months, enabled=self.input_data.replacement_car_enabled

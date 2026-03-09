@@ -27,6 +27,10 @@ import BodyCorrectionsCrudPanel from "./BodyCorrectionsCrud/BodyCorrectionsCrudP
 import ZabudowaCrudPanel from "./ZabudowaCrud/ZabudowaCrudPanel";
 import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
+import PaintCorrectionCrudPanel from "./PaintCorrectionCrud/PaintCorrectionCrudPanel";
+import VintageCorrectionCrudPanel from "./VintageCorrectionCrud/VintageCorrectionCrudPanel";
+import FeaturesCrudPanel from "./FeaturesCrud/FeaturesCrudPanel";
+import BaseRVCrudPanel from "./BaseRVCrud/BaseRVCrudPanel";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
@@ -37,7 +41,7 @@ interface SamarClass {
   mileage_threshold_km?: number;
   base_period_months?: number;
   excel_code?: string;
-  klasa_wr_id?: number;
+  samar_class_id?: number;
   category?: string;
   size_class?: string;
   example_models?: string;
@@ -96,7 +100,7 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
           🗂️ SAMAR Master Table — {classes.length} klas
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          Unified view: samar_classes + klasa_wr_id bridge + Excel codes +
+          Unified view: samar_classes + samar_class_id bridge + Excel codes +
           example models. Źródło prawdy dla wszystkich modułów kalkulatora.
         </Typography>
       </Paper>
@@ -201,7 +205,7 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
                         {cls.excel_code || "—"}
                       </TableCell>
                       <TableCell sx={{ fontFamily: "monospace" }}>
-                        {cls.klasa_wr_id || "—"}
+                        {cls.samar_class_id || "—"}
                       </TableCell>
                       <TableCell>{cls.size_class || "—"}</TableCell>
                       <TableCell
@@ -259,6 +263,7 @@ export default function SamarMasterPanel() {
 
   const subTabs = [
     { label: "🗂️ Master Table", color: "#1565c0" },
+    { label: "🔮 Bazowe WR", color: "#e91e63" },
     { label: "📊 Deprecjacja", color: "#f44336" },
     { label: "🛣️ Przebieg", color: "#ff9800" },
     { label: "🔧 Serwis", color: "#4caf50" },
@@ -268,6 +273,9 @@ export default function SamarMasterPanel() {
     { label: "🏗️ Zabudowa", color: "#6d4c41" },
     { label: "🛡️ Ubezpieczenie", color: "#00897b" },
     { label: "💥 Wsp. Szkodowe", color: "#e65100" },
+    { label: "🎨 Korekta Lakier", color: "#ab47bc" },
+    { label: "📅 Korekta Rocznik", color: "#5c6bc0" },
+    { label: "🏷️ Cechy Pojazdów", color: "#00acc1" },
   ];
 
   return (
@@ -314,7 +322,7 @@ export default function SamarMasterPanel() {
       </Paper>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
-        <Tabs value={subTab} onChange={(_e, val) => setSubTab(val)} variant="fullWidth" sx={{ "& .MuiTab-root": { fontWeight: 600, fontSize: "0.8rem", textTransform: "none" } }}>
+        <Tabs value={subTab} onChange={(_e, val) => setSubTab(val)} variant="scrollable" scrollButtons="auto" sx={{ "& .MuiTab-root": { fontWeight: 600, fontSize: "0.8rem", textTransform: "none" } }}>
           {subTabs.map((t, i) => (
             <Tab key={i} label={t.label} sx={{ "&.Mui-selected": { color: t.color } }} />
           ))}
@@ -322,15 +330,19 @@ export default function SamarMasterPanel() {
       </Box>
 
       {subTab === 0 && <MasterTableView classes={classes} />}
-      {subTab === 1 && <DepreciationRatesPanel samarClassId={selectedClassId} />}
-      {subTab === 2 && <MileageCorrectionsPanel samarClassId={selectedClassId} />}
-      {subTab === 3 && <ServiceCostsCrudPanel />}
-      {subTab === 4 && <ReplacementCarCrudPanel />}
-      {subTab === 5 && <BrandCorrectionCrudPanel />}
-      {subTab === 6 && <BodyCorrectionsCrudPanel samarClassId={selectedClassId} />}
-      {subTab === 7 && <ZabudowaCrudPanel />}
-      {subTab === 8 && <InsuranceRatesCrudPanel />}
-      {subTab === 9 && <DamageCoefficientsCrudPanel />}
+      {subTab === 1 && <BaseRVCrudPanel samarClassId={selectedClassId} />}
+      {subTab === 2 && <DepreciationRatesPanel samarClassId={selectedClassId} />}
+      {subTab === 3 && <MileageCorrectionsPanel samarClassId={selectedClassId} />}
+      {subTab === 4 && <ServiceCostsCrudPanel />}
+      {subTab === 5 && <ReplacementCarCrudPanel />}
+      {subTab === 6 && <BrandCorrectionCrudPanel samarClassId={selectedClassId} />}
+      {subTab === 7 && <BodyCorrectionsCrudPanel samarClassId={selectedClassId} />}
+      {subTab === 8 && <ZabudowaCrudPanel />}
+      {subTab === 9 && <InsuranceRatesCrudPanel />}
+      {subTab === 10 && <DamageCoefficientsCrudPanel />}
+      {subTab === 11 && <PaintCorrectionCrudPanel />}
+      {subTab === 12 && <VintageCorrectionCrudPanel />}
+      {subTab === 13 && <FeaturesCrudPanel />}
     </Box>
   );
 }

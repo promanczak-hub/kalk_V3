@@ -76,7 +76,7 @@ Tekst / Dane oferty:
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=MappedOffer,
-                temperature=0.1,
+                temperature=0.0,
             ),
         )
 

@@ -208,3 +208,214 @@ class TestExtractFromPages:
         pages = [{"page_number": 1}]
         result = _extract_from_pages(pages)
         assert result == {}
+
+
+# ─── VW Crafter Furgon fixture (commercial vehicle format) ───
+
+PAGES_VW_CRAFTER: list[dict] = [
+    {
+        "page_number": 1,
+        "content": [
+            {
+                "type": "section",
+                "title": "SAMOCHÓD Z WYPOSAŻENIEM",
+                "content": [
+                    {
+                        "type": "pricing_summary",
+                        "items": [
+                            {
+                                "label": "Łącznie",
+                                "total": "252 520,00 PLN netto",
+                                "category": "Cena katalogowa",
+                                "details": [
+                                    {
+                                        "item": "Samochód bazowy",
+                                        "price": "204 090,00 PLN netto",
+                                    },
+                                    {
+                                        "item": "Wyposażenie dodatkowe, opcje wykończenia oraz usługi",
+                                        "price": "48 430,00 PLN netto",
+                                    },
+                                ],
+                            },
+                            {
+                                "price": "90 907,20 PLN netto",
+                                "category": "Rabat",
+                            },
+                            {
+                                "price": "161 612,80 PLN netto",
+                                "category": "Cena samochodu bazowego z wyposażeniem dodatkowym po obniżce",
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        "page_number": 4,
+        "content": [
+            {
+                "type": "section",
+                "title": "WYBRANE ELEMENTY WYPOSAŻENIA STANDARDOWEGO",
+                "subsections": [
+                    {
+                        "title": "Nadwozie",
+                        "items": [
+                            "Plandeka",
+                            "Zamek centralny",
+                        ],
+                    },
+                    {
+                        "title": "Podwozie / Koła",
+                        "items": [
+                            "16-calowe felgi stalowe",
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        "page_number": 6,
+        "content": [
+            {
+                "type": "section",
+                "title": "WYPOSAŻENIE DODATKOWE",
+                "content": [
+                    {
+                        "type": "options_table",
+                        "items": [
+                            {
+                                "name": "Klimatyzacja automatyczna Climatronic",
+                                "price": "10 920,00 PLN",
+                            },
+                            {"name": "Tempomat", "price": "1 150,00 PLN"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "type": "section",
+                "title": "OPCJE WYKOŃCZENIA",
+                "content": [
+                    {
+                        "type": "finishes_table",
+                        "headers": ["Kolor samochodu", "Wnętrze"],
+                        "rows": [
+                            [
+                                {"name": "Biały Candy White", "price": "0,00"},
+                                {"name": "Czarny Titan"},
+                            ],
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        "page_number": 7,
+        "content": [
+            {
+                "type": "section",
+                "title": "DANE TECHNICZNE SAMOCHODU",
+                "subsections": [
+                    {
+                        "title": "WLTP Emisja CO2",
+                        "data": [{"label": "Cykl mieszany", "value": "263 g/km"}],
+                    },
+                    {
+                        "title": "WLTP Zużycie paliwa",
+                        "data": [{"label": "Cykl mieszany", "value": "10 l/100km"}],
+                    },
+                    {
+                        "title": "Silnik",
+                        "data": [
+                            {
+                                "label": "Liczba i układ cylindrów",
+                                "value": "4; in Reihe",
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        "page_number": 8,
+        "content": [
+            {
+                "type": "section",
+                "title": "Siedzenia",
+                "data": [{"label": "Liczba siedzeń", "value": "3"}],
+            },
+        ],
+    },
+]
+
+
+class TestExtractFromPagesVWCommercial:
+    """Tests for VW commercial vehicle format parsing."""
+
+    def test_pricing_from_items_details(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert "204 090,00" in result["base_price"]
+        assert "48 430,00" in result["options_price"]
+
+    def test_total_price_from_category(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert "252 520,00" in result.get("total_price", "")
+
+    def test_tech_data_from_subsections(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert "263" in result.get("emissions", "")
+
+    def test_fuel_consumption_from_subsections(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert "10" in result.get("fuel_consumption", "")
+
+    def test_cylinders_from_subsections(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert "4" in result.get("cylinders", "")
+
+    def test_seats_from_section_data(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert result["number_of_seats"] == "3"
+
+    def test_exterior_color_from_finishes_table(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        assert "Biały Candy White" in result["exterior_color"]
+
+    def test_standard_equipment_from_subsections(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        std = result["standard_equipment"]
+        assert isinstance(std, list)
+        assert len(std) == 3
+        assert "Plandeka" in std
+        assert "Zamek centralny" in std
+        assert "16-calowe felgi stalowe" in std
+
+    def test_paid_options_from_options_table(self) -> None:
+        result = _extract_from_pages(PAGES_VW_CRAFTER)
+        opts = result["paid_options"]
+        assert isinstance(opts, list)
+        assert len(opts) == 2
+        assert opts[0]["name"] == "Klimatyzacja automatyczna Climatronic"
+
+    def test_unknown_commercial_brand_no_crash(self) -> None:
+        pages = [
+            {
+                "page_number": 1,
+                "content": [
+                    {
+                        "type": "section",
+                        "title": "MARKA_X SPECIAL",
+                        "subsections": [
+                            {"data": [{"label": "Weight", "value": "3500 kg"}]}
+                        ],
+                    },
+                ],
+            },
+        ]
+        result = _extract_from_pages(pages)
+        assert isinstance(result, dict)

@@ -61,6 +61,10 @@ export function DecisionCenterKPI({
         value={tireLabel}
       />
       <Badge
+        label="Amortyzacja"
+        value={`${(activeCell.amortyzacja_pct * 100).toFixed(2)}%`}
+      />
+      <Badge
         label="Marża"
         value={`${(activeCell.marza_na_kontrakcie_pct * 100).toFixed(1)}%`}
       />

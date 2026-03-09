@@ -19,7 +19,7 @@ def normalize_discount(val):
 
 
 def import_bmw_data():
-    file_path = r"C:\Users\proma\Downloads\BMW siatka rabatów (1).xlsx"
+    file_path = r"C:\Users\proma\Downloads\BMW siatka rabatów (2).xlsx"
     try:
         xl = pd.ExcelFile(file_path)
     except Exception as e:

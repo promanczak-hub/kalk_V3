@@ -31,7 +31,7 @@ class LTRSubCalculatorUtrataWartosciNew:
         # Resolve SAMAR class + engine_id
         class_name = self.vehicle.get("Segment", "") or ""
         self.samar_class_id = get_samar_class_id(class_name) or int(
-            self.vehicle.get("klasa_wr_id", 0) or 0
+            self.vehicle.get("samar_class_id", 0) or 0
         )
         self.engine_id = int(self.vehicle.get("engine_type_id", 1) or 1)
 

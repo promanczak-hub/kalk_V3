@@ -208,16 +208,79 @@ async def reverse_search_vehicles(
     """
     sb = supabase
 
-    if not request.filters:
+    if (
+        not request.filters
+        and not request.body_types
+        and request.vehicle_scope == "all"
+    ):
         raise HTTPException(
             status_code=400,
-            detail="At least one filter is required",
+            detail="Przynajmniej jeden filtr cechy, typ zabudowy lub kategoria pojazdu jest wymagana",
         )
 
     # Build query: find vehicles that match ALL filters
     # Strategy: for each filter, find matching vehicle_ids,
     # then intersect
     matching_sets: list[set[str]] = []
+
+    if request.body_types or (request.vehicle_scope and request.vehicle_scope != "all"):
+        bt_resp = sb.table("vehicle_synthesis").select("id, synthesis_data").execute()
+
+        filtered_ids = set()
+        for r in bt_resp.data:
+            sd = r.get("synthesis_data") or {}
+            cs = sd.get("card_summary") or {}
+            mapped = sd.get("mapped_ai_data") or {}
+
+            # Scope Check
+            scope_matches = True
+            if request.vehicle_scope and request.vehicle_scope != "all":
+                v_type = str(
+                    cs.get("vehicle_type", "")
+                    or cs.get("vehicle_class", "")
+                    or mapped.get("vehicle_type", "")
+                    or mapped.get("vehicle_class", "")
+                    or ""
+                ).upper()
+
+                if request.vehicle_scope == "commercial":
+                    scope_matches = (
+                        "DOSTAWCZ" in v_type
+                        or "CIĘŻAROW" in v_type
+                        or "CIEZAROW" in v_type
+                    )
+                elif request.vehicle_scope == "passenger":
+                    scope_matches = "OSOBOW" in v_type
+
+            # Body Type Check
+            body_matches = True
+            if request.body_types:
+                vals = [
+                    str(x).upper()
+                    for x in [
+                        cs.get("body_style", ""),
+                        mapped.get("body_style", ""),
+                        sd.get("nadwozie", ""),
+                        sd.get("samar_body_type", ""),
+                        sd.get("samar_body_style", ""),
+                        sd.get("rodzaj_zabudowy", ""),
+                    ]
+                    if x
+                ]
+
+                if not vals:
+                    body_matches = False
+                else:
+                    # Match ANY of the requested body types
+                    body_matches = any(
+                        any(req_bt.upper() in v for v in vals)
+                        for req_bt in request.body_types
+                    )
+
+            if scope_matches and body_matches:
+                filtered_ids.add(r["id"])
+
+        matching_sets.append(filtered_ids)
 
     for flt in request.filters:
         # Find feature_id by feature_key
@@ -298,8 +361,8 @@ async def reverse_search_vehicles(
                 source_vehicle_id=v["id"],
                 brand=v.get("brand"),
                 model=v.get("model"),
-                matched_features=len(request.filters),
-                total_filters=len(request.filters),
+                matched_features=len(request.filters) if request.filters else 1,
+                total_filters=len(request.filters) if request.filters else 1,
                 match_score=1.0,
             )
         )

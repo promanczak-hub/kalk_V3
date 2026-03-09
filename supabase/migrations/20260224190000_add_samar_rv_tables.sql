@@ -100,8 +100,8 @@ INSERT INTO samar_klasa_wr (id, nazwa) VALUES
 
 -- SEEDING ltr_admin_korekta_wr_roczniks
 INSERT INTO ltr_admin_korekta_wr_roczniks (id, rocznik, korekta_procent) VALUES
-(1, 'bie┼╝─àcy', 0),
-(2, 'bie┼╝─àcy-1', 0);
+(1, 'bieżący', 0),
+(2, 'bieżący-1', 0);
 
 -- SEEDING ltr_admin_korekta_wr_kolors
 INSERT INTO ltr_admin_korekta_wr_kolors (id, kolor, korekta_procent) VALUES

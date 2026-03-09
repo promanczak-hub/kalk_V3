@@ -47,6 +47,38 @@ def _deep_get(d: dict, *paths: str) -> Any:
     return None
 
 
+_BODY_KEYWORDS: dict[str, str] = {
+    "touring": "Touring (Kombi)",
+    "sedan": "Sedan",
+    "limousine": "Sedan",
+    "gran coupe": "Gran Coupé",
+    "coupe": "Coupé",
+    "cabrio": "Kabriolet",
+    "suv": "SUV",
+    "hatchback": "Hatchback",
+    "kombi": "Kombi",
+    "van": "Van",
+    "furgon": "Furgon",
+    "chassis": "Chassis (Podwozie)",
+    "podwozi": "Chassis (Podwozie)",
+    "pickup": "Pickup",
+    "dostawcz": "Dostawczy",
+    "platforma": "Platforma",
+    "skrzyniow": "Skrzyniowy",
+    "minibus": "Minibus",
+    "bus": "Bus",
+}
+
+
+def _detect_body_style(model_name: str, result: dict) -> None:
+    """Detect body_style from model name using keyword matching."""
+    lower_name = model_name.lower()
+    for keyword, style in _BODY_KEYWORDS.items():
+        if keyword in lower_name:
+            result.setdefault("body_style", style)
+            return
+
+
 def _extract_from_pages(pages: list) -> dict:
     """
     Deterministic extraction from pages-based digital_twin.
@@ -64,16 +96,27 @@ def _extract_from_pages(pages: list) -> dict:
         if not isinstance(content_items, list):
             continue
 
-        for item in content_items:
+        # Flatten nested content[]: VW nests items inside
+        # section.content[] (e.g. pricing_summary inside a section).
+        flat_items: list[dict] = []
+        queue = list(content_items)
+        while queue:
+            item = queue.pop(0)
             if not isinstance(item, dict):
                 continue
+            flat_items.append(item)
+            nested = item.get("content", [])
+            if isinstance(nested, list):
+                queue.extend(nested)
 
+        for item in flat_items:
             item_type = item.get("type", "")
             title = (item.get("title") or "").strip().upper()
 
             # --- Pricing ---
             if item_type == "pricing_summary":
                 currency = item.get("currency", "PLN")
+                # Format A: price_components (BMW/Audi)
                 for comp in item.get("price_components", []):
                     label = (comp.get("item") or "").lower()
                     price = comp.get("price", "")
@@ -86,9 +129,61 @@ def _extract_from_pages(pages: list) -> dict:
                         result.setdefault("options_price", price_str)
                     elif "całkowit" in label or "zapłat" in label:
                         result.setdefault("total_price", price_str)
+                # Format B: items[].details[] (VW commercial)
+                for summary_item in item.get("items", []):
+                    category = (summary_item.get("category") or "").lower()
+                    total_str = summary_item.get("total", "")
+                    if total_str and ("katalog" in category or "łączn" in category):
+                        result.setdefault(
+                            "total_price",
+                            f"{total_str}",
+                        )
+                    for detail in summary_item.get("details", []):
+                        d_item = (detail.get("item") or "").lower()
+                        d_price = detail.get("price", "")
+                        if not d_price:
+                            continue
+                        if "bazow" in d_item or "samochód" in d_item:
+                            result.setdefault("base_price", d_price)
+                        elif (
+                            "opcjonaln" in d_item
+                            or "wyposażeni" in d_item
+                            or "dodatkow" in d_item
+                        ):
+                            result.setdefault("options_price", d_price)
+                    # VW: "Cena samochodu bazowego ..." in category
+                    if "obniżk" in category or "samochod" in category:
+                        price_val = summary_item.get("price", "")
+                        if price_val:
+                            result.setdefault("total_price", price_val)
 
             # --- Technical data table ---
+            # Format A: technical_data_table (BMW/Audi)
             tech_table = item.get("technical_data_table", [])
+            # Format B: subsections[].data[] (VW commercial)
+            # VW puts semantic info in subsection titles (e.g.
+            # "WLTP Emisja CO2") while data labels are generic
+            # ("Cykl mieszany"). Combine title + label for matching.
+            subsections = item.get("subsections", [])
+            if isinstance(subsections, list) and subsections:
+                for sub in subsections:
+                    sub_title = (sub.get("title") or "").strip().lower()
+                    for row in sub.get("data", []):
+                        if isinstance(row, dict):
+                            enriched = dict(row)
+                            orig_lbl = enriched.get("label", "")
+                            enriched["label"] = f"{sub_title} {orig_lbl}"
+                            tech_table.append(enriched)
+            # Also check section-level data[] (e.g. Wymiary, Siedzenia)
+            section_data = item.get("data", [])
+            if isinstance(section_data, list) and section_data:
+                sec_title = (item.get("title") or "").strip().lower()
+                for r in section_data:
+                    if isinstance(r, dict):
+                        enriched = dict(r)
+                        orig_lbl = enriched.get("label", "")
+                        enriched["label"] = f"{sec_title} {orig_lbl}"
+                        tech_table.append(enriched)
             if isinstance(tech_table, list) and tech_table:
                 for row in tech_table:
                     if not isinstance(row, dict):
@@ -97,14 +192,25 @@ def _extract_from_pages(pages: list) -> dict:
                     val = (row.get("value") or "").strip()
                     if not val:
                         continue
-                    if "paliw" in lbl or "rodzaj" in lbl:
+                    # Order matters: specific checks before generic ones.
+                    if "zużyci" in lbl and "paliw" in lbl:
+                        result.setdefault("fuel_consumption", val)
+                    elif "emisj" in lbl and "co2" in lbl:
+                        result.setdefault("emissions", val)
+                    elif "liczba" in lbl and "siedz" in lbl:
+                        result.setdefault("number_of_seats", val)
+                    elif (
+                        ("paliw" in lbl or "rodzaj" in lbl)
+                        and "zużyci" not in lbl
+                        and "emisj" not in lbl
+                    ):
                         result.setdefault("fuel", val)
                     elif "skrzyni" in lbl or "bieg" in lbl:
                         result.setdefault("transmission", val)
                     elif "pojemno" in lbl and "silnik" in lbl:
                         result.setdefault("engine_capacity", val)
-                    elif "emisj" in lbl and "co2" in lbl:
-                        result.setdefault("emissions", val)
+                    elif "cylindr" in lbl:
+                        result.setdefault("cylinders", val)
 
             # --- Emissions from vehicle config ---
             vehicle = item.get("vehicle", {})
@@ -123,16 +229,37 @@ def _extract_from_pages(pages: list) -> dict:
                             result.setdefault("wheels", size_match.group(1))
 
             # --- Standard equipment ---
-            if "STANDARD" in title and "WYPOSAŻ" in title:
+            is_std_equip = ("STANDARD" in title and "WYPOSAŻ" in title) or (
+                "WYBRAN" in title and "STANDARD" in title
+            )
+            if is_std_equip:
                 for ei in item.get("items", []):
                     if isinstance(ei, dict):
                         desc = ei.get("description") or ei.get("name", "")
                         if desc:
                             std_equipment.append(desc.strip())
+                    elif isinstance(ei, str) and ei.strip():
+                        std_equipment.append(ei.strip())
+                # VW format: subsections with items (dict or str)
+                for sub in item.get("subsections", []):
+                    if isinstance(sub, dict):
+                        for ei in sub.get("items", []):
+                            if isinstance(ei, dict):
+                                desc = ei.get("description") or ei.get("name", "")
+                                if desc:
+                                    std_equipment.append(desc.strip())
+                            elif isinstance(ei, str) and ei.strip():
+                                std_equipment.append(ei.strip())
 
             # --- Optional equipment ---
-            if "OPCJONALN" in title and "WYPOSAŻ" in title:
+            is_opt_equip = (
+                ("OPCJONALN" in title and "WYPOSAŻ" in title)
+                or ("DODATKOW" in title and "WYPOSAŻ" in title)
+                or ("WYPOSAŻENIE DODATKOWE" in title)
+            )
+            if is_opt_equip:
                 currency = item.get("currency", "PLN")
+                # Direct items
                 for oi in item.get("items", []):
                     if isinstance(oi, dict):
                         name = oi.get("name", "")
@@ -145,9 +272,30 @@ def _extract_from_pages(pages: list) -> dict:
                                     "category": "Fabryczna",
                                 }
                             )
+                # VW format: options_table inside content[]
+                for ci in item.get("content", []):
+                    if isinstance(ci, dict) and ci.get("type") == "options_table":
+                        for oi in ci.get("items", []):
+                            if isinstance(oi, dict):
+                                name = oi.get("name", "")
+                                price = oi.get("price", "0")
+                                if name:
+                                    paid_options.append(
+                                        {
+                                            "name": name.strip(),
+                                            "price": f"{price} {currency}",
+                                            "category": "Fabryczna",
+                                        }
+                                    )
 
-            # --- Exterior color (NADWOZIE / LAKIER) ---
-            if "NADWOZI" in title or "LAKIER" in title or "KOLOR" in title:
+            # --- Exterior color (NADWOZIE / LAKIER / OPCJE WYKOŃCZENIA) ---
+            is_color_section = (
+                "NADWOZI" in title
+                or "LAKIER" in title
+                or "KOLOR" in title
+                or "WYKOŃCZENI" in title
+            )
+            if is_color_section:
                 for ci in item.get("items", []):
                     if isinstance(ci, dict):
                         name = (ci.get("name") or ci.get("description") or "").strip()
@@ -157,6 +305,22 @@ def _extract_from_pages(pages: list) -> dict:
                                 result["exterior_color"] = f"{name} ({price} PLN)"
                             else:
                                 result["exterior_color"] = name
+                # VW format: finishes_table inside content[]
+                for ci in item.get("content", []):
+                    if isinstance(ci, dict) and ci.get("type") == "finishes_table":
+                        for row in ci.get("rows", []):
+                            if isinstance(row, list):
+                                for cell in row:
+                                    if isinstance(cell, dict):
+                                        name = (cell.get("name") or "").strip()
+                                        if name and not result.get("exterior_color"):
+                                            price = cell.get("price", "")
+                                            if price and price != "0,00":
+                                                result["exterior_color"] = (
+                                                    f"{name} ({price} PLN)"
+                                                )
+                                            else:
+                                                result["exterior_color"] = name
 
             # --- Body style from WYBRANY MODEL (e.g. "BMW 320i Touring") ---
             if "MODEL" in title and "WYBRANY" in title:
@@ -164,23 +328,7 @@ def _extract_from_pages(pages: list) -> dict:
                     if isinstance(mi, dict):
                         model_name = (mi.get("name") or "").strip()
                         if model_name:
-                            body_keywords = {
-                                "touring": "Touring (Kombi)",
-                                "sedan": "Sedan",
-                                "limousine": "Sedan",
-                                "gran coupe": "Gran Coupé",
-                                "coupe": "Coupé",
-                                "cabrio": "Kabriolet",
-                                "suv": "SUV",
-                                "hatchback": "Hatchback",
-                                "kombi": "Kombi",
-                                "van": "Van",
-                            }
-                            lower_name = model_name.lower()
-                            for keyword, style in body_keywords.items():
-                                if keyword in lower_name:
-                                    result.setdefault("body_style", style)
-                                    break
+                            _detect_body_style(model_name, result)
 
     # --- Construct powertrain from tech data ---
     capacity = result.get("engine_capacity", "")
@@ -473,6 +621,41 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
             print(
                 f"[BACKFILL] is_metalic_paint: OVERRIDE → False "
                 f"(keyword w exterior_color: '{exterior_color}')"
+            )
+
+    # --- 8. Deterministic drive_type detection + FWD default ---
+    current_drive = str(card_summary.get("drive_type") or "").strip()
+    if not current_drive or current_drive.lower() in ("brak", "none", "null"):
+        # Check transmission and powertrain for AWD keywords
+        transmission_str = str(card_summary.get("transmission") or "").lower()
+        powertrain_str = str(card_summary.get("powertrain") or "").lower()
+        combined = f"{transmission_str} {powertrain_str}"
+
+        awd_keywords = (
+            "4motion",
+            "quattro",
+            "xdrive",
+            "4matic",
+            "4drive",
+            "4x4",
+            "4wd",
+            "awd",
+            "all4",
+            "on-demand",
+            "e-4orce",
+            "allgrip",
+        )
+        if any(kw in combined for kw in awd_keywords):
+            card_summary["drive_type"] = "Napęd AWD"
+            print(
+                f"[BACKFILL] drive_type: 'Napęd AWD' "
+                f"(wykryto keyword 4WD w transmission/powertrain)"
+            )
+        else:
+            card_summary["drive_type"] = "Napęd FWD"
+            print(
+                "[BACKFILL] drive_type: domyślnie 'Napęd FWD' "
+                "(brak danych w dokumencie)"
             )
 
     return card_summary

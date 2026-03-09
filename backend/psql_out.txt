@@ -1,0 +1,48 @@
+BEGIN
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+NOTICE:  constraint "replacement_car_rates_samar_class_id_fkey" of relation "replacement_car_rates" does not exist, skipping
+NOTICE:  constraint "ltr_admin_korekta_wr_markas_klasa_wr_id_fkey" of relation "ltr_admin_korekta_wr_markas" does not exist, skipping
+ALTER TABLE
+DELETE 29
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+COMMIT

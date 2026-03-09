@@ -25,21 +25,20 @@ const DRIVE_TYPE_LABELS: Record<string, string> = {
 };
 
 function extractDriveType(vehicle: FleetVehicleView): string {
-  const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
-  if (!synth) return EMPTY;
-  const cs = synth.card_summary as Record<string, unknown> | undefined;
-  const raw = cs?.drive_type as string | undefined;
+  const raw = vehicle.drive_type;
   if (!raw) return EMPTY;
   return DRIVE_TYPE_LABELS[raw] ?? raw;
 }
 
 function extractSeats(vehicle: FleetVehicleView): string {
-  const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
-  if (!synth) return EMPTY;
-  const cs = synth.card_summary as Record<string, unknown> | undefined;
-  const seats = cs?.number_of_seats;
-  if (seats == null) return EMPTY;
-  return String(seats);
+  if (vehicle.number_of_seats == null) return EMPTY;
+  return String(vehicle.number_of_seats);
+}
+
+function extractPaintCategory(vehicle: FleetVehicleView): string {
+  if (vehicle.is_metalic_paint === true) return "Metalik";
+  if (vehicle.is_metalic_paint === false) return "Bazowy";
+  return EMPTY;
 }
 
 function val(v: string | null | undefined): string {
@@ -181,6 +180,7 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
     { label: "Emisja WLTP", value: val(vehicle.emissions) },
     { label: "Kolor nadwozia", value: val(vehicle.exterior_color) },
+    { label: "Kategoria lakieru", value: extractPaintCategory(vehicle) },
     { label: "Ilość miejsc", value: extractSeats(vehicle) },
   ];
 

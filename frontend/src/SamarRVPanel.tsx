@@ -27,7 +27,7 @@ interface SamarClass {
 
 interface BasePercentage {
   id: number;
-  klasa_wr_id: number;
+  samar_class_id: number;
   rodzaj_paliwa: number;
   korekta_procent: number;
 }
@@ -35,7 +35,7 @@ interface BasePercentage {
 interface BrandCorrection {
   id: number;
   marka_id: number;
-  klasa_wr_id: number;
+  samar_class_id: number;
   rodzaj_paliwa: number;
   korekta_procent: number;
 }
@@ -43,21 +43,21 @@ interface BrandCorrection {
 interface AgeDepreciation {
   id: number;
   rok: number;
-  klasa_wr_id: number;
+  samar_class_id: number;
   rodzaj_paliwa: number;
   korekta_procent: number;
 }
 
 interface MileageCorrection {
   id: number;
-  klasa_wr_id: number;
+  samar_class_id: number;
   korekta_procent_ponizej_190: number;
   korekta_procent_powyzej_190: number;
 }
 
 interface InsuranceRate {
   id: number;
-  KlasaId: number;
+  samar_class_id: number;
   KolejnyRok: number;
   StawkaBazowaAC: number;
   SkladkaOC: number;
@@ -68,9 +68,9 @@ interface InsuranceRate {
 
 interface InsuranceCoefficient {
   id: number;
-  klasa_wr_id: number;
-  wsp_sredni_przebieg: number;
-  wsp_wartosc_szkody: number;
+  samar_class_id: number;
+  WspSredniPrzebieg: number;
+  WspWartoscSzkody: number;
   samar_klasa_wr?: {
     nazwa: string;
   };
@@ -300,7 +300,7 @@ export default function SamarRVPanel() {
                   {basePct.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell>{b.id}</TableCell>
-                      <TableCell>{getClassName(b.klasa_wr_id)}</TableCell>
+                      <TableCell>{getClassName(b.samar_class_id)}</TableCell>
                       <TableCell>{b.rodzaj_paliwa}</TableCell>
                       <TableCell>
                         {(b.korekta_procent * 100).toFixed(2)} %
@@ -336,7 +336,7 @@ export default function SamarRVPanel() {
                     <TableRow key={a.id}>
                       <TableCell>{a.id}</TableCell>
                       <TableCell>{a.rok}</TableCell>
-                      <TableCell>{getClassName(a.klasa_wr_id)}</TableCell>
+                      <TableCell>{getClassName(a.samar_class_id)}</TableCell>
                       <TableCell>{a.rodzaj_paliwa}</TableCell>
                       <TableCell>
                         {(a.korekta_procent * 100).toFixed(2)} %
@@ -370,7 +370,7 @@ export default function SamarRVPanel() {
                   {mileageCorr.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell>{m.id}</TableCell>
-                      <TableCell>{getClassName(m.klasa_wr_id)}</TableCell>
+                      <TableCell>{getClassName(m.samar_class_id)}</TableCell>
                       <TableCell>
                         {(m.korekta_procent_ponizej_190 * 100).toFixed(4)} %
                       </TableCell>
@@ -408,7 +408,7 @@ export default function SamarRVPanel() {
                     <TableRow key={b.id}>
                       <TableCell>{b.id}</TableCell>
                       <TableCell>{b.marka_id}</TableCell>
-                      <TableCell>{getClassName(b.klasa_wr_id)}</TableCell>
+                      <TableCell>{getClassName(b.samar_class_id)}</TableCell>
                       <TableCell>{b.rodzaj_paliwa}</TableCell>
                       <TableCell>
                         {(b.korekta_procent * 100).toFixed(2)} %
@@ -444,7 +444,7 @@ export default function SamarRVPanel() {
                   {insuranceRates.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>{r.id}</TableCell>
-                      <TableCell>{r.samar_klasa_wr?.nazwa || r.KlasaId}</TableCell>
+                      <TableCell>{r.samar_klasa_wr?.nazwa || r.samar_class_id}</TableCell>
                       <TableCell>{r.KolejnyRok}</TableCell>
                       <TableCell>
                         {(r.StawkaBazowaAC * 100).toFixed(2)} %
@@ -479,9 +479,9 @@ export default function SamarRVPanel() {
                   {insuranceCoefficients.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell>{c.id}</TableCell>
-                      <TableCell>{c.samar_klasa_wr?.nazwa || c.klasa_wr_id}</TableCell>
-                      <TableCell>{c.wsp_sredni_przebieg.toFixed(4)}</TableCell>
-                      <TableCell>{c.wsp_wartosc_szkody.toFixed(4)}</TableCell>
+                      <TableCell>{c.samar_klasa_wr?.nazwa || c.samar_class_id}</TableCell>
+                      <TableCell>{c.WspSredniPrzebieg.toFixed(4)}</TableCell>
+                      <TableCell>{c.WspWartoscSzkody.toFixed(4)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

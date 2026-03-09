@@ -138,7 +138,7 @@ class PipelineDebugger(LTRKalkulator):
         )
 
         # KROK 3: Samochód Zastępczy (SZst)
-        klasa_id = self.vehicle.get("klasa_wr_id", "") if self.vehicle else ""
+        klasa_id = str(self.vehicle.get("samar_class_id", "")) if self.vehicle else ""
         rc_rate = get_replacement_car_rate_from_db(klasa_id)
         rc_calc = ReplacementCarCalculator(rc_rate)  # type: ignore
         rc_res = rc_calc.calculate_cost(

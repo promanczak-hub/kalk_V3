@@ -18,6 +18,7 @@ interface ControlCenterData {
   cost_registration: number;
   cost_sales_prep: number;
   budzet_marketingowy_ltr: number;
+  przewidywana_cena_sprzedazy_lo: number;
   [key: string]: unknown;
 }
 
@@ -34,6 +35,7 @@ const FIELDS: FieldDef[] = [
   { key: "default_wibor", label: "WIBOR domyślny", unit: "%", step: "0.01", group: "Parametry Finansowe" },
   { key: "bank_spread", label: "Bank Spread (marża finansowa)", unit: "%", step: "0.01", group: "Parametry Finansowe" },
   { key: "default_ltr_margin", label: "Marża sprzedaży LTR", unit: "%", step: "0.1", group: "Parametry Finansowe" },
+  { key: "przewidywana_cena_sprzedazy_lo", label: "Współczynnik WR dla LO", unit: "%", step: "0.01", group: "Parametry Finansowe" },
   // default_depreciation_pct removed — auto-calculated per matrix cell by backend
   { key: "vat_rate", label: "Stawka VAT", unit: "%", step: "1", group: "Parametry Finansowe" },
 

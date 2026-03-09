@@ -35,7 +35,7 @@ interface InsuranceRate {
   KolejnyRok: number;
   StawkaBazowaAC: number;
   SkladkaOC: number;
-  KlasaId: number | null;
+  samar_class_id: number;
 }
 
 export default function InsuranceRatesCrudPanel() {
@@ -50,7 +50,7 @@ export default function InsuranceRatesCrudPanel() {
     KolejnyRok: 1,
     StawkaBazowaAC: 0,
     SkladkaOC: 0,
-    KlasaId: null,
+    samar_class_id: 100,
   });
 
   useEffect(() => {
@@ -86,10 +86,9 @@ export default function InsuranceRatesCrudPanel() {
     }
   };
 
-  const getClassName = (klasaId: number | null): string => {
-    if (klasaId === null) return "— Domyślna (null) —";
-    const found = klasaWrList.find((c) => c.id === klasaId);
-    return found ? found.nazwa : `Klasa ID: ${klasaId}`;
+  const getClassName = (samar_class_id: number): string => {
+    const found = klasaWrList.find((c) => c.id === samar_class_id);
+    return found ? found.nazwa : `Klasa ID: ${samar_class_id}`;
   };
 
   const handleOpen = (item?: InsuranceRate) => {
@@ -99,9 +98,9 @@ export default function InsuranceRatesCrudPanel() {
     } else {
       setFormData({
         KolejnyRok: 1,
-        StawkaBazowaAC: 0,
-        SkladkaOC: 0,
-        KlasaId: klasaWrList.length > 0 ? klasaWrList[0].id : null,
+        StawkaBazowaAC: 0.015,
+        SkladkaOC: 1476,
+        samar_class_id: klasaWrList.length > 0 ? klasaWrList[0].id : 100,
       });
       setEditingId(null);
     }
@@ -144,10 +143,10 @@ export default function InsuranceRatesCrudPanel() {
     }
   };
 
-  /* Group data by KlasaId for nicer display */
+  /* Group data by samar_class_id for nicer display */
   const grouped: Record<string, InsuranceRate[]> = {};
   data.forEach((row) => {
-    const key = row.KlasaId === null ? "null" : String(row.KlasaId);
+    const key = row.samar_class_id === null ? "null" : String(row.samar_class_id);
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(row);
   });
@@ -198,9 +197,8 @@ export default function InsuranceRatesCrudPanel() {
             </TableHead>
             <TableBody>
               {Object.entries(grouped).map(([klasaKey, rows]) => {
-                const klasaId =
-                  klasaKey === "null" ? null : parseInt(klasaKey);
-                const klasaName = getClassName(klasaId);
+                const samar_class_id = parseInt(klasaKey) || 100;
+                const klasaName = getClassName(samar_class_id);
                 return rows
                   .sort((a, b) => a.KolejnyRok - b.KolejnyRok)
                   .map((row, idx) => (
@@ -295,16 +293,14 @@ export default function InsuranceRatesCrudPanel() {
             select
             label="Klasa SAMAR"
             size="small"
-            value={formData.KlasaId ?? "null"}
+            value={formData.samar_class_id}
             onChange={(e) => {
-              const val = e.target.value;
               setFormData({
                 ...formData,
-                KlasaId: val === "null" ? null : parseInt(val),
+                samar_class_id: parseInt(e.target.value),
               });
             }}
           >
-            <MenuItem value="null">— Domyślna (null) —</MenuItem>
             {klasaWrList.map((c) => (
               <MenuItem key={c.id} value={c.id}>
                 {c.nazwa}

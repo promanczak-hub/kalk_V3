@@ -37,6 +37,9 @@ export interface FleetVehicleView {
   wheels: string | null;
   emissions: string | null;
   exterior_color: string | null;
+  drive_type: string | null;
+  number_of_seats: number | null;
+  is_metalic_paint: boolean | null;
   notes: string | null;
   standard_equipment: string[] | null;
   paid_options: { name: string; price: string; category?: string }[] | null;

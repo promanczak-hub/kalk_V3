@@ -155,7 +155,6 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
               return r.json();
             })
             .then((data) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const relevantCells: MiniMatrixCell[] = (data.cells || [])
                 .filter(
                   (c: { months: number }) =>
@@ -176,6 +175,7 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
                   rv_samar_net: c.rv_samar_net || 0,
                   koszt_dzienny: c.koszt_dzienny || 0,
                   koszty_ogolem: c.koszty_ogolem || 0,
+                  amortyzacja_pct: c.amortyzacja_pct || 0,
                   breakdown: c.breakdown || {
                     finance: { base: 0, margin: 0, price: 0 },
                     technical: {

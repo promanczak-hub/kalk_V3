@@ -1,0 +1,31 @@
+ltr_admin_korekta_wr_markas: ALL_COLS=['id', 'rodzaj_paliwa', 'klasa_wr_id', 'marka_id', 'korekta_procent', 'brand_name', 'model_name', 'notes']
+  SAMAR_HITS=['klasa_wr_id']
+ltr_admin_stawki_ubezpieczen: ERR={'message': "Could not find the table 'public.ltr_admin_stawki_ubezpieczen' in the schema cache", 'c
+ltr_admin_wspolczynniki_szkodowe: ALL_COLS=['id', 'klasa_wr_id', 'wsp_sredni_przebieg', 'wsp_wartosc_szkody']
+  SAMAR_HITS=['klasa_wr_id']
+ltr_admin_korekta_wr_roczniks: ALL_COLS=['id', 'rocznik', 'korekta_procent']
+  SAMAR_HITS=[]
+samar_classes: ALL_COLS=['id', 'name', 'description', 'mileage_cutoff_threshold', 'created_at', 'updated_at', 'base_mileage_km', 'mileage_threshold_km', 'base_period_months', 'excel_code', 'klasa_wr_id', 'category', 'size_class', 'example_models']
+  SAMAR_HITS=['klasa_wr_id', 'size_class']
+samar_class_depreciation_rates: ALL_COLS=['id', 'samar_class_id', 'fuel_type_id', 'year', 'base_depreciation_percent', 'options_depreciation_percent', 'created_at']
+  SAMAR_HITS=['samar_class_id']
+samar_class_mileage_corrections: ALL_COLS=['id', 'samar_class_id', 'fuel_type_id', 'under_threshold_percent', 'over_threshold_percent', 'created_at']
+  SAMAR_HITS=['samar_class_id']
+body_type_wr_corrections: (empty) - checking schema impossible
+zabudowa_wr_corrections: ALL_COLS=['id', 'zabudowa_type_id', 'samar_class_id', 'correction_percent', 'created_at']
+  SAMAR_HITS=['samar_class_id']
+replacement_car_rates: ALL_COLS=['id', 'samar_class_id', 'samar_class_name', 'average_days_per_year', 'daily_rate_net', 'created_at', 'updated_at']
+  SAMAR_HITS=['samar_class_id', 'samar_class_name']
+pojazdy_master: ERR={'message': "Could not find the table 'public.pojazdy_master' in the schema cache", 'code': 'PGRST20
+vehicle_synthesis: (empty) - checking schema impossible
+tyre_configurations: ALL_COLS=['id', 'config_key', 'config_value', 'description']
+  SAMAR_HITS=[]
+koszty_opon: ALL_COLS=['srednica', 'budget', 'medium', 'premium', 'wzmocnione_budget', 'wzmocnione_medium', 'wzmocnione_premium', 'wielosezon_budget', 'wielosezon_medium', 'wielosezon_premium', 'wielosezon_wzmocnione_budget', 'wielosezon_wzmocnione_medium', 'wielosezon_wzmocnione_premium']
+  SAMAR_HITS=[]
+paint_types: ALL_COLS=['id', 'name', 'created_at', 'wr_correction']
+  SAMAR_HITS=[]
+engines: ALL_COLS=['id', 'name', 'category', 'description', 'created_at']
+  SAMAR_HITS=[]
+control_center: ALL_COLS=['id', 'default_wibor', 'default_ltr_margin', 'bank_spread', 'samar_segment_b_adjustment', 'samar_segment_c_adjustment', 'samar_segment_d_adjustment', 'value_threshold_1', 'value_threshold_2', 'resale_time_days', 'inventory_financing_cost', 'updated_at', 'samar_rv_apply_color_correction', 'samar_rv_apply_body_correction', 'samar_rv_apply_options_depreciation', 'samar_rv_base_mileage', 'samar_rv_mileage_unit_km', 'cost_gsm_subscription_monthly', 'cost_gsm_device', 'cost_gsm_installation', 'cost_hook_installation', 'cost_grid_dismantling', 'cost_registration', 'cost_sales_prep', 'vat_rate', 'ins_theft_doub_pct', 'ins_driving_school_doub_pct', 'ins_avg_damage_value', 'ins_avg_damage_mileage', 'ins_nnw_annual_rate', 'ins_ass_annual_rate', 'ins_green_card_annual_rate', 'normatywny_przebieg_mc', 'przewidywana_cena_sprzedazy_lo']
+  SAMAR_HITS=['samar_segment_b_adjustment', 'samar_segment_c_adjustment', 'samar_segment_d_adjustment', 'samar_rv_apply_color_correction', 'samar_rv_apply_body_correction', 'samar_rv_apply_options_depreciation', 'samar_rv_base_mileage', 'samar_rv_mileage_unit_km']
+KlasaSAMAR_czak: ERR={'message': "Could not find the table 'public.KlasaSAMAR_czak' in the schema cache", 'code': 'PGRST2

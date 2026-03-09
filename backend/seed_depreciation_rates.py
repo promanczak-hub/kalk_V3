@@ -256,7 +256,7 @@ def read_marka(
 
         result.append(
             {
-                "klasa_wr_id": samar_id,
+                "samar_class_id": samar_id,
                 "rodzaj_paliwa": fuel_id,
                 "marka_name": str(brand),
                 "korekta_procent": float(korekta) if korekta else 0.0,

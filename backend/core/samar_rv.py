@@ -33,7 +33,7 @@ _SAMAR_CACHE: Dict[str, int] = {}
 
 
 def get_samar_class_id(class_name: str) -> Optional[int]:
-    """Mapuje nazwę klasy SAMAR na ID z tabeli samar_classes."""
+    """Mapuje nazwę klasy SAMAR na ID z tabeli samar_classes. Wspiera formaty nowe i stare."""
     global _SAMAR_CACHE
     if not _SAMAR_CACHE:
         try:
@@ -46,7 +46,34 @@ def get_samar_class_id(class_name: str) -> Optional[int]:
         except Exception as exc:
             logger.warning("Błąd pobierania samar_classes: %s", exc)
             return None
-    return _SAMAR_CACHE.get(class_name.strip().upper())
+
+    c_name = class_name.strip().upper()
+    if c_name in _SAMAR_CACHE:
+        return _SAMAR_CACHE[c_name]
+
+    # Miękkie dopasowanie (Fuzzy Matching) dla starych stringów (np. "Podstawowa E WYŻSZA")
+    import re
+
+    # Usuwamy słowo KLASA i redukujemy spacje
+    c_name_norm = re.sub(r"\s+", " ", c_name).replace("KLASA ", "")
+    search_norm = c_name_norm.replace("-", " ").replace("(SUV)", "").strip()
+
+    for db_name, db_id in _SAMAR_CACHE.items():
+        db_norm = db_name.replace("-", " ").replace("(SUV)", "").replace("KLASA ", "")
+        db_norm = re.sub(r"\s+", " ", db_norm).strip()
+
+        # 1. Dokładne dopasowanie po znormalizowaniu
+        if db_norm == search_norm:
+            _SAMAR_CACHE[c_name] = db_id
+            return db_id
+
+        # 2. Przecięcie słów kluczowych (np. brakuje spójnika w grupie)
+        parts = search_norm.split()
+        if all(p in db_norm for p in parts) and len(parts) >= 2:
+            _SAMAR_CACHE[c_name] = db_id
+            return db_id
+
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -118,7 +145,7 @@ def check_rv_readiness(
         res = (
             supabase.table("ltr_admin_korekta_wr_markas")
             .select("korekta_procent")
-            .eq("klasa_wr_id", samar_class_id)
+            .eq("samar_class_id", samar_class_id)
             .eq("rodzaj_paliwa", engine_id)
             .eq("brand_name", brand_name.upper())
             .limit(1)
@@ -311,7 +338,7 @@ class SamarRVCalculator:
             res = (
                 supabase.table("ltr_admin_korekta_wr_markas")
                 .select("korekta_procent")
-                .eq("klasa_wr_id", self.data.samar_class_id)
+                .eq("samar_class_id", self.data.samar_class_id)
                 .eq("rodzaj_paliwa", self.data.engine_id)
                 .eq("brand_name", brand)
                 .limit(1)

@@ -369,6 +369,7 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
 @router.post("/debug-pipeline/{vehicle_id}/ask-ai")
 def ask_ai_about_step(vehicle_id: str, req: AskAiRequest):
     from core.gemini_client import get_gemini_client
+    from google.genai import types as genai_types
     import json
 
     try:
@@ -395,6 +396,9 @@ Bądź techniczny, przyjazny i konkretnie diagnozuj wynik. Używaj formatowania 
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0.0,
+            ),
         )
 
         return {"status": "success", "answer": response.text}

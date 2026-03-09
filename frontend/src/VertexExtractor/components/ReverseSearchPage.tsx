@@ -9,6 +9,7 @@ interface CatalogFeature {
   display_name: string;
   feature_type: string;
   category_id: string;
+  applicable_body_types: string[] | null;
 }
 
 interface CatalogCategory {
@@ -26,6 +27,13 @@ interface SearchFilter {
   value_num_max?: number;
   value_text?: string;
 }
+
+const BODY_TYPES = [
+  "SUV", "Hatchback", "Kombi", "Sedan", "Furgon",
+  "Skrzynia", "Chłodnia", "Kontener", "Izoterma",
+  "Platforma", "Wywrotka", "Plandeka", "Brygadówka",
+  "Minibus", "KombiVan", "Pick-up", "Coupe", "Kabriolet"
+];
 
 interface SearchResult {
   source_vehicle_id: string;
@@ -47,6 +55,10 @@ export function ReverseSearchPage() {
   const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [hasSearched, setHasSearched] = useState(false);
+  const [vehicleScope, setVehicleScope] = useState<"all" | "passenger" | "commercial">("all");
+  const [bodyTypes, setBodyTypes] = useState<string[]>([]);
+  const [bodyTypeSearch, setBodyTypeSearch] = useState("");
+  const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState(false);
 
   const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -82,7 +94,7 @@ export function ReverseSearchPage() {
           {
             feature_key: feature.feature_key,
             display_name: feature.display_name,
-            value_bool: feature.feature_type === "bool" ? true : undefined,
+            value_bool: (feature.feature_type === "boolean" || feature.feature_type === "bool") ? true : undefined,
           },
         ];
       });
@@ -90,9 +102,13 @@ export function ReverseSearchPage() {
     []
   );
 
+  const updateFilter = useCallback((featureKey: string, updates: Partial<SearchFilter>) => {
+    setActiveFilters((prev) => prev.map((f) => f.feature_key === featureKey ? { ...f, ...updates } : f));
+  }, []);
+
   // Search
   const runSearch = useCallback(async () => {
-    if (activeFilters.length === 0) return;
+    if (activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all") return;
     setSearching(true);
     setHasSearched(true);
     try {
@@ -107,6 +123,8 @@ export function ReverseSearchPage() {
             value_num_max: f.value_num_max,
             value_text: f.value_text,
           })),
+          body_types: bodyTypes.length > 0 ? bodyTypes : undefined,
+          vehicle_scope: vehicleScope !== "all" ? vehicleScope : undefined,
           limit: 50,
           offset: 0,
         }),
@@ -120,10 +138,12 @@ export function ReverseSearchPage() {
     } finally {
       setSearching(false);
     }
-  }, [activeFilters, baseUrl]);
+  }, [activeFilters, bodyTypes, vehicleScope, baseUrl]);
 
   const clearFilters = () => {
     setActiveFilters([]);
+    setBodyTypes([]);
+    setVehicleScope("all");
     setResults([]);
     setTotalCount(0);
     setHasSearched(false);
@@ -164,11 +184,100 @@ export function ReverseSearchPage() {
         {/* ── Left: Filter Sidebar ── */}
         <div className="w-80 shrink-0">
           <div className="bg-white border border-slate-200 rounded-lg shadow-sm sticky top-4">
+            {/* Scope Filter */}
+            <div className="p-4 border-b border-slate-200 rounded-t-lg bg-slate-50">
+               <label className="text-xs font-semibold text-slate-800 uppercase tracking-wider block mb-3">Segment Pojazdu</label>
+               <div className="flex bg-slate-200/50 p-1 rounded-md">
+                 <button
+                   onClick={() => setVehicleScope("all")}
+                   className={`flex-1 text-xs py-1.5 rounded-sm font-medium transition-colors ${vehicleScope === "all" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                 >
+                   Wszystkie
+                 </button>
+                 <button
+                   onClick={() => setVehicleScope("passenger")}
+                   className={`flex-1 text-xs py-1.5 rounded-sm font-medium transition-colors ${vehicleScope === "passenger" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                 >
+                   Osobowe
+                 </button>
+                 <button
+                   onClick={() => setVehicleScope("commercial")}
+                   className={`flex-1 text-xs py-1.5 rounded-sm font-medium transition-colors ${vehicleScope === "commercial" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                 >
+                   Dostawcze
+                 </button>
+               </div>
+            </div>
+
+            {/* Body Type Filter */}
+            <div className="p-4 border-b border-slate-200 relative">
+               <label className="text-xs font-semibold text-slate-800 uppercase tracking-wider block mb-2">Typ Zabudowy</label>
+               <div className="relative">
+                 <button
+                   onClick={() => setShowBodyTypeDropdown(!showBodyTypeDropdown)}
+                   className="w-full text-left text-sm border border-slate-200 rounded-md px-3 py-2 bg-white flex items-center justify-between hover:border-indigo-300 transition-colors"
+                 >
+                   <span className="truncate text-slate-700 font-medium">
+                     {bodyTypes.length === 0 ? "Wybierz typy..." : `Wybrano (${bodyTypes.length})`}
+                   </span>
+                   <ChevronDown className="w-4 h-4 text-slate-400" />
+                 </button>
+
+                 {showBodyTypeDropdown && (
+                   <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg p-2">
+                     <div className="relative mb-2">
+                       <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                       <input
+                         type="text"
+                         placeholder="Szukaj zabudowy..."
+                         value={bodyTypeSearch}
+                         onChange={(e) => setBodyTypeSearch(e.target.value)}
+                         className="w-full pl-7 pr-2 py-1.5 text-xs border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                         onClick={(e) => e.stopPropagation()}
+                       />
+                     </div>
+                     <div className="max-h-48 overflow-y-auto space-y-0.5">
+                       {BODY_TYPES.filter(bt => bt.toLowerCase().includes(bodyTypeSearch.toLowerCase())).map(bt => (
+                         <label key={bt} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                           <input
+                             type="checkbox"
+                             checked={bodyTypes.includes(bt)}
+                             onChange={(e) => {
+                               if (e.target.checked) setBodyTypes([...bodyTypes, bt]);
+                               else setBodyTypes(bodyTypes.filter(t => t !== bt));
+                             }}
+                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                           />
+                           <span className="text-xs text-slate-700">{bt}</span>
+                         </label>
+                       ))}
+                       {BODY_TYPES.filter(bt => bt.toLowerCase().includes(bodyTypeSearch.toLowerCase())).length === 0 && (
+                         <div className="text-xs text-slate-400 text-center py-2">Brak wyników</div>
+                       )}
+                     </div>
+                   </div>
+                 )}
+               </div>
+               
+               {bodyTypes.length > 0 && (
+                 <div className="flex flex-wrap gap-1 mt-2">
+                   {bodyTypes.map(bt => (
+                     <span key={bt} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                       {bt}
+                       <button onClick={() => setBodyTypes(bodyTypes.filter(t => t !== bt))} className="hover:text-red-500">
+                         <X className="w-2.5 h-2.5" />
+                       </button>
+                     </span>
+                   ))}
+                 </div>
+               )}
+            </div>
+
             {/* Filter header */}
-            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 rounded-t-lg flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Filter className="w-3.5 h-3.5" />
-                Filtry cech
+                Dostępne Cechy
               </h3>
               {activeFilters.length > 0 && (
                 <button
@@ -209,33 +318,48 @@ export function ReverseSearchPage() {
 
                   {expandedCats.has(cat.id) && (
                     <div className="px-3 pb-3 space-y-1">
-                      {cat.features.map((feat) => {
-                        const isActive = activeFilters.some(
-                          (f) => f.feature_key === feat.feature_key
-                        );
+                      {cat.features
+                        .filter(f => bodyTypes.length === 0 || !f.applicable_body_types?.length || bodyTypes.some(bt => f.applicable_body_types!.includes(bt)))
+                        .map((feat) => {
+                        const activeFlt = activeFilters.find((f) => f.feature_key === feat.feature_key);
+                        const isActive = !!activeFlt;
                         return (
-                          <button
-                            key={feat.id}
-                            onClick={() => toggleFilter(feat)}
-                            className={`w-full text-left px-3 py-1.5 rounded text-xs transition-colors ${
-                              isActive
-                                ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium"
-                                : "text-slate-600 hover:bg-slate-100 border border-transparent"
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span
-                                className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${
-                                  isActive
-                                    ? "bg-indigo-600 border-indigo-600 text-white"
-                                    : "border-slate-300"
-                                }`}
-                              >
-                                {isActive && "✓"}
+                          <div key={feat.id} className="mb-0.5">
+                            <button
+                              onClick={() => toggleFilter(feat)}
+                              className={`w-full text-left px-3 py-1.5 rounded text-xs transition-colors ${
+                                isActive
+                                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium"
+                                  : "text-slate-600 hover:bg-slate-100 border border-transparent"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] shrink-0 ${
+                                    isActive
+                                      ? "bg-indigo-600 border-indigo-600 text-white"
+                                      : "border-slate-300"
+                                  }`}
+                                >
+                                  {isActive && "✓"}
+                                </span>
+                                <span className={!isActive ? "truncate" : ""}>{feat.display_name}</span>
                               </span>
-                              {feat.display_name}
-                            </span>
-                          </button>
+                            </button>
+                            {/* Dynamic Inputs For Selected Filters */}
+                            {isActive && feat.feature_type === "numeric" && (
+                              <div className="pl-8 pr-3 pb-2 flex items-center gap-2 mt-1">
+                                <input type="number" placeholder="Min" className="w-16 h-7 px-1.5 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_num_min || ""} onChange={(e) => updateFilter(feat.feature_key, { value_num_min: e.target.value ? Number(e.target.value) : undefined })} />
+                                <span className="text-indigo-300 text-[10px]">-</span>
+                                <input type="number" placeholder="Max" className="w-16 h-7 px-1.5 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_num_max || ""} onChange={(e) => updateFilter(feat.feature_key, { value_num_max: e.target.value ? Number(e.target.value) : undefined })} />
+                              </div>
+                            )}
+                            {isActive && (feat.feature_type === "text" || feat.feature_type === "enum") && (
+                              <div className="pl-8 pr-3 pb-2 mt-1">
+                                <input type="text" placeholder="Szukana wartość..." className="w-full h-7 px-2 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_text || ""} onChange={(e) => updateFilter(feat.feature_key, { value_text: e.target.value || undefined })} />
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -248,7 +372,7 @@ export function ReverseSearchPage() {
             <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 rounded-b-lg">
               <button
                 onClick={runSearch}
-                disabled={activeFilters.length === 0 || searching}
+                disabled={(activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all") || searching}
                 className="w-full py-2 px-4 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {searching ? (
@@ -256,7 +380,7 @@ export function ReverseSearchPage() {
                 ) : (
                   <Search className="w-4 h-4" />
                 )}
-                Szukaj ({activeFilters.length} filtrów)
+                Szukaj ({activeFilters.length + bodyTypes.length + (vehicleScope !== "all" ? 1 : 0)} filtrów)
               </button>
             </div>
           </div>

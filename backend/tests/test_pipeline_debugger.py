@@ -95,7 +95,7 @@ def test_pipeline_debugger_no_overrides_matches_kalkulator(
         "core.LTRKalkulator.get_vehicle_from_db",
         lambda *a, **kw: {
             "id": "mock-123",
-            "klasa_wr_id": "1",
+            "samar_class_id": "1",
             "engine_type_id": 1,
             "power_kw": 100,
         },
@@ -171,7 +171,7 @@ def test_pipeline_debugger_with_override(mock_input_data, mock_settings, monkeyp
         "core.LTRKalkulator.get_vehicle_from_db",
         lambda *a, **kw: {
             "id": "mock-123",
-            "klasa_wr_id": "1",
+            "samar_class_id": "1",
             "engine_type_id": 1,
             "power_kw": 100,
         },

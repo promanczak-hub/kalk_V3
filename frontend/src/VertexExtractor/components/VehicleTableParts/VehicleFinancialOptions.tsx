@@ -47,7 +47,6 @@ interface VehicleFinancialOptionsProps {
   setMarginPct: (val: number) => void;
   pricingMarginPct: number;
   setPricingMarginPct: (val: number) => void;
-  depreciationPct: number;
   initialDepositPct: number;
   setInitialDepositPct: (val: number) => void;
   otherServiceCosts: number;
@@ -148,7 +147,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
     handleSaveAllOptions, isSavingServices, handleServiceOptionExtracted,
-    wiborPct, setWiborPct, marginPct, setMarginPct, pricingMarginPct, setPricingMarginPct, depreciationPct,
+    wiborPct, setWiborPct, marginPct, setMarginPct, pricingMarginPct, setPricingMarginPct,
     initialDepositPct, setInitialDepositPct, otherServiceCosts, setOtherServiceCosts,
     expressPaysInsurance, setExpressPaysInsurance, replacementCar, setReplacementCar,
     gpsRequired, setGpsRequired, includeServicing, setIncludeServicing,
@@ -217,7 +216,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               <select 
                 className="bg-white border border-slate-200 text-slate-700 font-medium text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
                 value={discountMode}
-                onChange={(e) => setDiscountMode(e.target.value as "offer" | "suggested" | "custom")}
+                onChange={(e) => {
+                  const newMode = e.target.value as "offer" | "suggested" | "custom";
+                  if (newMode === "custom" && discountMode !== "custom") {
+                     setCustomDiscountPctRaw(activeDiscountPct.toString());
+                  }
+                  setDiscountMode(newMode);
+                }}
               >
                 <option value="offer">Z oferty ({isDealerOffer ? offerDiscountPercentage : 0}%)</option>
                 <option value="suggested" disabled={suggestedDiscountPct === 0}>
@@ -232,8 +237,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                     "w-10 text-right text-xs px-1.5 py-1 focus:outline-none font-bold transition-colors",
                     discountMode === "custom" ? "text-blue-700 bg-white" : "text-slate-400 bg-slate-50"
                   )}
-                  value={customDiscountPctRaw}
-                  onFocus={() => setDiscountMode("custom")}
+                  value={discountMode === "custom" ? customDiscountPctRaw : activeDiscountPct}
+                  onFocus={() => {
+                    if (discountMode !== "custom") {
+                      setCustomDiscountPctRaw(activeDiscountPct.toString());
+                      setDiscountMode("custom");
+                    }
+                  }}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^0-9]/g, '');
                     const num = parseInt(raw, 10);
@@ -535,7 +545,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
           Parametry Kalkulacji
         </h4>
         <div className="bg-white rounded border border-slate-200 p-4 shadow-sm">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1">WIBOR (%)</label>
               <input type="number" step="0.01" className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500" value={wiborPct} onChange={e => setWiborPct(parseFloat(e.target.value) || 0)} />
@@ -543,10 +553,6 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Marża bankowa (%)</label>
               <input type="number" step="0.01" className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500" value={marginPct} onChange={e => setMarginPct(parseFloat(e.target.value) || 0)} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Wskaźnik amortyzacji (%)</label>
-              <input type="number" step="0.01" className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none bg-slate-50 text-slate-500 cursor-not-allowed" value={depreciationPct} readOnly />
             </div>
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Marża Sprzedaży LTR (%)</label>

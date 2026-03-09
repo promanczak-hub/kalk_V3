@@ -427,7 +427,8 @@ async def compare_vehicles(request: CompareVehiclesRequest) -> Dict[str, Any]:
     Compare 2-5 vehicles using Gemini Flash.
     Extracts key data from synthesis_data and produces a markdown comparison.
     """
-    import google.generativeai as genai
+    from core.gemini_client import get_gemini_client
+    from google.genai import types as genai_types
 
     if len(request.vehicle_ids) < 2:
         raise HTTPException(status_code=400, detail="Minimum 2 vehicles required.")
@@ -470,8 +471,14 @@ WYMAGANIA:
 DANE POJAZDÓW:
 {vehicles_json}"""
 
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(prompt)
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0.0,
+            ),
+        )
 
         markdown_result = response.text if response.text else "Brak wyniku."
 

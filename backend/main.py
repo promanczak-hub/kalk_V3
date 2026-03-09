@@ -15,7 +15,10 @@ from api.extract_routes import router as extract_router
 from api.homologation_routes import router as homologation_router
 from api.param_preview import router as param_preview_router
 from api.features_routes import router as features_router
+from api.features_admin_routes import router as features_admin_router
 from api.config_crud_routes import config_crud_router
+from api.base_rv_routes import router as base_rv_router
+from api.catalog_routes import router as catalog_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -30,7 +33,10 @@ app.include_router(calculator_excel_data_router, prefix="/api")
 app.include_router(homologation_router, prefix="/api")
 app.include_router(param_preview_router, prefix="/api")
 app.include_router(features_router, prefix="/api")
+app.include_router(features_admin_router, prefix="/api")
 app.include_router(config_crud_router, prefix="/api")
+app.include_router(base_rv_router, prefix="/api", tags=["Control Center"])
+app.include_router(catalog_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -208,7 +214,6 @@ class SamarClass(BaseModel):
     mileage_cutoff_threshold: Optional[int] = None
     example_models: Optional[str] = None
     excel_code: Optional[str] = None
-    klasa_wr_id: Optional[int] = None
     category: Optional[str] = None
     size_class: Optional[str] = None
 
@@ -231,11 +236,13 @@ class ReplacementCarRate(BaseModel):
 
 
 class BrandCorrection(BaseModel):
-    id: Optional[str] = None
-    klasa_samar: str
-    rodzaj_paliwa: str
-    marka: str
-    correction_percent: float
+    id: Optional[int] = None
+    samar_class_id: int
+    rodzaj_paliwa: int
+    brand_name: str
+    model_name: Optional[str] = None
+    korekta_procent: float = 0.0
+    notes: Optional[str] = None
 
 
 @app.get("/api/control-center", tags=["Control Center"])
@@ -769,46 +776,56 @@ async def delete_service_base_cost(cost_id: int) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Brand Corrections CRUD ──
+# ── Brand Corrections CRUD (ltr_admin_korekta_wr_markas) ──
 
 
 @app.get("/api/brand-corrections", tags=["Control Center"])
-async def get_brand_corrections_crud() -> List[BrandCorrection]:
+async def get_brand_corrections_crud() -> list[dict]:
     try:
         response = (
-            supabase.table("samar_brand_corrections")
+            supabase.table("ltr_admin_korekta_wr_markas")
             .select("*")
-            .order("klasa_samar")
-            .order("marka")
+            .order("samar_class_id")
+            .order("brand_name")
             .execute()
         )
-        response_data = cast(Any, response.data)
-        return [BrandCorrection(**row) for row in response_data]
+        return response.data or []
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/brand-corrections", tags=["Control Center"])
-async def upsert_brand_correction(item: BrandCorrection) -> BrandCorrection:
+async def upsert_brand_correction(item: BrandCorrection) -> dict:
     try:
         data = item.model_dump(exclude_unset=True)
+        data["brand_name"] = (data.get("brand_name") or "").strip().upper()
+        if data.get("model_name"):
+            data["model_name"] = data["model_name"].strip()
         if not data.get("id"):
             data.pop("id", None)
-        response = supabase.table("samar_brand_corrections").upsert(data).execute()
+        response = (
+            supabase.table("ltr_admin_korekta_wr_markas")
+            .upsert(
+                data,
+                on_conflict="samar_class_id,rodzaj_paliwa,brand_name",
+            )
+            .execute()
+        )
         if not response.data:
             raise HTTPException(
                 status_code=500, detail="Nie udało się zapisać korekty marki"
             )
-        response_data = cast(Any, response.data[0])
-        return BrandCorrection(**response_data)
+        return cast(Any, response.data[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/api/brand-corrections/{item_id}", tags=["Control Center"])
-async def delete_brand_correction(item_id: str) -> Dict[str, str]:
+async def delete_brand_correction(item_id: int) -> Dict[str, str]:
     try:
-        supabase.table("samar_brand_corrections").delete().eq("id", item_id).execute()
+        supabase.table("ltr_admin_korekta_wr_markas").delete().eq(
+            "id", item_id
+        ).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1303,6 +1320,90 @@ async def delete_zabudowa_correction(correction_id: int) -> Dict[str, str]:
             "id", correction_id
         ).execute()
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Paint Types WR Correction CRUD ──
+
+
+class PaintType(BaseModel):
+    id: Optional[int] = None
+    name: str = ""
+    wr_correction: float = 0.0
+
+
+@app.get("/api/paint-types", tags=["Control Center"])
+async def get_paint_types() -> List[PaintType]:
+    try:
+        response = (
+            supabase.table("paint_types")
+            .select("id, name, wr_correction")
+            .order("id")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [PaintType(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/paint-types/bulk", tags=["Control Center"])
+async def bulk_update_paint_types(
+    items: List[PaintType],
+) -> Dict[str, Any]:
+    try:
+        updated = 0
+        for item in items:
+            if item.id is None:
+                continue
+            supabase.table("paint_types").update(
+                {"wr_correction": item.wr_correction}
+            ).eq("id", item.id).execute()
+            updated += 1
+        return {"status": "success", "count": updated}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Vintage (Rocznik) Correction CRUD ──
+
+
+class VintageCorrection(BaseModel):
+    id: Optional[int] = None
+    rocznik: str = ""
+    korekta_procent: float = 0.0
+
+
+@app.get("/api/vintage-corrections", tags=["Control Center"])
+async def get_vintage_corrections() -> List[VintageCorrection]:
+    try:
+        response = (
+            supabase.table("ltr_admin_korekta_wr_roczniks")
+            .select("id, rocznik, korekta_procent")
+            .order("id")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [VintageCorrection(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/vintage-corrections/bulk", tags=["Control Center"])
+async def bulk_update_vintage_corrections(
+    items: List[VintageCorrection],
+) -> Dict[str, Any]:
+    try:
+        updated = 0
+        for item in items:
+            if item.id is None:
+                continue
+            supabase.table("ltr_admin_korekta_wr_roczniks").update(
+                {"korekta_procent": item.korekta_procent}
+            ).eq("id", item.id).execute()
+            updated += 1
+        return {"status": "success", "count": updated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -100,6 +100,7 @@ class UniversalFeature(BaseModel):
     description: str | None = None
     sort_order: int = 100
     is_active: bool = True
+    applicable_body_types: list[str] | None = None
 
 
 class UniversalFeatureAlias(BaseModel):
@@ -198,6 +199,7 @@ class FeatureSearchRequest(BaseModel):
 
     filters: list[FeatureFilterItem] = Field(default_factory=list)
     vehicle_scope: VehicleScope | None = None
+    body_types: list[str] | None = None
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
 

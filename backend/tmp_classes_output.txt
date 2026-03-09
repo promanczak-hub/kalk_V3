@@ -1,0 +1,31 @@
+Total: 29 klas
+
+ID   1 | Klasa A MINI
+ID   2 | Klasa B MAŁA
+ID   3 | Klasa Bsuv B-SUV
+ID   4 | Klasa C KOMPAKTOWA
+ID   5 | Klasa E WYŻSZA
+ID   6 | Klasa F LUKSUSOWA
+ID   7 | Klasa Bvan B-VAN
+ID   8 | Klasa Cvan C-VAN
+ID   9 | Klasa Csuv C-SUV
+ID  10 | Klasa Csport C-SPORT
+ID  11 | Klasa Dsuv D-SUV
+ID  12 | Klasa Dsport D-SPORT
+ID  13 | Klasa Dvan D-VAN
+ID  14 | Klasa D SREDNIA
+ID  15 | Klasa A000 MIKRO
+ID  16 | Klasa Asport A-SPORT
+ID  17 | Klasa Asuv A-SUV
+ID  18 | Klasa Bsport B-SPORT
+ID  19 | Klasa Dsport D-SPORT/2
+ID  20 | Klasa Dsuv D-SUV/2
+ID  21 | Klasa Dvan D-VAN/2
+ID  22 | Klasa Esuv E-SUV
+ID  23 | Klasa Fsport F-SPORT
+ID  24 | Klasa Fsuv F-SUV
+ID  25 | Klasa M MULTI-VAN
+ID  26 | Klasa Mvan M-DOSTAWCZY
+ID  27 | Klasa R REKREACJA
+ID  28 | Klasa P DOSTAWCZY LEKKI
+ID  29 | Klasa T PICK-UP

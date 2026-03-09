@@ -32,9 +32,9 @@ interface SamarClass {
 
 interface DamageCoefficient {
   id?: number;
-  klasa_wr_id: number | null;
-  wsp_sredni_przebieg: number;
-  wsp_wartosc_szkody: number;
+  samar_class_id: number;
+  WspSredniPrzebieg: number;
+  WspWartoscSzkody: number;
 }
 
 export default function DamageCoefficientsCrudPanel() {
@@ -46,9 +46,9 @@ export default function DamageCoefficientsCrudPanel() {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<DamageCoefficient>({
-    klasa_wr_id: null,
-    wsp_sredni_przebieg: 1.0,
-    wsp_wartosc_szkody: 1.0,
+    samar_class_id: 100,
+    WspSredniPrzebieg: 1.0,
+    WspWartoscSzkody: 1.0,
   });
 
   useEffect(() => {
@@ -86,8 +86,7 @@ export default function DamageCoefficientsCrudPanel() {
     }
   };
 
-  const getClassName = (klasaId: number | null): string => {
-    if (klasaId === null) return "— Domyślna (null) —";
+  const getClassName = (klasaId: number): string => {
     const found = samarClasses.find((c) => c.id === klasaId);
     return found ? found.name : `Klasa ID: ${klasaId}`;
   };
@@ -98,9 +97,9 @@ export default function DamageCoefficientsCrudPanel() {
       setEditingId(item.id ?? null);
     } else {
       setFormData({
-        klasa_wr_id: samarClasses.length > 0 ? samarClasses[0].id : null,
-        wsp_sredni_przebieg: 1.0,
-        wsp_wartosc_szkody: 1.0,
+        samar_class_id: samarClasses.length > 0 ? samarClasses[0].id : 100,
+        WspSredniPrzebieg: 1.0,
+        WspWartoscSzkody: 1.0,
       });
       setEditingId(null);
     }
@@ -146,7 +145,7 @@ export default function DamageCoefficientsCrudPanel() {
     }
   };
 
-  const usedClassIds = new Set(data.map((d) => d.klasa_wr_id));
+  const usedClassIds = new Set(data.map((d) => d.samar_class_id));
 
   return (
     <Box>
@@ -197,7 +196,7 @@ export default function DamageCoefficientsCrudPanel() {
                 <TableRow key={row.id}>
                   <TableCell>
                     <Chip
-                      label={getClassName(row.klasa_wr_id)}
+                      label={getClassName(row.samar_class_id)}
                       size="small"
                       color="warning"
                       variant="outlined"
@@ -208,13 +207,13 @@ export default function DamageCoefficientsCrudPanel() {
                     align="right"
                     sx={{ fontFamily: "monospace", fontWeight: 600 }}
                   >
-                    {Number(row.wsp_sredni_przebieg).toFixed(4)}
+                    {Number(row.WspSredniPrzebieg).toFixed(4)}
                   </TableCell>
                   <TableCell
                     align="right"
                     sx={{ fontFamily: "monospace", fontWeight: 600 }}
                   >
-                    {Number(row.wsp_wartosc_szkody).toFixed(4)}
+                    {Number(row.WspWartoscSzkody).toFixed(4)}
                   </TableCell>
                   <TableCell
                     align="right"
@@ -225,8 +224,8 @@ export default function DamageCoefficientsCrudPanel() {
                   >
                     ×{" "}
                     {(
-                      Number(row.wsp_sredni_przebieg) *
-                      Number(row.wsp_wartosc_szkody)
+                      Number(row.WspSredniPrzebieg) *
+                      Number(row.WspWartoscSzkody)
                     ).toFixed(4)}
                   </TableCell>
                   <TableCell align="right">
@@ -279,16 +278,14 @@ export default function DamageCoefficientsCrudPanel() {
             select
             label="Klasa SAMAR"
             size="small"
-            value={formData.klasa_wr_id ?? "null"}
+            value={formData.samar_class_id}
             onChange={(e) => {
-              const val = e.target.value;
               setFormData({
                 ...formData,
-                klasa_wr_id: val === "null" ? null : parseInt(val),
+                samar_class_id: parseInt(e.target.value),
               });
             }}
           >
-            <MenuItem value="null">— Domyślna (null) —</MenuItem>
             {samarClasses.map((c) => (
               <MenuItem
                 key={c.id}
@@ -310,11 +307,11 @@ export default function DamageCoefficientsCrudPanel() {
               size="small"
               fullWidth
               inputProps={{ step: 0.01, min: 0 }}
-              value={formData.wsp_sredni_przebieg}
+              value={formData.WspSredniPrzebieg}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  wsp_sredni_przebieg: parseFloat(e.target.value) || 0,
+                  WspSredniPrzebieg: parseFloat(e.target.value) || 0,
                 })
               }
             />
@@ -324,18 +321,18 @@ export default function DamageCoefficientsCrudPanel() {
               size="small"
               fullWidth
               inputProps={{ step: 0.01, min: 0 }}
-              value={formData.wsp_wartosc_szkody}
+              value={formData.WspWartoscSzkody}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  wsp_wartosc_szkody: parseFloat(e.target.value) || 0,
+                  WspWartoscSzkody: parseFloat(e.target.value) || 0,
                 })
               }
             />
           </Box>
 
-          {formData.wsp_sredni_przebieg > 0 &&
-            formData.wsp_wartosc_szkody > 0 && (
+          {formData.WspSredniPrzebieg > 0 &&
+            formData.WspWartoscSzkody > 0 && (
               <Typography
                 variant="body2"
                 sx={{
@@ -352,12 +349,12 @@ export default function DamageCoefficientsCrudPanel() {
                 <strong>
                   ×{" "}
                   {(
-                    formData.wsp_sredni_przebieg * formData.wsp_wartosc_szkody
+                    formData.WspSredniPrzebieg * formData.WspWartoscSzkody
                   ).toFixed(4)}
                 </strong>{" "}
                 | Formuła: średnia_szkoda × (km_total / km_ref ×{" "}
-                {formData.wsp_sredni_przebieg.toFixed(2)} ×{" "}
-                {formData.wsp_wartosc_szkody.toFixed(2)})
+                {formData.WspSredniPrzebieg.toFixed(2)} ×{" "}
+                {formData.WspWartoscSzkody.toFixed(2)})
               </Typography>
             )}
         </DialogContent>

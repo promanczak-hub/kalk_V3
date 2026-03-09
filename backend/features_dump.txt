@@ -1,0 +1,239 @@
+﻿================================================================================
+CATEGORIES:
+================================================================================
+  [ 10] dimensions                | Wymiary                             | scope=both
+  [ 20] cargo                     | Cargo / ┼üadunek                     | scope=commercial
+  [ 25] loading                   | Za┼éadunek                           | scope=commercial
+  [ 30] bodywork                  | Zabudowa                            | scope=commercial
+  [ 35] towing                    | Holowanie / Hak                     | scope=both
+  [ 40] lpg                       | Instalacja LPG                      | scope=both
+  [ 45] refrigeration             | Ch┼éodnia / Izoterma                 | scope=commercial
+  [ 50] lift_tachograph           | Winda / Tachograf / Wywrot          | scope=commercial
+  [ 55] drivetrain                | Nap─Öd / Paliwo / EV                 | scope=both
+  [ 58] body_type                 | Typ zabudowy                        | scope=commercial
+  [ 60] comfort                   | Komfort                             | scope=both
+  [ 70] safety                    | Bezpiecze┼ästwo                      | scope=both
+  [ 80] multimedia                | Multimedia                          | scope=both
+  [ 85] seats                     | Fotele                              | scope=both
+  [ 88] lighting                  | O┼Ťwietlenie                         | scope=both
+  [ 90] security                  | Zabezpieczenia                      | scope=both
+  [ 92] cabin                     | Kabina / Dach                       | scope=commercial
+  [ 95] energy                    | Energia i nap─Öd                     | scope=both
+
+
+================================================================================
+FEATURES PER CATEGORY:
+================================================================================
+
+-- Wymiary (dimensions) -- [3 features]
+       5 | d┼éugo┼Ť─ç pojazdu w mm (bez haka)                    | type=numeric  
+       6 | szeroko┼Ť─ç pojazdu (roz┼éo┼╝one lusterka) w mm        | type=numeric  
+       7 | wysoko┼Ť─ç pojazdu w mm                              | type=numeric  
+
+-- Cargo / ┼üadunek (cargo) -- [12 features]
+       8 | d┼éugo┼Ť─ç przestrzeni ┼éadunkowej w mm                | type=numeric  
+       9 | wysoko┼Ť─ç przestrzeni ┼éadunkowej w mm               | type=numeric  
+      10 | szeroko┼Ť─ç przestrzeni ┼éadunkowej w mm              | type=numeric  
+      11 | minimalna szeroko┼Ť─ç mi─Ödzy nadkolami w mm          | type=numeric  
+      12 | d┼éugo┼Ť─ç przestrzeni ┼éadunkowej dla z┼éo┼╝onych siedze┼ä w mm (III rz─ůd) | type=numeric  
+      13 | kubatura przestrzeni ┼éadunkowej w m3               | type=numeric  
+      14 | pojemno┼Ť─ç przestrzeni ┼éadunkowej dla z┼éo┼╝onych siedze┼ä w litrach (III rz─ůd) | type=numeric  
+      15 | dopuszczalna ┼éadowno┼Ť─ç w kg                        | type=numeric  
+      17 | wysoko┼Ť─ç progu za┼éadunku w mm                      | type=numeric  
+      25 | czy pojazd spe┼énia wymogi VAT                      | type=text     
+      26 | system mocowania ┼éadunku                           | type=enum     
+      27 | rodzaj zawieszenia                                 | type=enum     
+
+-- Za┼éadunek (loading) -- [7 features]
+      18 | wysoko┼Ť─ç tylnych drzwi za┼éadunku w mm              | type=numeric  
+      19 | szeroko┼Ť─ç tylnych drzwi za┼éadunku w mm             | type=numeric  
+      20 | spos├│b otwarcia tylnych drzwi                      | type=enum     
+      21 | k─ůt otwarcia tylnych drzwi                         | type=enum     
+      22 | wysoko┼Ť─ç drzwi bocznego za┼éadunku w mm             | type=numeric  
+      23 | szeroko┼Ť─ç drzwi bocznego za┼éadunku w mm            | type=numeric  
+      24 | boczne drzwi                                       | type=enum     
+
+-- Zabudowa (bodywork) -- [12 features]
+      28 | Skrzynia narz─Ödziowa                               | type=boolean  
+      29 | Skrzynia narz─Ödziowa 1 w litrach                   | type=numeric  
+      30 | Skrzynia narz─Ödziowa 2 w litrach                   | type=numeric  
+      31 | Zbiornik na wod─Ö                                   | type=boolean  
+      32 | zbiornik na wod─Ö 1 pojemno┼Ť─ç w litrach             | type=numeric  
+      33 | zbiornik na wod─Ö 2 pojemno┼Ť─ç zbiorniaka w litrach  | type=numeric  
+      34 | wysoko┼Ť─ç burt za┼éadunku w mm                       | type=numeric  
+      35 | otwieranie burty tylnej                            | type=enum     
+      36 | otwieranie burt bocznych                           | type=enum     
+      37 | odzielenie przestrzeni ┼éadunkowej                  | type=enum     
+      38 | regulacja wysoko┼Ťci plandeki (szkieletu konstrukcji) | type=boolean  
+      39 | system plandeki przesuwnej (firanka)               | type=boolean  
+
+-- Holowanie / Hak (towing) -- [6 features]
+      45 | Hak holowniczy/zaczep                              | type=enum     
+      46 | D - uciag                                          | type=numeric  
+      47 | S - nacisk na hak                                  | type=numeric  
+      48 | dopuszczalna masa ca┼ékowita zespo┼éu pojazd├│w (kg)  | type=numeric  
+      49 | maksymalna masa ca┼ékowita przyczepy z hamulcem (kg) | type=numeric  
+      50 | maksymalna masa ca┼ékowita przyczepy bez hamulca (kg) | type=numeric  
+
+-- Instalacja LPG (lpg) -- [8 features]
+      51 | instalacja LPG (tak/nie)                           | type=text     
+      52 | marka instalacji LPG                               | type=text     
+      53 | model  instalacji LPG                              | type=text     
+      54 | gwarant/instalator instalacji LPG                  | type=text     
+      55 | cykl obowi─ůzkowego serwisu instalacji LPG w km/miesi─ůcach | type=numeric  
+      56 | Producent zbiornika LPG                            | type=text     
+      57 | Pojemno┼Ť─ç zbiornika LPG w litrach                  | type=numeric  
+      58 | Nr fabryczny zbiornika LPG                         | type=text     
+
+-- Ch┼éodnia / Izoterma (refrigeration) -- [12 features]
+      59 | Rodzaj zabudowy ch┼éodniczej (izoterma/ch┼éodnia)    | type=text     
+      60 | Marka agregatu                                     | type=text     
+      61 | Model agregatu                                     | type=text     
+      62 | Klasa ch┼éodzenia (A/B/C)                           | type=text     
+      63 | Zakres temperatury ch┼éodzenia                      | type=text     
+      64 | Funkcja grzania agregatu                           | type=boolean  
+      65 | Gwarant/wykonawca agregatu                         | type=text     
+      66 | Cykl obowi─ůzkowego serwisu agregatu w miesi─ůcach   | type=text     
+      67 | Pomiar temperatury ┼éadunku                         | type=boolean  
+      68 | Spos├│b pomiaru temperatury ┼éadunku                 | type=enum     
+      69 | Atest SANEPID                                      | type=boolean  
+      70 | Certyfikacja ATP                                   | type=boolean  
+
+-- Winda / Tachograf / Wywrot (lift_tachograph) -- [22 features]
+      71 | Winda za┼éadowcza                                   | type=boolean  
+      72 | Producent windy                                    | type=text     
+      73 | Model windy                                        | type=text     
+      74 | Ud┼║wig windy w kg                                  | type=numeric  
+      75 | D┼éugo┼Ť─ç platformy windy                            | type=numeric  
+      76 | Szeroko┼Ť─ç platformy windy                          | type=numeric  
+      77 | sterowanie wind─ů                                   | type=text     
+      78 | Gwarant/wykonawca windy                            | type=text     
+      79 | Cykl obowi─ůzkowego serwisu windy w miesi─ůcach      | type=text     
+      80 | Numer seryjny windy                                | type=text     
+      81 | tachograf                                          | type=boolean  
+      82 | Producent tachografu                               | type=text     
+      83 | Model tachografu                                   | type=text     
+      84 | Cykl obowi─ůzkowego serwisu tachografu w miesi─ůcach | type=text     
+      85 | Numer seryjny tachografu                           | type=text     
+      86 | wywrot ┼éadunku                                     | type=enum     
+      87 | sterowanie wywrotem                                | type=text     
+      88 | Producent wywrotu                                  | type=text     
+      89 | Model wywrotu                                      | type=text     
+      90 | Gwarant/wykonawca wywrotu                          | type=text     
+      91 | Cykl obowi─ůzkowego serwisu wywrotu w miesi─ůcach    | type=text     
+      92 | Numer seryjny wywrotu                              | type=text     
+
+-- Nap─Öd / Paliwo / EV (drivetrain) -- [7 features]
+      93 | Ko┼éa tylnej osi                                    | type=enum     
+      94 | Nap─Öd                                              | type=text     
+      95 | zu┼╝ycie paliwa WLTP dla silnik├│w spalinowych w litrach | type=numeric  
+      96 | Zasi─Ög WLTP dla pojazd├│w elektrycznych w km        | type=numeric  
+      97 | Pojemno┼Ť─ç akumulatora dla pojazdu elektrycznego w kWh | type=numeric  
+      98 | Rodzaj kabla/wtyczki dla pojazdu elektrycznego     | type=enum     
+      99 | kategoria prawa jazdy                              | type=text     
+
+-- Typ zabudowy (body_type) -- [1 features]
+     100 | rodzaj zabudowy                                    | type=enum     
+
+-- Komfort (comfort) -- [42 features]
+     109 | bezkluczykowy dost─Öp i uruchamianie pojazdu        | type=boolean  
+     110 | Bluetooth                                          | type=boolean  
+     111 | Centralny zamek sterowany pilotem                  | type=boolean  
+     112 | Czujnik deszczu                                    | type=boolean  
+     113 | Czujnik zmierzchu                                  | type=boolean  
+     114 | Dach otwierany elektrycznie                        | type=boolean  
+     115 | Dach panoramiczny                                  | type=boolean  
+     118 | Lusterka boczne                                    | type=enum     
+     119 | ESP                                                | type=boolean  
+     120 | felga aluminiowa                                   | type=boolean  
+     135 | GPS - nawigacja satelitarna                        | type=boolean  
+     136 | Kierownica multifunkcyjna                          | type=boolean  
+     137 | Kierownica ogrzewana                               | type=boolean  
+     138 | Kierownica regulowana elektrycznie                 | type=boolean  
+     139 | Kierownica sk├│rzana                                | type=boolean  
+     140 | Klimatyzacja automatyczna                          | type=boolean  
+     141 | Klimatyzacja dla pasa┼╝er├│w z ty┼éu                  | type=boolean  
+     142 | Klimatyzacja manualna                              | type=boolean  
+     143 | ko┼éo dojazdowe i zestaw narz─Ödzi                   | type=boolean  
+     144 | Kurtyny powietrzne                                 | type=boolean  
+     145 | Lampy przeciwmgielne                               | type=boolean  
+     148 | Podgrzewana przednia szyba                         | type=boolean  
+     149 | Pod┼éokietnik przedni                               | type=boolean  
+     150 | Pod┼éokietnik tylny                                 | type=boolean  
+     151 | Poduszki powietrzne                                | type=text     
+     152 | radio                                              | type=boolean  
+     153 | Reflektory                                         | type=enum     
+     154 | relingi dachowe                                    | type=boolean  
+     155 | Roleta szyby tylnej regulowana elektrycznie        | type=boolean  
+     156 | Rolety przeciws┼éoneczne boczne                     | type=boolean  
+     157 | sk┼éadana tylna kanapa                              | type=boolean  
+     172 | Szyby przednie sterowane elektrycznie              | type=boolean  
+     173 | Szyby tylne przyciemniane                          | type=boolean  
+     174 | Szyby tylne sterowane elektrycznie                 | type=boolean  
+     175 | ┼Ťwiat┼éa do jazdy dziennej                          | type=boolean  
+     176 | Tempomat                                           | type=boolean  
+     177 | Wy┼Ťwietlacz typu Head-Up                           | type=boolean  
+     178 | zestaw naprawczy                                   | type=boolean  
+     179 | Zmiana bieg├│w w kierownicy                         | type=boolean  
+     180 | m2                                                 | type=text     
+     181 | il europalet                                       | type=text     
+     183 | ilo┼Ť─ç europalet                                    | type=text     
+
+-- Bezpiecze┼ästwo (safety) -- [17 features]
+     103 | ABS                                                | type=boolean  
+     104 | ASR                                                | type=boolean  
+     105 | asystent ruszania na wzniesieniach                 | type=boolean  
+     106 | asystent zmiany pasa ruchu                         | type=boolean  
+     107 | Automatycznie ┼Ťciemniaj─ůce si─Ö lusterko wsteczne   | type=boolean  
+     108 | automatycznie w┼é─ůczanie ┼Ťwiate┼é awaryjnych przy nag┼éym hamowaniu | type=boolean  
+     158 | sygnalizacja spadku ci┼Ťnienia w oponach            | type=boolean  
+     159 | system audio                                       | type=text     
+     160 | System Auto hold                                   | type=boolean  
+     161 | System bezkluczykowy                               | type=boolean  
+     162 | system Isofix                                      | type=boolean  
+     163 | system rozpoznaj─ůcy zm─Öczenie kierowcy             | type=boolean  
+     164 | system rozpoznawania znak├│w                        | type=boolean  
+     165 | czujniki parkowania prz├│d                          | type=boolean  
+     166 | czujniki parkowania ty┼é                            | type=boolean  
+     167 | kamera parkowania ty┼é                              | type=boolean  
+     168 | system 360"                                        | type=boolean  
+
+-- Multimedia (multimedia) -- [9 features]
+     101 | Android Auto                                       | type=boolean  
+     102 | Apple Car Play                                     | type=boolean  
+     116 | Ekran dotykowy                                     | type=boolean  
+     117 | Elektrycznie sterowana pokrywa baga┼╝nika           | type=boolean  
+     132 | Funkcja szybkiego ┼éadowania samochodu              | type=boolean  
+     133 | gniazda USB                                        | type=boolean  
+     134 | gniazdo 12V                                        | type=boolean  
+     146 | ┼éadowarka indukcyjna do smartfon├│w                 | type=boolean  
+     147 | Ogranicznik pr─Ödko┼Ťci                              | type=boolean  
+
+-- Fotele (seats) -- [11 features]
+     121 | Fotel kierowcy ustawiany elektrycznie              | type=boolean  
+     122 | Fotel kierowcy z elektryczn─ů regulacj─ů podparcia l─Öd┼║wiowego | type=boolean  
+     123 | Fotel kierowcy z regulacj─ů wysoko┼Ťci               | type=boolean  
+     124 | Fotel pasa┼╝era ustawiany elektrycznie              | type=boolean  
+     125 | Fotel kierowcy z pami─Öci─ů ustawienia               | type=boolean  
+     126 | Fotele przednie podgrzewane                        | type=boolean  
+     127 | Fotele przednie wentylowane                        | type=boolean  
+     128 | Fotele przednie z funkcj─ů masa┼╝u                   | type=boolean  
+     129 | Fotele tylne podgrzewane                           | type=boolean  
+     130 | Fotele tylne wentylowane                           | type=boolean  
+     131 | Fotele tylne z funkcj─ů masa┼╝u                      | type=boolean  
+
+-- O┼Ťwietlenie (lighting) -- [0 features]
+
+-- Zabezpieczenia (security) -- [3 features]
+     169 | autoalarm                                          | type=boolean  
+     170 | immobiliser                                        | type=boolean  
+     171 | System Start/Stop                                  | type=boolean  
+
+-- Kabina / Dach (cabin) -- [5 features]
+      40 | Kabina sypialna                                    | type=boolean  
+      41 | Marka kabiny sypialnej                             | type=text     
+      42 | Model kabiny sypialnej                             | type=text     
+      43 | Spoiler dachowy                                    | type=boolean  
+      44 | Ogrzewanie postojowe Webasto                       | type=boolean  
+
+-- Energia i nap─Öd (energy) -- [0 features]

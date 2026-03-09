@@ -36,7 +36,7 @@ Surowy tekst z oferty:
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=VehicleBrochureSchema,
-                temperature=0.1,
+                temperature=0.0,
                 safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             ),
         )

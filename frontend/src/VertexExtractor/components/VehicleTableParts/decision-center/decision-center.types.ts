@@ -39,6 +39,7 @@ export interface MiniMatrixCell {
   rv_samar_net: number;
   koszt_dzienny: number;
   koszty_ogolem: number;
+  amortyzacja_pct: number;
   breakdown: CellBreakdown;
   status: string;
 }

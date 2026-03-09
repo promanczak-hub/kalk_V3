@@ -47,11 +47,7 @@ export function SamarCategoryDropdown({
     setIsOpen((prev) => !prev);
   };
 
-  // Shorten display label for the badge
-  const shortLabel = (name: string) => {
-    if (name.length > 28) return name.slice(0, 25) + "…";
-    return name;
-  };
+
 
   const hasCandidates = candidates.length > 0;
 
@@ -73,7 +69,7 @@ export function SamarCategoryDropdown({
         title={hasCandidates ? "Zmień klasę SAMAR" : currentCategory}
         style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.875rem" }}
       >
-        <span>SAMAR: {shortLabel(currentCategory)}</span>
+        <span className="whitespace-nowrap">SAMAR: {currentCategory}</span>
         {hasCandidates && (
           <ChevronDown
             className={`w-3 h-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -86,7 +82,7 @@ export function SamarCategoryDropdown({
         <div
           className="
             absolute z-50 mt-1 left-0
-            w-[380px] max-h-[320px] overflow-y-auto
+            w-[520px] max-h-[320px] overflow-y-auto
             bg-white border border-slate-200 rounded-lg shadow-xl
             ring-1 ring-black/5
             animate-in fade-in slide-in-from-top-1 duration-150
@@ -151,7 +147,7 @@ export function SamarCategoryDropdown({
                 </span>
 
                 {/* Class name */}
-                <span className="flex-grow truncate">{c.klasa}</span>
+                <span className="flex-grow">{c.klasa}</span>
 
                 {/* Selected check */}
                 {isSelected && (

@@ -1,4 +1,4 @@
-"""Dynamic SAMAR class mapper using KlasaSAMAR_czak dictionary + Gemini Flash.
+"""Dynamic SAMAR class mapper using samar_classes dictionary + Gemini Flash.
 
 Returns ALL candidates ranked by confidence (reranking model).
 """
@@ -28,9 +28,9 @@ def _build_samar_client() -> Client:
 
 
 def _fetch_samar_dictionary(client: Client) -> list[dict]:
-    """Fetch SAMAR class dictionary rows from ``KlasaSAMAR_czak``.
+    """Fetch SAMAR class dictionary from ``samar_classes`` (28 classes).
 
-    Returns a list of dicts: ``[{"klasa": "PODSTAWOWA D ŚREDNIA", "modele": "1. Alfa Romeo ..."}]``
+    Returns a list of dicts: ``[{"klasa": "Podstawowa - D ŚREDNIA", "modele": "BMW Serii 3, ..."}]``
     Uses in-memory cache with 5-minute TTL.
     """
     now = time.monotonic()
@@ -42,15 +42,15 @@ def _fetch_samar_dictionary(client: Client) -> list[dict]:
         return _samar_cache["data"]
 
     response = (
-        client.table("KlasaSAMAR_czak")
-        .select("col_1, col_8, col_9")
-        .order("col_9")
+        client.table("samar_classes")
+        .select("name, example_models")
+        .order("id")
         .execute()
     )
     rows: list[dict] = []
     for row in response.data:
-        klasa = (row.get("col_1") or "").strip()
-        modele = (row.get("col_8") or "").strip()
+        klasa = (row.get("name") or "").strip()
+        modele = (row.get("example_models") or "").strip()
         if klasa and modele:
             rows.append({"klasa": klasa, "modele": modele})
 
@@ -71,7 +71,7 @@ def map_to_samar_class(
 ) -> Tuple[str, str, list[dict]]:
     """Dynamically classify a vehicle into SAMAR classes with reranking.
 
-    Queries ``KlasaSAMAR_czak`` for the full dictionary, then asks
+    Queries ``samar_classes`` for the full dictionary, then asks
     Gemini Flash to rank ALL classes by probability.
 
     Returns
