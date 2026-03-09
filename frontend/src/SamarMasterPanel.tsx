@@ -4,13 +4,11 @@ import {
   Tab,
   Tabs,
   Typography,
-  Select,
-  MenuItem,
   Paper,
   Chip,
   alpha,
   useTheme,
-  Tooltip,
+
   Table,
   TableBody,
   TableCell,
@@ -29,7 +27,7 @@ import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPane
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
 import PaintCorrectionCrudPanel from "./PaintCorrectionCrud/PaintCorrectionCrudPanel";
 import VintageCorrectionCrudPanel from "./VintageCorrectionCrud/VintageCorrectionCrudPanel";
-import FeaturesCrudPanel from "./FeaturesCrud/FeaturesCrudPanel";
+
 import BaseRVCrudPanel from "./BaseRVCrud/BaseRVCrudPanel";
 
 const BASE_URL = "http://127.0.0.1:8000";
@@ -48,13 +46,17 @@ interface SamarClass {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  PODSTAWOWA: "#1976d2",
-  "SPORTOWO-REKREACYJNE": "#e91e63",
-  "TERENOWO-REKREACYJNE": "#4caf50",
-  VANY: "#ff9800",
-  KOMBIVANY: "#9c27b0",
-  MINIBUS: "#00897b",
-  "S. DOSTAWCZE DO 6T": "#795548",
+  Podstawowa: "#1976d2",
+  "Sportowo-rekreacyjne": "#e91e63",
+  "Terenowo-rekreacyjne (SUV)": "#4caf50",
+  Vany: "#ff9800",
+  Kombivany: "#9c27b0",
+  Minibusy: "#00897b",
+  "LEKKIE DOSTAWCZE": "#795548",
+  "PICK-UP": "#bf360c",
+  "ŚREDNIE DOSTAWCZE": "#5d4037",
+  "CIĘŻKIE DOSTAWCZE": "#37474f",
+  AUTOBUSY: "#006064",
 };
 
 /* ─────────── Master Table View ─────────── */
@@ -74,13 +76,17 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
   );
 
   const categoryOrder = [
-    "PODSTAWOWA",
-    "SPORTOWO-REKREACYJNE",
-    "TERENOWO-REKREACYJNE",
-    "VANY",
-    "KOMBIVANY",
-    "MINIBUS",
-    "S. DOSTAWCZE DO 6T",
+    "Podstawowa",
+    "Sportowo-rekreacyjne",
+    "Terenowo-rekreacyjne (SUV)",
+    "Vany",
+    "Kombivany",
+    "Minibusy",
+    "LEKKIE DOSTAWCZE",
+    "PICK-UP",
+    "ŚREDNIE DOSTAWCZE",
+    "CIĘŻKIE DOSTAWCZE",
+    "AUTOBUSY",
     "INNE",
   ];
 
@@ -96,12 +102,18 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
           border: `1px solid ${isDark ? "#1565c0" : "#90caf9"}`,
         }}
       >
-        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, display: "flex", alignItems: "center", gap: 1 }}>
           🗂️ SAMAR Master Table — {classes.length} klas
+          <Chip
+            label="ZAMROŻONE"
+            size="small"
+            color="error"
+            sx={{ fontWeight: "bold", height: 20, fontSize: "0.65rem" }}
+          />
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           Unified view: samar_classes + samar_class_id bridge + Excel codes +
-          example models. Źródło prawdy dla wszystkich modułów kalkulatora.
+          example models. Źródło prawdy dla wszystkich modułów kalkulatora. Tabela ZAMROŻONA - brak edycji.
         </Typography>
       </Paper>
 
@@ -159,18 +171,12 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
                         : alpha(catColor, 0.02),
                     }}
                   >
-                    <TableCell sx={{ fontWeight: 700, width: 40 }}>ID</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: 70 }}>
-                      Kod Excel
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: 50 }}>
-                      WR ID
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: 50 }}>ID</TableCell>
                     <TableCell sx={{ fontWeight: 700, width: 180 }}>
                       Segment
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Pełna nazwa</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 250 }}>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 300 }}>
                       Przykładowe modele
                     </TableCell>
                   </TableRow>
@@ -198,14 +204,6 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
                             color: catColor,
                           }}
                         />
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontFamily: "monospace", fontWeight: 600 }}
-                      >
-                        {cls.excel_code || "—"}
-                      </TableCell>
-                      <TableCell sx={{ fontFamily: "monospace" }}>
-                        {cls.samar_class_id || "—"}
                       </TableCell>
                       <TableCell>{cls.size_class || "—"}</TableCell>
                       <TableCell
@@ -243,7 +241,6 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
 /* ─────────── Main Panel ─────────── */
 export default function SamarMasterPanel() {
   const [classes, setClasses] = useState<SamarClass[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<number>(1);
   const [subTab, setSubTab] = useState(0);
 
 
@@ -253,7 +250,6 @@ export default function SamarMasterPanel() {
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setClasses(data);
-          setSelectedClassId(data[0].id);
         }
       })
       .catch(console.error);
@@ -275,51 +271,13 @@ export default function SamarMasterPanel() {
     { label: "💥 Wsp. Szkodowe", color: "#e65100" },
     { label: "🎨 Korekta Lakier", color: "#ab47bc" },
     { label: "📅 Korekta Rocznik", color: "#5c6bc0" },
-    { label: "🏷️ Cechy Pojazdów", color: "#00acc1" },
+
   ];
 
   return (
     <Box>
 
-      <Paper elevation={0} sx={{ p: 1.5, mb: 2, borderRadius: 2, border: "1px solid", borderColor: "divider" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>Klasa SAMAR:</Typography>
-          <Select value={selectedClassId} onChange={(e) => setSelectedClassId(Number(e.target.value))} size="small" sx={{ minWidth: 350, fontWeight: 600, fontSize: "0.85rem" }}>
-            {classes.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </Select>
-          <Chip label={`ID: ${selectedClassId}`} size="small" variant="outlined" sx={{ fontFamily: "monospace", fontSize: "0.75rem" }} />
-        </Box>
-        {(() => {
-          const cls = classes.find((c) => c.id === selectedClassId);
-          const baseMileage = cls?.base_mileage_km ?? 140000;
-          const threshold = cls?.mileage_threshold_km ?? 190000;
-          const basePeriod = cls?.base_period_months ?? 48;
-          return (
-            <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap" }}>
-              <Chip
-                icon={<Typography sx={{ fontSize: "0.65rem", pl: 0.5 }}>📅</Typography>}
-                label={`Okres bazowy: ${basePeriod} mies`}
-                size="small"
-                sx={{ fontSize: "0.7rem", bgcolor: "rgba(25,118,210,0.08)", fontWeight: 600 }}
-              />
-              <Chip
-                icon={<Typography sx={{ fontSize: "0.65rem", pl: 0.5 }}>🛣️</Typography>}
-                label={`Przebieg bazowy: ${(baseMileage / 1000).toFixed(0)}k km`}
-                size="small"
-                sx={{ fontSize: "0.7rem", bgcolor: "rgba(76,175,80,0.08)", fontWeight: 600 }}
-              />
-              <Chip
-                icon={<Typography sx={{ fontSize: "0.65rem", pl: 0.5 }}>⚠️</Typography>}
-                label={`Próg przebiegowy: ${(threshold / 1000).toFixed(0)}k km`}
-                size="small"
-                sx={{ fontSize: "0.7rem", bgcolor: "rgba(255,152,0,0.08)", fontWeight: 600 }}
-              />
-            </Box>
-          );
-        })()}
-      </Paper>
+
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
         <Tabs value={subTab} onChange={(_e, val) => setSubTab(val)} variant="scrollable" scrollButtons="auto" sx={{ "& .MuiTab-root": { fontWeight: 600, fontSize: "0.8rem", textTransform: "none" } }}>
@@ -330,19 +288,19 @@ export default function SamarMasterPanel() {
       </Box>
 
       {subTab === 0 && <MasterTableView classes={classes} />}
-      {subTab === 1 && <BaseRVCrudPanel samarClassId={selectedClassId} />}
-      {subTab === 2 && <DepreciationRatesPanel samarClassId={selectedClassId} />}
-      {subTab === 3 && <MileageCorrectionsPanel samarClassId={selectedClassId} />}
+      {subTab === 1 && <BaseRVCrudPanel />}
+      {subTab === 2 && <DepreciationRatesPanel />}
+      {subTab === 3 && <MileageCorrectionsPanel />}
       {subTab === 4 && <ServiceCostsCrudPanel />}
       {subTab === 5 && <ReplacementCarCrudPanel />}
-      {subTab === 6 && <BrandCorrectionCrudPanel samarClassId={selectedClassId} />}
-      {subTab === 7 && <BodyCorrectionsCrudPanel samarClassId={selectedClassId} />}
+      {subTab === 6 && <BrandCorrectionCrudPanel />}
+      {subTab === 7 && <BodyCorrectionsCrudPanel />}
       {subTab === 8 && <ZabudowaCrudPanel />}
       {subTab === 9 && <InsuranceRatesCrudPanel />}
       {subTab === 10 && <DamageCoefficientsCrudPanel />}
       {subTab === 11 && <PaintCorrectionCrudPanel />}
       {subTab === 12 && <VintageCorrectionCrudPanel />}
-      {subTab === 13 && <FeaturesCrudPanel />}
+
     </Box>
   );
 }
