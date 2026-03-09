@@ -200,24 +200,39 @@ def resolve_vehicle_features(
         fid = str(ev["feature_id"])
         by_feature.setdefault(fid, []).append(ev)
 
-    resolved_count = 0
+    # ── Delete existing state for this vehicle/bundle ──
+    del_query = (
+        sb.schema("reverse_search")
+        .table("vehicle_feature_state")
+        .delete()
+        .eq("source_vehicle_id", vehicle_id)
+    )
+    if bundle_id:
+        del_query = del_query.eq("bundle_id", bundle_id)
+    else:
+        del_query = del_query.is_("bundle_id", "null")
+    del_query.execute()
+
+    # ── Build state rows and batch insert ──
+    state_rows: list[dict[str, Any]] = []
     for feature_id, evidences in by_feature.items():
         state = _resolve_single_feature(evidences)
         state["source_vehicle_id"] = vehicle_id
         state["bundle_id"] = bundle_id
         state["feature_id"] = feature_id
+        state_rows.append(state)
 
+    resolved_count = 0
+    if state_rows:
         try:
-            sb.schema("reverse_search").table("vehicle_feature_state").upsert(
-                state,
-                on_conflict="source_vehicle_id,feature_id",
-            ).execute()
-            resolved_count += 1
+            sb.schema("reverse_search").table(
+                "vehicle_feature_state",
+            ).insert(state_rows).execute()
+            resolved_count = len(state_rows)
         except Exception as e:
             logger.error(
-                "Failed to upsert feature state %s/%s: %s",
+                "Failed to insert feature state batch for %s: %s",
                 vehicle_id,
-                feature_id,
                 e,
             )
 

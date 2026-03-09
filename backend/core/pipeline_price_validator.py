@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.pipeline_price_summary import generate_price_summary
 from core.price_parser import ParsedPrice, parse_price_string
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class ValidationReport:
     parsed_base: float | None = None
     parsed_options: float | None = None
     parsed_total: float | None = None
+    summary: dict[str, Any] | None = None
 
     def add(self, warning: ValidationWarning) -> None:
         self.warnings.append(warning)
@@ -66,7 +68,7 @@ class ValidationReport:
             self.is_valid = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "is_valid": self.is_valid,
             "warnings": [w.to_dict() for w in self.warnings],
             "parsed_prices": {
@@ -75,6 +77,9 @@ class ValidationReport:
                 "total": self.parsed_total,
             },
         }
+        if self.summary is not None:
+            result["summary"] = self.summary
+        return result
 
 
 def validate_card_summary_prices(
@@ -133,6 +138,7 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
 
     Runs validation on card_summary and injects `_validation` flags.
     Also detects and normalizes price domain (netto/brutto).
+    Generates an LLM-powered natural-language summary of findings.
     Returns pro_data with enriched card_summary.
     """
     card_summary = pro_data.get("card_summary")
@@ -141,6 +147,11 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
 
     # Allow empty dict to still get _validation flags
     report = validate_card_summary_prices(card_summary)
+
+    # Generate NL summary (Gemini Flash + deterministic fallback)
+    validation_dict = report.to_dict()
+    report.summary = generate_price_summary(validation_dict, card_summary)
+
     card_summary["_validation"] = report.to_dict()
 
     # Detect and propagate price domain

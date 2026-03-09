@@ -19,6 +19,7 @@ from api.features_admin_routes import router as features_admin_router
 from api.config_crud_routes import config_crud_router
 from api.base_rv_routes import router as base_rv_router
 from api.catalog_routes import router as catalog_router
+from api.excel_draft_routes import router as excel_draft_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -37,6 +38,7 @@ app.include_router(features_admin_router, prefix="/api")
 app.include_router(config_crud_router, prefix="/api")
 app.include_router(base_rv_router, prefix="/api", tags=["Control Center"])
 app.include_router(catalog_router, prefix="/api")
+app.include_router(excel_draft_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

@@ -78,10 +78,10 @@ function cascadeLevel(row: BodyCorrection): { label: string; color: string } {
 }
 
 interface Props {
-  samarClassId: number;
+  samarClassId?: number;
 }
 
-export default function BodyCorrectionsCrudPanel({ samarClassId }: Props) {
+export default function BodyCorrectionsCrudPanel({ samarClassId = 1 }: Props) {
   const [corrections, setCorrections] = useState<BodyCorrection[]>([]);
   const [bodyTypes, setBodyTypes] = useState<BodyType[]>([]);
   const [engines, setEngines] = useState<Engine[]>([]);

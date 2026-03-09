@@ -1,6 +1,6 @@
-import { AlertTriangle, AlertOctagon, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, AlertOctagon, Info, CheckCircle2, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
 import { useState } from "react";
-import type { PriceValidation, PriceValidationWarning } from "../../types";
+import type { PriceValidation, PriceValidationWarning, PriceValidationSummary } from "../../types";
 
 interface PriceValidationBannerProps {
   validation: PriceValidation;
@@ -33,6 +33,33 @@ const SEVERITY_CONFIG = {
   },
 } as const;
 
+const CONFIDENCE_CONFIG = {
+  HIGH: {
+    icon: CheckCircle2,
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    text: "text-emerald-800",
+    badge: "bg-emerald-100 text-emerald-700",
+    iconColor: "text-emerald-500",
+  },
+  MEDIUM: {
+    icon: AlertTriangle,
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    text: "text-amber-800",
+    badge: "bg-amber-100 text-amber-700",
+    iconColor: "text-amber-500",
+  },
+  LOW: {
+    icon: AlertOctagon,
+    bg: "bg-red-50",
+    border: "border-red-200",
+    text: "text-red-800",
+    badge: "bg-red-100 text-red-700",
+    iconColor: "text-red-500",
+  },
+} as const;
+
 function maxSeverity(warnings: PriceValidationWarning[]): "ERROR" | "WARNING" | "INFO" {
   if (warnings.some((w) => w.severity === "ERROR")) return "ERROR";
   if (warnings.some((w) => w.severity === "WARNING")) return "WARNING";
@@ -43,11 +70,59 @@ function fmtNum(n: number): string {
   return n.toLocaleString("pl-PL", { maximumFractionDigits: 0 });
 }
 
+/* ── Summary section (always visible) ── */
+function SummaryBanner({ summary }: { summary: PriceValidationSummary }) {
+  const conf = CONFIDENCE_CONFIG[summary.confidence];
+  const Icon = conf.icon;
+
+  return (
+    <div className={`${conf.bg} ${conf.border} border rounded-lg p-4`}>
+      <div className="flex items-start gap-3">
+        <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${conf.iconColor}`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-sm font-semibold ${conf.text}`}>
+              {summary.verdict}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${conf.badge}`}>
+              {summary.confidence}
+            </span>
+          </div>
+          <p className={`text-xs ${conf.text} opacity-80 leading-relaxed`}>
+            {summary.details}
+          </p>
+          {summary.suggestions.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {summary.suggestions.map((s, i) => (
+                <div key={i} className={`flex items-start gap-1.5 text-xs ${conf.text} opacity-70`}>
+                  <Lightbulb className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span>{s}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main banner ── */
 export function PriceValidationBanner({ validation }: PriceValidationBannerProps) {
   const [expanded, setExpanded] = useState(false);
+  const { summary } = validation;
 
-  if (validation.is_valid || validation.warnings.length === 0) {
+  // Show summary even for valid prices (green banner)
+  const hasWarnings = validation.warnings.length > 0;
+
+  // If no summary AND no warnings — nothing to show
+  if (!summary && !hasWarnings) {
     return null;
+  }
+
+  // If only summary with HIGH confidence and no warnings — show green banner only
+  if (summary && !hasWarnings) {
+    return <SummaryBanner summary={summary} />;
   }
 
   const severity = maxSeverity(validation.warnings);
@@ -62,72 +137,78 @@ export function PriceValidationBanner({ validation }: PriceValidationBannerProps
   if (warnCount > 0) summaryParts.push(`${warnCount} ostrzeżeń`);
 
   return (
-    <div className={`${config.bg} ${config.border} border rounded-lg overflow-hidden`}>
-      {/* Header — always visible */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center justify-between px-4 py-2.5 ${config.text} hover:opacity-80 transition-opacity`}
-      >
-        <div className="flex items-center gap-2">
-          <Icon className={`w-4 h-4 ${config.iconColor} flex-shrink-0`} />
-          <span className="text-xs font-semibold">
-            Walidacja cenowa: {summaryParts.join(", ")}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${config.badge}`}>
-            {severity}
-          </span>
-          {expanded ? (
-            <ChevronUp className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5" />
-          )}
-        </div>
-      </button>
+    <div className="space-y-2">
+      {/* LLM Summary — always visible */}
+      {summary && <SummaryBanner summary={summary} />}
 
-      {/* Detail — expandable */}
-      {expanded && (
-        <div className="px-4 pb-3 space-y-2">
-          {validation.warnings.map((w, idx) => {
-            const wConfig = SEVERITY_CONFIG[w.severity];
-            const WIcon = wConfig.icon;
-            return (
-              <div
-                key={`${w.rule}-${idx}`}
-                className="flex items-start gap-2 text-xs leading-relaxed"
-              >
-                <WIcon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${wConfig.iconColor}`} />
-                <div className={wConfig.text}>
-                  <span className="font-medium">{w.rule}</span>
-                  <span className="mx-1">—</span>
-                  <span>{w.message}</span>
-                  {w.diff_pct != null && (
-                    <span className={`ml-1 ${wConfig.badge} px-1.5 py-0.5 rounded text-[10px] font-mono`}>
-                      Δ {w.diff_pct.toFixed(1)}%
-                    </span>
-                  )}
+      {/* Technical rules — expandable */}
+      <div className={`${config.bg} ${config.border} border rounded-lg overflow-hidden`}>
+        {/* Header — always visible */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className={`w-full flex items-center justify-between px-4 py-2.5 ${config.text} hover:opacity-80 transition-opacity`}
+        >
+          <div className="flex items-center gap-2">
+            <Icon className={`w-4 h-4 ${config.iconColor} flex-shrink-0`} />
+            <span className="text-xs font-semibold">
+              Szczegóły walidacji: {summaryParts.join(", ")}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${config.badge}`}>
+              {severity}
+            </span>
+            {expanded ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </div>
+        </button>
+
+        {/* Detail — expandable */}
+        {expanded && (
+          <div className="px-4 pb-3 space-y-2">
+            {validation.warnings.map((w, idx) => {
+              const wConfig = SEVERITY_CONFIG[w.severity];
+              const WIcon = wConfig.icon;
+              return (
+                <div
+                  key={`${w.rule}-${idx}`}
+                  className="flex items-start gap-2 text-xs leading-relaxed"
+                >
+                  <WIcon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${wConfig.iconColor}`} />
+                  <div className={wConfig.text}>
+                    <span className="font-medium">{w.rule}</span>
+                    <span className="mx-1">—</span>
+                    <span>{w.message}</span>
+                    {w.diff_pct != null && (
+                      <span className={`ml-1 ${wConfig.badge} px-1.5 py-0.5 rounded text-[10px] font-mono`}>
+                        Δ {w.diff_pct.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          {/* Parsed prices summary */}
-          {validation.parsed_prices && (
-            <div className="mt-2 pt-2 border-t border-current/10 flex gap-4 text-[10px] text-slate-500 font-mono">
-              {validation.parsed_prices.base != null && (
-                <span>baza: {fmtNum(validation.parsed_prices.base)}</span>
-              )}
-              {validation.parsed_prices.options != null && (
-                <span>opcje: {fmtNum(validation.parsed_prices.options)}</span>
-              )}
-              {validation.parsed_prices.total != null && (
-                <span>total: {fmtNum(validation.parsed_prices.total)}</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            {/* Parsed prices summary */}
+            {validation.parsed_prices && (
+              <div className="mt-2 pt-2 border-t border-current/10 flex gap-4 text-[10px] text-slate-500 font-mono">
+                {validation.parsed_prices.base != null && (
+                  <span>baza: {fmtNum(validation.parsed_prices.base)}</span>
+                )}
+                {validation.parsed_prices.options != null && (
+                  <span>opcje: {fmtNum(validation.parsed_prices.options)}</span>
+                )}
+                {validation.parsed_prices.total != null && (
+                  <span>total: {fmtNum(validation.parsed_prices.total)}</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

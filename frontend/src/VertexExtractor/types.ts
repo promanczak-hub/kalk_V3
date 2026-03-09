@@ -79,6 +79,13 @@ export interface PriceValidationWarning {
   diff_pct?: number;
 }
 
+export interface PriceValidationSummary {
+  verdict: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  details: string;
+  suggestions: string[];
+}
+
 export interface PriceValidation {
   is_valid: boolean;
   warnings: PriceValidationWarning[];
@@ -87,6 +94,7 @@ export interface PriceValidation {
     options: number | null;
     total: number | null;
   };
+  summary?: PriceValidationSummary;
 }
 export interface ModificationEffect {
   override_samar_class?: string | null;

@@ -71,6 +71,8 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           .from("vehicle_synthesis")
           .select("brand, model, verification_status")
           .eq("file_hash", md5Hash)
+          // We must NOT match rows that have error or cancelled status.
+          // In Supabase, testing inequality with not.in requires the syntax:
           .not("verification_status", "in", '("error","cancelled")')
           .limit(1);
 

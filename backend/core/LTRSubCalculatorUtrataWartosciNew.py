@@ -42,6 +42,13 @@ class LTRSubCalculatorUtrataWartosciNew:
             .upper()
         )
 
+        # Model
+        self.model_name = (
+            (self.vehicle.get("model") or self.vehicle.get("Model") or "")
+            .strip()
+            .upper()
+        )
+
         # Paint type ID
         self.paint_type_id: Optional[int] = None
         raw_paint = self.vehicle.get("paint_type_id")
@@ -123,6 +130,7 @@ class LTRSubCalculatorUtrataWartosciNew:
             samar_class_id=self.samar_class_id,
             engine_id=self.engine_id,
             brand_name=self.brand_name,
+            model_name=self.model_name,
             months=months,
             total_km=total_km,
             capex_base_net=base_net,

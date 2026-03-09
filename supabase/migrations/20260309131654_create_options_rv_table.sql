@@ -11,7 +11,4 @@ CREATE TABLE IF NOT EXISTS samar_class_options_rv (
     UNIQUE(samar_class_id, engine_type_id, year)
 );
 
-INSERT INTO samar_class_options_rv (samar_class_id, engine_type_id, year, options_rv_percent)
-VALUES
-
-ON CONFLICT (samar_class_id, engine_type_id, year) DO UPDATE SET options_rv_percent = EXCLUDED.options_rv_percent;
+-- Seed data is applied via 20260309130001_seed_options_depreciation.sql

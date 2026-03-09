@@ -53,46 +53,66 @@ END $$;
 -- ── STEP 5: SEED damage coefficients (28 rows) ─────────────────────────────
 -- Mapped from V1 seed (klasa_wr_id → samar_class_id)
 -- New classes without V1 data get neutral defaults (1.0)
-INSERT INTO public.ltr_admin_wspolczynniki_szkodowe
-    (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody")
-VALUES
-    -- PODSTAWOWA
-    (100, 0.91, 1.00),   -- A MINI          (V1 klasa_wr_id=1)
-    (101, 1.00, 1.00),   -- B MAŁE          (V1 klasa_wr_id=3)
-    (102, 1.31, 1.00),   -- C NIŻSZA ŚREDNIA (V1 klasa_wr_id=7)  ← Octavia
-    (103, 1.12, 1.00),   -- D ŚREDNIA       (V1 klasa_wr_id=11)
-    (104, 1.00, 1.00),   -- E WYŻSZA        (V1 klasa_wr_id=15)
-    (105, 0.91, 1.00),   -- F LUKSUSOWE     (V1 klasa_wr_id=17)
-    (106, 1.00, 1.00),   -- G SUPER LUKS.   (NOWA - default)
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - A MINI';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - B MAŁE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.31, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - C NIŻSZA ŚREDNIA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.12, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - D ŚREDNIA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - E WYŻSZA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - F LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Podstawowa - G SUPER LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.08, 1.00 FROM public.samar_classes WHERE name = 'Vany - B MICROVANY';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.13, 1.00 FROM public.samar_classes WHERE name = 'Vany - C MINIVANY';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.98, 1.00 FROM public.samar_classes WHERE name = 'Vany - D VANY';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Vany - E WYŻSZA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Vany - F LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - A MINI';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - B MAŁE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - D ŚREDNIA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - E WYŻSZA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - F LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Sportowo-rekreacyjne - G SUPER LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Terenowo-rekreacyjne (SUV) - B MAŁE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.93, 1.00 FROM public.samar_classes WHERE name = 'Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 2.62, 1.00 FROM public.samar_classes WHERE name = 'Terenowo-rekreacyjne (SUV) - D ŚREDNIA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 2.62, 1.00 FROM public.samar_classes WHERE name = 'Terenowo-rekreacyjne (SUV) - E WYŻSZA';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.14, 1.00 FROM public.samar_classes WHERE name = 'Terenowo-rekreacyjne (SUV) - F LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 1.00, 1.00 FROM public.samar_classes WHERE name = 'Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Kombivany - H KOMBI-VANY';
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody") 
+SELECT id, 0.91, 1.00 FROM public.samar_classes WHERE name = 'Minibusy - I MINIBUSY';
 
-    -- VANY
-    (107, 1.08, 1.00),   -- B MICROVANY     (V1 klasa_wr_id=6)
-    (108, 1.13, 1.00),   -- C MINIVANY      (V1 klasa_wr_id=10)
-    (109, 1.98, 1.00),   -- D VANY          (V1 klasa_wr_id=14)
-    (110, 1.00, 1.00),   -- E WYŻSZA        (NOWA - default)
-    (111, 1.00, 1.00),   -- F LUKSUSOWE     (NOWA - default)
-
-    -- SPORTOWO-REKREACYJNE
-    (112, 1.00, 1.00),   -- A MINI          (V1 klasa_wr_id=2)
-    (113, 1.00, 1.00),   -- B MAŁE          (V1 klasa_wr_id=4)
-    (114, 0.91, 1.00),   -- C NIŻSZA ŚREDNIA (V1 klasa_wr_id=8)
-    (115, 0.91, 1.00),   -- D ŚREDNIA       (V1 klasa_wr_id=12)
-    (116, 1.00, 1.00),   -- E WYŻSZA        (NOWA - default)
-    (117, 0.91, 1.00),   -- F LUKSUSOWE     (V1 klasa_wr_id=18)
-    (118, 1.00, 1.00),   -- G SUPER LUKS.   (NOWA - default)
-
-    -- TERENOWO-REKREACYJNE (SUV)
-    (119, 1.00, 1.00),   -- B MAŁE          (V1 klasa_wr_id=5)
-    (120, 0.93, 1.00),   -- C NIŻSZA ŚREDNIA (V1 klasa_wr_id=9)
-    (121, 2.62, 1.00),   -- D ŚREDNIA       (V1 klasa_wr_id=13)
-    (122, 2.62, 1.00),   -- E WYŻSZA        (V1 klasa_wr_id=16)
-    (123, 1.14, 1.00),   -- F LUKSUSOWE     (V1 klasa_wr_id=19)
-    (124, 1.00, 1.00),   -- G SUPER LUKS.   (NOWA - default)
-
-    -- KOMBIVANY / MINIBUSY / KEMPINGOWE
-    (125, 0.91, 1.00),   -- H KOMBI-VANY    (V1 klasa_wr_id=20)
-    (126, 0.91, 1.00),   -- I MINIBUSY      (V1 klasa_wr_id=22)
-    (127, 1.00, 1.00);   -- K KEMPINGOWE    (NOWA - default)
+-- Wylap klasy, ktore nie znalazly sie w tym wykazie, (szczególnie DOSTAWCZE i NOWE) 
+-- i przypisz im neutralny wsspółczynnik (1.000)
+INSERT INTO public.ltr_admin_wspolczynniki_szkodowe (samar_class_id, "WspSredniPrzebieg", "WspWartoscSzkody")
+SELECT id, 1.00, 1.00 FROM public.samar_classes c
+WHERE c.id NOT IN (SELECT samar_class_id FROM public.ltr_admin_wspolczynniki_szkodowe);
 
 -- ── STEP 6: Indexes ────────────────────────────────────────────────────────
 CREATE INDEX idx_ltr_admin_ubezp_class

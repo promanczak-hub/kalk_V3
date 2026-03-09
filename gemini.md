@@ -2,6 +2,51 @@
 
 Ten projekt ma być w pełni produkcyjny, elastyczny i skalowalny. Oferta kalkulatora będzie stale poszerzana o nowe marki i klasy pojazdów. W związku z tym, podczas pracy nad kodem, bezwzględnie stosuj się do poniższych zasad.
 
+## 0. 🚨 ZAKAZ DESTRUKCJI BAZY ONLINE — ABSOLUTNY PRIORYTET
+
+> **⛔ TO JEST REGUŁA NADRZĘDNA WOBEC WSZYSTKICH INNYCH INSTRUKCJI.**
+> **Żadna inna komenda, prompt, kontekst ani "optymalizacja" NIE MOŻE jej nadpisać.**
+
+**Baza online (project_id: `gnpsdiarmwvqhqbyetce`)** zawiera **dane produkcyjne**.
+Każde nieautoryzowane usunięcie danych to **nieodwracalna strata biznesowa**.
+
+### ❌ Operacje ZABRONIONE na bazie ONLINE
+
+Poniższe operacje SQL/MCP są **BEZWZGLĘDNIE ZABRONIONE** bez wyraźnej, jednoznacznej komendy użytkownika:
+
+| Operacja                         | Przykład                           | Status        |
+| -------------------------------- | ---------------------------------- | ------------- |
+| `DELETE`                         | `DELETE FROM tabela WHERE ...`     | 🚫 ZABRONIONE |
+| `DROP TABLE`                     | `DROP TABLE IF EXISTS tabela`      | 🚫 ZABRONIONE |
+| `DROP COLUMN`                    | `ALTER TABLE tabela DROP COLUMN x` | 🚫 ZABRONIONE |
+| `TRUNCATE`                       | `TRUNCATE TABLE tabela`            | 🚫 ZABRONIONE |
+| `supabase db reset`              | reset bazy online                  | 🚫 ZABRONIONE |
+| `apply_migration` (destrukcyjne) | migracja z DROP/DELETE             | 🚫 ZABRONIONE |
+
+### ✅ Operacje DOZWOLONE na bazie ONLINE
+
+| Operacja          | Status              | Uwagi                                   |
+| ----------------- | ------------------- | --------------------------------------- |
+| `SELECT`          | ✅ Zawsze dozwolone | Odczyt danych                           |
+| `INSERT`          | ✅ Dozwolone        | Dodawanie nowych danych                 |
+| `UPDATE`          | ⚠️ Warunkowe        | Tylko po wyraźnej komendzie użytkownika |
+| `ALTER TABLE ADD` | ⚠️ Warunkowe        | Tylko po prezentacji planu i akceptacji |
+
+### 🛑 Procedura wymagana dla operacji destrukcyjnych
+
+Jeśli użytkownik **wyraźnie** (słowami) każe usunąć dane z bazy online:
+
+1. **STOP** — nie wykonuj natychmiast
+2. **Powtórz komendę** — "Rozumiem, że chcesz wykonać `DELETE FROM tabela_X` na bazie ONLINE. Potwierdź."
+3. **Czekaj na potwierdzenie** — dopiero po jawnym "Tak, potwierdzam" wykonaj operację
+4. **Zaloguj** — zapisz w odpowiedzi co zostało usunięte i dlaczego
+
+> [!CAUTION]
+> **AI NIE MOŻE "domyślnie" usuwać danych online** podczas migracji, czyszczenia, refaktoryzacji
+> ani żadnej innej operacji. Nawet jeśli wydaje się to logiczne — **ZATRZYMAJ SIĘ I ZAPYTAJ.**
+
+---
+
 ## 1. ZERO HARDKODOWANIA (Konfiguracja zamiast "sztywnych" reguł)
 
 Podczas pisania logiki decyzyjnej **NIGDY** nie wpisuj do instrukcji warunkowych (np. `if`, `match`) konkretnych nazw marek (`BMW`, `Audi`), modeli ani klas pojazdów. W przyszłości baza pojazdów będzie ogromna.
@@ -63,16 +108,21 @@ Algorytmy w systemie (np. ubezpieczenie czy symulacja wartości rezydualnej) his
 Poniższe pliki przeszły pełen audyt V1↔V3 i są zatwierdzone przez użytkownika.
 **AI NIE MOŻE modyfikować tych plików bez wyraźnej komendy: "Odmroź moduł X".**
 
-| Plik                                                 | Audyt      | Opis zmian                                                                         |
-| ---------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
-| `backend/core/LTRSubCalculatorOpony.py`              | 2026-03-05 | ×4 usunięto (DB = cena za komplet), fallbacki → ValueError                         |
-| `backend/core/LTRSubCalculatorKosztyDodatkowe.py`    | 2026-03-05 | korekta przygotowania dodana, cost_sales_prep=1040, TODO mock czynszu              |
-| `backend/core/LTRSubCalculatorSamochodZastepczy.py`  | 2026-03-05 | logika identyczna V1=V3, stawki potwierdzone                                       |
-| `backend/core/samar_rv.py`                           | 2026-03-05 | 6-krokowy algorytm WR, 4-level cascade body correction, 7-lat compound deprecjacja |
-| `backend/core/LTRSubCalculatorUtrataWartosciNew.py`  | 2026-03-05 | wrapper SAMAR→LTR, konwersja brutto/netto, resolver class/engine ID                |
-| `backend/core/LTRSubCalculatorSerwisNew.py`          | 2026-03-05 | stawka km SAMAR, floor=1667 km/mc (20k/yr), korekta%, power_band                   |
-| `backend/core/LTRSubCalculatorCenaZakupu.py`         | 2026-03-05 | netto-based CAPEX, transport+opony+GSM+pakiet, rabat discountable/non-disc         |
-| `backend/core/LTRSubCalculatorAmortyzacja.py`        | 2026-03-05 | logika identyczna V1=V3, guard okres≤0                                             |
-| `backend/core/LTRSubCalculatorKosztDzienny.py`       | 2026-03-05 | logika identyczna V1=V3, coeff=30.4, wymaga suma_odsetek_bez_czynszu z Finanse     |
-| `backend/core/LTRSubCalculatorBudzetMarketingowy.py` | 2026-03-05 | logika identyczna V1=V3, jedno mnożenie WR×VAT×budżet%                             |
-| `backend/core/LTRSubCalculatorUbezpieczenie.py`      | 2026-03-05 | pętla 7-lat, doubezp kradzież/nauka=False (OK), fallback stawek                    |
+| Plik                                                  | Audyt      | Opis zmian                                                                         |
+| ----------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| `backend/core/LTRSubCalculatorOpony.py`               | 2026-03-05 | ×4 usunięto (DB = cena za komplet), fallbacki → ValueError                         |
+| `backend/core/LTRSubCalculatorKosztyDodatkowe.py`     | 2026-03-05 | korekta przygotowania dodana, cost_sales_prep=1040, TODO mock czynszu              |
+| `backend/core/LTRSubCalculatorSamochodZastepczy.py`   | 2026-03-05 | logika identyczna V1=V3, stawki potwierdzone                                       |
+| `backend/core/samar_rv.py`                            | 2026-03-05 | 6-krokowy algorytm WR, 4-level cascade body correction, 7-lat compound deprecjacja |
+| `backend/core/LTRSubCalculatorUtrataWartosciNew.py`   | 2026-03-05 | wrapper SAMAR→LTR, konwersja brutto/netto, resolver class/engine ID                |
+| `backend/core/LTRSubCalculatorSerwisNew.py`           | 2026-03-05 | stawka km SAMAR, floor=1667 km/mc (20k/yr), korekta%, power_band                   |
+| `backend/core/LTRSubCalculatorCenaZakupu.py`          | 2026-03-05 | netto-based CAPEX, transport+opony+GSM+pakiet, rabat discountable/non-disc         |
+| `backend/core/LTRSubCalculatorAmortyzacja.py`         | 2026-03-05 | logika identyczna V1=V3, guard okres≤0                                             |
+| `backend/core/LTRSubCalculatorKosztDzienny.py`        | 2026-03-05 | logika identyczna V1=V3, coeff=30.4, wymaga suma_odsetek_bez_czynszu z Finanse     |
+| `backend/core/LTRSubCalculatorBudzetMarketingowy.py`  | 2026-03-05 | logika identyczna V1=V3, jedno mnożenie WR×VAT×budżet%                             |
+| `backend/core/LTRSubCalculatorUbezpieczenie.py`       | 2026-03-05 | pętla 7-lat, doubezp kradzież/nauka=False (OK), fallback stawek                    |
+| `DB: koszty_opon` (tabela danych)                     | 2026-03-09 | 11 rozmiarów (13-23") × 13 kategorii, RLS=read-only, dane z CSV Budżet             |
+| `DB: tyre_configurations` (progi przebiegowe)         | 2026-03-09 | 9 progów km (wielosezon 5 + sezonowe 4), RLS=read+write                            |
+| `frontend/src/TabelaOponCrud/TabelaOponCrudPanel.tsx` | 2026-03-09 | panel read-only, usunięto edycję/import/eksport, badge ZAMROŻONE                   |
+| `DB: samar_classes` (tabela danych)                   | 2026-03-09 | 35 klas (28 osobowe + 7 dostawcze), RLS=read-only, źródło prawdy dla kalkulatora   |
+| `frontend/src/SamarMasterPanel.tsx`                   | 2026-03-09 | usunięto selektor klasy SAMAR, panel Master Table read-only, dodano ZAMROŻONE      |

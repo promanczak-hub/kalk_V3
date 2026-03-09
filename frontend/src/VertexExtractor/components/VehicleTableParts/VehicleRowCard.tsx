@@ -13,6 +13,7 @@ import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
+import { CatalogCrossRefPanel } from "../CatalogCrossRefPanel";
 
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 
@@ -152,7 +153,6 @@ export function VehicleRowCard({
   const [wiborPct, setWiborPct] = useState<number>(5.85);
   const [marginPct, setMarginPct] = useState<number>(2.0);
   const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
-  const [depreciationPct, setDepreciationPct] = useState<number | null>(null);
   const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
   const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
 
@@ -244,7 +244,6 @@ export function VehicleRowCard({
       if (fp.wibor_pct != null) setWiborPct(fp.wibor_pct);
       if (fp.margin_pct != null) setMarginPct(fp.margin_pct);
       if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);
-      if (fp.depreciation_pct != null) setDepreciationPct(fp.depreciation_pct);
       if (fp.initial_deposit_pct != null) setInitialDepositPct(fp.initial_deposit_pct);
       if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
     }
@@ -314,7 +313,7 @@ export function VehicleRowCard({
        name: o.name,
        price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
        category: o.category || "Opcja Serwisowa",
-       // @ts-ignore
+       // @ts-expect-error - compatibility with older data model
        include_in_wr: o.include_in_wr || false
     })) || [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -819,6 +818,36 @@ export function VehicleRowCard({
     }
   };
 
+  const handleBodyTypeChange = async (newBodyType: string) => {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.body_type = newBodyType;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        body_type: newBodyType,
+      }));
+    } catch (err) {
+      console.error("Error updating body type", err);
+      alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
   const handleMapDataSilent = async () => {
     if (!vehicle.synthesis_data) return;
     setIsMapping(true);
@@ -1247,6 +1276,8 @@ export function VehicleRowCard({
         onEngineCategoryChange={handleEngineCategoryChange}
         driveType={driveType}
         onDriveTypeChange={handleDriveTypeChange}
+        bodyType={localMappedData?.body_type || mappedData?.body_type}
+        onBodyTypeChange={handleBodyTypeChange}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
@@ -1276,6 +1307,11 @@ export function VehicleRowCard({
               activeDiscountPct={activeDiscountPct}
             />
             <VehicleFeaturesCard vehicleId={vehicle.id} />
+            <CatalogCrossRefPanel
+              vehicleId={vehicle.id}
+              vehicleBrand={vehicle.brand || undefined}
+              vehicleModel={vehicle.model || undefined}
+            />
           </div>
 
           <VehicleFinancialOptions 
@@ -1312,7 +1348,6 @@ export function VehicleRowCard({
              setMarginPct={setMarginPct}
              pricingMarginPct={pricingMarginPct}
              setPricingMarginPct={setPricingMarginPct}
-             depreciationPct={depreciationPct ?? 0}
              initialDepositPct={initialDepositPct}
              setInitialDepositPct={setInitialDepositPct}
              otherServiceCosts={otherServiceCosts}

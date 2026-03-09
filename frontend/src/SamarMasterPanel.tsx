@@ -16,19 +16,12 @@ import {
   TableHead,
   TableRow,
 } from "@mui/material";
-import DepreciationRatesPanel from "./DepreciationRatesCrud/DepreciationRatesPanel";
-import MileageCorrectionsPanel from "./MileageCorrectionsCrud/MileageCorrectionsPanel";
 import ServiceCostsCrudPanel from "./ServiceCostsCrud/ServiceCostsCrudPanel";
 import ReplacementCarCrudPanel from "./ReplacementCarCrud/ReplacementCarCrudPanel";
-import BrandCorrectionCrudPanel from "./BrandCorrectionCrud/BrandCorrectionCrudPanel";
-import BodyCorrectionsCrudPanel from "./BodyCorrectionsCrud/BodyCorrectionsCrudPanel";
 import ZabudowaCrudPanel from "./ZabudowaCrud/ZabudowaCrudPanel";
 import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
-import PaintCorrectionCrudPanel from "./PaintCorrectionCrud/PaintCorrectionCrudPanel";
-import VintageCorrectionCrudPanel from "./VintageCorrectionCrud/VintageCorrectionCrudPanel";
 
-import BaseRVCrudPanel from "./BaseRVCrud/BaseRVCrudPanel";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
@@ -259,19 +252,11 @@ export default function SamarMasterPanel() {
 
   const subTabs = [
     { label: "🗂️ Master Table", color: "#1565c0" },
-    { label: "🔮 Bazowe WR", color: "#e91e63" },
-    { label: "📊 Deprecjacja", color: "#f44336" },
-    { label: "🛣️ Przebieg", color: "#ff9800" },
     { label: "🔧 Serwis", color: "#4caf50" },
     { label: "🚗 Auto Zastępcze", color: "#2196f3" },
-    { label: "🏷️ Korekta Marka", color: "#9c27b0" },
-    { label: "🚛 Korekta Nadwozia", color: "#795548" },
     { label: "🏗️ Zabudowa", color: "#6d4c41" },
     { label: "🛡️ Ubezpieczenie", color: "#00897b" },
     { label: "💥 Wsp. Szkodowe", color: "#e65100" },
-    { label: "🎨 Korekta Lakier", color: "#ab47bc" },
-    { label: "📅 Korekta Rocznik", color: "#5c6bc0" },
-
   ];
 
   return (
@@ -288,18 +273,11 @@ export default function SamarMasterPanel() {
       </Box>
 
       {subTab === 0 && <MasterTableView classes={classes} />}
-      {subTab === 1 && <BaseRVCrudPanel />}
-      {subTab === 2 && <DepreciationRatesPanel />}
-      {subTab === 3 && <MileageCorrectionsPanel />}
-      {subTab === 4 && <ServiceCostsCrudPanel />}
-      {subTab === 5 && <ReplacementCarCrudPanel />}
-      {subTab === 6 && <BrandCorrectionCrudPanel />}
-      {subTab === 7 && <BodyCorrectionsCrudPanel />}
-      {subTab === 8 && <ZabudowaCrudPanel />}
-      {subTab === 9 && <InsuranceRatesCrudPanel />}
-      {subTab === 10 && <DamageCoefficientsCrudPanel />}
-      {subTab === 11 && <PaintCorrectionCrudPanel />}
-      {subTab === 12 && <VintageCorrectionCrudPanel />}
+      {subTab === 1 && <ServiceCostsCrudPanel />}
+      {subTab === 2 && <ReplacementCarCrudPanel />}
+      {subTab === 3 && <ZabudowaCrudPanel />}
+      {subTab === 4 && <InsuranceRatesCrudPanel />}
+      {subTab === 5 && <DamageCoefficientsCrudPanel />}
 
     </Box>
   );

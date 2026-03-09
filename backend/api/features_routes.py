@@ -11,8 +11,14 @@ from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from pydantic import BaseModel
+
 from core.database import supabase
 
+from core.feature_cross_reference import (
+    cross_reference_vehicle,
+    wipe_vehicle_features,
+)
 from core.feature_enrichment import enrich_all_vehicles, enrich_vehicle_features
 from core.feature_importer import import_features_to_db
 from core.feature_resolver import resolve_vehicle_features
@@ -125,10 +131,14 @@ async def get_feature_catalog() -> FeatureCatalogResponse:
 
 
 @router.get("/features/vehicle/{vehicle_id}/state")
-async def get_vehicle_feature_state(
+def get_vehicle_feature_state(
     vehicle_id: str,
 ) -> dict[str, Any]:
-    """Get resolved features for a vehicle."""
+    """Get resolved features for a vehicle.
+
+    Lazy enrichment: if no feature state exists yet,
+    auto-enrich from vehicle_synthesis.card_summary.
+    """
     sb = supabase
 
     resp = (
@@ -138,6 +148,29 @@ async def get_vehicle_feature_state(
         .eq("source_vehicle_id", vehicle_id)
         .execute()
     )
+
+    # ── Lazy enrichment: auto-populate on first access ──
+    if not resp.data:
+        logger.info("No feature state for %s — running lazy enrichment", vehicle_id)
+        synth_resp = (
+            sb.table("vehicle_synthesis")
+            .select("id, synthesis_data")
+            .eq("id", vehicle_id)
+            .limit(1)
+            .execute()
+        )
+        if synth_resp.data:
+            synthesis = synth_resp.data[0].get("synthesis_data")
+            if isinstance(synthesis, dict):
+                enrich_vehicle_features(vehicle_id, synthesis)
+                # Re-query after enrichment
+                resp = (
+                    sb.schema("reverse_search")
+                    .table("vehicle_features_summary_view")
+                    .select("*")
+                    .eq("source_vehicle_id", vehicle_id)
+                    .execute()
+                )
 
     # Group by category
     by_category: dict[str, list[dict]] = {}
@@ -176,6 +209,58 @@ async def get_vehicle_feature_evidence(
         "evidence": resp.data,
         "total": len(resp.data),
     }
+
+
+# ── Feature Wipe ──────────────────────────────────────────────
+
+
+@router.delete("/features/vehicle/{vehicle_id}/evidence")
+async def wipe_vehicle_evidence(
+    vehicle_id: str,
+    source_type: str | None = None,
+) -> dict[str, Any]:
+    """Delete all evidence and state for a vehicle.
+
+    Optionally filter by source_type to delete only evidence
+    from a specific source (e.g. 'catalog', 'service_option').
+    State is always fully wiped for consistency.
+    """
+    result = wipe_vehicle_features(vehicle_id, source_type)
+    return {
+        "vehicle_id": vehicle_id,
+        "source_type_filter": source_type,
+        "status": "wiped",
+        **result,
+    }
+
+
+# ── Feature Cross-Reference ───────────────────────────────────
+
+
+class CrossRefRequest(BaseModel):
+    """Request body for cross-reference endpoint."""
+
+    catalog_ids: list[str]
+
+
+@router.post("/features/vehicle/{vehicle_id}/cross-reference")
+async def cross_reference_vehicle_features(
+    vehicle_id: str,
+    body: CrossRefRequest,
+) -> dict[str, Any]:
+    """Cross-reference vehicle with selected catalogs.
+
+    Matches vehicle spec against extracted catalog variants via LLM,
+    creates evidence records, and resolves feature state.
+    """
+    if not body.catalog_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Musisz wybrać przynajmniej jeden katalog",
+        )
+
+    result = cross_reference_vehicle(vehicle_id, body.catalog_ids)
+    return result
 
 
 # ── Feature Rebuild ────────────────────────────────────────────

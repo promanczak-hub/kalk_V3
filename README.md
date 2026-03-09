@@ -17,9 +17,45 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 
 - **Framework:** FastAPI (Python 3.12+)
 - **Zarządzanie pakietami:** Poetry
-- **Baza danych:** Supabase
+- **Baza danych:** Supabase (instancja chmurowa / online)
 - **Sztuczna Inteligencja:** Google GenAI (Vertex AI / Gemini) do procesowania plików PDF
 - **Przetwarzanie danych:** Pandas, Openpyxl
+
+## ☁️ Baza danych — Supabase Online
+
+**Link do projektu (Dashboard):** [https://supabase.com/dashboard/project/gnpsdiarmwvqhqbyetce](https://supabase.com/dashboard/project/gnpsdiarmwvqhqbyetce)
+
+> [!IMPORTANT]
+> **Projekt korzysta z chmurowej (online) instancji Supabase** — NIE z lokalnego Dockera.
+>
+> Lokalna instancja Supabase (Docker) jest **niestabilna** i wielokrotnie powodowała utratę danych
+> przy operacjach migracyjnych (`supabase db reset`, `supabase migration up`).
+>
+> **Reguły pracy z bazą online:**
+>
+> - Backend i frontend łączą się z instancją chmurową (klucze w `.env`).
+> - **NIE** uruchamiaj `supabase db reset` — grozi utratą danych.
+> - Zmiany schematu (DDL) aplikuj przez **SQL Editor** w Supabase Dashboard.
+> - Przed destrukcyjnymi operacjami **zawsze** rób backup (`pg_dump` lub eksport XLSX z Control Center).
+> - Traktuj dane w bazie online jako **dane produkcyjne**.
+
+> [!CAUTION]
+>
+> ### 🤖 AI LOCKOUT — Blokada dla agentów AI
+>
+> Poniższe operacje SQL/MCP na bazie **ONLINE** (`gnpsdiarmwvqhqbyetce`) są **ZABRONIONE**:
+>
+> | Operacja                        | Status        |
+> | ------------------------------- | ------------- |
+> | `DELETE FROM ...`               | 🚫 ZABRONIONE |
+> | `DROP TABLE / DROP COLUMN`      | 🚫 ZABRONIONE |
+> | `TRUNCATE TABLE`                | 🚫 ZABRONIONE |
+> | `supabase db reset` (online)    | 🚫 ZABRONIONE |
+> | `apply_migration` z DROP/DELETE | 🚫 ZABRONIONE |
+>
+> **Dozwolone:** `SELECT`, `INSERT`. `UPDATE` tylko po wyraźnej komendzie użytkownika.
+>
+> **Procedura:** Jeśli użytkownik wyraźnie każe usunąć dane → STOP → powtórz komendę → czekaj na potwierdzenie.
 
 ## 🚀 Uruchomienie lokalne
 
@@ -28,23 +64,7 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 - Node.js (v20+)
 - Python 3.12+
 - Poetry
-- Konto / lokalne środowisko Supabase
-
-### ⚠️ KRYTYCZNE: Migracje w Docker Supabase
-
-> [!CAUTION]
-> **NIE wykonuj migracji danych (`supabase db reset`, `supabase migration up` itp.) na lokalnej instancji Docker Supabase!**
->
-> Migracje mogą spowodować **nieodwracalną utratę wszystkich danych** w lokalnej bazie (tabele konfiguracyjne, cenniki, dane pojazdów itp.).
->
-> **Co się wydarzyło:** W wyniku uruchomienia migracji na Dockerowym Supabase utracono komplet danych roboczych — cenniki opon, parametry SAMAR, tabele rabatów i inne dane konfiguracyjne, które były ręcznie importowane.
->
-> **Zasady bezpieczeństwa:**
->
-> - Przed jakąkolwiek migracją **zawsze** wykonaj backup bazy: `pg_dump` lub eksport z poziomu Control Center (XLSX).
-> - **NIE używaj `TRUNCATE TABLE`** na tabelach z danymi konfiguracyjnymi — komenda usuwa wszystkie rekordy bez możliwości cofnięcia i resetuje liczniki. Jeśli musisz wyczyścić dane, użyj `DELETE` z warunkiem `WHERE` lub zrób wcześniej backup.
-> - Zmiany schematu (DDL) aplikuj ręcznie przez SQL Editor w Supabase Studio (`http://127.0.0.1:54323`) lub przez dedykowane skrypty, **nie** przez `supabase db reset`.
-> - Traktuj dane w lokalnym Dockerze jako **dane produkcyjne** — nie ma automatycznego odtwarzania.
+- Konto Supabase (klucze API w `.env`)
 
 ### 2. Konfiguracja zmiennych środowiskowych
 
@@ -128,6 +148,29 @@ Kanoniczna kolejność uruchamiania sub-kalkulatorów w pipeline `LTRKalkulator.
 > **Kroki 1–4** są niezależne — mogą być liczone równolegle.
 > **Kroki 5–9** mają zależności kaskadowe (każdy zależy od poprzednich).
 > **Kroki 10–12** agregują wyniki wszystkich poprzednich.
+
+---
+
+## 🗄️ Rejestr Nazw Tabel Supabase
+
+> [!CAUTION]
+> **Nazwy tabel DB, backendu i frontendu MUSZĄ być zsynchronizowane.**
+> Każda zmiana nazwy wymaga jednoczesnej aktualizacji we WSZYSTKICH warstwach.
+
+**Centralny rejestr:** [`TABLE_REGISTRY.md`](TABLE_REGISTRY.md)
+
+Zawiera:
+
+- Pełną mapę: **nazwa tabeli DB → pliki backend → pliki frontend**
+- Procedurę Impact Analysis (grep + sprawdzenie widoków SQL)
+- Checklist zmiany nazwy (7 kroków)
+
+**Reguła dla AI/developerów:** Przed zmianą nazwy tabeli, kolumny lub widoku:
+
+1. Otwórz `TABLE_REGISTRY.md` i zlokalizuj wszystkie zależne pliki
+2. Wykonaj `grep -rn "nazwa" backend/ frontend/src/` aby potwierdzić
+3. Zaktualizuj WSZYSTKIE warstwy w jednym commicie
+4. Zaktualizuj `TABLE_REGISTRY.md`
 
 ---
 

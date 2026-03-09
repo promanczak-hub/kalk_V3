@@ -27,14 +27,23 @@ ACRONYM_TO_SAMAR_NAME = {
     "E": "Podstawowa - E WYŻSZA",
     "Esuv": "Terenowo-rekreacyjne (SUV) - E WYŻSZA",
     "ESUV": "Terenowo-rekreacyjne (SUV) - E WYŻSZA",
+    "Evan": "Vany - E WYŻSZA",
+    "Esport": "Sportowo-rekreacyjne - E WYŻSZA",
     "F": "Podstawowa - F LUKSUSOWE",
     "Fsport": "Sportowo-rekreacyjne - F LUKSUSOWE",
     "Fsuv": "Terenowo-rekreacyjne (SUV) - F LUKSUSOWE",
+    "Fvan": "Vany - F LUKSUSOWE",
+    "G": "Podstawowa - G SUPER LUKSUSOWE",
+    "Gsport": "Sportowo-rekreacyjne - G SUPER LUKSUSOWE",
+    "Gsuv": "Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE",
     "M": "Minibusy - I MINIBUSY",
     "Mvan": "Kombivany - H KOMBI-VANY",
-    "R": "Kempingowe - K KEMPINGOWE",
-    "P": "Dostawcza - 1 OSOB.-DOST. (LAV)",
-    "T PICK-UP": "Dostawcza - 2 PICK-UP",
+    "T PICK-UP": "Pick-up - PICK-UP",
+    "T VAN": "Lekkie dostawcze - VAN",
+    "T KOMBI VAN": "Lekkie dostawcze - KOMBI VAN",
+    "Średnie": "Średnie dostawcze - ŚREDNIE DOSTAWCZE",
+    "Ciężkie": "Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE",
+    "Autobusy": "Autobusy - AUTOBUSY",
 }
 
 # ── Fuel suffix -> engine name pattern matching ──
@@ -43,10 +52,27 @@ FUEL_SUFFIXES = ["PHEV", "HEV", "EV", "ON", "Pb"]
 
 def extract_class_fuel(acronym: str) -> tuple[str | None, str | None]:
     """Extract class letter and fuel suffix from acronym like 'BsuvPb' or 'T PICK-UPHEV'."""
+
+    # Specjalne traktowanie pełnych nazw typu 'T VAN' do których nie dokleja się suffixu w Excelu
+    # lub dokleja się 'Pb'/'ON' na końcu.
     for suffix in FUEL_SUFFIXES:
         if acronym.endswith(suffix):
-            class_part = acronym[: -len(suffix)]
+            class_part = acronym[: -len(suffix)].strip()
             return class_part, suffix
+
+    # Próba dopasowania do znanych klas ciężarowych / EV bez suffixu
+    if acronym in ACRONYM_TO_SAMAR_NAME:
+        # domyślny suffix to 'ON' dla dostawczych gdzie brakuje znacznika
+        if acronym in [
+            "T PICK-UP",
+            "T VAN",
+            "T KOMBI VAN",
+            "Średnie",
+            "Ciężkie",
+            "Autobusy",
+        ]:
+            return acronym, "ON"
+
     return None, None
 
 

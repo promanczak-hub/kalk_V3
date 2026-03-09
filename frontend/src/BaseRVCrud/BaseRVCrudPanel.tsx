@@ -27,9 +27,9 @@ interface BaseRVRate {
 }
 
 export default function BaseRVCrudPanel({
-  samarClassId,
+  samarClassId = 1,
 }: {
-  samarClassId: number;
+  samarClassId?: number;
 }) {
   const [rates, setRates] = useState<BaseRVRate[]>([]);
   const [loading, setLoading] = useState(false);

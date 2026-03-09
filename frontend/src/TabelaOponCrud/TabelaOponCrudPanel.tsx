@@ -8,20 +8,13 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  TextField,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   CircularProgress,
   Alert,
-  Typography
+  Typography,
+  Chip
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
+import LockIcon from '@mui/icons-material/Lock';
 import { supabase } from '../VertexExtractor/lib/supabaseClient';
-import ConfigTableToolbar from '../components/ConfigTableToolbar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,14 +62,11 @@ const SEASONAL_FIELDS: ThresholdField[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Thresholds sub-component
+// Thresholds sub-component (READ-ONLY)
 // ---------------------------------------------------------------------------
 
 function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) {
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
-  const [initialThresholds, setInitialThresholds] = useState<Record<string, number>>({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [loadingThresholds, setLoadingThresholds] = useState(true);
 
   const fetchThresholds = useCallback(async () => {
@@ -98,7 +88,6 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
         if (!(f.key in map)) map[f.key] = f.fallback;
       }
       setThresholds({ ...map });
-      setInitialThresholds({ ...map });
     } catch (e) {
       onError(String(e));
     } finally {
@@ -109,43 +98,6 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
   useEffect(() => {
     fetchThresholds();
   }, [fetchThresholds]);
-
-  const handleThresholdChange = (key: string, value: string) => {
-    const num = parseFloat(value);
-    setThresholds(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
-    setSaved(false);
-  };
-
-  const hasChanges = Object.keys(thresholds).some(
-    k => thresholds[k] !== initialThresholds[k]
-  );
-
-  const handleSaveThresholds = async () => {
-    setSaving(true);
-    try {
-      const changedKeys = Object.keys(thresholds).filter(
-        k => thresholds[k] !== initialThresholds[k]
-      );
-      for (const key of changedKeys) {
-        const { error } = await supabase
-          .from('tyre_configurations')
-          .update({ config_value: String(thresholds[key]) })
-          .eq('config_key', key);
-        if (error) {
-          onError(`Błąd zapisu ${key}: ${error.message}`);
-          setSaving(false);
-          return;
-        }
-      }
-      setInitialThresholds({ ...thresholds });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      onError(String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (loadingThresholds) {
     return (
@@ -162,17 +114,10 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
       </Typography>
       <Box display="grid" gridTemplateColumns={`repeat(${fields.length}, 1fr)`} gap={2}>
         {fields.map(f => (
-          <TextField
-            key={f.key}
-            label={f.label}
-            type="number"
-            size="small"
-            value={thresholds[f.key] ?? f.fallback}
-            onChange={e => handleThresholdChange(f.key, e.target.value)}
-            slotProps={{ input: { endAdornment: <Typography variant="caption" sx={{ color: 'text.disabled', ml: 0.5 }}>km</Typography> } }}
-            inputProps={{ step: '1000' }}
-            fullWidth
-          />
+          <Box key={f.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: 'grey.100', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>{f.label}:</Typography>
+            <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>{(thresholds[f.key] ?? f.fallback).toLocaleString('pl-PL')} km</Typography>
+          </Box>
         ))}
       </Box>
     </Paper>
@@ -184,19 +129,7 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
         <Typography variant="h6" sx={{ fontSize: '1rem' }}>
           📏 Progi przebiegowe opon
         </Typography>
-        <Button
-          variant="contained"
-          size="small"
-          disabled={saving || !hasChanges}
-          onClick={handleSaveThresholds}
-          sx={{
-            bgcolor: saved ? 'success.main' : undefined,
-            '&:hover': saved ? { bgcolor: 'success.dark' } : undefined,
-            minWidth: 130,
-          }}
-        >
-          {saving ? 'Zapisuję...' : saved ? '✓ Zapisano' : 'Zapisz progi'}
-        </Button>
+        <Chip icon={<LockIcon />} label="ZAMROŻONE" size="small" color="default" variant="outlined" />
       </Box>
       <Box display="flex" flexDirection="column" gap={2}>
         {renderGroup('🛞 Opony wielosezonowe', ALL_SEASON_FIELDS)}
@@ -210,18 +143,13 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
 }
 
 // ---------------------------------------------------------------------------
-// Main panel
+// Main panel (READ-ONLY — frozen 2026-03-09)
 // ---------------------------------------------------------------------------
 
 export default function TabelaOponCrudPanel() {
   const [rows, setRows] = useState<TireCostRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Dialog state
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editRow, setEditRow] = useState<TireCostRow | null>(null);
-  const [formData, setFormData] = useState<Partial<TireCostRow>>({});
 
   const columns = [
     { name: 'budget', label: 'Budget' },
@@ -253,44 +181,17 @@ export default function TabelaOponCrudPanel() {
     fetchData();
   }, [fetchData]);
 
-  const handleOpenEdit = (row: TireCostRow) => {
-    setEditRow(row);
-    setFormData({ ...row });
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-  };
-
-  const handleSave = async () => {
-    setLoading(true);
-    if (editRow) {
-      const { error } = await supabase
-        .from('koszty_opon')
-        .update(formData)
-        .eq('srednica', editRow.srednica);
-      if (error) {
-        setError(error.message);
-      } else {
-        fetchData();
-      }
-    }
-    setOpenDialog(false);
-    setLoading(false);
-  };
-
   return (
     <Box sx={{ mt: 2 }}>
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* Thresholds section */}
+      {/* Thresholds section (read-only) */}
       <TyreThresholdsSection onError={(msg) => setError(msg)} />
 
-      {/* Existing tire costs table */}
+      {/* Frozen tire costs table */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6">Tabela Kosztów Opon (PLN Netto)</Typography>
-        <ConfigTableToolbar tableName="koszty_opon" tableLabel="Koszty Opon" onDataChanged={fetchData} />
+        <Chip icon={<LockIcon />} label="ZAMROŻONE — Read Only" size="small" color="warning" variant="outlined" />
       </Box>
 
       <TableContainer component={Paper} sx={{ maxHeight: 650 }}>
@@ -300,7 +201,6 @@ export default function TabelaOponCrudPanel() {
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Akcje</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Średnica</TableCell>
                 {columns.map(col => (
                   <TableCell key={col.name} sx={{ fontWeight: 'bold' }}>{col.label}</TableCell>
@@ -310,11 +210,6 @@ export default function TabelaOponCrudPanel() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.srednica} hover>
-                  <TableCell>
-                    <IconButton size="small" color="primary" onClick={() => handleOpenEdit(row)}>
-                      <EditIcon fontSize="small"/>
-                    </IconButton>
-                  </TableCell>
                   <TableCell sx={{ fontSize: '1.1em', fontWeight: 500 }}>{row.srednica}"</TableCell>
                   {columns.map(col => (
                     <TableCell key={col.name}>{Number(row[col.name as keyof TireCostRow] ?? 0).toFixed(2)} zł</TableCell>
@@ -325,39 +220,6 @@ export default function TabelaOponCrudPanel() {
           </Table>
         )}
       </TableContainer>
-
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>Edycja Kosztów dla średnicy {editRow?.srednica}"</DialogTitle>
-        <DialogContent dividers>
-          <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} pt={1}>
-            {columns.map(col => (
-              <TextField
-                key={col.name}
-                label={col.label}
-                type="number"
-                value={formData[col.name as keyof TireCostRow] ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFormData({
-                    ...formData,
-                    [col.name]: val === '' ? null : parseFloat(val)
-                  });
-                }}
-                fullWidth
-                variant="outlined"
-                size="small"
-                inputProps={{ step: "0.01" }}
-              />
-            ))}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Anuluj</Button>
-          <Button variant="contained" onClick={handleSave} disabled={loading}>
-            Zapisz
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

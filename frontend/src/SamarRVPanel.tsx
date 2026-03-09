@@ -35,6 +35,9 @@ interface BasePercentage {
 interface BrandCorrection {
   id: number;
   marka_id: number;
+  brand_name?: string;
+  model_name?: string;
+  notes?: string;
   samar_class_id: number;
   rodzaj_paliwa: number;
   korekta_procent: number;
@@ -397,22 +400,26 @@ export default function SamarRVPanel() {
                 <TableHead>
                   <TableRow>
                     <TableCell>ID</TableCell>
-                    <TableCell>ID Marki (Eurotax)</TableCell>
+                    <TableCell>Marka (Nazwa)</TableCell>
+                    <TableCell>Model (Opcjonalnie)</TableCell>
                     <TableCell>Klasa SAMAR</TableCell>
                     <TableCell>Rodzaj Paliwa</TableCell>
                     <TableCell>Rating / Narzut %</TableCell>
+                    <TableCell>ID Eurotax</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {brandCorr.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell>{b.id}</TableCell>
-                      <TableCell>{b.marka_id}</TableCell>
+                      <TableCell>{b.brand_name || "-"}</TableCell>
+                      <TableCell>{b.model_name || "-"}</TableCell>
                       <TableCell>{getClassName(b.samar_class_id)}</TableCell>
                       <TableCell>{b.rodzaj_paliwa}</TableCell>
                       <TableCell>
                         {(b.korekta_procent * 100).toFixed(2)} %
                       </TableCell>
+                      <TableCell>{b.marka_id || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

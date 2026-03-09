@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
-import RmsCrudPanel from "./RmsCrud/RmsCrudPanel";
 import RabatyCrudPanel from "./RabatyCrud/RabatyCrudPanel";
 import EnginesCrudPanel from "./EnginesCrud/EnginesCrudPanel";
 import TabelaOponCrudPanel from "./TabelaOponCrud/TabelaOponCrudPanel";
 import GlobalSettingsPanel from "./GlobalSettingsPanel";
 import SamarMasterPanel from "./SamarMasterPanel";
+import ValuationModelsPanel from "./ValuationModelsPanel";
 
 export default function ControlCenter() {
   const [activeTab, setActiveTab] = useState(0);
@@ -16,19 +16,19 @@ export default function ControlCenter() {
         <Tabs value={activeTab} onChange={(_e, val) => setActiveTab(val)} variant="scrollable" scrollButtons="auto">
           <Tab label="Ustawienia Globalne" />
           <Tab label="📊 SAMAR Parametry" sx={{ fontWeight: 700 }} />
-          <Tab label="Tabele RMS _czak" />
           <Tab label="Tabela rabaty" />
           <Tab label="Tabele Napędy" />
           <Tab label="Tabela Opon" />
+          <Tab label="📝 Modele Wyceny" sx={{ fontWeight: 700, color: "secondary.main" }} />
         </Tabs>
       </Box>
 
       {activeTab === 0 && <GlobalSettingsPanel />}
       {activeTab === 1 && <SamarMasterPanel />}
-      {activeTab === 2 && <RmsCrudPanel />}
-      {activeTab === 3 && <RabatyCrudPanel />}
-      {activeTab === 4 && <EnginesCrudPanel />}
-      {activeTab === 5 && <TabelaOponCrudPanel />}
+      {activeTab === 2 && <RabatyCrudPanel />}
+      {activeTab === 3 && <EnginesCrudPanel />}
+      {activeTab === 4 && <TabelaOponCrudPanel />}
+      {activeTab === 5 && <ValuationModelsPanel />}
     </Box>
   );
 }

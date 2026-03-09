@@ -16,7 +16,7 @@ BEGIN
     ) THEN
         ALTER TABLE public.ltr_admin_korekta_wr_markas
             ADD CONSTRAINT uq_brand_correction_class_fuel_brand
-            UNIQUE (klasa_wr_id, rodzaj_paliwa, brand_name);
+            UNIQUE (samar_class_id, rodzaj_paliwa, brand_name);
     END IF;
 END $$;
 

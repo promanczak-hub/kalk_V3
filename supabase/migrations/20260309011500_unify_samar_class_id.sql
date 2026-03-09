@@ -20,6 +20,10 @@ ALTER TABLE public.ltr_admin_korekta_wr_markas
 ALTER TABLE public.ltr_admin_korekta_wr_markas
     RENAME COLUMN klasa_wr_id TO samar_class_id;
 
+-- Cleanup orphans before applying FK mapping
+DELETE FROM public.ltr_admin_korekta_wr_markas 
+WHERE samar_class_id NOT IN (SELECT id FROM public.samar_classes);
+
 -- Re-add FK and unique constraint with new name
 ALTER TABLE public.ltr_admin_korekta_wr_markas
     ADD CONSTRAINT ltr_admin_korekta_wr_markas_samar_class_fk
@@ -37,6 +41,10 @@ ALTER TABLE public.ltr_admin_korekta_wr_markas
 ALTER TABLE public.ltr_admin_wspolczynniki_szkodowe
     RENAME COLUMN klasa_wr_id TO samar_class_id;
 
+-- Cleanup orphans before applying FK mapping
+DELETE FROM public.ltr_admin_wspolczynniki_szkodowe 
+WHERE samar_class_id NOT IN (SELECT id FROM public.samar_classes);
+
 -- Add FK (was missing)
 ALTER TABLE public.ltr_admin_wspolczynniki_szkodowe
     ADD CONSTRAINT ltr_admin_wspolczynniki_szkodowe_samar_class_fk
@@ -49,6 +57,11 @@ ALTER TABLE public.ltr_admin_wspolczynniki_szkodowe
 
 ALTER TABLE public.ltr_admin_ubezpieczenia
     RENAME COLUMN "KlasaId" TO samar_class_id;
+
+-- Cleanup orphans before applying FK mapping
+DELETE FROM public.ltr_admin_ubezpieczenia 
+WHERE samar_class_id IS NOT NULL 
+  AND samar_class_id NOT IN (SELECT id FROM public.samar_classes);
 
 -- KlasaId allows NULL (for default/fallback rates), keep nullable
 -- Add FK only for non-null values

@@ -16,7 +16,7 @@ BEGIN
     ) THEN
         ALTER TABLE public.ltr_admin_korekta_wr_markas
             ADD CONSTRAINT fk_brand_corr_samar_class
-            FOREIGN KEY (klasa_wr_id) REFERENCES public.samar_classes(id) ON DELETE CASCADE;
+            FOREIGN KEY (samar_class_id) REFERENCES public.samar_classes(id) ON DELETE CASCADE;
     END IF;
 
     -- Add FK to engines

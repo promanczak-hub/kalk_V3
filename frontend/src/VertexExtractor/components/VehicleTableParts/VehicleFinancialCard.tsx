@@ -111,8 +111,8 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
       </div>
 
       <div className="p-5 space-y-5">
-        {/* Price validation warnings */}
-        {validation && !validation.is_valid && (
+        {/* Price validation summary & warnings */}
+        {validation && (!validation.is_valid || validation.summary) && (
           <PriceValidationBanner validation={validation} />
         )}
 

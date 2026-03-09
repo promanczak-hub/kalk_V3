@@ -17,6 +17,8 @@ export interface MappedData {
   samar_category?: string;
   engine_class?: string;
   drive_type?: string;
+  body_type?: string;
+  body_candidates?: { klasa: string; confidence: number }[];
 }
 
 interface SamarCandidate {
@@ -43,6 +45,8 @@ interface VehicleBaseInfoProps {
   onEngineCategoryChange?: (newCategory: string) => void;
   driveType?: string;
   onDriveTypeChange?: (newDriveType: string) => void;
+  bodyType?: string;
+  onBodyTypeChange?: (newBodyType: string) => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
@@ -139,6 +143,41 @@ function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: s
         <option value="" disabled>Oś napędowa…</option>
         {DRIVE_TYPE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+const BODY_TYPE_OPTIONS = [
+  // Zostaną nadpisane kandydatami lub załadowane z bazy
+  "Hatchback", "Sedan", "Kombi", "SUV", "Crossover", "Pick-up", "Minivan",
+  "Van", "Furgon", "Kontener", "Skrzynia", "Autolaweta", "Izoterma", "Chłodnia"
+];
+
+function BodyTypeTag({ current, candidates, onChange }: { current: string; candidates?: { klasa: string }[], onChange?: (v: string) => void }) {
+  if (!onChange) {
+    return current ? <Tag>Nadwozie: {current}</Tag> : null;
+  }
+  
+  const options = candidates?.length ? candidates.map(c => c.klasa) : BODY_TYPE_OPTIONS;
+  // Zapewnienie, że aktualna wartość istnieje w opcjach
+  if (current && !options.includes(current)) {
+    options.unshift(current);
+  }
+
+  return (
+    <span className="inline-flex items-center">
+      <select
+        className="text-xs border border-slate-200 bg-slate-50 rounded px-1.5 py-1 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
+        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+        value={current || ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
+      >
+        <option value="" disabled>Typ nadwozia…</option>
+        {options.map((optionValue) => (
+          <option key={optionValue} value={optionValue}>{optionValue}</option>
         ))}
       </select>
     </span>
@@ -312,6 +351,8 @@ export function VehicleBaseInfo({
   onEngineCategoryChange,
   driveType = "",
   onDriveTypeChange,
+  bodyType = "",
+  onBodyTypeChange,
   isSelected = false,
   onToggleSelect,
   crossCardAlerts = [],
@@ -484,9 +525,10 @@ export function VehicleBaseInfo({
             {/* ·  separator  · */}
             {(hasIdGroup || hasRabatGroup || hasClassGroup) && hasServiceGroup && <Separator />}
 
-            {/* ④ Serwis: poziom, napęd */}
+            {/* ④ Serwis: poziom, napęd, nadwozie */}
             {powerBand && <Tag>Serwis: {powerBand}</Tag>}
             <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
+            <BodyTypeTag current={bodyType} candidates={mappedData?.body_candidates} onChange={onBodyTypeChange} />
 
             {/* ·  separator  · */}
             {(hasIdGroup || hasRabatGroup || hasClassGroup || hasServiceGroup) && hasStatusGroup && <Separator />}

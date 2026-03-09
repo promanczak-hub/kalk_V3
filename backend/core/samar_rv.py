@@ -97,6 +97,7 @@ def check_rv_readiness(
     body_type_id: Optional[int],
     paint_type_id: Optional[int],
     rocznik: str,
+    model_name: str = "",
 ) -> list[ReadinessItem]:
     """Sprawdza pokrycie parametrów w DB przed kalkulacją."""
     checks: list[ReadinessItem] = []
@@ -140,24 +141,53 @@ def check_rv_readiness(
     except Exception:
         checks.append(ReadinessItem("WR bazy (klasa×silnik)", "error", "błąd DB"))
 
-    # 3. Korekta marka
+    # 3. Korekta marka (z kaskadą na model)
     try:
-        res = (
-            supabase.table("ltr_admin_korekta_wr_markas")
-            .select("korekta_procent")
-            .eq("samar_class_id", samar_class_id)
-            .eq("rodzaj_paliwa", engine_id)
-            .eq("brand_name", brand_name.upper())
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            val = float(res.data[0]["korekta_procent"])
-            checks.append(ReadinessItem("Korekta marka", "ok", f"{val:+.1%}"))
+        model = model_name.strip().upper() if model_name else ""
+        brand = brand_name.strip().upper()
+        found_val = None
+        found_type = ""
+
+        # Exact match with model
+        if model:
+            res_ex = (
+                supabase.table("ltr_admin_korekta_wr_markas")
+                .select("korekta_procent")
+                .eq("samar_class_id", samar_class_id)
+                .eq("rodzaj_paliwa", engine_id)
+                .eq("brand_name", brand)
+                .eq("model_name", model)
+                .limit(1)
+                .execute()
+            )
+            if res_ex.data:
+                found_val = float(res_ex.data[0]["korekta_procent"])
+                found_type = "(Exact Model)"
+
+        # Fallback to general brand (model_name IS NULL)
+        if found_val is None:
+            res_gen = (
+                supabase.table("ltr_admin_korekta_wr_markas")
+                .select("korekta_procent")
+                .eq("samar_class_id", samar_class_id)
+                .eq("rodzaj_paliwa", engine_id)
+                .eq("brand_name", brand)
+                .is_("model_name", "null")
+                .limit(1)
+                .execute()
+            )
+            if res_gen.data:
+                found_val = float(res_gen.data[0]["korekta_procent"])
+                found_type = "(Brand Fallback)"
+
+        if found_val is not None:
+            checks.append(
+                ReadinessItem("Korekta marka", "ok", f"{found_val:+.1%} {found_type}")
+            )
         else:
             checks.append(ReadinessItem("Korekta marka", "warn", "brak wpisu → 0%"))
     except Exception:
-        checks.append(ReadinessItem("Korekta marka", "warn", "brak wpisu → 0%"))
+        checks.append(ReadinessItem("Korekta marka", "warn", "błąd odczytu → 0%"))
 
     # 4. Korekta przebieg
     try:
@@ -261,6 +291,7 @@ class RVInput:
     samar_class_id: int
     engine_id: int
     brand_name: str = ""
+    model_name: str = ""
     months: int = 48
     total_km: int = 140000
     capex_base_net: float = 0.0
@@ -330,24 +361,48 @@ class SamarRVCalculator:
         return result
 
     def _fetch_brand_correction(self) -> float:
-        """Korekta za markę z ltr_admin_korekta_wr_markas."""
+        """Korekta za markę z ltr_admin_korekta_wr_markas z fallbackiem na model."""
         brand = self.data.brand_name.strip().upper()
         if not brand:
             return 0.0
+
+        model = (
+            self.data.model_name.strip().upper()
+            if hasattr(self.data, "model_name") and self.data.model_name
+            else ""
+        )
+
         try:
-            res = (
+            # 1. Exact match with model
+            if model:
+                res_exact = (
+                    supabase.table("ltr_admin_korekta_wr_markas")
+                    .select("korekta_procent")
+                    .eq("samar_class_id", self.data.samar_class_id)
+                    .eq("rodzaj_paliwa", self.data.engine_id)
+                    .eq("brand_name", brand)
+                    .eq("model_name", model)
+                    .limit(1)
+                    .execute()
+                )
+                if res_exact.data:
+                    return float(res_exact.data[0].get("korekta_procent", 0.0))
+
+            # 2. Fallback to general brand correction (model_name IS NULL)
+            res_gen = (
                 supabase.table("ltr_admin_korekta_wr_markas")
                 .select("korekta_procent")
                 .eq("samar_class_id", self.data.samar_class_id)
                 .eq("rodzaj_paliwa", self.data.engine_id)
                 .eq("brand_name", brand)
+                .is_("model_name", "null")
                 .limit(1)
                 .execute()
             )
-            if res.data:
-                return float(res.data[0].get("korekta_procent", 0.0))
+            if res_gen.data:
+                return float(res_gen.data[0].get("korekta_procent", 0.0))
         except Exception as exc:
-            logger.warning("Błąd brand correction: %s", exc)
+            logger.warning("Błąd brand correction cascade: %s", exc)
         return 0.0
 
     def _fetch_mileage_corrections(self) -> tuple[float, float]:
@@ -598,9 +653,6 @@ class SamarRVCalculator:
         # Lata > 4 → deprecjacja (odejmujemy).
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        values_per_year: Dict[int, float] = {0: wr_value}
-        current_value = wr_value
-
         # Excel: BC=BS (rok 4→0), potem kaskadowo w obie strony
         # Wg Excela: kolumna F(rok4)=0, kolumny B-E(rok0-3) = aprecjacja,
         # kolumny G-I(rok5-7) = deprecjacja.
@@ -665,7 +717,6 @@ class SamarRVCalculator:
         # W górę (od bazy do bieżącego)
         v = wr_value
         for yr in [3, 2, 1, 0]:
-            rate_idx = 4 - yr  # 1,2,3,4 → rates year 1,2,3,0
             if yr == 0:
                 rate = rates.get(0, {"base": 0.0})["base"]
                 # Rok 0 w Excelu: col B → to powinno być rate aprecjacji
