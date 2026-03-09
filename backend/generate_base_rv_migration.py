@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import datetime
 
 with open("tmp_rv_mapped.json", encoding="utf-8") as f:

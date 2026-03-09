@@ -2,12 +2,12 @@ import os
 import logging
 from supabase import create_client, Client
 
-# Local Supabase
-_LOCAL_URL = "http://127.0.0.1:54321"
-_LOCAL_KEY = "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
+# Online Supabase
+_ONLINE_URL = "https://gnpsdiarmwvqhqbyetce.supabase.co"
+_ONLINE_KEY = "sb_publishable_hXJmqJJyfONRRHwSUQjNVA_9w2k3TF9"
 
-SUPABASE_URL: str = _LOCAL_URL
-SUPABASE_KEY: str = _LOCAL_KEY
+SUPABASE_URL: str = os.environ.get("SUPABASE_URL", _ONLINE_URL)
+SUPABASE_KEY: str = os.environ.get("SUPABASE_KEY", _ONLINE_KEY)
 
 logging.info(f"Using Supabase URL: {SUPABASE_URL}")
 

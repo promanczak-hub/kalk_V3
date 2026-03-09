@@ -1,5 +1,3 @@
-import os
-import json
 import uuid
 import openpyxl
 from core.database import supabase
@@ -53,7 +51,7 @@ for sheet_name in sheets_to_process:
             .upsert(record, on_conflict="sheet_name")
             .execute()
         )
-        print(f"  -> Saved to Supabase")
+        print("  -> Saved to Supabase")
         total_saved += 1
     except Exception as e:
         print(f"  -> Error saving to Supabase: {e}")

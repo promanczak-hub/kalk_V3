@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Button,
-  Toolbar,
-  Typography,
   Snackbar,
   Alert,
   Dialog,
@@ -59,22 +57,34 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
   const fetchSheet = useCallback(async () => {
     setLoading(true);
     try {
+      const classesRes = await fetch("http://127.0.0.1:8000/api/samar-classes");
+      let classNames: string[] = [];
+      if (classesRes.ok) {
+        const classData = await classesRes.json();
+        classNames = classData.map((c: any) => c.name);
+      }
+
       const res = await fetch(`http://127.0.0.1:8000/api/excel-drafts/${encodeURIComponent(sheetName)}`);
       if (!res.ok) {
         throw new Error("Failed to fetch sheet");
       }
       const data: ExcelDraftSheet = await res.json();
       
-      const mappedCols: GridColDef[] = data.columns_def.map((c) => ({
-        field: c.field,
-        headerName: c.headerName,
-        width: c.width || 150,
-        editable: true,
-      }));
+      const mappedCols: GridColDef[] = data.columns_def.map((c) => {
+        const isClass = c.headerName.toLowerCase().includes("klasa");
+        return {
+          field: c.field,
+          headerName: c.headerName,
+          width: c.width || 150,
+          editable: true,
+          type: isClass ? 'singleSelect' : 'string',
+          valueOptions: isClass ? classNames : undefined,
+        };
+      });
       
       setColumns(mappedCols);
       
-      const mappedRows = data.data_rows.map((r, idx) => ({
+      const mappedRows = data.data_rows.map((r) => ({
         ...r,
         id: r.id || uuidv4()
       }));
@@ -92,7 +102,7 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
     }
   }, [sheetName, fetchSheet]);
 
-  const processRowUpdate = (newRow: GridRowModel, oldRow: GridRowModel) => {
+  const processRowUpdate = (newRow: GridRowModel) => {
     const updatedRows = rows.map((r) => (r.id === newRow.id ? newRow : r));
     setRows(updatedRows);
     return newRow;

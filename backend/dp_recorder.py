@@ -27,7 +27,7 @@ def run_dp_recorder():
     page.listen.start()  # Łapiemy na razie wszystkie zasoby XHR/Fetch, żeby nie przegapić JSONów
 
     url = "https://rms.express"  # Zmiana adresu na środowisko RMS z kalkulacjami
-    print(f"Otwieram przeglądarkę. Możesz wejść na portal z autami.")
+    print("Otwieram przeglądarkę. Możesz wejść na portal z autami.")
     page.get(url)
 
     print("\nPrzeglądarka uruchomiona!")
@@ -97,8 +97,8 @@ def run_dp_recorder():
             # 3. Zabezpieczenie przed błędem - po prostu czekamy
             pass
 
-    except Exception as e:
-        print(f"\n[INFO] Wystąpił błąd w pętli głównej:")
+    except Exception:
+        print("\n[INFO] Wystąpił błąd w pętli głównej:")
         traceback.print_exc()
         # Chcemy by użytkownik nadal miał otwarte okno nawet jak skrypt się wywali
         input("Wciśnij ENTER aby zamknąć przeglądarkę...")

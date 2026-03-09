@@ -1,6 +1,5 @@
 """Script to backup, wipe, and remap SAMAR classes preserving rates."""
 
-import re
 from core.database import supabase
 
 NEW_CLASSES_MD = """

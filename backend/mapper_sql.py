@@ -1,6 +1,5 @@
 """Generate SQL script to backup, wipe, and remap SAMAR classes atomically."""
 
-import os
 from core.database import supabase
 
 NEW_CLASSES_MD = """

@@ -9,7 +9,6 @@ Handles merged cells by propagating values across merged ranges.
 """
 
 import io
-from copy import copy
 
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet

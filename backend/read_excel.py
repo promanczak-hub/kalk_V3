@@ -1,5 +1,4 @@
 import pandas as pd
-import sys
 
 file_path = r"C:\Users\proma\Downloads\DRAFT KALKULATORA WARTOŚCI REZYDUALNYCH ver aktualna JŁ 02.02 (version 1).xlsx"
 print("Reading file:", file_path)

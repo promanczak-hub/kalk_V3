@@ -1,4 +1,3 @@
-import os
 from supabase import create_client, Client
 
 url: str = "http://127.0.0.1:54321"

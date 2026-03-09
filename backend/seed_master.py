@@ -113,7 +113,7 @@ def main() -> None:
         "seed_depreciation_rates",
         "seed_body_and_brand_corrections",
         "seed_body_types",
-        "seed_replacement_rates",
+        "seed_replacement_rates_v3",
         "seed_budget_data",
     ]
     for s in SEEDERS:

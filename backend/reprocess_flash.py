@@ -177,7 +177,7 @@ def _reprocess_single(
         supabase_client.table("vehicle_synthesis").update(update_payload).eq(
             "id", vehicle_id
         ).execute()
-        print(f"     ✅ Zapisano do DB")
+        print("     ✅ Zapisano do DB")
         return True
     except Exception as exc:
         print(f"     ✗ DB save error: {exc}")

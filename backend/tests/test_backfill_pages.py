@@ -5,7 +5,6 @@ pricing, technical data, equipment, wheels, emissions, color, body_style,
 and powertrain from a pages-based digital_twin structure.
 """
 
-import pytest
 from core.pipeline_card_summary import _extract_from_pages
 
 

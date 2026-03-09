@@ -1,6 +1,4 @@
-import os
 import psycopg2
-import json
 
 try:
     conn = psycopg2.connect("postgresql://postgres:postgres@127.0.0.1:54322/postgres")

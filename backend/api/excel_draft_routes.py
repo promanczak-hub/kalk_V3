@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from core.database import supabase
 
 router = APIRouter(tags=["Excel Drafts"])

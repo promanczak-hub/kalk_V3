@@ -25,9 +25,7 @@ sys.path.insert(0, "d:/kalk_v3/backend")
 
 from core.LTRSubCalculatorFinanse import (  # noqa: E402
     FinanseInput,
-    FinanseResult,
     FinanseCalculator,
-    Rata,
 )
 
 

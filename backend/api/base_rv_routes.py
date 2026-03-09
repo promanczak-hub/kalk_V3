@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from typing import List
 from core.database import supabase
 from pydantic import BaseModel
 

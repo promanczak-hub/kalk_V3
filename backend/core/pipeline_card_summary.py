@@ -648,8 +648,8 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
         if any(kw in combined for kw in awd_keywords):
             card_summary["drive_type"] = "Napęd AWD"
             print(
-                f"[BACKFILL] drive_type: 'Napęd AWD' "
-                f"(wykryto keyword 4WD w transmission/powertrain)"
+                "[BACKFILL] drive_type: 'Napęd AWD' "
+                "(wykryto keyword 4WD w transmission/powertrain)"
             )
         else:
             card_summary["drive_type"] = "Napęd FWD"
