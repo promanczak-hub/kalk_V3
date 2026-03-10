@@ -429,28 +429,162 @@ async def reverse_search_vehicles(
     if not result_ids:
         return FeatureSearchResponse(results=[], total_count=0)
 
-    # Fetch vehicle info from vehicle_synthesis
-    vehicle_ids_list = list(result_ids)[request.offset : request.offset + request.limit]
-
-    vehicles_resp = (
-        sb.table("vehicle_synthesis")
-        .select("id, brand, model")
-        .in_("id", vehicle_ids_list)
-        .execute()
+    # ---------- PHASE 2: Price Calculation & Filtering ----------
+    should_calc_price = any(
+        [
+            request.price_min is not None,
+            request.price_max is not None,
+        ]
     )
 
-    results: list[FeatureSearchResultItem] = []
-    for v in vehicles_resp.data:
-        results.append(
-            FeatureSearchResultItem(
-                source_vehicle_id=v["id"],
-                brand=v.get("brand"),
-                model=v.get("model"),
-                matched_features=len(request.filters) if request.filters else 1,
-                total_filters=len(request.filters) if request.filters else 1,
-                match_score=1.0,
+    if should_calc_price:
+        from main import CalculatorInput, ControlCenterSettings
+        from core.LTRKalkulator import LTRKalkulator
+
+        # 1. Get Control Center settings once
+        cc_res = sb.table("control_center").select("*").eq("id", 1).execute()
+        if not cc_res.data:
+            raise HTTPException(
+                status_code=500, detail="Brak ustawień CC dla kalkulatora"
             )
+
+        from typing import cast, Any, Dict
+
+        response_data = cast(Dict[str, Any], cc_res.data[0])
+        settings = ControlCenterSettings(**response_data)
+
+        # 2. Extract price ranges and targets
+        target_months = request.price_months or 48
+        target_mileage = request.price_mileage or 20000
+        min_p = request.price_min if request.price_min is not None else 0.0
+        max_p = request.price_max if request.price_max is not None else 9999999.0
+
+        # 3. Fetch data for all matched vehicles
+        vehicles_data_resp = (
+            sb.table("vehicle_synthesis")
+            .select("id, brand, model, synthesis_data")
+            .in_("id", list(result_ids))
+            .execute()
         )
+
+        matching_phase2 = []
+        for v in vehicles_data_resp.data:
+            synth_data = v.get("synthesis_data") or {}
+            card_summary = synth_data.get("card_summary") or {}
+
+            # Base price is required for calc
+            base_price_str = card_summary.get("base_price", "0")
+            if not base_price_str:
+                continue
+
+            try:
+                base_price = float(
+                    str(base_price_str).replace(" ", "").replace(",", ".")
+                )
+            except ValueError:
+                continue
+
+            if base_price <= 0:
+                continue
+
+            calc_input = CalculatorInput(
+                vehicle_id=v["id"],
+                base_price_net=base_price,
+                okres_bazowy=target_months,
+                przebieg_bazowy=target_mileage,
+                initial_deposit_pct=request.price_deposit_pct or 0.0,
+                z_oponami=True,
+                replacement_car_enabled=True,
+            )
+
+            try:
+                engine = LTRKalkulator(input_data=calc_input, settings=settings)
+                matrix = engine.build_matrix()
+
+                # Find matching cell
+                # We look for the cell where months == target_months and total_km matches roughly target_mileage
+                # Since matrix has months and km_per_year
+                target_cell = None
+                for cell in matrix:
+                    if (
+                        cell["months"] == target_months
+                        and cell["km_per_year"] == target_mileage
+                    ):
+                        target_cell = cell
+                        break
+
+                if target_cell is None:
+                    # Try fallback to closest by km_per_year if exact match fails
+                    valid_cells = [c for c in matrix if c["months"] == target_months]
+                    if valid_cells:
+                        target_cell = min(
+                            valid_cells,
+                            key=lambda c: abs(c["km_per_year"] - target_mileage),
+                        )
+
+                if target_cell:
+                    pmt = target_cell["price_net"]
+                    if min_p <= pmt <= max_p:
+                        # Map extra info
+                        v["_pmt"] = pmt
+                        matching_phase2.append(v)
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Error calculating PMT for vehicle {v['id']}: {e}")
+                continue
+
+        # Update result_ids to only matching
+        result_ids = {v["id"] for v in matching_phase2}
+
+        # We also need to map PMT values to results
+        pmt_map = {v["id"]: v["_pmt"] for v in matching_phase2}
+
+        # Paginate the restricted set
+        vehicle_ids_list = list(result_ids)[
+            request.offset : request.offset + request.limit
+        ]
+
+        results: list[FeatureSearchResultItem] = []
+        for v in matching_phase2:
+            if v["id"] in vehicle_ids_list:
+                results.append(
+                    FeatureSearchResultItem(
+                        source_vehicle_id=v["id"],
+                        brand=v.get("brand"),
+                        model=v.get("model"),
+                        matched_features=len(request.filters) if request.filters else 1,
+                        total_filters=len(request.filters) if request.filters else 1,
+                        match_score=1.0,
+                        price_netto=pmt_map.get(v["id"]),
+                    )
+                )
+    else:
+        # Fetch vehicle info from vehicle_synthesis without calculation
+        vehicle_ids_list = list(result_ids)[
+            request.offset : request.offset + request.limit
+        ]
+
+        vehicles_resp = (
+            sb.table("vehicle_synthesis")
+            .select("id, brand, model")
+            .in_("id", vehicle_ids_list)
+            .execute()
+        )
+
+        results: list[FeatureSearchResultItem] = []
+        for v in vehicles_resp.data:
+            results.append(
+                FeatureSearchResultItem(
+                    source_vehicle_id=v["id"],
+                    brand=v.get("brand"),
+                    model=v.get("model"),
+                    matched_features=len(request.filters) if request.filters else 1,
+                    total_filters=len(request.filters) if request.filters else 1,
+                    match_score=1.0,
+                    price_netto=None,
+                )
+            )
 
     return FeatureSearchResponse(
         results=results,

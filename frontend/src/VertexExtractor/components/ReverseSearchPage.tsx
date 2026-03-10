@@ -10,6 +10,7 @@ interface CatalogFeature {
   feature_type: string;
   category_id: string;
   applicable_body_types: string[] | null;
+  metadata?: { options?: string[] } | null;
 }
 
 interface CatalogCategory {
@@ -42,6 +43,7 @@ interface SearchResult {
   matched_features: number;
   total_filters: number;
   match_score: number;
+  price_netto?: number | null;
 }
 
 /* ── Component ────────────────────────────────────────────────── */
@@ -59,6 +61,13 @@ export function ReverseSearchPage() {
   const [bodyTypes, setBodyTypes] = useState<string[]>([]);
   const [bodyTypeSearch, setBodyTypeSearch] = useState("");
   const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState(false);
+
+  // Price configuration state
+  const [priceMin, setPriceMin] = useState<number | "">("");
+  const [priceMax, setPriceMax] = useState<number | "">("");
+  const [priceMonths, setPriceMonths] = useState<number>(48);
+  const [priceMileage, setPriceMileage] = useState<number>(20000);
+  const [priceDepositPct, setPriceDepositPct] = useState<number>(0);
 
   const baseUrl = import.meta.env.VITE_API_URL || "";
 
@@ -127,6 +136,11 @@ export function ReverseSearchPage() {
           vehicle_scope: vehicleScope !== "all" ? vehicleScope : undefined,
           limit: 50,
           offset: 0,
+          price_min: priceMin !== "" ? Number(priceMin) : undefined,
+          price_max: priceMax !== "" ? Number(priceMax) : undefined,
+          price_months: priceMonths,
+          price_mileage: priceMileage,
+          price_deposit_pct: priceDepositPct,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -138,12 +152,17 @@ export function ReverseSearchPage() {
     } finally {
       setSearching(false);
     }
-  }, [activeFilters, bodyTypes, vehicleScope, baseUrl]);
+  }, [activeFilters, bodyTypes, vehicleScope, baseUrl, priceMin, priceMax, priceMonths, priceMileage, priceDepositPct]);
 
   const clearFilters = () => {
     setActiveFilters([]);
     setBodyTypes([]);
     setVehicleScope("all");
+    setPriceMin("");
+    setPriceMax("");
+    setPriceMonths(48);
+    setPriceMileage(20000);
+    setPriceDepositPct(0);
     setResults([]);
     setTotalCount(0);
     setHasSearched(false);
@@ -273,6 +292,83 @@ export function ReverseSearchPage() {
                )}
             </div>
 
+             {/* Price & Budget Filter */}
+             <div className="p-4 border-b border-slate-200 bg-slate-50/50">
+               <label className="text-xs font-semibold text-slate-800 uppercase tracking-wider block mb-3">Budżet i Parametry LTR</label>
+               
+               <div className="space-y-3">
+                 <div className="flex gap-2 items-center">
+                   <div className="flex-1">
+                     <span className="text-[10px] text-slate-500 font-medium mb-1 block">Rata Od (PLN netto)</span>
+                     <input
+                       type="number"
+                       value={priceMin}
+                       onChange={(e) => setPriceMin(e.target.value === "" ? "" : Number(e.target.value))}
+                       placeholder="Min rata"
+                       className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:border-indigo-500 outline-none"
+                     />
+                   </div>
+                   <div className="flex-1">
+                     <span className="text-[10px] text-slate-500 font-medium mb-1 block">Rata Do (PLN netto)</span>
+                     <input
+                       type="number"
+                       value={priceMax}
+                       onChange={(e) => setPriceMax(e.target.value === "" ? "" : Number(e.target.value))}
+                       placeholder="Max rata"
+                       className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:border-indigo-500 outline-none"
+                     />
+                   </div>
+                 </div>
+
+                 <div className="flex gap-2 items-center">
+                   <div className="flex-1">
+                     <span className="text-[10px] text-slate-500 font-medium mb-1 block">Okres (mc)</span>
+                     <select
+                       value={priceMonths}
+                       onChange={(e) => setPriceMonths(Number(e.target.value))}
+                       className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:border-indigo-500 outline-none bg-white"
+                     >
+                       <option value={24}>24</option>
+                       <option value={36}>36</option>
+                       <option value={48}>48</option>
+                       <option value={60}>60</option>
+                     </select>
+                   </div>
+                   <div className="flex-1">
+                     <span className="text-[10px] text-slate-500 font-medium mb-1 block">Przebieg roczny</span>
+                     <select
+                       value={priceMileage}
+                       onChange={(e) => setPriceMileage(Number(e.target.value))}
+                       className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:border-indigo-500 outline-none bg-white"
+                     >
+                       <option value={10000}>10.000 km</option>
+                       <option value={20000}>20.000 km</option>
+                       <option value={30000}>30.000 km</option>
+                       <option value={40000}>40.000 km</option>
+                       <option value={50000}>50.000 km</option>
+                       <option value={60000}>60.000 km</option>
+                     </select>
+                   </div>
+                 </div>
+
+                 <div>
+                   <span className="text-[10px] text-slate-500 font-medium mb-1 block">Wkład Własny (%)</span>
+                   <select
+                     value={priceDepositPct}
+                     onChange={(e) => setPriceDepositPct(Number(e.target.value))}
+                     className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:border-indigo-500 outline-none bg-white"
+                   >
+                     <option value={0}>0%</option>
+                     <option value={5}>5%</option>
+                     <option value={10}>10%</option>
+                     <option value={15}>15%</option>
+                     <option value={20}>20%</option>
+                   </select>
+                 </div>
+                 
+               </div>
+             </div>
+
             {/* Filter header */}
             <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -354,7 +450,21 @@ export function ReverseSearchPage() {
                                 <input type="number" placeholder="Max" className="w-16 h-7 px-1.5 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_num_max || ""} onChange={(e) => updateFilter(feat.feature_key, { value_num_max: e.target.value ? Number(e.target.value) : undefined })} />
                               </div>
                             )}
-                            {isActive && (feat.feature_type === "text" || feat.feature_type === "enum") && (
+                            {isActive && feat.feature_type === "enum" && feat.metadata?.options && (
+                              <div className="pl-8 pr-3 pb-2 mt-1">
+                                <select 
+                                  className="w-full h-7 px-2 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white text-slate-700" 
+                                  value={activeFlt.value_text || ""} 
+                                  onChange={(e) => updateFilter(feat.feature_key, { value_text: e.target.value || undefined })}
+                                >
+                                  <option value="">-- wybierz --</option>
+                                  {feat.metadata.options.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                            {isActive && (feat.feature_type === "text" || (feat.feature_type === "enum" && !feat.metadata?.options)) && (
                               <div className="pl-8 pr-3 pb-2 mt-1">
                                 <input type="text" placeholder="Szukana wartość..." className="w-full h-7 px-2 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_text || ""} onChange={(e) => updateFilter(feat.feature_key, { value_text: e.target.value || undefined })} />
                               </div>
@@ -487,8 +597,18 @@ export function ReverseSearchPage() {
                         {Math.round(r.match_score * 100)}% dopasowania
                       </div>
                     </div>
+                    
+                    {r.price_netto !== undefined && r.price_netto !== null && (
+                      <div className="ml-2 pl-3 py-1 border-l border-slate-200 text-right">
+                        <div className="text-sm font-bold text-slate-800">
+                          {r.price_netto.toFixed(0)} <span className="text-[10px] font-normal text-slate-500">PLN/mc</span>
+                        </div>
+                        <div className="text-[9px] text-slate-400 uppercase tracking-tight">Cena Netto</div>
+                      </div>
+                    )}
+                    
                     <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white ml-2"
                       style={{
                         background: `linear-gradient(135deg, ${
                           r.match_score >= 0.8

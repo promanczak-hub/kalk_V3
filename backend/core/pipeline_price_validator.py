@@ -148,6 +148,9 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     # Allow empty dict to still get _validation flags
     report = validate_card_summary_prices(card_summary)
 
+    # Apply self-healing rules if mathematically inconsistent
+    _apply_self_healing(card_summary, report)
+
     # Generate NL summary (Gemini Flash + deterministic fallback)
     validation_dict = report.to_dict()
     report.summary = generate_price_summary(validation_dict, card_summary)
@@ -159,6 +162,58 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     card_summary["_price_domain"] = detected_domain
 
     return pro_data
+
+
+def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) -> None:
+    """Attempt to auto-fix certain mathematical errors in card_summary before generation of summary."""
+    sum_warning = next(
+        (w for w in report.warnings if w.rule == "BASE_PLUS_OPTIONS_VS_TOTAL"), None
+    )
+
+    if sum_warning and report.parsed_base and report.parsed_total:
+        if report.parsed_base < report.parsed_total:
+            # We trust base and total more than options string
+            corrected_options_val = report.parsed_total - report.parsed_base
+
+            original_options = str(card_summary.get("options_price", ""))
+
+            # Determine currency and suffix from total_price
+            total_str = str(card_summary.get("total_price", ""))
+            domain_suffix = ""
+            if "netto" in total_str.lower():
+                domain_suffix = " netto"
+            elif "brutto" in total_str.lower():
+                domain_suffix = " brutto"
+
+            currency = " PLN" if "PLN" in total_str.upper() else ""
+            if not currency and "PLN" in original_options.upper():
+                currency = " PLN"
+
+            # Update card_summary
+            card_summary["options_price"] = (
+                f"{int(corrected_options_val)}{currency}{domain_suffix}".strip()
+            )
+
+            logger.info(
+                "[PRICE VALIDATOR] Auto-fix: Zmieniono options_price z '%s' na '%s' "
+                "aby zachować matematyczną spójność.",
+                original_options,
+                card_summary["options_price"],
+            )
+
+            # Update report so the summary reflects the fix
+            report.warnings.remove(sum_warning)
+            report.is_valid = not any(w.severity == "ERROR" for w in report.warnings)
+            report.parsed_options = corrected_options_val
+
+            # Add an INFO note about the fix
+            report.add(
+                ValidationWarning(
+                    rule="AUTO_FIX_APPLIED",
+                    message=f"Automatycznie wyliczono brakujące options_price jako {int(corrected_options_val)} aby zbilansować sumę.",
+                    severity="INFO",
+                )
+            )
 
 
 # ── Price domain detection ──

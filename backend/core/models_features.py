@@ -101,6 +101,7 @@ class UniversalFeature(BaseModel):
     sort_order: int = 100
     is_active: bool = True
     applicable_body_types: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class UniversalFeatureAlias(BaseModel):
@@ -202,6 +203,21 @@ class FeatureSearchRequest(BaseModel):
     body_types: list[str] | None = None
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
+    price_min: float | None = Field(
+        default=None, description="Minimum monthly lease rate (netto)"
+    )
+    price_max: float | None = Field(
+        default=None, description="Maximum monthly lease rate (netto)"
+    )
+    price_months: int | None = Field(
+        default=48, description="Lease duration in months for price calc"
+    )
+    price_mileage: int | None = Field(
+        default=20000, description="Annual mileage in km for price calc"
+    )
+    price_deposit_pct: float | None = Field(
+        default=0.0, description="Initial deposit % for price calc"
+    )
 
 
 class FeatureSearchResultItem(BaseModel):
@@ -213,6 +229,9 @@ class FeatureSearchResultItem(BaseModel):
     matched_features: int = 0
     total_filters: int = 0
     match_score: float = 0.0
+    price_netto: float | None = Field(
+        default=None, description="Calculated monthly lease rate (netto)"
+    )
 
 
 class FeatureSearchResponse(BaseModel):

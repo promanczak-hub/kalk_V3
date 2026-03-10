@@ -76,19 +76,56 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
     | undefined;
   const validation = cardSummary?._validation as PriceValidation | undefined;
 
-  const breakdownRows: { label: string; value: string; bold?: boolean; negative?: boolean }[] = [
+  // Calculate sum of individual options to compare with optionsPrice
+  const factoryOpts =
+    (vehicle.synthesis_data?.factory_options as Array<{
+      price_net?: number;
+    }>) || [];
+  const serviceOpts =
+    (vehicle.synthesis_data?.service_options as Array<{
+      price_net?: number;
+    }>) || [];
+  const extractedOptionsSum =
+    factoryOpts.reduce((acc, opt) => acc + (Number(opt?.price_net) || 0), 0) +
+    serviceOpts.reduce((acc, opt) => acc + (Number(opt?.price_net) || 0), 0);
+
+  // We consider a discrepancy if the difference is greater than 10 PLN (to account for minor rounding)
+  const hasOptionsDiscrepancy =
+    optionsPrice > 0 &&
+    extractedOptionsSum > 0 &&
+    Math.abs(optionsPrice - extractedOptionsSum) > 10;
+
+  const breakdownRows: {
+    id: string;
+    label: React.ReactNode;
+    value: string;
+    bold?: boolean;
+    negative?: boolean;
+  }[] = [
     {
+      id: "base",
       label: "Cena bazowa",
       value: basePrice > 0 ? fmtPLN(basePrice) + suffix : "—",
     },
     {
-      label: "Opcje fabryczne",
+      id: "options",
+      label: (
+        <div className="flex flex-col">
+          <span>Opcje fabryczne (Wyrzynarka)</span>
+          {hasOptionsDiscrepancy && (
+            <span className="text-[10px] text-amber-600 font-medium leading-tight mt-0.5">
+              Twarda suma opcji na liście wynosi {fmtPLN(extractedOptionsSum)}. Silnik użyje tej wartości!
+            </span>
+          )}
+        </div>
+      ),
       value: optionsPrice > 0 ? fmtPLN(optionsPrice) + suffix : "—",
     },
   ];
 
   if (discountAmount > 0) {
     breakdownRows.push({
+      id: "discount",
       label: "Rabat",
       value: `(${fmtPLN(discountAmount)}${suffix})`,
       negative: true,
@@ -96,6 +133,7 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
   }
 
   breakdownRows.push({
+    id: "final",
     label: "Cena końcowa",
     value: fmtPLN(effectiveFinal) + suffix,
     bold: true,
@@ -143,7 +181,7 @@ export function VehicleFinancialCard({ vehicle }: VehicleFinancialCardProps) {
             <tbody>
               {breakdownRows.map((row, idx) => (
                 <tr
-                  key={row.label}
+                  key={row.id}
                   className={
                     row.bold
                       ? "border-t-2 border-slate-300"

@@ -1265,21 +1265,6 @@ async def delete_zabudowa_type(type_id: int) -> Dict[str, str]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ── Zabudowa WR Corrections CRUD ──
-
-
-class ZabudowaCorrection(BaseModel):
-    id: Optional[int] = None
-    zabudowa_type_id: int
-    samar_class_id: Optional[int] = None
-    correction_percent: float = 0.0
-
-
-@app.get("/api/zabudowa-corrections", tags=["Control Center"])
-async def get_zabudowa_corrections(
-    zabudowa_type_id: Optional[int] = None,
-    samar_class_id: Optional[int] = None,
 ) -> List[ZabudowaCorrection]:
     try:
         q = supabase.table("zabudowa_wr_corrections").select("*").order("id")

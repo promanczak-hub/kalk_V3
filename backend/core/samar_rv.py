@@ -301,7 +301,6 @@ class RVInput:
     body_type_id: Optional[int] = None
     rocznik: str = "current"
     zabudowa_apr_wr: bool = False
-    zabudowa_type_id: Optional[int] = None
     manual_wr_correction: float = 0.0
 
 
@@ -545,45 +544,6 @@ class SamarRVCalculator:
         # 4. DEFAULT
         return (0.0, 0.0)
 
-    def _fetch_zabudowa_correction(self) -> float:
-        """Korekta zabudowy z zabudowa_wr_corrections.
-
-        Cascade:
-        1. SPECIFIC: zabudowa_type_id + samar_class_id (per klasa)
-        2. GLOBAL:   zabudowa_type_id + samar_class_id IS NULL
-        3. DEFAULT:  → 0.0
-        """
-        zab_id = self.data.zabudowa_type_id
-        if not zab_id:
-            return 0.0
-        try:
-            # 1. Per klasa SAMAR
-            res = (
-                supabase.table("zabudowa_wr_corrections")
-                .select("correction_percent")
-                .eq("zabudowa_type_id", zab_id)
-                .eq("samar_class_id", self.data.samar_class_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return float(res.data[0].get("correction_percent", 0.0))
-
-            # 2. Global (samar_class_id IS NULL)
-            res = (
-                supabase.table("zabudowa_wr_corrections")
-                .select("correction_percent")
-                .eq("zabudowa_type_id", zab_id)
-                .is_("samar_class_id", "null")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return float(res.data[0].get("correction_percent", 0.0))
-        except Exception as exc:
-            logger.warning("Błąd zabudowa correction: %s", exc)
-        return 0.0
-
     def _fetch_vintage_correction(self) -> float:
         """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
         vintage_map = {"current": "bieżący", "previous": "bieżący-1"}
@@ -803,12 +763,11 @@ class SamarRVCalculator:
         color_correction_pct = self._fetch_color_correction()
         color_value = color_correction_pct * self.data.capex_base_net
 
-        body_correction_pct, _legacy_zabudowa = self._fetch_body_correction()
+        body_correction_pct, zabudowa_correction_pct = self._fetch_body_correction()
         capex_total = self.data.capex_base_net + self.data.capex_options_net
         body_value = body_correction_pct * capex_total
         zabudowa_value = 0.0
         if self.data.zabudowa_apr_wr:
-            zabudowa_correction_pct = self._fetch_zabudowa_correction()
             zabudowa_value = zabudowa_correction_pct * capex_total
 
         vintage_correction_pct = self._fetch_vintage_correction()

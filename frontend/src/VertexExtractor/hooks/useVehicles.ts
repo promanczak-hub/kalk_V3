@@ -84,6 +84,7 @@ export function useVehicles() {
             const newData = payload.new as {
               id: string;
               verification_status?: string;
+              synthesis_data?: any; // Added synthesis_data to newData type for potential update
             };
 
             // For intermediate status updates, just patch the status inline
@@ -91,7 +92,8 @@ export function useVehicles() {
             if (
               newData.verification_status &&
               newData.verification_status !== "completed" &&
-              newData.verification_status !== "error"
+              newData.verification_status !== "error" &&
+              newData.verification_status !== "moved_to_library"
             ) {
               setSavedVehicles((prev) =>
                 prev.map((v) =>
@@ -99,12 +101,14 @@ export function useVehicles() {
                     ? {
                         ...v,
                         verification_status: newData.verification_status!,
+                        synthesis_data:
+                          newData.synthesis_data || v.synthesis_data,
                       }
                     : v,
                 ),
               );
             } else {
-              // Status "completed" or other field change — fetch full row from view
+              // Status "completed", "error", "moved_to_library" or other field change — fetch full row from view
               fetchSingleVehicle(newData.id);
             }
           } else if (eventType === "INSERT") {

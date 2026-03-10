@@ -83,6 +83,11 @@ W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu, c
 1. `base_price` - faktyczną cenę katalogową bazową (bez opcji). Szukaj jej w sekcjach "Cena bazowa", "Cena modelu", "Wartość auta". Jeśli brakuje jej wprost w JSONie, musisz wyliczyć ją matematycznie (Cena Całkowita minus suma znalezionych Opcji).
 2. `options_price` - łączną cenę opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej.
 3. `total_price` - ostateczną cenę po ewentualnych rabatach.
+
+ZASADA SPÓJNOŚCI (BARDZO WAŻNE): 
+Jeśli widzisz w dokumencie kilka tabel z podsumowaniami cen (np. *Rozkład ceny* i *Szczegóły dotyczące ceny* które w inny sposób przypisują wartości Opcjom lub Bazie), BEZWZGLĘDNIE trzymaj się kwot z JEDNEJ, obranej tabeli/logiki. Nie skacz między tabelami kradnąc np. cenę bazową z pierwszej, a opcje z drugiej. 
+Przed podaniem ostatecznych cyfr ZAWSZE wykonaj testowe sprawdzenie matematyczne: Twoje `base_price` + `options_price` MUSI matematycznie równać się wybranemu przez ciebie `total_price`.
+
 Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny, wylicz to matematycznie na podstawie pozostałych liczb. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
 
 DETEKCJA DOMENY CENOWEJ (price_domain / price_type):
