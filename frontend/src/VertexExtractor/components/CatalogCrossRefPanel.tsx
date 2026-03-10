@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { API_BASE_URL } from "../../config/env";
 import {
   Loader2,
   GitMerge,
@@ -11,7 +12,7 @@ import {
   Star
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL || "";
+const API = API_BASE_URL || "";
 
 interface CatalogItem {
   id: string;

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { apiFetch } from "../../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import type { FleetVehicleView } from "../types";
 
@@ -90,7 +91,7 @@ export function useVehicles() {
             const newData = payload.new as {
               id: string;
               verification_status?: string;
-              synthesis_data?: any; // Added synthesis_data to newData type for potential update
+              synthesis_data?: Record<string, unknown>; // Added synthesis_data to newData type for potential update
             };
 
             // For intermediate status updates, just patch the status inline
@@ -167,7 +168,7 @@ export function useVehicles() {
     query: string,
   ) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/query-vehicle`, {
+      const response = await apiFetch(`/api/query-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -204,7 +205,7 @@ export function useVehicles() {
 
   const handleCloneVehicle = async (vehicleId: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/clone-vehicle`, {
+      const response = await apiFetch(`/api/clone-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_id: vehicleId }),
@@ -231,7 +232,7 @@ export function useVehicles() {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/delete-vehicle`, {
+      const response = await apiFetch(`/api/delete-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_id: vehicleId }),
@@ -256,7 +257,7 @@ export function useVehicles() {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/search-fleet`, {
+      const response = await apiFetch(`/api/search-fleet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: globalSearchQuery }),

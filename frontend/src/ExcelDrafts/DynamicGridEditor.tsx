@@ -13,6 +13,7 @@ import {
 import type { GridColDef } from "@mui/x-data-grid";
 import LockIcon from "@mui/icons-material/Lock";
 import { v4 as uuidv4 } from "uuid";
+import { API_BASE_URL } from "../config/env";
 
 interface ColumnDef {
   field: string;
@@ -46,21 +47,21 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
   const fetchSheet = useCallback(async () => {
     setLoading(true);
     try {
-      const classesRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-classes`);
+      const classesRes = await fetch(`${API_BASE_URL || ""}/api/samar-classes`);
       let classNames: string[] = [];
       if (classesRes.ok) {
         const classData = await classesRes.json();
         classNames = classData.map((c: any) => c.name);
       }
       
-      const bodyTypesRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/body-types`);
+      const bodyTypesRes = await fetch(`${API_BASE_URL || ""}/api/body-types`);
       let bodyTypeNames: string[] = [];
       if (bodyTypesRes.ok) {
         const bodyTypes = await bodyTypesRes.json();
         bodyTypeNames = bodyTypes.map((b: any) => `${b.vehicle_class} - ${b.name}`);
       }
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/excel-drafts/${encodeURIComponent(sheetName)}`);
+      const res = await fetch(`${API_BASE_URL || ""}/api/excel-drafts/${encodeURIComponent(sheetName)}`);
       if (!res.ok) {
         throw new Error("Failed to fetch sheet");
       }

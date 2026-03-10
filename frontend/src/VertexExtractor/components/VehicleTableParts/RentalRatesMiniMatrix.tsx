@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Loader2, LayoutDashboard } from "lucide-react";
+import { apiFetch } from "../../../lib/api";
 import type { FleetVehicleView } from "../../types";
 import type { MiniMatrixCell } from "./decision-center/decision-center.types";
 import { DecisionCenterKPI } from "./decision-center/DecisionCenterKPI";
@@ -34,7 +35,7 @@ interface RentalRatesMiniMatrixProps {
   isMetalic: boolean;
   discountPct: number;
   factoryOptions: { name: string; price_net: number; no_discount?: boolean; include_in_wr?: boolean }[];
-  serviceOptions: { name: string; price_net: number; include_in_wr?: boolean }[];
+  serviceOptions: { name: string; price: number; include_in_wr?: boolean }[];
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -96,10 +97,8 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
       setIsLoading(true);
       setError(null);
 
-      const baseUrl = import.meta.env.VITE_API_URL || "";
-
       try {
-        const promises = TARGET_KM_PER_YEAR.map((kmPerYear) => {
+        const promises = TARGET_KM_PER_YEAR.map(async (kmPerYear) => {
           const refMonths = 48;
           const przebiegBazowy = kmPerYear * (refMonths / 12);
 
@@ -115,8 +114,8 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
             })),
             service_options: serviceOptions.map((o) => ({
               name: o.name,
-              price_net: o.price_net,
-              price_gross: o.price_net * 1.23,
+              price_net: o.price,
+              price_gross: o.price * 1.23,
               include_in_wr: o.include_in_wr || false,
             })),
             okres_bazowy: refMonths,
@@ -144,7 +143,7 @@ export function RentalRatesMiniMatrix(props: RentalRatesMiniMatrixProps) {
             settings: { settings_version_id: null, overrides: null },
           };
 
-          return fetch(`${baseUrl}/api/calculate-matrix`, {
+          return apiFetch(`/api/calculate-matrix`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),

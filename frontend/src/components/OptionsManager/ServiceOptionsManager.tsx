@@ -13,6 +13,7 @@ import {
 import { Trash2, Plus } from "lucide-react";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import axios from "axios";
+import { API_BASE_URL } from "../../config/env";
 
 interface ExtractedServiceOption {
   name: string;
@@ -68,7 +69,7 @@ export default function ServiceOptionsManager({
 
     try {
       const response = await axios.post<ExtractedServiceOption>(
-        `${import.meta.env.VITE_API_URL || ""}/api/extract/service-option`,
+        `${API_BASE_URL || ""}/api/extract/service-option`,
         formData,
         {
           headers: {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import type { V1DataOption } from "../types";
+import { API_BASE_URL } from "../config/env";
 
 export interface ControlCenterSettings {
   default_wibor: number;
@@ -115,7 +116,7 @@ export function useCalculator() {
   const fetchSettings = async () => {
     try {
       const resp = await axios.get<ControlCenterSettings>(
-        `${import.meta.env.VITE_API_URL || ""}/api/control-center`,
+        `${API_BASE_URL || ""}/api/control-center`,
       );
       if (resp.data) {
         setData((prev) => ({
@@ -134,7 +135,7 @@ export function useCalculator() {
   const loadKalkulacja = async (id: string) => {
     try {
       const resp = await axios.get(
-        `${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/${id}`,
+        `${API_BASE_URL || ""}/api/kalkulacje/${id}`,
       );
       if (resp.data && resp.data.stan_json) {
         applyParsedOffer(resp.data.stan_json, resp.data.numer_kalkulacji);
@@ -506,7 +507,7 @@ export function useCalculator() {
 
     if (classificationBrand || classificationModel) {
       axios
-        .post(`${import.meta.env.VITE_API_URL || ""}/api/parse-offer/samar-category`, {
+        .post(`${API_BASE_URL || ""}/api/parse-offer/samar-category`, {
           brand: classificationBrand,
           model: classificationModel,
           body_style: classificationBody || "",
@@ -530,7 +531,7 @@ export function useCalculator() {
     if (!parserText.trim()) return;
     setIsParsing(true);
     try {
-      const resp = await axios.post(`${import.meta.env.VITE_API_URL || ""}/api/parse-offer`, {
+      const resp = await axios.post(`${API_BASE_URL || ""}/api/parse-offer`, {
         raw_text: parserText,
       });
       applyParsedOffer(resp.data);

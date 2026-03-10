@@ -21,8 +21,9 @@ import {
   Chip,
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
+import { API_BASE_URL } from "../config/env";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+const BASE_URL = API_BASE_URL || "";
 
 const VEHICLE_CLASSES = ["Osobowy", "Dostawczy"] as const;
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { API_BASE_URL } from "./config/env";
 
 interface ControlCenterData {
   id: number;
@@ -59,7 +60,7 @@ export default function GlobalSettingsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const baseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = API_BASE_URL || "";
 
   const fetchSettings = useCallback(async () => {
     try {

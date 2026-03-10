@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
+import { API_BASE_URL } from "./config/env";
 
 // Interfaces mapping to standard RV structure
 interface SamarClass {
@@ -165,24 +166,24 @@ export default function SamarRVPanel() {
   const fetchData = async () => {
     try {
       const [cls, bas, brd, age, mil, insRates, insCoeffs] = await Promise.all([
-        axios.get<SamarClass[]>(`${import.meta.env.VITE_API_URL || ""}/api/samar-rv/classes`),
+        axios.get<SamarClass[]>(`${API_BASE_URL || ""}/api/samar-rv/classes`),
         axios.get<BasePercentage[]>(
-          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/base-percentages`,
+          `${API_BASE_URL || ""}/api/samar-rv/base-percentages`,
         ),
         axios.get<BrandCorrection[]>(
-          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/brand-corrections`,
+          `${API_BASE_URL || ""}/api/samar-rv/brand-corrections`,
         ),
         axios.get<AgeDepreciation[]>(
-          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/depreciation`,
+          `${API_BASE_URL || ""}/api/samar-rv/depreciation`,
         ),
         axios.get<MileageCorrection[]>(
-          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/mileage`,
+          `${API_BASE_URL || ""}/api/samar-rv/mileage`,
         ),
         axios.get<InsuranceRate[]>(
-          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/insurance-rates`,
+          `${API_BASE_URL || ""}/api/samar-rv/insurance-rates`,
         ),
         axios.get<InsuranceCoefficient[]>(
-          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/insurance-coefficients`,
+          `${API_BASE_URL || ""}/api/samar-rv/insurance-coefficients`,
         ),
       ]);
 
@@ -260,7 +261,7 @@ export default function SamarRVPanel() {
                       onSave={async (updatedClass) => {
                         try {
                           const res = await axios.post(
-                            `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/classes`,
+                            `${API_BASE_URL || ""}/api/samar-rv/classes`,
                             updatedClass,
                           );
                           setClasses((prev) =>

@@ -15,8 +15,9 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Save as SaveIcon } from "@mui/icons-material";
+import { API_BASE_URL } from "../config/env";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+const BASE_URL = API_BASE_URL || "";
 
 interface BaseRVRate {
   id?: number;

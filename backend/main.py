@@ -43,13 +43,17 @@ app.include_router(catalog_router, prefix="/api")
 app.include_router(excel_draft_router, prefix="/api")
 app.include_router(document_library_router, prefix="/api")
 
+from core.settings import FRONTEND_ORIGINS
+
+frontend_origins_str = FRONTEND_ORIGINS
+if frontend_origins_str == "*":
+    allow_origins = ["*"]
+else:
+    allow_origins = [origin.strip() for origin in frontend_origins_str.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        os.environ.get(
-            "FRONTEND_URL", "*"
-        ),  # Replaced explicit local origins with env variable or wildcard for deployment
-    ],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

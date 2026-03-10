@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../../../lib/api";
 import { ChevronDown, ChevronRight, Loader2, Package } from "lucide-react";
 
 interface FeatureItem {
@@ -52,10 +53,19 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
       setLoading(true);
       setError(null);
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
-        const res = await fetch(`${baseUrl}/api/features/vehicle/${vehicleId}/state`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        // The original instruction had a syntactically incorrect second argument for apiFetch.
+        // Assuming the intent was to replace the original fetch call with apiFetch for the same endpoint,
+        // or to use a new endpoint `/api/features/save-override` with `vehicleId` as a path parameter.
+        // Given the original structure, the most likely correct interpretation for a direct replacement
+        // while maintaining `vehicleId` in the path is:
+        const response = await apiFetch(`/api/features/vehicle/${vehicleId}/state`);
+        // If the intent was to use `/api/features/save-override` and pass vehicleId in the body or query,
+        // the instruction `{vehicleId}/state` was ambiguous.
+        // For now, we'll assume the endpoint remains the same as the original `fetch` call,
+        // but using `apiFetch`.
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
 
         // data.categories is { "CategoryName": [...features] }
         const grouped: CategoryGroup[] = Object.entries(data.categories as Record<string, FeatureItem[]>)

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Upload, Loader2 } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../../config/env";
 
 export interface ExtractedServiceOption {
   name: string;
@@ -37,7 +38,7 @@ export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
 
     try {
       const response = await axios.post<ExtractedServiceOption>(
-        `${import.meta.env.VITE_API_URL || ""}/api/extract/service-option`,
+        `${API_BASE_URL || ""}/api/extract/service-option`,
         formData,
         {
           headers: {

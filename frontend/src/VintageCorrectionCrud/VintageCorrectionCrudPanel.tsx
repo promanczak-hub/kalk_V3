@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import { Save } from "lucide-react";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "../lib/api";
 
 interface VintageCorrection {
   id: number;
@@ -46,7 +46,7 @@ export default function VintageCorrectionCrudPanel() {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${BASE_URL}/api/vintage-corrections`);
+      const resp = await apiFetch(`/api/vintage-corrections`);
       if (resp.ok) {
         const data = await resp.json();
         setItems(Array.isArray(data) ? data : []);
@@ -83,7 +83,7 @@ export default function VintageCorrectionCrudPanel() {
         id,
         korekta_procent,
       }));
-      const resp = await fetch(`${BASE_URL}/api/vintage-corrections/bulk`, {
+      const resp = await apiFetch(`/api/vintage-corrections/bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

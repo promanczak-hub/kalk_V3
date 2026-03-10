@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import { Save } from "lucide-react";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "../lib/api";
 
 interface PaintType {
   id: number;
@@ -46,7 +46,7 @@ export default function PaintCorrectionCrudPanel() {
   const fetchTypes = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${BASE_URL}/api/paint-types`);
+      const resp = await apiFetch(`/api/paint-types`);
       if (resp.ok) {
         const data = await resp.json();
         setTypes(Array.isArray(data) ? data : []);
@@ -83,7 +83,7 @@ export default function PaintCorrectionCrudPanel() {
         id,
         wr_correction,
       }));
-      const resp = await fetch(`${BASE_URL}/api/paint-types/bulk`, {
+      const resp = await apiFetch(`/api/paint-types/bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

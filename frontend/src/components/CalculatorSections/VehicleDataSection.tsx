@@ -17,6 +17,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
 import type { V1DataOption } from "../../types";
 import { Calendar, Tag } from "lucide-react";
+import { API_BASE_URL } from "../../config/env";
 
 interface EngineOption {
   id: number;
@@ -58,11 +59,11 @@ export default function VehicleDataSection({
 
   useEffect(() => {
     axios
-      .get<EngineOption[]>(`${import.meta.env.VITE_API_URL || ""}/api/engines`)
+      .get<EngineOption[]>(`${API_BASE_URL || ""}/api/engines`)
       .then((res) => setEngines(res.data))
       .catch((err) => console.error("Failed to load engines:", err));
 
-    fetch(`${import.meta.env.VITE_API_URL || ""}/api/body-types`)
+    fetch(`${API_BASE_URL || ""}/api/body-types`)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setBodyTypes(data); })
       .catch((err) => console.error("Failed to load body types:", err));
@@ -97,12 +98,12 @@ export default function VehicleDataSection({
       </AccordionSummary>
       <AccordionDetails sx={{ p: 3, pt: 4 }}>
         <Grid container spacing={3}>
-          <Grid item xs={12}>
+<Grid size={{ xs: 12 }}>
             <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
               Identyfikacja pojazdu
             </Typography>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Marka"
@@ -111,7 +112,7 @@ export default function VehicleDataSection({
               size="small"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Model (DN)"
@@ -122,7 +123,7 @@ export default function VehicleDataSection({
               size="small"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Nadwozie</InputLabel>
               <Select
@@ -168,7 +169,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Wersja Wyposażenia"
@@ -181,12 +182,12 @@ export default function VehicleDataSection({
           </Grid>
 
           {/* PARAMETRY TECHNICZNE */}
-          <Grid item xs={12} sx={{ mt: 2 }}>
+<Grid sx={{ mt: 2 }} size={{ xs: 12 }}>
             <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
               Parametry techniczne
             </Typography>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Moc silnika (KM)"
@@ -195,7 +196,7 @@ export default function VehicleDataSection({
               size="small"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Napęd</InputLabel>
               <Select
@@ -223,7 +224,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Homologacja</InputLabel>
               <Select
@@ -239,7 +240,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+<Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               disabled
               fullWidth
@@ -251,7 +252,7 @@ export default function VehicleDataSection({
           </Grid>
 
           {/* CENA I RABAT */}
-          <Grid item xs={12} sx={{ mt: 2 }}>
+<Grid sx={{ mt: 2 }} size={{ xs: 12 }}>
             <Typography
               variant="subtitle2"
               color="primary"
@@ -262,7 +263,7 @@ export default function VehicleDataSection({
           </Grid>
 
           {/* CENA BAZOWA */}
-          <Grid item xs={12} sm={6} md={4}>
+<Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               type="number"
@@ -279,7 +280,7 @@ export default function VehicleDataSection({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+<Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
               type="number"
@@ -298,10 +299,10 @@ export default function VehicleDataSection({
           </Grid>
 
           {/* PUSTY BLOK DLA WYRÓWNANIA */}
-          <Grid item xs={12} sm={12} md={4} />
+          <Grid size={{ xs: 12, sm: 12, md: 4 }} />
 
           {/* RABAT WARTOŚĆ BAZOWA */}
-          <Grid item xs={12} sm={4} md={3}>
+<Grid size={{ xs: 12, sm: 4, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Typ rabatu</InputLabel>
               <Select
@@ -314,7 +315,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={4} md={3}>
+<Grid size={{ xs: 12, sm: 4, md: 3 }}>
             <TextField
               fullWidth
               type="number"
@@ -340,7 +341,7 @@ export default function VehicleDataSection({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={4} md={3}>
+<Grid size={{ xs: 12, sm: 4, md: 3 }}>
             <TextField
               fullWidth
               disabled
@@ -355,7 +356,7 @@ export default function VehicleDataSection({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={4} md={3}>
+<Grid size={{ xs: 12, sm: 4, md: 3 }}>
              <TextField
               fullWidth
               disabled
@@ -370,3 +371,4 @@ export default function VehicleDataSection({
     </Accordion>
   );
 }
+

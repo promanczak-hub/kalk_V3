@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "../lib/api";
 
 interface KlasaWr {
   id: number;
@@ -60,7 +60,7 @@ export default function InsuranceRatesCrudPanel() {
 
   const fetchDependencies = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/samar-rv/classes`).catch(
+      const res = await apiFetch(`/api/samar-rv/classes`).catch(
         () => null,
       );
       if (res?.ok) {
@@ -74,7 +74,7 @@ export default function InsuranceRatesCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${BASE_URL}/api/samar-rv/insurance-rates`);
+      const resp = await apiFetch(`/api/samar-rv/insurance-rates`);
       if (resp.ok) {
         const raw = await resp.json();
         setData(Array.isArray(raw) ? raw : []);
@@ -113,7 +113,7 @@ export default function InsuranceRatesCrudPanel() {
     try {
       const payload = { ...formData };
 
-      const resp = await fetch(`${BASE_URL}/api/samar-rv/insurance-rates`, {
+      const resp = await apiFetch(`/api/samar-rv/insurance-rates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -133,8 +133,8 @@ export default function InsuranceRatesCrudPanel() {
   const handleDelete = async (id: number) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await fetch(
-        `${BASE_URL}/api/samar-rv/insurance-rates/${id}`,
+      const resp = await apiFetch(
+        `/api/samar-rv/insurance-rates/${id}`,
         { method: "DELETE" },
       );
       if (resp.ok) fetchData();

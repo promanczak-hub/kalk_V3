@@ -26,8 +26,9 @@ import HistoryIcon from '@mui/icons-material/History';
 import SaveIcon from '@mui/icons-material/Save';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DownloadIcon from '@mui/icons-material/Download';
+import { API_BASE_URL } from "../config/env";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = API_BASE_URL || "";
 
 interface VersionInfo {
   id: number;

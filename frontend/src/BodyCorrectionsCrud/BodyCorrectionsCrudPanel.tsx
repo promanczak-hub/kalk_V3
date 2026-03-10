@@ -24,7 +24,7 @@ import {
 } from "@mui/material";
 import { Plus, Trash2, Info } from "lucide-react";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "../lib/api";
 
 interface BodyCorrection {
   id?: number;
@@ -104,14 +104,14 @@ export default function BodyCorrectionsCrudPanel({ samarClassId = 1 }: Props) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [corrResp, btResp, engResp] = await Promise.all([
-        fetch(`${BASE_URL}/api/body-corrections?samar_class_id=${samarClassId}`),
-        fetch(`${BASE_URL}/api/body-types`),
-        fetch(`${BASE_URL}/api/engines`),
+      const [corrRes, typeRes, engRes] = await Promise.all([
+        apiFetch(`/api/body-corrections?samar_class_id=${samarClassId}`),
+        apiFetch(`/api/body-types`),
+        apiFetch(`/api/engines`),
       ]);
-      const corrData = corrResp.ok ? await corrResp.json() : [];
-      const btData = btResp.ok ? await btResp.json() : [];
-      const engData = engResp.ok ? await engResp.json() : [];
+      const corrData = corrRes.ok ? await corrRes.json() : [];
+      const btData = typeRes.ok ? await typeRes.json() : [];
+      const engData = engRes.ok ? await engRes.json() : [];
       setCorrections(Array.isArray(corrData) ? corrData : []);
       setBodyTypes(Array.isArray(btData) ? btData : []);
       setEngines(Array.isArray(engData) ? engData.sort((a: Engine, b: Engine) => a.id - b.id) : []);
@@ -147,7 +147,7 @@ export default function BodyCorrectionsCrudPanel({ samarClassId = 1 }: Props) {
         body_type_id: form.body_type_id || null,
         engine_type_id: form.engine_type_id || null,
       };
-      const resp = await fetch(`${BASE_URL}/api/body-corrections`, {
+      const resp = await apiFetch(`/api/body-corrections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -173,7 +173,7 @@ export default function BodyCorrectionsCrudPanel({ samarClassId = 1 }: Props) {
   const handleDelete = async (id: number) => {
     if (!confirm("Usunąć tę korektę?")) return;
     try {
-      await fetch(`${BASE_URL}/api/body-corrections/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/body-corrections/${id}`, { method: "DELETE" });
       fetchData();
     } catch (e) {
       console.error(e);

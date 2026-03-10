@@ -8,6 +8,7 @@ import { VehicleComparisonModal } from "./VehicleComparisonModal";
 import { useVehicleFilters } from "../hooks/useVehicleFilters";
 import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
+import { API_BASE_URL } from "../../config/env";
 
 interface VehicleTableProps {
   savedVehicles: FleetVehicleView[];
@@ -84,7 +85,7 @@ export function VehicleTable({
 
     try {
       const baseUrl =
-        import.meta.env.VITE_API_URL || "";
+        API_BASE_URL || "";
       const response = await fetch(
         `${baseUrl}/api/delete-vehicles-batch`,
         {

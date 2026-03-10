@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, GitCompareArrows } from "lucide-react";
 import type { FleetVehicleView } from "../types";
+import { API_BASE_URL } from "../../config/env";
 
 interface VehicleComparisonModalProps {
   vehicles: FleetVehicleView[];
@@ -21,7 +22,7 @@ export function VehicleComparisonModal({
 
     try {
       const baseUrl =
-        import.meta.env.VITE_API_URL || "";
+        API_BASE_URL || "";
       const response = await fetch(`${baseUrl}/api/compare-vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

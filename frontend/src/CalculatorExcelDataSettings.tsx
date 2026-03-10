@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
+import { API_BASE_URL } from "./config/env";
 
 interface CalculatorExcelData {
   id?: string;
@@ -37,7 +38,7 @@ export default function CalculatorExcelDataSettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/calculator-excel-data`);
+      const res = await axios.get(`${API_BASE_URL || ""}/api/calculator-excel-data`);
       setData(res.data);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Nieznany błąd";

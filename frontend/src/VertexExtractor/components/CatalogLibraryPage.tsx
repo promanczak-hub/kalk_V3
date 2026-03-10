@@ -26,7 +26,7 @@ interface DocumentLibraryItem {
 
 /* ── Constants ────────────────────────────────────────────────── */
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "../../lib/api";
 
 const DOC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   Katalog: { label: "Katalog", color: "bg-indigo-100 text-indigo-700" },
@@ -48,7 +48,7 @@ export function CatalogLibraryPage() {
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/document-library`);
+      const res = await apiFetch(`/api/document-library`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setDocuments(data.documents || []);
@@ -78,7 +78,7 @@ export function CatalogLibraryPage() {
   const deleteDocument = async (id: string) => {
     if (!confirm("Czy na pewno usunąć ten dokument z biblioteki?")) return;
     try {
-      await fetch(`${BASE_URL}/api/document-library/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/document-library/${id}`, { method: "DELETE" });
       await fetchDocuments();
       if (previewId === id) closePreview();
     } catch (err) {

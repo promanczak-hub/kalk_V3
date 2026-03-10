@@ -11,6 +11,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { UploadedDocument } from "../types";
+import { API_BASE_URL } from "../../config/env";
 
 // Dodajemy pomocniczy interfejs
 interface JsonViewerModalProps {
@@ -38,7 +39,7 @@ export function JsonViewerModal({
     setIsSendingToKalk(true);
     try {
       const parsedJson = JSON.parse(activeJsonView.jsonResult);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje`, {
+      const response = await fetch(`${API_BASE_URL || ""}/api/kalkulacje`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stan_json: parsedJson }),

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search, Filter, X, Loader2, Car, ChevronDown, ChevronRight } from "lucide-react";
+import { API_BASE_URL } from "../../config/env";
 
 /* ── Types ────────────────────────────────────────────────────── */
 
@@ -89,7 +90,7 @@ export function ReverseSearchPage() {
   const [extractionText, setExtractionText] = useState("");
   const [extracting, setExtracting] = useState(false);
 
-  const baseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = API_BASE_URL || "";
 
   // Fetch catalog
   useEffect(() => {

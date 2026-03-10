@@ -21,7 +21,7 @@ import ReplacementCarCrudPanel from "./ReplacementCarCrud/ReplacementCarCrudPane
 import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "./lib/api";
 
 interface SamarClass {
   id: number;
@@ -236,8 +236,8 @@ export default function SamarMasterPanel() {
 
 
   useEffect(() => {
-    fetch(`${BASE_URL}/api/samar-classes`)
-      .then((r) => r.json())
+    apiFetch(`/api/samar-classes`)
+      .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setClasses(data);

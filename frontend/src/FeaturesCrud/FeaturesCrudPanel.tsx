@@ -32,8 +32,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
+import { API_BASE_URL } from "../config/env";
 
-const API = import.meta.env.VITE_API_URL || "";
+const API = API_BASE_URL || "";
 
 interface Category {
   id: number;

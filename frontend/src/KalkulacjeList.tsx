@@ -24,6 +24,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import axios from "axios";
+import { API_BASE_URL } from "./config/env";
 
 /* ── Types ── */
 
@@ -77,7 +78,7 @@ export default function KalkulacjeList() {
 
   const fetchKalkulacje = useCallback(async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje`);
+      const res = await axios.get(`${API_BASE_URL || ""}/api/kalkulacje`);
       setRows(res.data);
     } catch (e) {
       console.error("Failed to fetch kalkulacje", e);
@@ -116,7 +117,7 @@ export default function KalkulacjeList() {
     if (!menuRowId) return;
     handleMenuClose();
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/${menuRowId}/duplicate`);
+      await axios.post(`${API_BASE_URL || ""}/api/kalkulacje/${menuRowId}/duplicate`);
       await fetchKalkulacje();
     } catch (e) {
       console.error("Duplicate failed", e);
@@ -133,7 +134,7 @@ export default function KalkulacjeList() {
     }
     handleMenuClose();
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/${menuRowId}`);
+      await axios.delete(`${API_BASE_URL || ""}/api/kalkulacje/${menuRowId}`);
       setRows((prev) => prev.filter((r) => r.id !== menuRowId));
     } catch (e) {
       console.error("Delete failed", e);
@@ -143,7 +144,7 @@ export default function KalkulacjeList() {
 
   const handleStatusChange = async (rowId: string, newStatus: string) => {
     try {
-      await axios.patch(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/${rowId}/status`, {
+      await axios.patch(`${API_BASE_URL || ""}/api/kalkulacje/${rowId}/status`, {
         status: newStatus,
       });
       setRows((prev) =>

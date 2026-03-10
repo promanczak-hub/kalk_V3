@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, X, ZoomIn, ZoomOut, Maximize2, RotateCcw } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import * as XLSX from "xlsx";
+import { API_BASE_URL } from "../../../config/env";
 
 // Use the bundled worker from pdfjs-dist
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -45,7 +46,7 @@ function ExcelViewer({ rawDocUrl, brand, model }: ExcelViewerProps) {
       setError(null);
 
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
+        const baseUrl = API_BASE_URL || "";
         const proxyUrl = `${baseUrl}/api/doc-proxy?url=${encodeURIComponent(rawDocUrl)}`;
 
         const response = await fetch(proxyUrl);
@@ -218,7 +219,7 @@ function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
       setIsLoading(true);
       setError(null);
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
+        const baseUrl = API_BASE_URL || "";
         const proxyUrl = `${baseUrl}/api/doc-proxy?url=${encodeURIComponent(rawDocUrl)}`;
         const response = await fetch(proxyUrl);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

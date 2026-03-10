@@ -1,3 +1,5 @@
+import { apiFetch } from "../../../lib/api";
+import { supabase } from "../../../lib/supabaseClient";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Database, ExternalLink, Loader2, Wand2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
@@ -16,6 +18,7 @@ import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import { CatalogCrossRefPanel } from "../CatalogCrossRefPanel";
 
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
+import { API_BASE_URL } from "../../../config/env";
 
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
@@ -55,10 +58,7 @@ export function VehicleRowCard({
   const handleDirectSave = async (fields: Record<string, string>) => {
     setIsSavingFields(true);
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      // no local inst needed
 
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
@@ -111,22 +111,16 @@ export function VehicleRowCard({
     if (!vehicle.synthesis_data) return;
     setIsRemappingClassification(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "";
-      const res = await fetch(`${baseUrl}/api/extract/remap-classification`, {
+      const response = await apiFetch(`/api/regenerate-features/map-classification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ original_json: vehicle.synthesis_data }),
       });
 
-      if (!res.ok) throw new Error("B\u0142\u0105d klasyfikacji");
-      const data = await res.json();
+      if (!response.ok) throw new Error("B\u0142\u0105d klasyfikacji");
+      const data = await response.json();
 
       // Save the new mapped data to Supabase
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
       updatedJson.mapped_ai_data = data;
@@ -208,10 +202,9 @@ export function VehicleRowCard({
   useEffect(() => {
     const fetchDefaults = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
-        const resp = await fetch(`${baseUrl}/api/control-center`);
-        if (resp.ok) {
-          const settings = await resp.json();
+        const response = await apiFetch(`/api/control-center`);
+        if (response.ok) {
+          const settings = await response.json();
           if (settings.default_wibor) setWiborPct(settings.default_wibor);
           if (settings.bank_spread) setMarginPct(settings.bank_spread);
           if (settings.default_ltr_margin) setPricingMarginPct(settings.default_ltr_margin);
@@ -463,8 +456,7 @@ export function VehicleRowCard({
           }))
         };
 
-        const baseUrl = import.meta.env.VITE_API_URL || "";
-        const res = await fetch(`${baseUrl}/api/homologation/verify`, {
+        const res = await apiFetch(`/api/homologation/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -493,11 +485,6 @@ export function VehicleRowCard({
   const handleSaveSetup = async () => {
     setIsSavingSetup(true);
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
@@ -551,11 +538,6 @@ export function VehicleRowCard({
   const handleSaveAllOptions = async () => {
     setIsSavingServices(true);
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
       
@@ -640,7 +622,6 @@ export function VehicleRowCard({
       return;
     }
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "";
       const params = new URLSearchParams({
         samar_class_name: samarName,
         engine_name: engineName,
@@ -654,7 +635,7 @@ export function VehicleRowCard({
       const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
       params.set("paint_type_name", paintTypeName);
 
-      const res = await fetch(`${baseUrl}/api/readiness-check?${params}`);
+      const res = await apiFetch(`/api/readiness-check?${params}`);
       if (!res.ok) throw new Error("Readiness check failed");
       const data: ReadinessResult = await res.json();
       setReadinessResult(data);
@@ -678,8 +659,7 @@ export function VehicleRowCard({
   useEffect(() => {
     const fetchCC = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
-        const res = await fetch(`${baseUrl}/api/control-center`);
+        const res = await apiFetch(`/api/control-center`);
         if (res.ok) {
           const data = await res.json();
           setControlCenter(data);
@@ -700,7 +680,6 @@ export function VehicleRowCard({
       return;
     }
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "";
       const params = new URLSearchParams({
         samar_class_id: String(classId),
         engine_type_id: String(engineId),
@@ -711,7 +690,7 @@ export function VehicleRowCard({
         is_metalic: String(isMetalic),
       });
       if (rimDiameter) params.set("rim_diameter", String(rimDiameter));
-      const res = await fetch(`${baseUrl}/api/param-preview?${params}`);
+      const res = await apiFetch(`/api/param-preview?${params}`);
       if (res.ok) {
         setParamPreview(await res.json());
       }
@@ -736,11 +715,6 @@ export function VehicleRowCard({
 
   const handleSamarCategoryChange = async (newCategory: string) => {
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
@@ -761,17 +735,12 @@ export function VehicleRowCard({
       }));
     } catch (err) {
       console.error("Error updating SAMAR category", err);
-      alert("Błąd zapisu kategorii SAMAR: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      alert("Błąd zapisu kategorii SAMAR: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
     }
   };
 
   const handleEngineCategoryChange = async (newCategory: string) => {
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
@@ -800,17 +769,12 @@ export function VehicleRowCard({
       }));
     } catch (err) {
       console.error("Error updating Engine category", err);
-      alert("Błąd zapisu kategorii Silnika: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      alert("Błąd zapisu kategorii Silnika: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
     }
   };
 
   const handleDriveTypeChange = async (newDriveType: string) => {
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
@@ -830,17 +794,12 @@ export function VehicleRowCard({
       }));
     } catch (err) {
       console.error("Error updating drive type", err);
-      alert("Błąd zapisu napędu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      alert("Błąd zapisu napędu: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
     }
   };
 
   const handleBodyTypeChange = async (newBodyType: string) => {
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
@@ -860,7 +819,7 @@ export function VehicleRowCard({
       }));
     } catch (err) {
       console.error("Error updating body type", err);
-      alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
     }
   };
 
@@ -868,8 +827,7 @@ export function VehicleRowCard({
     if (!vehicle.synthesis_data) return;
     setIsMapping(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "";
-      const res = await fetch(`${baseUrl}/api/extract/map-vehicle-data`, {
+      const response = await apiFetch(`/api/extract/map-vehicle-data`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -877,11 +835,11 @@ export function VehicleRowCard({
         }),
       });
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error("Błąd podczas wywołania API mapowania danych.");
       }
 
-      const data = await res.json();
+      const data = await response.json();
       setLocalMappedData(data);
     } catch (err) {
       console.error(err);
@@ -922,13 +880,7 @@ export function VehicleRowCard({
     if (!finalPrompt.trim()) return;
     setIsOverriding(true);
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      const baseUrl = import.meta.env.VITE_API_URL || "";
-      const res = await fetch(`${baseUrl}/api/extract/manual-override`, {
+      const res = await apiFetch(`/api/extract/manual-override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -986,11 +938,6 @@ export function VehicleRowCard({
       }
 
       if (extractedOption.effects && (extractedOption.effects.override_samar_class || extractedOption.effects.override_homologation)) {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
         const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
         const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
@@ -1012,7 +959,7 @@ export function VehicleRowCard({
       }
     } catch (err) {
       console.error("Error saving extracted service option", err);
-      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
     }
   };
 
@@ -1114,11 +1061,6 @@ export function VehicleRowCard({
     const handleDeleteError = async () => {
       if (!window.confirm("Czy na pewno chcesz usunąć ten wpis z błędem?")) return;
       try {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        
         await supabase.from("vehicle_synthesis").delete().eq("id", vehicle.id);
         window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
       } catch (err) {
@@ -1176,24 +1118,20 @@ export function VehicleRowCard({
     const handleCancel = async () => {
       if (!window.confirm("Czy na pewno chcesz anulować przetwarzanie tego dokumentu?")) return;
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
-        const res = await fetch(`${baseUrl}/api/cancel-processing`, {
+        const response = await apiFetch(`/api/cancel-processing`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ vehicle_id: vehicle.id }),
         });
-        if (!res.ok) throw new Error("Cancel failed");
+        if (!response.ok) throw new Error("Cancel failed");
         // Cancel = delete — remove the vehicle after stopping processing
         window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
       } catch (err) {
         console.error("Cancel error, attempting direct Supabase cleanup:", err);
         try {
             // Plan B: bezpośrednie skasowanie wiersza przez Supabase JS jeśli backend leży
-            const { createClient } = await import("@supabase/supabase-js");
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const supabase = createClient(supabaseUrl, supabaseKey);
-            
+            // supabase already imported
+            // fallback using central supabase client instead of local one
             await supabase.from("vehicle_synthesis").delete().eq("id", vehicle.id);
             window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
         } catch (dbErr) {
@@ -1447,7 +1385,7 @@ export function VehicleRowCard({
                      await handleSaveSetup();
 
                      // 2. Create kalkulacja
-                     const baseUrl = import.meta.env.VITE_API_URL || "";
+                     const baseUrl = API_BASE_URL || "";
                      const resp = await fetch(`${baseUrl}/api/kalkulacje`, {
                        method: "POST",
                        headers: { "Content-Type": "application/json" },
@@ -1539,7 +1477,7 @@ export function VehicleRowCard({
                      // Jeśli nie - ładujemy do skutku i blokujemy przycisk
                      setIsGeneratingBrochure(true);
                      try {
-                        const baseUrl = import.meta.env.VITE_API_URL || "";
+                        const baseUrl = API_BASE_URL || "";
                         const rawText = JSON.stringify(vehicle.synthesis_data || {});
                         
                         const brochurePromise = fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {

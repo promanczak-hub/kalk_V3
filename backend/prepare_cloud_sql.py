@@ -17,7 +17,7 @@ with open('d:/kalk_v3/supabase/migrations/20260310120000_add_metadata_to_univers
 with open('d:/kalk_v3/seed_features.sql', 'r', encoding='utf-8') as f:
     sql3 = f.read()
 
-sql4 = \"\"\"
+sql4 = """
 -- Add access to the API
 GRANT USAGE ON SCHEMA reverse_search TO anon, authenticated;
 GRANT SELECT ON ALL TABLES IN SCHEMA reverse_search TO anon, authenticated;
@@ -25,7 +25,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA reverse_search TO anon, authenticated;
 -- We can also try altering the authenticator role:
 ALTER ROLE authenticator SET pgrst.db_schemas TO 'public, graphql_public, reverse_search';
 NOTIFY pgrst, 'reload config';
-\"\"\"
+"""
 
 merged = sql1 + "\n\n" + sql2 + "\n\n" + sql3 + "\n\n" + sql4
 

@@ -6,6 +6,7 @@ import {
   Chip,
 } from "@mui/material";
 import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2 } from "lucide-react";
+import { API_BASE_URL } from "./config/env";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -437,7 +438,7 @@ export default function CalculatorPanel() {
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "";
+      const baseUrl = API_BASE_URL || "";
 
       // 1. Fetch kalkulacja data (stan_json) from backend
       const kalkResp = await fetch(`${baseUrl}/api/kalkulacje/${kalkulacjaId}`);
@@ -535,7 +536,7 @@ export default function CalculatorPanel() {
 
     setRecalculating(months);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "";
+      const baseUrl = API_BASE_URL || "";
 
       // Build modified payload: apply expert overrides.
       // If user specified custom months/km, use those; otherwise keep original cell's.

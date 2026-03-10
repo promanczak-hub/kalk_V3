@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Box, Tabs, Tab, CircularProgress, Typography } from "@mui/material";
 import DynamicGridEditor from "./DynamicGridEditor";
+import { API_BASE_URL } from "../config/env";
 
 export default function ExcelDraftsPanel() {
   const [activeTab, setActiveTab] = useState(0);
@@ -10,7 +11,7 @@ export default function ExcelDraftsPanel() {
   useEffect(() => {
     const fetchSheets = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/excel-drafts`);
+        const res = await fetch(`${API_BASE_URL || ""}/api/excel-drafts`);
         if (res.ok) {
           const data = await res.json();
           setSheets(data);

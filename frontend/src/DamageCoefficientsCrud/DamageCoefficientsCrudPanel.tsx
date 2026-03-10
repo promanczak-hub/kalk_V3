@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { apiFetch } from "../lib/api";
 
 interface SamarClass {
   id: number;
@@ -58,7 +58,7 @@ export default function DamageCoefficientsCrudPanel() {
 
   const fetchDependencies = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/samar-classes`).catch(
+      const res = await apiFetch(`/api/samar-classes`).catch(
         () => null,
       );
       if (res?.ok) {
@@ -72,8 +72,8 @@ export default function DamageCoefficientsCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(
-        `${BASE_URL}/api/samar-rv/insurance-coefficients`,
+      const resp = await apiFetch(
+        `/api/samar-rv/insurance-coefficients`,
       );
       if (resp.ok) {
         const raw = await resp.json();
@@ -112,8 +112,8 @@ export default function DamageCoefficientsCrudPanel() {
     try {
       const payload = { ...formData };
 
-      const resp = await fetch(
-        `${BASE_URL}/api/samar-rv/insurance-coefficients`,
+      const resp = await apiFetch(
+        `/api/samar-rv/insurance-coefficients`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -135,8 +135,8 @@ export default function DamageCoefficientsCrudPanel() {
   const handleDelete = async (id: number) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await fetch(
-        `${BASE_URL}/api/samar-rv/insurance-coefficients/${id}`,
+      const resp = await apiFetch(
+        `/api/samar-rv/insurance-coefficients/${id}`,
         { method: "DELETE" },
       );
       if (resp.ok) fetchData();

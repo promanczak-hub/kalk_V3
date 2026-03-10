@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, ExternalLink, Download, Loader2 } from "lucide-react";
+import { API_BASE_URL } from "../../config/env";
 
 interface DocumentViewerModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       setError(null);
       
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "";
+        const baseUrl = API_BASE_URL || "";
         const proxyUrl = `${baseUrl}/api/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
         
         const response = await fetch(proxyUrl);

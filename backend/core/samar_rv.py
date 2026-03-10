@@ -16,9 +16,9 @@ Tabele: samar_class_depreciation_rates, samar_class_mileage_corrections,
 """
 
 from __future__ import annotations
-
 import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Dict, Optional, cast
 
 from core.database import supabase
@@ -315,6 +315,117 @@ class RVOutput:
     debug: Dict[str, Any] = field(default_factory=dict)
 
 
+@lru_cache(maxsize=128)
+def fetch_depreciation_rates_cached(samar_class_id: int, fuel_type_id: int) -> Dict[int, Dict[str, float]]:
+    """Pobiera stawki deprecjacji lat 0-7 z samar_class_depreciation_rates."""
+    result: Dict[int, Dict[str, float]] = {}
+    try:
+        from core.database import supabase
+        res = (
+            supabase.table("samar_class_depreciation_rates")
+            .select("year, base_depreciation_percent, options_depreciation_percent")
+            .eq("samar_class_id", samar_class_id)
+            .eq("fuel_type_id", fuel_type_id)
+            .order("year")
+            .execute()
+        )
+        for row in res.data or []:
+            yr = int(row["year"])
+            result[yr] = {
+                "base": float(row.get("base_depreciation_percent", 0.0)),
+                "options": float(row.get("options_depreciation_percent", 0.0)),
+            }
+    except Exception as exc:
+        logger.warning("Błąd pobierania depreciation_rates: %s", exc)
+    return result
+
+
+@lru_cache(maxsize=128)
+def fetch_brand_correction_cached(samar_class_id: int, fuel_type_id: int, brand: str, model: str) -> float:
+    """Korekta za markę z ltr_admin_korekta_wr_markas z fallbackiem na model."""
+    if not brand:
+        return 0.0
+    try:
+        from core.database import supabase
+        # 1. Exact match with model
+        if model:
+            res_exact = (
+                supabase.table("ltr_admin_korekta_wr_markas")
+                .select("korekta_procent")
+                .eq("samar_class_id", samar_class_id)
+                .eq("rodzaj_paliwa", fuel_type_id)
+                .eq("brand_name", brand)
+                .eq("model_name", model)
+                .limit(1)
+                .execute()
+            )
+            if res_exact.data:
+                return float(res_exact.data[0].get("korekta_procent", 0.0))
+
+        # 2. Fallback to general brand correction (model_name IS NULL)
+        res_gen = (
+            supabase.table("ltr_admin_korekta_wr_markas")
+            .select("korekta_procent")
+            .eq("samar_class_id", samar_class_id)
+            .eq("rodzaj_paliwa", fuel_type_id)
+            .eq("brand_name", brand)
+            .is_("model_name", "null")
+            .limit(1)
+            .execute()
+        )
+        if res_gen.data:
+            return float(res_gen.data[0].get("korekta_procent", 0.0))
+    except Exception as exc:
+        logger.warning("Błąd brand correction cascade: %s", exc)
+    return 0.0
+
+
+@lru_cache(maxsize=128)
+def fetch_mileage_corrections_cached(samar_class_id: int, fuel_type_id: int) -> tuple[float, float]:
+    """Stawki korekty przebiegu: (under_threshold, over_threshold)."""
+    try:
+        from core.database import supabase
+        res = (
+            supabase.table("samar_class_mileage_corrections")
+            .select("under_threshold_percent, over_threshold_percent")
+            .eq("samar_class_id", samar_class_id)
+            .eq("fuel_type_id", fuel_type_id)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            row = res.data[0]
+            return (
+                float(row.get("under_threshold_percent", 0.0)),
+                float(row.get("over_threshold_percent", 0.0)),
+            )
+    except Exception as exc:
+        logger.warning("Błąd mileage corrections: %s", exc)
+    return (0.0, 0.0)
+
+
+@lru_cache(maxsize=128)
+def fetch_class_config_cached(samar_class_id: int) -> Dict[str, Any]:
+    """Konfiguracja klasy SAMAR (progi przebiegowe itp.)."""
+    try:
+        from core.database import supabase
+        res = (
+            supabase.table("samar_classes")
+            .select("base_mileage_km, mileage_threshold_km, base_period_months")
+            .eq("id", samar_class_id)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return cast(Dict[str, Any], res.data[0])
+    except Exception as exc:
+        logger.warning("Błąd class config: %s", exc)
+    return {
+        "base_mileage_km": 140000,
+        "mileage_threshold_km": 190000,
+        "base_period_months": 48,
+    }
+
 class SamarRVCalculator:
     """Kalkulator Wartości Rezydualnej oparty na tabelach SAMAR.
 
@@ -335,248 +446,169 @@ class SamarRVCalculator:
     # ── Fetchery danych z DB ──────────────────────────────────────
 
     def _fetch_depreciation_rates(self) -> Dict[int, Dict[str, float]]:
-        """Pobiera stawki deprecjacji lat 0-7 z samar_class_depreciation_rates.
-
-        Zwraca: {rok: {"base": float, "options": float}}
-        """
-        result: Dict[int, Dict[str, float]] = {}
-        try:
-            res = (
-                supabase.table("samar_class_depreciation_rates")
-                .select("year, base_depreciation_percent, options_depreciation_percent")
-                .eq("samar_class_id", self.data.samar_class_id)
-                .eq("fuel_type_id", self.data.engine_id)
-                .order("year")
-                .execute()
-            )
-            for row in res.data or []:
-                yr = int(row["year"])
-                result[yr] = {
-                    "base": float(row.get("base_depreciation_percent", 0.0)),
-                    "options": float(row.get("options_depreciation_percent", 0.0)),
-                }
-        except Exception as exc:
-            logger.warning("Błąd pobierania depreciation_rates: %s", exc)
-        return result
+        """Pobiera stawki deprecjacji lat 0-7 z samar_class_depreciation_rates."""
+        return fetch_depreciation_rates_cached(self.data.samar_class_id, self.data.engine_id)
 
     def _fetch_brand_correction(self) -> float:
         """Korekta za markę z ltr_admin_korekta_wr_markas z fallbackiem na model."""
         brand = self.data.brand_name.strip().upper()
-        if not brand:
-            return 0.0
-
         model = (
             self.data.model_name.strip().upper()
             if hasattr(self.data, "model_name") and self.data.model_name
             else ""
         )
-
-        try:
-            # 1. Exact match with model
-            if model:
-                res_exact = (
-                    supabase.table("ltr_admin_korekta_wr_markas")
-                    .select("korekta_procent")
-                    .eq("samar_class_id", self.data.samar_class_id)
-                    .eq("rodzaj_paliwa", self.data.engine_id)
-                    .eq("brand_name", brand)
-                    .eq("model_name", model)
-                    .limit(1)
-                    .execute()
-                )
-                if res_exact.data:
-                    return float(res_exact.data[0].get("korekta_procent", 0.0))
-
-            # 2. Fallback to general brand correction (model_name IS NULL)
-            res_gen = (
-                supabase.table("ltr_admin_korekta_wr_markas")
-                .select("korekta_procent")
-                .eq("samar_class_id", self.data.samar_class_id)
-                .eq("rodzaj_paliwa", self.data.engine_id)
-                .eq("brand_name", brand)
-                .is_("model_name", "null")
-                .limit(1)
-                .execute()
-            )
-            if res_gen.data:
-                return float(res_gen.data[0].get("korekta_procent", 0.0))
-        except Exception as exc:
-            logger.warning("Błąd brand correction cascade: %s", exc)
-        return 0.0
+        return fetch_brand_correction_cached(self.data.samar_class_id, self.data.engine_id, brand, model)
 
     def _fetch_mileage_corrections(self) -> tuple[float, float]:
         """Stawki korekty przebiegu: (under_threshold, over_threshold)."""
-        try:
-            res = (
-                supabase.table("samar_class_mileage_corrections")
-                .select("under_threshold_percent, over_threshold_percent")
-                .eq("samar_class_id", self.data.samar_class_id)
-                .eq("fuel_type_id", self.data.engine_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                row = res.data[0]
-                return (
-                    float(row.get("under_threshold_percent", 0.0)),
-                    float(row.get("over_threshold_percent", 0.0)),
-                )
-        except Exception as exc:
-            logger.warning("Błąd mileage corrections: %s", exc)
-        return (0.0, 0.0)
+        return fetch_mileage_corrections_cached(self.data.samar_class_id, self.data.engine_id)
 
     def _fetch_class_config(self) -> Dict[str, Any]:
         """Konfiguracja klasy SAMAR (progi przebiegowe itp.)."""
-        try:
+        return fetch_class_config_cached(self.data.samar_class_id)
+
+@lru_cache(maxsize=128)
+def fetch_color_correction_cached(paint_type_id: Optional[int], is_metalic: bool) -> float:
+    """Korekta za kolor z paint_types.wr_correction."""
+    if not paint_type_id:
+        return 0.0 if is_metalic else -0.01
+    try:
+        from core.database import supabase
+        res = (
+            supabase.table("paint_types")
+            .select("wr_correction")
+            .eq("id", paint_type_id)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return float(res.data[0].get("wr_correction") or 0.0)
+    except Exception as exc:
+        logger.warning("Błąd color correction: %s", exc)
+    return 0.0 if is_metalic else -0.01
+
+
+@lru_cache(maxsize=128)
+def fetch_body_correction_cached(samar_class_id: int, engine_id: int, brand_name: str, body_type_id: Optional[int]) -> tuple[float, float]:
+    """Korekta nadwozia z kaskadą fallbacków (sparse storage)."""
+    brand = brand_name.strip().upper() if brand_name else ""
+    
+    def _extract(rows: list[dict]) -> tuple[float, float]:
+        row = rows[0]
+        return (
+            float(row.get("correction_percent", 0.0)),
+            float(row.get("zabudowa_correction_percent", 0.0)),
+        )
+
+    try:
+        from core.database import supabase
+        tbl = "body_type_wr_corrections"
+        cols = "correction_percent, zabudowa_correction_percent"
+
+        # 1. EXACT: klasa + marka + nadwozie + silnik
+        if body_type_id and engine_id:
             res = (
-                supabase.table("samar_classes")
-                .select("base_mileage_km, mileage_threshold_km, base_period_months")
-                .eq("id", self.data.samar_class_id)
+                supabase.table(tbl)
+                .select(cols)
+                .eq("samar_class_id", samar_class_id)
+                .eq("brand_name", brand)
+                .eq("body_type_id", body_type_id)
+                .eq("engine_type_id", engine_id)
                 .limit(1)
                 .execute()
             )
             if res.data:
-                return cast(Dict[str, Any], res.data[0])
-        except Exception as exc:
-            logger.warning("Błąd class config: %s", exc)
-        return {
-            "base_mileage_km": 140000,
-            "mileage_threshold_km": 190000,
-            "base_period_months": 48,
-        }
+                return _extract(res.data)
+
+        # 2. NO-ENGINE: klasa + marka + nadwozie (engine IS NULL)
+        if body_type_id:
+            res = (
+                supabase.table(tbl)
+                .select(cols)
+                .eq("samar_class_id", samar_class_id)
+                .eq("brand_name", brand)
+                .eq("body_type_id", body_type_id)
+                .is_("engine_type_id", "null")
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return _extract(res.data)
+
+        # 3. NO-BODY: klasa + marka (body IS NULL, engine IS NULL)
+        if brand:
+            res = (
+                supabase.table(tbl)
+                .select(cols)
+                .eq("samar_class_id", samar_class_id)
+                .eq("brand_name", brand)
+                .is_("body_type_id", "null")
+                .is_("engine_type_id", "null")
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return _extract(res.data)
+
+    except Exception as exc:
+        logger.warning("Błąd body correction cascade: %s", exc)
+
+    return (0.0, 0.0)
+
+
+@lru_cache(maxsize=128)
+def fetch_vintage_correction_cached(rocznik: str) -> float:
+    """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
+    vintage_map = {"current": "bieżący", "previous": "bieżący-1"}
+    db_key = vintage_map.get(rocznik, rocznik)
+    try:
+        from core.database import supabase
+        res = (
+            supabase.table("ltr_admin_korekta_wr_roczniks")
+            .select("korekta_procent")
+            .ilike("rocznik", f"%{db_key}%")
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return float(res.data[0].get("korekta_procent", 0.0))
+    except Exception as exc:
+        logger.warning("Błąd vintage correction: %s", exc)
+    return 0.0
+
+@lru_cache(maxsize=1)
+def fetch_lo_param_cached() -> float:
+    """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
+    try:
+        from core.database import supabase
+        res = (
+            supabase.table("control_center")
+            .select("przewidywana_cena_sprzedazy_lo")
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            val = res.data[0].get("przewidywana_cena_sprzedazy_lo", 0.0)
+            return float(val) if val is not None else 0.0
+    except Exception:
+        logger.warning("Nie udało się pobrać PrzewidywanaCenaSprzedazyLO")
+    return 0.0
 
     def _fetch_color_correction(self) -> float:
-        """Korekta za kolor z paint_types.wr_correction.
-
-        Fallback: jeśli paint_type_id=None, używa is_metalic:
-          metalik/perłowy → 0%, niemetalik → −1% (≡ −0.01).
-        """
-        if not self.data.paint_type_id:
-            # Fallback: is_metalic boolean
-            return 0.0 if self.data.is_metalic else -0.01
-        try:
-            res = (
-                supabase.table("paint_types")
-                .select("wr_correction")
-                .eq("id", self.data.paint_type_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return float(res.data[0].get("wr_correction") or 0.0)
-        except Exception as exc:
-            logger.warning("Błąd color correction: %s", exc)
-        return 0.0 if self.data.is_metalic else -0.01
+        """Korekta za kolor z paint_types.wr_correction."""
+        return fetch_color_correction_cached(self.data.paint_type_id, self.data.is_metalic)
 
     def _fetch_body_correction(self) -> tuple[float, float]:
-        """Korekta nadwozia z kaskadą fallbacków (sparse storage).
-
-        Cascade:
-        1. EXACT:   klasa + marka + nadwozie + silnik
-        2. NO-ENG:  klasa + marka + nadwozie (engine IS NULL)
-        3. NO-BODY: klasa + marka (body IS NULL, engine IS NULL)
-        4. DEFAULT:  → (0.0, 0.0)
-        """
-        brand = self.data.brand_name.strip().upper() if self.data.brand_name else ""
-        cls_id = self.data.samar_class_id
-        body_id = self.data.body_type_id
-        engine_id = self.data.engine_id
-
-        def _extract(rows: list[dict]) -> tuple[float, float]:
-            row = rows[0]
-            return (
-                float(row.get("correction_percent", 0.0)),
-                float(row.get("zabudowa_correction_percent", 0.0)),
-            )
-
-        try:
-            tbl = "body_type_wr_corrections"
-            cols = "correction_percent, zabudowa_correction_percent"
-
-            # 1. EXACT: klasa + marka + nadwozie + silnik
-            if body_id and engine_id:
-                res = (
-                    supabase.table(tbl)
-                    .select(cols)
-                    .eq("samar_class_id", cls_id)
-                    .eq("brand_name", brand)
-                    .eq("body_type_id", body_id)
-                    .eq("engine_type_id", engine_id)
-                    .limit(1)
-                    .execute()
-                )
-                if res.data:
-                    return _extract(res.data)
-
-            # 2. NO-ENGINE: klasa + marka + nadwozie (engine IS NULL)
-            if body_id:
-                res = (
-                    supabase.table(tbl)
-                    .select(cols)
-                    .eq("samar_class_id", cls_id)
-                    .eq("brand_name", brand)
-                    .eq("body_type_id", body_id)
-                    .is_("engine_type_id", "null")
-                    .limit(1)
-                    .execute()
-                )
-                if res.data:
-                    return _extract(res.data)
-
-            # 3. NO-BODY: klasa + marka (body IS NULL, engine IS NULL)
-            if brand:
-                res = (
-                    supabase.table(tbl)
-                    .select(cols)
-                    .eq("samar_class_id", cls_id)
-                    .eq("brand_name", brand)
-                    .is_("body_type_id", "null")
-                    .is_("engine_type_id", "null")
-                    .limit(1)
-                    .execute()
-                )
-                if res.data:
-                    return _extract(res.data)
-
-        except Exception as exc:
-            logger.warning("Błąd body correction cascade: %s", exc)
-
-        # 4. DEFAULT
-        return (0.0, 0.0)
+        """Korekta nadwozia z kaskadą fallbacków (sparse storage)."""
+        return fetch_body_correction_cached(self.data.samar_class_id, self.data.engine_id, self.data.brand_name, self.data.body_type_id)
 
     def _fetch_vintage_correction(self) -> float:
         """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
-        vintage_map = {"current": "bieżący", "previous": "bieżący-1"}
-        db_key = vintage_map.get(self.data.rocznik, self.data.rocznik)
-        try:
-            res = (
-                supabase.table("ltr_admin_korekta_wr_roczniks")
-                .select("korekta_procent")
-                .ilike("rocznik", f"%{db_key}%")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return float(res.data[0].get("korekta_procent", 0.0))
-        except Exception as exc:
-            logger.warning("Błąd vintage correction: %s", exc)
-        return 0.0
+        return fetch_vintage_correction_cached(self.data.rocznik)
 
     def _fetch_lo_param(self) -> float:
         """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
-        try:
-            res = (
-                supabase.table("control_center")
-                .select("przewidywana_cena_sprzedazy_lo")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                val = res.data[0].get("przewidywana_cena_sprzedazy_lo", 0.0)
-                return float(val) if val is not None else 0.0
-        except Exception:
-            logger.warning("Nie udało się pobrać PrzewidywanaCenaSprzedazyLO")
-        return 0.0
+        return fetch_lo_param_cached()
 
     # ── Główna kalkulacja ─────────────────────────────────────────
 
