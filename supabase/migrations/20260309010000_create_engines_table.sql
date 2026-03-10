@@ -8,8 +8,20 @@ CREATE TABLE IF NOT EXISTS public.engines (
 );
 
 ALTER TABLE public.engines ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "engines_select" ON public.engines FOR SELECT USING (true);
-CREATE POLICY "engines_all_auth" ON public.engines FOR ALL USING (auth.role() = 'authenticated');
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'engines' AND policyname = 'engines_select'
+    ) THEN
+        CREATE POLICY "engines_select" ON public.engines FOR SELECT USING (true);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'engines' AND policyname = 'engines_all_auth'
+    ) THEN
+        CREATE POLICY "engines_all_auth" ON public.engines FOR ALL USING (auth.role() = 'authenticated');
+    END IF;
+END $$;
 
 -- Seed 9 engine types matching V1
 INSERT INTO public.engines (id, name, category) VALUES

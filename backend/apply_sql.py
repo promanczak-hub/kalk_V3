@@ -1,7 +1,8 @@
+import os
 import psycopg2
 
 # Default local supabase connection string
-DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+DB_URL = os.environ.get("DATABASE_URL")
 
 
 def apply_migration():

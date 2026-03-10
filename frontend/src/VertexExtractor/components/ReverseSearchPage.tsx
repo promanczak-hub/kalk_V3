@@ -60,7 +60,7 @@ export function ReverseSearchPage() {
   const [bodyTypeSearch, setBodyTypeSearch] = useState("");
   const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState(false);
 
-  const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  const baseUrl = import.meta.env.VITE_API_URL || "";
 
   // Fetch catalog
   useEffect(() => {

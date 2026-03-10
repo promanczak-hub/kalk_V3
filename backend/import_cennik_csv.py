@@ -1,3 +1,4 @@
+import os
 """
 Import tire prices from cennikopon (1).csv into koszty_opon table.
 
@@ -279,7 +280,7 @@ def import_to_database(
 
 def main() -> None:
     csv_path = r"C:\Users\proma\Downloads\cennikopon (1).csv"
-    db_url = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+    db_url = os.environ.get("DATABASE_URL")
 
     print("1. Loading Budżet prices from CSV...")
     prices = load_budzet_prices(csv_path)

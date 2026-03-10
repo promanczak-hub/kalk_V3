@@ -129,7 +129,7 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           ),
         );
 
-        const response = await fetch("http://127.0.0.1:8000/api/extract/async", {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/extract/async`, {
           method: "POST",
           body: formData,
         });

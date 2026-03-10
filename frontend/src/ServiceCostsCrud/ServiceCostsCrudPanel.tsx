@@ -77,10 +77,10 @@ export default function ServiceCostsCrudPanel() {
   const fetchDependencies = async () => {
     try {
       const [enginesRes, classesRes] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/api/engines`),
+        fetch(`${import.meta.env.VITE_API_URL || ""}/api/engines`),
         // Endpoint dla klas SAMAR jest z RV lub z backendu, jeśli nie ma, omijamy błąd
         // Jeśli posiadamy classes z RV:
-        fetch(`http://127.0.0.1:8000/api/samar-classes`).catch(() => null)
+        fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-classes`).catch(() => null)
       ]);
       
       if (enginesRes?.ok) {
@@ -101,7 +101,7 @@ export default function ServiceCostsCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/samar-service-costs`);
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-service-costs`);
       if (resp.ok) {
         const json = await resp.json();
         setData(json);
@@ -195,7 +195,7 @@ export default function ServiceCostsCrudPanel() {
 
   const handleSave = async () => {
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/samar-service-costs`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-service-costs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -215,7 +215,7 @@ export default function ServiceCostsCrudPanel() {
   const handleDelete = async (id: string) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/samar-service-costs/${id}`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-service-costs/${id}`, {
         method: "DELETE",
       });
       if (resp.ok) {
@@ -229,7 +229,7 @@ export default function ServiceCostsCrudPanel() {
   const handleExportExcel = async () => {
     setExporting(true);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/samar-service-costs/export`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-service-costs/export`);
       if (!response.ok) throw new Error("Błąd przy eksporcie");
       
       const blob = await response.blob();
@@ -257,7 +257,7 @@ export default function ServiceCostsCrudPanel() {
     formData.append("file", file);
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/samar-service-costs/import`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/samar-service-costs/import`, {
         method: "POST",
         body: formData,
       });

@@ -52,7 +52,7 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
       setLoading(true);
       setError(null);
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const res = await fetch(`${baseUrl}/api/features/vehicle/${vehicleId}/state`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();

@@ -115,7 +115,7 @@ export function useCalculator() {
   const fetchSettings = async () => {
     try {
       const resp = await axios.get<ControlCenterSettings>(
-        "http://127.0.0.1:8000/api/control-center",
+        `${import.meta.env.VITE_API_URL || ""}/api/control-center`,
       );
       if (resp.data) {
         setData((prev) => ({
@@ -134,7 +134,7 @@ export function useCalculator() {
   const loadKalkulacja = async (id: string) => {
     try {
       const resp = await axios.get(
-        `http://127.0.0.1:8000/api/kalkulacje/${id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/${id}`,
       );
       if (resp.data && resp.data.stan_json) {
         applyParsedOffer(resp.data.stan_json, resp.data.numer_kalkulacji);
@@ -506,7 +506,7 @@ export function useCalculator() {
 
     if (classificationBrand || classificationModel) {
       axios
-        .post("http://127.0.0.1:8000/api/parse-offer/samar-category", {
+        .post(`${import.meta.env.VITE_API_URL || ""}/api/parse-offer/samar-category`, {
           brand: classificationBrand,
           model: classificationModel,
           body_style: classificationBody || "",
@@ -530,7 +530,7 @@ export function useCalculator() {
     if (!parserText.trim()) return;
     setIsParsing(true);
     try {
-      const resp = await axios.post("http://127.0.0.1:8000/api/parse-offer", {
+      const resp = await axios.post(`${import.meta.env.VITE_API_URL || ""}/api/parse-offer`, {
         raw_text: parserText,
       });
       applyParsedOffer(resp.data);

@@ -84,7 +84,7 @@ export function VehicleTable({
 
     try {
       const baseUrl =
-        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        import.meta.env.VITE_API_URL || "";
       const response = await fetch(
         `${baseUrl}/api/delete-vehicles-batch`,
         {

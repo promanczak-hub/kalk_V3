@@ -1,8 +1,9 @@
+import os
 from sqlalchemy import create_engine, text
 
 
 def populate_prices():
-    engine = create_engine("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    engine = create_engine(os.environ.get("DATABASE_URL"))
 
     # Base estimated budget prices per inch based on market averages in PLN
     base_budget = {

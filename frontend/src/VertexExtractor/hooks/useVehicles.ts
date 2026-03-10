@@ -157,7 +157,7 @@ export function useVehicles() {
     query: string,
   ) => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/query-vehicle", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/query-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -194,7 +194,7 @@ export function useVehicles() {
 
   const handleCloneVehicle = async (vehicleId: string) => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/clone-vehicle", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/clone-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_id: vehicleId }),
@@ -221,7 +221,7 @@ export function useVehicles() {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/delete-vehicle", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/delete-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_id: vehicleId }),
@@ -246,7 +246,7 @@ export function useVehicles() {
 
     setIsSearching(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/search-fleet", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/search-fleet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: globalSearchQuery }),

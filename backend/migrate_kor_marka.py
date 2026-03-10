@@ -1,3 +1,4 @@
+import os
 import requests
 
 MAPPING = {
@@ -101,14 +102,14 @@ def build_engine_mapping(engines):
 
 def main():
     try:
-        samar_classes_res = requests.get("http://127.0.0.1:8000/api/samar-classes")
+        samar_classes_res = requests.get(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/samar-classes")
         samar_classes = [c["name"] for c in samar_classes_res.json()]
     except Exception as e:
         print(f"Error getting samar classes: {e}")
         return
 
     try:
-        engines_res = requests.get("http://127.0.0.1:8000/api/engines")
+        engines_res = requests.get(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/engines")
         engines = engines_res.json()
         engine_map = build_engine_mapping(engines)
     except Exception as e:
@@ -116,7 +117,7 @@ def main():
         return
 
     try:
-        drafts_res = requests.get("http://127.0.0.1:8000/api/excel-drafts")
+        drafts_res = requests.get(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/excel-drafts")
         drafts = drafts_res.json()
     except Exception as e:
         print(f"Error getting excel drafts: {e}")
@@ -213,7 +214,7 @@ def main():
 
     try:
         put_res = requests.put(
-            f"http://127.0.0.1:8000/api/excel-drafts/KOR. MARKA", json=payload
+            os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/excel-drafts/KOR. MARKA", json=payload
         )
         if put_res.status_code == 200:
             print(f"Successfully updated KOR. MARKA with {len(new_rows)} rows.")

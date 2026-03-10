@@ -54,7 +54,7 @@ interface XlsxSheet {
 
 /* ── Constants ────────────────────────────────────────────────── */
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 const STATUS_CONFIG = {
   pending: { icon: Clock, color: "text-slate-400", bg: "bg-slate-50", label: "Oczekuje" },

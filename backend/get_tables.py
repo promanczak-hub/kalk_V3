@@ -1,5 +1,6 @@
+import os
 import sqlalchemy
 
-url = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+url = os.environ.get("DATABASE_URL")
 engine = sqlalchemy.create_engine(url)
 print(sqlalchemy.inspect(engine).get_table_names())

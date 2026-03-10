@@ -1,4 +1,3 @@
-import json
 from backend.core.database import supabase
 
 

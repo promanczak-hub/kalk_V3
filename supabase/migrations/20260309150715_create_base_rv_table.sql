@@ -11,10 +11,21 @@ CREATE TABLE IF NOT EXISTS public.samar_class_base_rv (
 
 -- RLS policies
 ALTER TABLE public.samar_class_base_rv ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read access" ON public.samar_class_base_rv FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated insert" ON public.samar_class_base_rv FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Allow authenticated update" ON public.samar_class_base_rv FOR UPDATE USING (auth.role() = 'authenticated');
-CREATE POLICY "Allow authenticated delete" ON public.samar_class_base_rv FOR DELETE USING (auth.role() = 'authenticated');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'samar_class_base_rv' AND policyname = 'Allow public read access') THEN
+        CREATE POLICY "Allow public read access" ON public.samar_class_base_rv FOR SELECT USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'samar_class_base_rv' AND policyname = 'Allow authenticated insert') THEN
+        CREATE POLICY "Allow authenticated insert" ON public.samar_class_base_rv FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'samar_class_base_rv' AND policyname = 'Allow authenticated update') THEN
+        CREATE POLICY "Allow authenticated update" ON public.samar_class_base_rv FOR UPDATE USING (auth.role() = 'authenticated');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'samar_class_base_rv' AND policyname = 'Allow authenticated delete') THEN
+        CREATE POLICY "Allow authenticated delete" ON public.samar_class_base_rv FOR DELETE USING (auth.role() = 'authenticated');
+    END IF;
+END $$;
 
 -- Seed data
 

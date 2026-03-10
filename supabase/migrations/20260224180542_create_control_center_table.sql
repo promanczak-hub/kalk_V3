@@ -1,4 +1,4 @@
-CREATE TABLE public.control_center (
+CREATE TABLE IF NOT EXISTS public.control_center (
     id integer PRIMARY KEY CHECK (id = 1),
     default_wibor numeric(5,2) NOT NULL DEFAULT 5.85,
     default_ltr_margin numeric(5,2) NOT NULL DEFAULT 15.00,

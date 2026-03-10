@@ -58,7 +58,7 @@ export default function ReplacementCarCrudPanel() {
   const fetchDependencies = async () => {
     try {
       const classesRes = await fetch(
-        `http://127.0.0.1:8000/api/samar-classes`
+        `${import.meta.env.VITE_API_URL || ""}/api/samar-classes`
       ).catch(() => null);
       if (classesRes?.ok) {
         setSamarClasses(await classesRes.json());
@@ -72,7 +72,7 @@ export default function ReplacementCarCrudPanel() {
     setLoading(true);
     try {
       const resp = await fetch(
-        `http://127.0.0.1:8000/api/replacement-car-rates`
+        `${import.meta.env.VITE_API_URL || ""}/api/replacement-car-rates`
       );
       if (resp.ok) {
         setData(await resp.json());
@@ -115,7 +115,7 @@ export default function ReplacementCarCrudPanel() {
   const handleSave = async () => {
     try {
       const resp = await fetch(
-        `http://127.0.0.1:8000/api/replacement-car-rates`,
+        `${import.meta.env.VITE_API_URL || ""}/api/replacement-car-rates`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -138,7 +138,7 @@ export default function ReplacementCarCrudPanel() {
     if (!confirm("Na pewno usunąć?")) return;
     try {
       const resp = await fetch(
-        `http://127.0.0.1:8000/api/replacement-car-rates/${id}`,
+        `${import.meta.env.VITE_API_URL || ""}/api/replacement-car-rates/${id}`,
         { method: "DELETE" }
       );
       if (resp.ok) {

@@ -45,7 +45,7 @@ function ExcelViewer({ rawDocUrl, brand, model }: ExcelViewerProps) {
       setError(null);
 
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const proxyUrl = `${baseUrl}/api/doc-proxy?url=${encodeURIComponent(rawDocUrl)}`;
 
         const response = await fetch(proxyUrl);
@@ -218,7 +218,7 @@ function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
       setIsLoading(true);
       setError(null);
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const proxyUrl = `${baseUrl}/api/doc-proxy?url=${encodeURIComponent(rawDocUrl)}`;
         const response = await fetch(proxyUrl);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

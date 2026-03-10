@@ -1,3 +1,4 @@
+import os
 import requests
 
 MAPPING = {
@@ -66,14 +67,14 @@ def map_old_class_to_new(old_val, samar_classes):
 
 def main():
     try:
-        samar_classes_res = requests.get("http://127.0.0.1:8000/api/samar-classes")
+        samar_classes_res = requests.get(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/samar-classes")
         samar_classes = [c["name"] for c in samar_classes_res.json()]
     except Exception as e:
         print(f"Error getting samar classes: {e}")
         return
 
     try:
-        drafts_res = requests.get("http://127.0.0.1:8000/api/excel-drafts")
+        drafts_res = requests.get(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/excel-drafts")
         drafts = drafts_res.json()
     except Exception as e:
         print(f"Error getting excel drafts: {e}")
@@ -135,7 +136,7 @@ def main():
             payload = {"columns_def": sheet["columns_def"], "data_rows": new_rows}
             try:
                 put_res = requests.put(
-                    f"http://127.0.0.1:8000/api/excel-drafts/{sheet['sheet_name']}",
+                    os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/excel-drafts/{sheet['sheet_name']}",
                     json=payload,
                 )
                 if put_res.status_code == 200:

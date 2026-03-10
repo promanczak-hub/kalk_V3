@@ -124,5 +124,5 @@ Poniższe pliki przeszły pełen audyt V1↔V3 i są zatwierdzone przez użytkow
 | `DB: koszty_opon` (tabela danych)                     | 2026-03-09 | 11 rozmiarów (13-23") × 13 kategorii, RLS=read-only, dane z CSV Budżet             |
 | `DB: tyre_configurations` (progi przebiegowe)         | 2026-03-09 | 9 progów km (wielosezon 5 + sezonowe 4), RLS=read+write                            |
 | `frontend/src/TabelaOponCrud/TabelaOponCrudPanel.tsx` | 2026-03-09 | panel read-only, usunięto edycję/import/eksport, badge ZAMROŻONE                   |
-| `DB: samar_classes` (tabela danych)                   | 2026-03-09 | 35 klas (28 osobowe + 7 dostawcze), RLS=read-only, źródło prawdy dla kalkulatora   |
+| `DB: samar_classes` (tabela danych)                   | 2026-03-10 | 33 klas, RLS=read-only, źródło prawdy dla kalkulatora                              |
 | `frontend/src/SamarMasterPanel.tsx`                   | 2026-03-09 | usunięto selektor klasy SAMAR, panel Master Table read-only, dodano ZAMROŻONE      |

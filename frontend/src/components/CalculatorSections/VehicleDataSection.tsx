@@ -58,11 +58,11 @@ export default function VehicleDataSection({
 
   useEffect(() => {
     axios
-      .get<EngineOption[]>("http://127.0.0.1:8000/api/engines")
+      .get<EngineOption[]>(`${import.meta.env.VITE_API_URL || ""}/api/engines`)
       .then((res) => setEngines(res.data))
       .catch((err) => console.error("Failed to load engines:", err));
 
-    fetch("http://127.0.0.1:8000/api/body-types")
+    fetch(`${import.meta.env.VITE_API_URL || ""}/api/body-types`)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setBodyTypes(data); })
       .catch((err) => console.error("Failed to load body types:", err));

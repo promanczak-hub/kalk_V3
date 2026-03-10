@@ -5,7 +5,7 @@
 -- 1. zabudowa_types — słownik typów zabudowy
 -- ═══════════════════════════════════════════════════════════════════
 
-CREATE TABLE public.zabudowa_types (
+CREATE TABLE IF NOT EXISTS public.zabudowa_types (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     description TEXT,
@@ -34,7 +34,7 @@ INSERT INTO public.zabudowa_types (name, description, excel_code) VALUES
 -- 2. zabudowa_wr_corrections — korekty WR per zabudowa × klasa
 -- ═══════════════════════════════════════════════════════════════════
 
-CREATE TABLE public.zabudowa_wr_corrections (
+CREATE TABLE IF NOT EXISTS public.zabudowa_wr_corrections (
     id SERIAL PRIMARY KEY,
     zabudowa_type_id INTEGER NOT NULL REFERENCES public.zabudowa_types(id) ON DELETE CASCADE,
     samar_class_id INTEGER REFERENCES public.samar_classes(id) ON DELETE CASCADE,

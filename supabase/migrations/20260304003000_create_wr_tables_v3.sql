@@ -1,11 +1,11 @@
 -- Migration 20260304003000_create_wr_tables_v3.sql
 
-CREATE TABLE public.samar_base_rv (
+CREATE TABLE IF NOT EXISTS public.samar_base_rv (
     klasa_samar text PRIMARY KEY,
     base_rv_percent numeric NOT NULL
 );
 
-CREATE TABLE public.samar_brand_corrections (
+CREATE TABLE IF NOT EXISTS public.samar_brand_corrections (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     klasa_samar text NOT NULL,
     rodzaj_paliwa text NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE public.samar_brand_corrections (
     UNIQUE(klasa_samar, rodzaj_paliwa, marka)
 );
 
-CREATE TABLE public.samar_vintage_depreciation (
+CREATE TABLE IF NOT EXISTS public.samar_vintage_depreciation (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     klasa_samar text NOT NULL,
     rodzaj_paliwa text NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE public.samar_vintage_depreciation (
     UNIQUE(klasa_samar, rodzaj_paliwa, rok)
 );
 
-CREATE TABLE public.samar_options_depreciation (
+CREATE TABLE IF NOT EXISTS public.samar_options_depreciation (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     klasa_samar text NOT NULL,
     rodzaj_paliwa text NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE public.samar_options_depreciation (
     UNIQUE(klasa_samar, rodzaj_paliwa, wiek_w_latach)
 );
 
-CREATE TABLE public.samar_mileage_thresholds (
+CREATE TABLE IF NOT EXISTS public.samar_mileage_thresholds (
     klasa_samar text PRIMARY KEY,
     threshold_lower integer NOT NULL DEFAULT 140000,
     threshold_upper integer NOT NULL DEFAULT 190000,
@@ -41,12 +41,12 @@ CREATE TABLE public.samar_mileage_thresholds (
     step_km integer NOT NULL DEFAULT 10000
 );
 
-CREATE TABLE public.samar_color_depreciation (
+CREATE TABLE IF NOT EXISTS public.samar_color_depreciation (
     kolor text PRIMARY KEY,
     depreciation_percent numeric NOT NULL
 );
 
-CREATE TABLE public.samar_body_depreciation (
+CREATE TABLE IF NOT EXISTS public.samar_body_depreciation (
     nadwozie_zabudowa text PRIMARY KEY,
     depreciation_percent numeric NOT NULL
 );

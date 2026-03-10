@@ -1,7 +1,7 @@
 -- Table: samar_classes
 -- Describes each SAMAR class and its independent configurable parameters
 
-CREATE TABLE public.samar_classes (
+CREATE TABLE IF NOT EXISTS public.samar_classes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
@@ -12,7 +12,7 @@ CREATE TABLE public.samar_classes (
 
 -- Table: samar_class_depreciation_rates
 -- Defines depreciation percentage per year for base vehicle and for options
-CREATE TABLE public.samar_class_depreciation_rates (
+CREATE TABLE IF NOT EXISTS public.samar_class_depreciation_rates (
     id SERIAL PRIMARY KEY,
     samar_class_id INTEGER NOT NULL REFERENCES public.samar_classes(id) ON DELETE CASCADE,
     fuel_type_id INTEGER NOT NULL, -- 1=Petrol, 2=Diesel, 3=EV/PHEV
@@ -25,7 +25,7 @@ CREATE TABLE public.samar_class_depreciation_rates (
 
 -- Table: samar_class_mileage_corrections
 -- Defines the correction multipliers below and above the threshold
-CREATE TABLE public.samar_class_mileage_corrections (
+CREATE TABLE IF NOT EXISTS public.samar_class_mileage_corrections (
     id SERIAL PRIMARY KEY,
     samar_class_id INTEGER NOT NULL REFERENCES public.samar_classes(id) ON DELETE CASCADE,
     fuel_type_id INTEGER NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE public.samar_class_mileage_corrections (
 
 -- Table: paint_types
 -- E.g. Base, Metallic, Pearl
-CREATE TABLE public.paint_types (
+CREATE TABLE IF NOT EXISTS public.paint_types (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -45,7 +45,7 @@ CREATE TABLE public.paint_types (
 
 -- Table: paint_parsing_rules
 -- Keywords or regexes to map Gemini text to a PaintType
-CREATE TABLE public.paint_parsing_rules (
+CREATE TABLE IF NOT EXISTS public.paint_parsing_rules (
     id SERIAL PRIMARY KEY,
     paint_type_id INTEGER NOT NULL REFERENCES public.paint_types(id) ON DELETE CASCADE,
     keyword_regex VARCHAR(255) NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE public.paint_parsing_rules (
 
 -- Table: samar_class_paint_adjustments
 -- Configurable impact (+/-) of a paint type on the RV for a given Samar Class
-CREATE TABLE public.samar_class_paint_adjustments (
+CREATE TABLE IF NOT EXISTS public.samar_class_paint_adjustments (
     id SERIAL PRIMARY KEY,
     samar_class_id INTEGER NOT NULL REFERENCES public.samar_classes(id) ON DELETE CASCADE,
     paint_type_id INTEGER NOT NULL REFERENCES public.paint_types(id) ON DELETE CASCADE,

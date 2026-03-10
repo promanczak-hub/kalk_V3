@@ -111,7 +111,7 @@ export function VehicleRowCard({
     if (!vehicle.synthesis_data) return;
     setIsRemappingClassification(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const baseUrl = import.meta.env.VITE_API_URL || "";
       const res = await fetch(`${baseUrl}/api/extract/remap-classification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -208,7 +208,7 @@ export function VehicleRowCard({
   useEffect(() => {
     const fetchDefaults = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const resp = await fetch(`${baseUrl}/api/control-center`);
         if (resp.ok) {
           const settings = await resp.json();
@@ -235,6 +235,10 @@ export function VehicleRowCard({
       const cs = (vehicle.synthesis_data as any)?.card_summary;
       setHookInstallation(cs?.has_tow_hook === true);
       setVehicleVintage(cs?.is_current_year_vehicle === false ? "previous" : "current");
+      
+      const wheels = vehicle.wheels || "";
+      const match = wheels.match(/(\d{2})/);
+      if (match) setRimDiameter(parseInt(match[1], 10));
       return;
     }
 
@@ -263,7 +267,17 @@ export function VehicleRowCard({
       if (tp.tire_count_mode != null) setTireCountMode(tp.tire_count_mode);
       if (tp.tire_cost_correction_enabled != null) setTireCostCorrectionEnabled(tp.tire_cost_correction_enabled);
       if (tp.tire_cost_correction != null) setTireCostCorrection(tp.tire_cost_correction);
-      if (tp.rim_diameter != null) setRimDiameter(tp.rim_diameter);
+      if (tp.rim_diameter != null) {
+        setRimDiameter(tp.rim_diameter);
+      } else {
+        const wheels = vehicle.wheels || "";
+        const match = wheels.match(/(\d{2})/);
+        if (match) setRimDiameter(parseInt(match[1], 10));
+      }
+    } else {
+      const wheels = vehicle.wheels || "";
+      const match = wheels.match(/(\d{2})/);
+      if (match) setRimDiameter(parseInt(match[1], 10));
     }
     // Other
     if (setup.service_cost_type) setServiceCostType(setup.service_cost_type);
@@ -280,7 +294,7 @@ export function VehicleRowCard({
       setIsMetalic(autoDetectMetalic());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color]);
+  }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color, vehicle.wheels]);
 
 
 
@@ -448,7 +462,7 @@ export function VehicleRowCard({
           }))
         };
 
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const res = await fetch(`${baseUrl}/api/homologation/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -624,7 +638,7 @@ export function VehicleRowCard({
       return;
     }
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const baseUrl = import.meta.env.VITE_API_URL || "";
       const params = new URLSearchParams({
         samar_class_name: samarName,
         engine_name: engineName,
@@ -662,7 +676,7 @@ export function VehicleRowCard({
   useEffect(() => {
     const fetchCC = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const res = await fetch(`${baseUrl}/api/control-center`);
         if (res.ok) {
           const data = await res.json();
@@ -684,7 +698,7 @@ export function VehicleRowCard({
       return;
     }
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const baseUrl = import.meta.env.VITE_API_URL || "";
       const params = new URLSearchParams({
         samar_class_id: String(classId),
         engine_type_id: String(engineId),
@@ -852,7 +866,7 @@ export function VehicleRowCard({
     if (!vehicle.synthesis_data) return;
     setIsMapping(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const baseUrl = import.meta.env.VITE_API_URL || "";
       const res = await fetch(`${baseUrl}/api/extract/map-vehicle-data`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -911,7 +925,7 @@ export function VehicleRowCard({
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const baseUrl = import.meta.env.VITE_API_URL || "";
       const res = await fetch(`${baseUrl}/api/extract/manual-override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1160,7 +1174,7 @@ export function VehicleRowCard({
     const handleCancel = async () => {
       if (!window.confirm("Czy na pewno chcesz anulować przetwarzanie tego dokumentu?")) return;
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const res = await fetch(`${baseUrl}/api/cancel-processing`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1276,7 +1290,7 @@ export function VehicleRowCard({
         onEngineCategoryChange={handleEngineCategoryChange}
         driveType={driveType}
         onDriveTypeChange={handleDriveTypeChange}
-        bodyType={localMappedData?.body_type || mappedData?.body_type}
+        bodyType={localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined}
         onBodyTypeChange={handleBodyTypeChange}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
@@ -1392,6 +1406,33 @@ export function VehicleRowCard({
              controlCenter={controlCenter}
           />
 
+          {/* Conditional rendering for verification status */}
+          {vehicle.verification_status === "cancelled" && (
+            <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
+              <div className="flex justify-between items-center text-red-500 mb-2">
+                <span>{vehicle.id}</span>
+                <span>Przerwano przez użytkownika</span>
+              </div>
+            </div>
+          )}
+
+          {vehicle.verification_status === "moved_to_library" && (
+            <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
+              <div className="flex justify-between items-center text-blue-500 mb-2">
+                <span>{vehicle.id}</span>
+                <span>Przeniesiono do Biblioteki Cenników</span>
+              </div>
+            </div>
+          )}
+
+          {vehicle.verification_status === "error" && (
+            <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
+              <div className="flex justify-between items-center text-red-500 mb-2">
+                <span>{vehicle.id}</span>
+                <span>Wystąpił błąd podczas przetwarzania</span>
+              </div>
+            </div>
+          )}
 
 
           <div className="mt-6 flex flex-col items-end gap-3 pt-4 border-t border-slate-200">
@@ -1404,7 +1445,7 @@ export function VehicleRowCard({
                      await handleSaveSetup();
 
                      // 2. Create kalkulacja
-                     const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+                     const baseUrl = import.meta.env.VITE_API_URL || "";
                      const resp = await fetch(`${baseUrl}/api/kalkulacje`, {
                        method: "POST",
                        headers: { "Content-Type": "application/json" },
@@ -1496,7 +1537,7 @@ export function VehicleRowCard({
                      // Jeśli nie - ładujemy do skutku i blokujemy przycisk
                      setIsGeneratingBrochure(true);
                      try {
-                        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+                        const baseUrl = import.meta.env.VITE_API_URL || "";
                         const rawText = JSON.stringify(vehicle.synthesis_data || {});
                         
                         const brochurePromise = fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {

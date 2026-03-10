@@ -1,3 +1,4 @@
+import os
 
 try:
     import pandas as pd
@@ -21,7 +22,7 @@ try:
 
     df.columns = [f"col_{i}" for i in range(len(df.columns))]
 
-    engine = create_engine("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    engine = create_engine(os.environ.get("DATABASE_URL"))
     df.to_sql("CennikOpon_czak", engine, if_exists="replace", index=False)
     print("SQL insert successful")
 

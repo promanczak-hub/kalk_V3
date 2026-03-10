@@ -34,7 +34,7 @@ def clean_column_name(name):
 
 def main():
     directory = r"C:\Users\proma\Downloads\tabeleRMS"
-    engine = create_engine("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    engine = create_engine(os.environ.get("DATABASE_URL"))
 
     schema_data = {}
 

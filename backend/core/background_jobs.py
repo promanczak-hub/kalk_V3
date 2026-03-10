@@ -213,25 +213,24 @@ def process_and_save_document_bg(
         # ── Stage 1: Upload do Supabase Storage ──
         _update_progress(supabase, file_id, "uploading")
 
-        import tempfile
-        import os
+        import re
+        import unicodedata
 
-        storage_path = f"{file_id}-{file_name}"
+        # Sanitize file_name to ASCII for Supabase Storage to prevent 400 Bad Request
+        sanitized_name = (
+            unicodedata.normalize("NFKD", file_name)
+            .encode("ASCII", "ignore")
+            .decode("utf-8")
+        )
+        sanitized_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", sanitized_name)
+        storage_path = f"{file_id}-{sanitized_name}"
         res = None
 
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                tmp_file.write(file_bytes)
-                tmp_file_path = tmp_file.name
-
-            res = supabase.storage.from_("raw-vehicle-pdfs").upload(
-                path=storage_path,
-                file=tmp_file_path,
-                file_options={"content-type": mime_type},
-            )
-        finally:
-            if "tmp_file_path" in locals() and os.path.exists(tmp_file_path):
-                os.remove(tmp_file_path)
+        res = supabase.storage.from_("raw-vehicle-pdfs").upload(
+            path=storage_path,
+            file=file_bytes,
+            file_options={"content-type": mime_type},
+        )
 
         raw_pdf_url = None
         if hasattr(res, "error") and res.error:
@@ -260,6 +259,63 @@ def process_and_save_document_bg(
                 f"[BG TASK] Skonwertowano {mime_type} → tekst ({len(gemini_data)} znaków)"
             )
 
+        # ── Phase -1: Document Router (Gemini Flash) ──
+        _update_progress(supabase, file_id, "classifying_document")
+        print(f"[BG TASK] Faza -1: Klasyfikacja dokumentu {file_name}...")
+
+        from core.pipeline_router import classify_document, DOC_TYPE_OFFER
+
+        doc_type, doc_meta = classify_document(gemini_data, gemini_mime)
+
+        if _is_cancelled(cancel_event):
+            _update_progress(supabase, file_id, "cancelled")
+            return
+
+        if doc_type != DOC_TYPE_OFFER:
+            print(
+                f"[BG TASK] Dokument sklasyfikowany jako {doc_type}. Routing do Biblioteki Cenników."
+            )
+            _update_progress(supabase, file_id, "processing_library_document")
+
+            # Wymuszenie pełnej ekstrakcji Digital Twin mimo iż to nie jest oferta
+            from core.pipeline_digital_twin import extract_digital_twin_from_pdf
+
+            print(
+                f"[BG TASK] Wyciąganie pełnego Digital Twin dla dokumentu biblioteki..."
+            )
+            pro_data = extract_digital_twin_from_pdf(gemini_data, gemini_mime)
+
+            if _is_cancelled(cancel_event):
+                _update_progress(supabase, file_id, "cancelled")
+                return
+
+            # Dodanie Digital Twin do metadanych routera i zapis do tabeli document_library
+            library_payload = {
+                "file_name": file_name,
+                "document_url": raw_pdf_url or "",
+                "document_type": doc_type,
+                "brand": doc_meta.get("brand"),
+                "model": doc_meta.get("model"),
+                "valid_from": doc_meta.get("date"),
+                "description": doc_meta.get("description"),
+                "digital_twin": pro_data,
+            }
+            try:
+                supabase.table("document_library").insert(library_payload).execute()
+                print(f"[BG TASK] Dokument zapisany w document_library.")
+            except Exception as lib_err:
+                print(
+                    f"[BG TASK ERROR] Nie udało się zapisać do document_library: {lib_err}"
+                )
+
+            # Oznaczamy rekord w synthesis jako przeniesiony
+            _update_progress(supabase, file_id, "moved_to_library")
+            return
+
+        print(
+            f"[BG TASK] Dokument sklasyfikowany jako OFFER. Kontynuuję standardowy proces."
+        )
+
         # ── Phase 0: Multi-vehicle detection (Gemini Flash) ──
         _update_progress(supabase, file_id, "detecting_vehicles")
         print(f"[BG TASK] Faza 0: Wykrywanie liczby pojazdów w {file_name}...")
@@ -279,8 +335,8 @@ def process_and_save_document_bg(
         if multi_vehicles is not None:
             vehicle_count = len(multi_vehicles)
             print(
-                f"[BG TASK] ★ Wykryto {vehicle_count} pojazdów w {file_name}! "
-                f"Rozdzielam na osobne rekordy..."
+                "[BG TASK] ★ Wykryto %s pojazdów w %s! "
+                "Rozdzielam na osobne rekordy..." % (vehicle_count, file_name)
             )
 
             # Existing file_hash from the parent row — retrieve it

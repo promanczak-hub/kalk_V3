@@ -2,34 +2,34 @@
 -- Table creation and initial seeding
 
 
-CREATE TABLE samar_klasa_wr (
+CREATE TABLE IF NOT EXISTS samar_klasa_wr (
     id BIGINT PRIMARY KEY,
     nazwa TEXT NOT NULL
 );
 
 
-CREATE TABLE ltr_admin_korekta_wr_roczniks (
+CREATE TABLE IF NOT EXISTS ltr_admin_korekta_wr_roczniks (
     id BIGINT PRIMARY KEY,
     rocznik TEXT NOT NULL,
     korekta_procent NUMERIC(10,4) NOT NULL
 );
 
 
-CREATE TABLE ltr_admin_korekta_wr_kolors (
+CREATE TABLE IF NOT EXISTS ltr_admin_korekta_wr_kolors (
     id BIGINT PRIMARY KEY,
     kolor TEXT NOT NULL,
     korekta_procent NUMERIC(10,4) NOT NULL
 );
 
 
-CREATE TABLE ltr_admin_korekta_wr_zabudowas (
+CREATE TABLE IF NOT EXISTS ltr_admin_korekta_wr_zabudowas (
     id BIGINT PRIMARY KEY,
     rodzaj_zabudowy TEXT NOT NULL,
     korekta_procent NUMERIC(10,4) NOT NULL
 );
 
 
-CREATE TABLE ltr_admin_tabela_wr_klasas (
+CREATE TABLE IF NOT EXISTS ltr_admin_tabela_wr_klasas (
     id BIGINT PRIMARY KEY,
     rodzaj_paliwa INT NOT NULL,
     klasa_wr_id BIGINT REFERENCES samar_klasa_wr(id),
@@ -37,7 +37,7 @@ CREATE TABLE ltr_admin_tabela_wr_klasas (
 );
 
 
-CREATE TABLE ltr_admin_korekta_wr_markas (
+CREATE TABLE IF NOT EXISTS ltr_admin_korekta_wr_markas (
     id BIGINT PRIMARY KEY,
     rodzaj_paliwa INT NOT NULL,
     klasa_wr_id BIGINT REFERENCES samar_klasa_wr(id),
@@ -46,7 +46,7 @@ CREATE TABLE ltr_admin_korekta_wr_markas (
 );
 
 
-CREATE TABLE ltr_admin_tabela_wr_deprecjacjas (
+CREATE TABLE IF NOT EXISTS ltr_admin_tabela_wr_deprecjacjas (
     id BIGINT PRIMARY KEY,
     rodzaj_paliwa INT NOT NULL,
     klasa_wr_id BIGINT REFERENCES samar_klasa_wr(id),
@@ -55,7 +55,7 @@ CREATE TABLE ltr_admin_tabela_wr_deprecjacjas (
 );
 
 
-CREATE TABLE ltr_admin_tabela_wr_doposazenies (
+CREATE TABLE IF NOT EXISTS ltr_admin_tabela_wr_doposazenies (
     id BIGINT PRIMARY KEY,
     liczba_lat INT NOT NULL,
     rodzaj_paliwa INT NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE ltr_admin_tabela_wr_doposazenies (
 );
 
 
-CREATE TABLE ltr_admin_tabela_wr_przebiegs (
+CREATE TABLE IF NOT EXISTS ltr_admin_tabela_wr_przebiegs (
     id BIGINT PRIMARY KEY,
     klasa_wr_id BIGINT REFERENCES samar_klasa_wr(id),
     korekta_procent_ponizej_190 NUMERIC(10,4) NOT NULL,

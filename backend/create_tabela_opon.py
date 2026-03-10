@@ -1,8 +1,9 @@
+import os
 from sqlalchemy import create_engine, text
 
 
 def create_and_seed_table():
-    engine = create_engine("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    engine = create_engine(os.environ.get("DATABASE_URL"))
 
     create_sql = """
     CREATE TABLE IF NOT EXISTS koszty_opon (

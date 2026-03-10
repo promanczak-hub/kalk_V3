@@ -28,7 +28,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       setError(null);
       
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const baseUrl = import.meta.env.VITE_API_URL || "";
         const proxyUrl = `${baseUrl}/api/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
         
         const response = await fetch(proxyUrl);

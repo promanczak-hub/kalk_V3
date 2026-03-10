@@ -4,10 +4,36 @@ VALUES ('raw-vehicle-pdfs', 'raw-vehicle-pdfs', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Create policy to allow public reads from the bucket
-CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'raw-vehicle-pdfs');
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'Public Access'
+    ) THEN
+        CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'raw-vehicle-pdfs');
+    END IF;
+END
+$$;
+
 
 -- Create policy to allow public inserts to the bucket
-CREATE POLICY "Public Insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'raw-vehicle-pdfs');
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'Public Insert'
+    ) THEN
+        CREATE POLICY "Public Insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'raw-vehicle-pdfs');
+    END IF;
+END
+$$;
 
 -- Create the main vehicle synthesis table
 CREATE TABLE IF NOT EXISTS public.vehicle_synthesis (

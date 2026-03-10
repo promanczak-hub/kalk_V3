@@ -37,7 +37,7 @@ export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
 
     try {
       const response = await axios.post<ExtractedServiceOption>(
-        "http://127.0.0.1:8000/api/extract/service-option",
+        `${import.meta.env.VITE_API_URL || ""}/api/extract/service-option`,
         formData,
         {
           headers: {

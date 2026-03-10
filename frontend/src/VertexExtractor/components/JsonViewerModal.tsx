@@ -38,7 +38,7 @@ export function JsonViewerModal({
     setIsSendingToKalk(true);
     try {
       const parsedJson = JSON.parse(activeJsonView.jsonResult);
-      const response = await fetch("http://127.0.0.1:8000/api/kalkulacje", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stan_json: parsedJson }),
@@ -51,7 +51,10 @@ export function JsonViewerModal({
       const data = await response.json();
       if (data.id) {
         // Open the calculator in a new tab with the ID
-        window.open(`http://localhost:5173/?id=${data.id}`, "_blank");
+        // window.open(`${import.meta.env.VITE_FRONTEND_URL || ""}/?id=${data.id}`, "_blank");
+        // Using generic fallback to self if VITE_FRONTEND_URL not set
+        const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+        window.open(`${frontendUrl}/?id=${data.id}`, "_blank");
       }
     } catch (e) {
       console.error(e);

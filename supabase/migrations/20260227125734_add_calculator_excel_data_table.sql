@@ -1,4 +1,4 @@
-create table public.calculator_excel_data (
+CREATE TABLE IF NOT EXISTS public.calculator_excel_data (
     id uuid not null default gen_random_uuid (),
     sheet_name text not null,
     row_data jsonb not null default '[]'::jsonb,

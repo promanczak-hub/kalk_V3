@@ -37,7 +37,7 @@ export default function CalculatorExcelDataSettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/calculator-excel-data");
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || ""}/api/calculator-excel-data`);
       setData(res.data);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Nieznany błąd";

@@ -101,40 +101,80 @@ COMMENT ON TABLE reverse_search.vehicle_catalog_matches IS
 -- model_document_sources
 ALTER TABLE reverse_search.model_document_sources ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "model_document_sources_select"
-ON reverse_search.model_document_sources FOR SELECT
-USING (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'model_document_sources' AND policyname = 'model_document_sources_select') THEN
+        CREATE POLICY "model_document_sources_select"
+        ON reverse_search.model_document_sources FOR SELECT
+        USING (TRUE);
+    END IF;
+END $$;
 
-CREATE POLICY "model_document_sources_insert"
-ON reverse_search.model_document_sources FOR INSERT
-WITH CHECK (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'model_document_sources' AND policyname = 'model_document_sources_insert') THEN
+        CREATE POLICY "model_document_sources_insert"
+        ON reverse_search.model_document_sources FOR INSERT
+        WITH CHECK (TRUE);
+    END IF;
+END $$;
 
-CREATE POLICY "model_document_sources_update"
-ON reverse_search.model_document_sources FOR UPDATE
-USING (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'model_document_sources' AND policyname = 'model_document_sources_update') THEN
+        CREATE POLICY "model_document_sources_update"
+        ON reverse_search.model_document_sources FOR UPDATE
+        USING (TRUE);
+    END IF;
+END $$;
 
-CREATE POLICY "model_document_sources_delete"
-ON reverse_search.model_document_sources FOR DELETE
-USING (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'model_document_sources' AND policyname = 'model_document_sources_delete') THEN
+        CREATE POLICY "model_document_sources_delete"
+        ON reverse_search.model_document_sources FOR DELETE
+        USING (TRUE);
+    END IF;
+END $$;
 
 
 -- vehicle_catalog_matches
 ALTER TABLE reverse_search.vehicle_catalog_matches ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "vehicle_catalog_matches_select"
-ON reverse_search.vehicle_catalog_matches FOR SELECT
-USING (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'vehicle_catalog_matches' AND policyname = 'vehicle_catalog_matches_select') THEN
+        CREATE POLICY "vehicle_catalog_matches_select"
+        ON reverse_search.vehicle_catalog_matches FOR SELECT
+        USING (TRUE);
+    END IF;
+END $$;
 
-CREATE POLICY "vehicle_catalog_matches_insert"
-ON reverse_search.vehicle_catalog_matches FOR INSERT
-WITH CHECK (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'vehicle_catalog_matches' AND policyname = 'vehicle_catalog_matches_insert') THEN
+        CREATE POLICY "vehicle_catalog_matches_insert"
+        ON reverse_search.vehicle_catalog_matches FOR INSERT
+        WITH CHECK (TRUE);
+    END IF;
+END $$;
 
-CREATE POLICY "vehicle_catalog_matches_update"
-ON reverse_search.vehicle_catalog_matches FOR UPDATE
-USING (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'vehicle_catalog_matches' AND policyname = 'vehicle_catalog_matches_update') THEN
+        CREATE POLICY "vehicle_catalog_matches_update"
+        ON reverse_search.vehicle_catalog_matches FOR UPDATE
+        USING (TRUE);
+    END IF;
+END $$;
 
-CREATE POLICY "vehicle_catalog_matches_delete"
-ON reverse_search.vehicle_catalog_matches FOR DELETE
-USING (TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'reverse_search' AND tablename = 'vehicle_catalog_matches' AND policyname = 'vehicle_catalog_matches_delete') THEN
+        CREATE POLICY "vehicle_catalog_matches_delete"
+        ON reverse_search.vehicle_catalog_matches FOR DELETE
+        USING (TRUE);
+    END IF;
+END $$;
 
 COMMIT;

@@ -4,7 +4,7 @@ from supabase import create_client, Client
 
 
 def main():
-    url = os.environ.get("VITE_SUPABASE_URL", "http://127.0.0.1:54321")
+    url = os.environ.get("VITE_SUPABASE_URL", "https://gnpsdiarmwvqhqbyetce.supabase.co")
     key = os.environ.get(
         "VITE_SUPABASE_SERVICE_ROLE_KEY", "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz"
     )

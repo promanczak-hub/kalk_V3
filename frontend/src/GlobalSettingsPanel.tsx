@@ -59,7 +59,7 @@ export default function GlobalSettingsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  const baseUrl = import.meta.env.VITE_API_URL || "";
 
   const fetchSettings = useCallback(async () => {
     try {

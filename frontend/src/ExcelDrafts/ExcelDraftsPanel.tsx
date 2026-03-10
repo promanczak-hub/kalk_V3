@@ -10,7 +10,7 @@ export default function ExcelDraftsPanel() {
   useEffect(() => {
     const fetchSheets = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/excel-drafts");
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/excel-drafts`);
         if (res.ok) {
           const data = await res.json();
           setSheets(data);

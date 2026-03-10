@@ -1,7 +1,7 @@
 -- Migration: create body_types dictionary table
 -- Replaces hardcoded dropdown in VehicleDataSection.tsx
 
-CREATE TABLE public.body_types (
+CREATE TABLE IF NOT EXISTS public.body_types (
     id serial PRIMARY KEY,
     name text NOT NULL UNIQUE,
     vehicle_class text NOT NULL,

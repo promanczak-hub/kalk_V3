@@ -181,7 +181,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         months
       };
 
-      const res = await fetch(`http://localhost:8000/api/kalkulacje/debug-pipeline/${vehicle.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/debug-pipeline/${vehicle.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -259,7 +259,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         query: chat.query
       };
 
-      const res = await fetch(`http://localhost:8000/api/kalkulacje/debug-pipeline/${vehicle.id}/ask-ai`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/kalkulacje/debug-pipeline/${vehicle.id}/ask-ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

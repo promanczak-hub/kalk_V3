@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List, Optional, cast
 import logging
 
@@ -43,12 +44,9 @@ app.include_router(excel_draft_router, prefix="/api")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
+        os.environ.get(
+            "FRONTEND_URL", "*"
+        ),  # Replaced explicit local origins with env variable or wildcard for deployment
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -1413,4 +1411,8 @@ async def bulk_update_vintage_corrections(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(
+        app,
+        host=os.environ.get("HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT", 8000)),
+    )

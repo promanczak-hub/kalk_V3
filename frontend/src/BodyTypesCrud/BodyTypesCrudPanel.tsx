@@ -22,7 +22,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 
-const BASE_URL = "http://127.0.0.1:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 const VEHICLE_CLASSES = ["Osobowy", "Dostawczy"] as const;
 

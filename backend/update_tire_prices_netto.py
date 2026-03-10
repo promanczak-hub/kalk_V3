@@ -1,8 +1,9 @@
+import os
 from sqlalchemy import create_engine, text
 
 
 def update_prices_to_netto():
-    engine = create_engine("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    engine = create_engine(os.environ.get("DATABASE_URL"))
 
     query = text("""
     UPDATE koszty_opon

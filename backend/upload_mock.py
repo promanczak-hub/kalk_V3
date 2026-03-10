@@ -47,7 +47,7 @@ def upload_mock():
         files = {"file": ("BMW 320i Touring.pdf", f, "application/pdf")}
         data = {"file_id": file_id}
         response = requests.post(
-            "http://localhost:8000/api/extract/async", files=files, data=data
+            os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/extract/async", files=files, data=data
         )
 
     print(f"Status Code: {response.status_code}")

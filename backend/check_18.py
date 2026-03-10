@@ -1,6 +1,7 @@
+import os
 from sqlalchemy import create_engine, text
 
-e = create_engine("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+e = create_engine(os.environ.get("DATABASE_URL"))
 with e.connect() as conn:
     r = conn.execute(text("SELECT * FROM koszty_opon ORDER BY srednica"))
     cols = r.keys()

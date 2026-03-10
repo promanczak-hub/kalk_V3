@@ -165,24 +165,24 @@ export default function SamarRVPanel() {
   const fetchData = async () => {
     try {
       const [cls, bas, brd, age, mil, insRates, insCoeffs] = await Promise.all([
-        axios.get<SamarClass[]>("http://127.0.0.1:8000/api/samar-rv/classes"),
+        axios.get<SamarClass[]>(`${import.meta.env.VITE_API_URL || ""}/api/samar-rv/classes`),
         axios.get<BasePercentage[]>(
-          "http://127.0.0.1:8000/api/samar-rv/base-percentages",
+          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/base-percentages`,
         ),
         axios.get<BrandCorrection[]>(
-          "http://127.0.0.1:8000/api/samar-rv/brand-corrections",
+          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/brand-corrections`,
         ),
         axios.get<AgeDepreciation[]>(
-          "http://127.0.0.1:8000/api/samar-rv/depreciation",
+          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/depreciation`,
         ),
         axios.get<MileageCorrection[]>(
-          "http://127.0.0.1:8000/api/samar-rv/mileage",
+          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/mileage`,
         ),
         axios.get<InsuranceRate[]>(
-          "http://127.0.0.1:8000/api/samar-rv/insurance-rates",
+          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/insurance-rates`,
         ),
         axios.get<InsuranceCoefficient[]>(
-          "http://127.0.0.1:8000/api/samar-rv/insurance-coefficients",
+          `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/insurance-coefficients`,
         ),
       ]);
 
@@ -260,7 +260,7 @@ export default function SamarRVPanel() {
                       onSave={async (updatedClass) => {
                         try {
                           const res = await axios.post(
-                            "http://127.0.0.1:8000/api/samar-rv/classes",
+                            `${import.meta.env.VITE_API_URL || ""}/api/samar-rv/classes`,
                             updatedClass,
                           );
                           setClasses((prev) =>

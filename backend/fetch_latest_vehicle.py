@@ -1,7 +1,8 @@
+import os
 import psycopg2
 
 try:
-    conn = psycopg2.connect("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
     cur = conn.cursor()
     cur.execute(
         "SELECT id, numer_kalkulacji, stan_json, status FROM ltr_kalkulacje WHERE numer_kalkulacji ILIKE '%SP65VRGF%' OR stan_json::text ILIKE '%SP65VRGF%' OR dane_pojazdu ILIKE '%SP65VRGF%';"

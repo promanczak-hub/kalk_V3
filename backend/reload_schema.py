@@ -1,6 +1,7 @@
+import os
 import psycopg2
 
-conn = psycopg2.connect("postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
 conn.autocommit = True
 cur = conn.cursor()
 cur.execute("GRANT SELECT ON body_types TO anon;")

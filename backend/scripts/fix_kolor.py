@@ -1,12 +1,11 @@
-import json
-from backend.core.database import supabase
+from core.database import supabase
 
 
 def fix_drafts():
     # 1. KOLOR
     new_kolor = [
         {"id": 1, "col_1": "Metalik", "col_2": ""},
-        {"id": 2, "col_1": "Niemetalik", "col_2": ""},
+        {"id": 2, "col_1": "Niemetalik", "col_2": "-1%"},
     ]
     supabase.table("excel_drafts").update({"data_rows": new_kolor}).eq(
         "sheet_name", "KOLOR"

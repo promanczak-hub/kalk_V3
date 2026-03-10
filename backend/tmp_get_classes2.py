@@ -1,10 +1,10 @@
+import os
 import requests
-import json
 
 
 def main():
     try:
-        drafts_res = requests.get("http://127.0.0.1:8000/api/excel-drafts")
+        drafts_res = requests.get(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/excel-drafts")
         drafts = drafts_res.json()
 
         old_classes = set()

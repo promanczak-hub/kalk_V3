@@ -15,7 +15,18 @@ COMMENT ON COLUMN public.tabela_rabaty.marka IS 'Brand name: SKODA, AUDI, VW Oso
 COMMENT ON COLUMN public.tabela_rabaty.rabat IS 'Discount as decimal fraction, e.g. 0.24 = 24%';
 
 ALTER TABLE public.tabela_rabaty ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Enable read access for all users" ON public.tabela_rabaty FOR SELECT USING (true);
-CREATE POLICY "Enable insert for all users" ON public.tabela_rabaty FOR INSERT WITH CHECK (true);
-CREATE POLICY "Enable update for all users" ON public.tabela_rabaty FOR UPDATE USING (true);
-CREATE POLICY "Enable delete for all users" ON public.tabela_rabaty FOR DELETE USING (true);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tabela_rabaty' AND policyname = 'Enable read access for all users') THEN
+        CREATE POLICY "Enable read access for all users" ON public.tabela_rabaty FOR SELECT USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tabela_rabaty' AND policyname = 'Enable insert for all users') THEN
+        CREATE POLICY "Enable insert for all users" ON public.tabela_rabaty FOR INSERT WITH CHECK (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tabela_rabaty' AND policyname = 'Enable update for all users') THEN
+        CREATE POLICY "Enable update for all users" ON public.tabela_rabaty FOR UPDATE USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tabela_rabaty' AND policyname = 'Enable delete for all users') THEN
+        CREATE POLICY "Enable delete for all users" ON public.tabela_rabaty FOR DELETE USING (true);
+    END IF;
+END $$;

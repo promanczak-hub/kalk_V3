@@ -67,7 +67,7 @@ export default function EnginesCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/engines`);
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/engines`);
       if (resp.ok) {
         const json = await resp.json();
         setData(json);
@@ -98,7 +98,7 @@ export default function EnginesCrudPanel() {
 
   const handleSave = async () => {
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/engines`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/engines`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -118,7 +118,7 @@ export default function EnginesCrudPanel() {
   const handleDelete = async (id: number) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/engines/${id}`, {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/engines/${id}`, {
         method: "DELETE",
       });
       if (resp.ok) {
