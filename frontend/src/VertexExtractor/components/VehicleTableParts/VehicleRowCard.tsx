@@ -9,7 +9,7 @@ import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 // VehicleServiceIntervals removed — service cost uses normatywny_przebieg_mc floor
 import { DocumentViewerFrame } from "./PDFViewerFrame";
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
-import { BrochureBuilderModal } from "../brochure/BrochureBuilderModal";
+import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
@@ -432,13 +432,14 @@ export function VehicleRowCard({
 
   const handleRestoreAllOptions = () => {
     if (window.confirm("Czy na pewno chcesz przywrócić oryginalne usługi serwisowe i opcje fabryczne wyekstrahowane z dokumentu bazy? Bieżące niezapisane modyfikacje zostaną utracone.")) {
-       setCustomServiceOptions(initialServiceOptions);
+      setCustomServiceOptions(initialServiceOptions);
        setCustomFactoryOptions(initialFactoryOptions);
     }
   };
 
+  // Store full homologation response temporarily
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [homologationResult, setHomologationResult] = useState<HomologationResponse | null>(null);
+  const [, setHomologationResult] = useState<HomologationResponse | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -472,7 +473,8 @@ export function VehicleRowCard({
         if (!res.ok) return;
         const data = await res.json();
         if (mounted) {
-          setHomologationResult(data);
+          console.log("HOMO Response raw:", Array.isArray(data) ? data[0] : data);
+          setHomologationResult(Array.isArray(data) ? data[0] : data);
         }
       } catch {
         // silently fail verification

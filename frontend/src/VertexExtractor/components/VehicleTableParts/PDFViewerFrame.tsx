@@ -283,6 +283,7 @@ function PDFViewer({ rawDocUrl, brand, model }: PDFViewerProps) {
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
 
+        // @ts-ignore
         await page.render({ canvasContext: ctx, viewport }).promise;
       } catch (err) {
         console.error(`PDF.js Render Error (page ${i}):`, err);

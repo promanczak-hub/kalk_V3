@@ -97,7 +97,6 @@ export default function VehicleDataSection({
       </AccordionSummary>
       <AccordionDetails sx={{ p: 3, pt: 4 }}>
         <Grid container spacing={3}>
-          {/* IDENTYFIKACJA */}
           <Grid item xs={12}>
             <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
               Identyfikacja pojazdu

@@ -18,10 +18,8 @@ import {
 } from "@mui/material";
 import ServiceCostsCrudPanel from "./ServiceCostsCrud/ServiceCostsCrudPanel";
 import ReplacementCarCrudPanel from "./ReplacementCarCrud/ReplacementCarCrudPanel";
-import ZabudowaCrudPanel from "./ZabudowaCrud/ZabudowaCrudPanel";
 import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
-
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
@@ -254,7 +252,6 @@ export default function SamarMasterPanel() {
     { label: "🗂️ Master Table", color: "#1565c0" },
     { label: "🔧 Serwis", color: "#4caf50" },
     { label: "🚗 Auto Zastępcze", color: "#2196f3" },
-    { label: "🏗️ Zabudowa", color: "#6d4c41" },
     { label: "🛡️ Ubezpieczenie", color: "#00897b" },
     { label: "💥 Wsp. Szkodowe", color: "#e65100" },
   ];
@@ -275,9 +272,9 @@ export default function SamarMasterPanel() {
       {subTab === 0 && <MasterTableView classes={classes} />}
       {subTab === 1 && <ServiceCostsCrudPanel />}
       {subTab === 2 && <ReplacementCarCrudPanel />}
-      {subTab === 3 && <ZabudowaCrudPanel />}
-      {subTab === 4 && <InsuranceRatesCrudPanel />}
-      {subTab === 5 && <DamageCoefficientsCrudPanel />}
+      {/* 3 was Zabudowa (removed) */}
+      {subTab === 3 && <InsuranceRatesCrudPanel />}
+      {subTab === 4 && <DamageCoefficientsCrudPanel />}
 
     </Box>
   );

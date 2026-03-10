@@ -108,6 +108,60 @@ async def list_catalogs(
     return {"catalogs": resp.data or [], "total": len(resp.data or [])}
 
 
+@router.get("/suggest")
+async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
+    """Suggest best catalogs for a given vehicle using LLM ranking."""
+    # 1. Fetch vehicle data
+    v_resp = (
+        sb_client.table("vehicle_synthesis")
+        .select("synthesis_data")
+        .eq("id", vehicle_id)
+        .limit(1)
+        .execute()
+    )
+    if not v_resp.data:
+        raise HTTPException(404, f"Vehicle {vehicle_id} not found")
+
+    synthesis = v_resp.data[0].get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary", {})
+    if not card_summary:
+        raise HTTPException(400, "Vehicle has no card_summary")
+
+    vehicle_spec = {
+        "brand": card_summary.get("brand") or synthesis.get("brand", ""),
+        "model": card_summary.get("model") or synthesis.get("model", ""),
+        "body_style": card_summary.get("body_style", ""),
+        "powertrain": card_summary.get("powertrain", ""),
+        "drive_type": card_summary.get("drive_type", ""),
+        "transmission": card_summary.get("transmission", ""),
+        "vehicle_class": card_summary.get("vehicle_class", ""),
+        "trim_level": card_summary.get("trim_level", ""),
+    }
+
+    # 2. Fetch all ready textual catalogs
+    c_resp = (
+        _rs()
+        .table("model_document_sources")
+        .select(
+            "id, brand, model_family, document_type, display_name, version_tag, file_type, extraction_status, variant_count"
+        )
+        .eq("extraction_status", "ready")
+        .order("uploaded_at", desc=True)
+        .execute()
+    )
+    catalogs = c_resp.data or []
+
+    if not catalogs:
+        return {"catalogs": []}
+
+    # 3. Use LLM to rank catalogs
+    from core.feature_cross_reference import rank_catalogs_for_vehicle
+
+    ranked_catalogs = rank_catalogs_for_vehicle(vehicle_spec, catalogs)
+
+    return {"catalogs": ranked_catalogs}
+
+
 # ── GET DETAIL ───────────────────────────────────────────────────
 
 

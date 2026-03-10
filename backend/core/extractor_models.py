@@ -227,6 +227,9 @@ class ServiceEquipment(BaseModel):
 
 
 class CardSummary(BaseModel):
+    financial_reasoning: str = Field(
+        description="SZCZEGÓŁOWA ANALIZA I UZASADNIENIE DLA CEN. Zanim wypiszesz kwoty, wyszczególnij tu krok po kroku wszystkie ceny znalezione w PDF / tekście. Testuj relacje (Czy A + B = C? Czy B to A pomnożone przez 1.23?). 1. Zidentyfikuj główną cenę bazową PRZED rabatami dealera. 2. Oblicz sumę opcji by sprawdzić, czy cena bazowa + opcje = cena pojazdu. 3. Jeśli kwota jest niższa, zidentyfikuj to jako po rabacie i nie używaj jako ceny bazowej."
+    )
     price_domain: str = Field(
         default="unknown",
         description="Globalna domena cenowa całego dokumentu: 'netto' lub 'brutto'. "

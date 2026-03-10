@@ -43,6 +43,9 @@ class MatchedFeature(BaseModel):
         description="Klucz cechy z universal_features (np. 'liczba_miejsc', "
         "'dlugosc_przestrzeni_ladunkowej', 'europalety')"
     )
+    mapping_confidence: float = Field(
+        description="Ocena w skali 0.0 - 1.0 jak bardzo nazwa cechy producenta odpowiada semantycznie wybranemu kluczowi 'feature_key'."
+    )
     value_text: str | None = Field(None, description="Wartość tekstowa cechy")
     value_num: float | None = Field(None, description="Wartość numeryczna cechy")
     value_bool: bool | None = Field(None, description="Wartość boolean cechy")
@@ -61,6 +64,24 @@ class VariantMatchResult(BaseModel):
     features: list[MatchedFeature] = Field(
         default_factory=list,
         description="Lista cech wyekstrahowanych z dopasowanego wariantu",
+    )
+
+
+class CatalogRanking(BaseModel):
+    """Single catalog ranking."""
+
+    catalog_id: str = Field(description="ID dopasowanego katalogu")
+    relevance_score: float = Field(description="Ocena dopasowania 0.0-1.0")
+    reasoning: str = Field(
+        description="Krótkie uzasadnienie, dlaczego ten dokument pasuje"
+    )
+
+
+class CatalogRankingResult(BaseModel):
+    """List of ranked catalogs."""
+
+    rankings: list[CatalogRanking] = Field(
+        description="Lista katalogów posortowana od najbardziej do najmniej pasującego",
     )
 
 
@@ -116,13 +137,16 @@ A) Dopasuj pojazd do NAJLEPSZEGO wariantu z katalogu na podstawie:
 
 B) Wyciągnij z dopasowanego wariantu WSZYSTKIE użyteczne cechy i zmapuj je
    na klucze z `available_feature_keys`. Cechy numeryczne podaj w odpowiednich
-   jednostkach (mm, kg, l, szt).
+   jednostkach (mm, kg, l, szt). Dla każdej zmapowanej cechy podaj `mapping_confidence` 
+   (w skali 0.0 - 1.0) oceniając, jak precyzyjnie oryginalna nazwa cechy w katalogu producenta 
+   odpowiada uniwersalnemu kluczowi.
 
 C) Jeśli wariant zawiera wymiary ładunkowe (długość, szerokość, wysokość cargo),
    KONIECZNIE wyciągnij je jako osobne cechy.
 
 WAŻNE:
 - confidence < 0.5 → brak sensownego dopasowania, zwróć pustą listę features
+- Zwracaj w features TYLKO te cechy, dla których `mapping_confidence` wynosi >= 0.80. Sprawdzaj rygorystycznie różnice w nazewnictwie!
 - Jeśli dane z katalogu uzupełniają dane z konfiguracji (np. wymiary ładunkowe
   których nie ma w specyfikacji), wyciągnij je
 - NIE wymyślaj danych — wyciągaj TYLKO to, co jest wprost w katalogu
@@ -174,6 +198,102 @@ def _match_variant_with_llm(
         return None
 
 
+RANKING_SYSTEM_PROMPT = """\
+Jesteś asystentem pomagającym wybrać najlepszy cennik/katalog dla konkretnego pojazdu.
+Otrzymujesz:
+1. `vehicle_spec` — dane pojazdu (marka, model, wersja, silnik).
+2. `available_catalogs` — listę dostępnych dokumentów w systemie.
+
+ZADANIE:
+Oceń każdy dokument pod kątem tego, jak precyzyjnie opisuje podany pojazd. 
+1. `relevance_score` = 1.0 oznacza idealne dopasowanie (ta sama marka, model i generacja/rok z tagu wersji).
+2. `relevance_score` = 0.0 oznacza brak związku (inna marka/model).
+3. Posortuj dokumenty od najbardziej trafnych do namniej trafnych.
+
+Zwróć wynik jako listę w polu `rankings`.
+"""
+
+
+def rank_catalogs_for_vehicle(
+    vehicle_spec: dict[str, Any],
+    catalogs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Use LLM Flash to rank catalogs for a specific vehicle.
+
+    Returns the original catalogs list, sorted by relevance score descending,
+    with an added `_ranking` dict containing score and reasoning.
+    """
+    if not catalogs:
+        return []
+
+    if types is None:
+        logger.error("google.genai not available. Returning unsorted catalogs.")
+        return catalogs
+
+    client = get_gemini_client()
+
+    user_content = json.dumps(
+        {
+            "vehicle_spec": vehicle_spec,
+            "available_catalogs": [
+                {
+                    "id": c["id"],
+                    "brand": c["brand"],
+                    "model_family": c["model_family"],
+                    "display_name": c["display_name"],
+                    "version_tag": c["version_tag"],
+                    "file_type": c["file_type"],
+                }
+                for c in catalogs
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    config = types.GenerateContentConfig(
+        temperature=0.0,
+        max_output_tokens=4096,
+        response_mime_type="application/json",
+        response_schema=CatalogRankingResult,
+        system_instruction=RANKING_SYSTEM_PROMPT,
+        safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+    )
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[user_content],
+            config=config,
+        )
+        text = getattr(response, "text", "{}") or "{}"
+        data = json.loads(text)
+        ranking_result = CatalogRankingResult(**data)
+
+        # Map back to original catalogs
+        score_map = {r.catalog_id: r for r in ranking_result.rankings}
+
+        for cat in catalogs:
+            rank_data = score_map.get(cat["id"])
+            if rank_data:
+                cat["_ranking"] = {
+                    "score": rank_data.relevance_score,
+                    "reasoning": rank_data.reasoning,
+                }
+            else:
+                cat["_ranking"] = {"score": 0.0, "reasoning": "LLM omitted this item"}
+
+        # Sort by score descending
+        catalogs.sort(
+            key=lambda x: x.get("_ranking", {}).get("score", 0.0), reverse=True
+        )
+        return catalogs
+
+    except Exception as exc:
+        logger.error("LLM catalog ranking failed: %s", exc)
+        return catalogs
+
+
 # ── Evidence creation ────────────────────────────────────────────
 
 
@@ -188,6 +308,14 @@ def _create_evidence_batch(
     sb = sb_client
 
     for feat in match_result.features:
+        if feat.mapping_confidence < 0.8:
+            logger.debug(
+                "Skipping feature '%s' due to low confidence: %s",
+                feat.feature_key,
+                feat.mapping_confidence,
+            )
+            continue
+
         feat_id = feature_id_map.get(feat.feature_key)
         if not feat_id:
             logger.debug(
@@ -201,7 +329,7 @@ def _create_evidence_batch(
             "feature_id": feat_id,
             "source_type": source_type,
             "evidence_status": "observed",
-            "confidence": match_result.confidence,
+            "confidence": feat.mapping_confidence,
             "source_text": (f"Cross-ref: {match_result.matched_variant_name}"),
         }
         if feat.value_bool is not None:

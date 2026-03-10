@@ -1,0 +1,36 @@
+import psycopg2
+import os
+import re
+
+pwd = None
+try:
+    with open("d:/kalk_v3/backend/.env", "r", encoding="utf-8") as f:
+        m = re.search(r"SUPABASE_DB_PASSWORD\s*=\s*(.*)", f.read())
+        if m:
+            pwd = m.group(1).strip()
+except Exception:
+    pass
+
+if not pwd:
+    try:
+        with open("d:/kalk_v3/.env", "r", encoding="utf-8") as f:
+            m = re.search(r"SUPABASE_DB_PASSWORD\s*=\s*(.*)", f.read())
+            if m:
+                pwd = m.group(1).strip()
+    except Exception:
+        pass
+
+if pwd:
+    conn_str = (
+        f"postgresql://postgres:{pwd}@db.gnpsdiarmwvqhqbyetce.supabase.co:5432/postgres"
+    )
+    conn = psycopg2.connect(conn_str)
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute(
+            "ALTER ROLE authenticator SET pgrst.db_schemas TO 'public, graphql_public, reverse_search';"
+        )
+        cur.execute("NOTIFY pgrst, 'reload config';")
+    print("Command executed, waiting for reload...")
+else:
+    print("Error: Password not found")

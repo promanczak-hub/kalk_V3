@@ -154,7 +154,7 @@ def _finalize_vehicle(
         transmission = mapped_data.get("transmission")
         seats_raw = card_summary.get("number_of_seats")
 
-        samar_code, samar_name, samar_candidates = map_to_samar_class(
+        samar_name, samar_candidates = map_to_samar_class(
             brand=brand,
             model=model,
             segment=segment,

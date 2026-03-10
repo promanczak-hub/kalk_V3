@@ -142,7 +142,7 @@ def _reprocess_single(
     seats_raw = card_summary.get("number_of_seats")
 
     try:
-        samar_code, samar_name, samar_candidates = map_to_samar_class(
+        samar_name, samar_candidates = map_to_samar_class(
             brand=new_brand,
             model=new_model,
             segment=segment,
@@ -153,7 +153,7 @@ def _reprocess_single(
         )
         mapped_data["samar_category"] = samar_name
         mapped_data["samar_candidates"] = samar_candidates
-        print(f"     ✓ SAMAR={samar_name} ({samar_code})")
+        print(f"     ✓ SAMAR={samar_name}")
     except Exception as exc:
         print(f"     ✗ SAMAR Mapper error: {exc}")
 

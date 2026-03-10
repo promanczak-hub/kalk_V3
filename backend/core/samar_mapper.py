@@ -68,7 +68,7 @@ def map_to_samar_class(
     trim: str | None = None,
     transmission: str | None = None,
     number_of_seats: int | None = None,
-) -> Tuple[str, str, list[dict]]:
+) -> Tuple[str, list[dict]]:
     """Dynamically classify a vehicle into SAMAR classes with reranking.
 
     Queries ``samar_classes`` for the full dictionary, then asks
@@ -76,15 +76,14 @@ def map_to_samar_class(
 
     Returns
     -------
-    tuple[str, str, list[dict]]
-        ``(short_code, best_class_name, ranked_candidates)``
+    tuple[str, list[dict]]
+        ``(best_class_name, ranked_candidates)``
         where ``ranked_candidates`` is a list of
         ``{"klasa": "...", "confidence": 0.95}`` sorted desc.
-        Falls back to ``("UNKNOWN", "INNE - WYMAGA RĘCZNEGO MAPOWANIA", [])``
+        Falls back to ``("INNE - WYMAGA RĘCZNEGO MAPOWANIA", [])``
         on error.
     """
-    fallback: Tuple[str, str, list[dict]] = (
-        "UNKNOWN",
+    fallback: Tuple[str, list[dict]] = (
         "INNE - WYMAGA RĘCZNEGO MAPOWANIA",
         [],
     )
@@ -95,10 +94,14 @@ def map_to_samar_class(
     try:
         sb_client = _build_samar_client()
         samar_dict = _fetch_samar_dictionary(sb_client)
-    except Exception:
+    except Exception as exc:
+        logger.exception(
+            "[SAMAR MAPPER] Error initializing or fetching samar dict: %s", exc
+        )
         return fallback
 
     if not samar_dict:
+        logger.warning("[SAMAR MAPPER] Samar dictionary is empty! Returning fallback.")
         return fallback
 
     # Extract unique class names for the prompt
@@ -192,43 +195,12 @@ Posortuj wyniki od najwyższego do najniższego confidence.
         if candidates:
             best = candidates[0]
             best_class = best["klasa"].strip()
-            code = _extract_short_code(best_class)
-            return (code, best_class, candidates)
+            return (best_class, candidates)
 
     except Exception as exc:
         logger.exception("[SAMAR MAPPER] Gemini error: %s", exc)
 
     return fallback
-
-
-def _extract_short_code(class_name: str) -> str:
-    """Extract a short segment code from a full SAMAR class name.
-
-    Examples
-    --------
-    >>> _extract_short_code("PODSTAWOWA D ŚREDNIA")
-    'D'
-    >>> _extract_short_code("TERENOWO-REKREACYJNE C NIŻSZA ŚREDNIA")
-    'Csuv'
-    >>> _extract_short_code("VANY C MINIVANY")
-    'Cvan'
-    """
-    name_lower = class_name.lower()
-
-    # Detect category prefix
-    is_suv = "terenowo" in name_lower
-    is_sport = "sportowo" in name_lower
-    is_van = "vany" in name_lower or "minivan" in name_lower or "kombi" in name_lower
-    is_dostawcze = "dostawcze" in name_lower
-    is_minibus = "minibus" in name_lower
-    is_pickup = "pick-up" in name_lower
-
-    # Detect segment letter
-    segment = ""
-    for letter in ["A", "B", "C", "D", "E", "F", "G", "H", "I"]:
-        if f" {letter} " in class_name:
-            segment = letter
-            break
 
     if not segment:
         if "luksus" in name_lower:

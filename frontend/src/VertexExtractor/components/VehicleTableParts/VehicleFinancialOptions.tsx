@@ -7,6 +7,7 @@ import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
 import { useMemo } from "react";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
+import { parsePriceToNumber } from "./PriceDualFormat";
 
 interface VehicleFinancialOptionsProps {
   vehicle: FleetVehicleView;
@@ -296,9 +297,17 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               <tbody>
                 {/* Cena bazowa (katalogowa) */}
                 <tr className="border-b border-slate-100">
-                  <td className="py-2.5 text-xs text-slate-500">Cena bazowa</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{basePriceNum > 0 ? fmtPLN(toNetto(basePriceNum)) : "—"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{basePriceNum > 0 ? fmtPLN(toBrutto(basePriceNum)) : "—"}</td>
+                  <td className="py-2.5 text-xs text-slate-500 flex flex-col gap-0.5">
+                    <span>Cena bazowa</span>
+                    {Math.abs(parsePriceToNumber(vehicle.base_price || "0") - basePriceNum) > 10 && (
+                      <span className="text-[10px] text-amber-600 leading-tight mt-1 bg-amber-50 p-1 rounded border border-amber-100 w-max">
+                        ⚠ Wartość wyliczona tyłem (Suma - Opcje).<br/>
+                        Wg sztucznej inteligencji: <b>{vehicle.base_price}</b>
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-sm text-slate-400 align-top">{basePriceNum > 0 ? fmtPLN(toNetto(basePriceNum)) : "—"}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">{basePriceNum > 0 ? fmtPLN(toBrutto(basePriceNum)) : "—"}</td>
                 </tr>
 
                 {/* Opcje rabatowane */}

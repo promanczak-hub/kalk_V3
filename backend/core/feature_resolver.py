@@ -46,6 +46,7 @@ def _resolve_single_feature(
         return {
             "resolved_status": "unknown",
             "confidence": 0.0,
+            "is_manual_override": False,
         }
 
     # Sort by priority (lower number = higher priority)
@@ -75,6 +76,7 @@ def _resolve_single_feature(
                 "resolution_source": (
                     f"conflict: {top['source_type']} vs {second['source_type']}"
                 ),
+                "is_manual_override": False,
             }
 
     # Use highest priority evidence

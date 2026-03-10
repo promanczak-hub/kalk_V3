@@ -18,6 +18,7 @@ export function useVehicles() {
       const { data, error } = await supabase
         .from("fleet_management_view")
         .select("*")
+        .neq("verification_status", "moved_to_library")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -42,6 +43,11 @@ export function useVehicles() {
 
         if (error) throw error;
         if (!data) return;
+
+        if (data.verification_status === "moved_to_library") {
+          setSavedVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+          return;
+        }
 
         setSavedVehicles((prev) => {
           const exists = prev.some((v) => v.id === vehicleId);
@@ -268,6 +274,7 @@ export function useVehicles() {
           .from("fleet_management_view")
           .select("*")
           .in("id", ids)
+          .neq("verification_status", "moved_to_library")
           .order("created_at", { ascending: false });
 
         if (error) throw error;

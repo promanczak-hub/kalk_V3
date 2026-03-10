@@ -195,9 +195,16 @@ class FeatureFilterItem(BaseModel):
     value_text: str | None = None
 
 
+class FeatureExtractionRequest(BaseModel):
+    """Payload for extracting features from raw text."""
+
+    query_text: str = Field(..., description="Raw text from email or tender spec")
+
+
 class FeatureSearchRequest(BaseModel):
     """Reverse search request payload."""
 
+    query_text: str | None = Field(default=None, description="Raw text to extract from")
     filters: list[FeatureFilterItem] = Field(default_factory=list)
     vehicle_scope: VehicleScope | None = None
     body_types: list[str] | None = None

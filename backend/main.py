@@ -21,6 +21,7 @@ from api.config_crud_routes import config_crud_router
 from api.base_rv_routes import router as base_rv_router
 from api.catalog_routes import router as catalog_router
 from api.excel_draft_routes import router as excel_draft_router
+from api.document_library_routes import router as document_library_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -40,6 +41,7 @@ app.include_router(config_crud_router, prefix="/api")
 app.include_router(base_rv_router, prefix="/api", tags=["Control Center"])
 app.include_router(catalog_router, prefix="/api")
 app.include_router(excel_draft_router, prefix="/api")
+app.include_router(document_library_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -1265,6 +1267,18 @@ async def delete_zabudowa_type(type_id: int) -> Dict[str, str]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+class ZabudowaCorrection(BaseModel):
+    id: Optional[int] = None
+    samar_class_id: Optional[int] = None
+    zabudowa_type_id: Optional[int] = None
+    correction_percent: float = 0.0
+
+
+@app.get("/api/zabudowa-corrections", tags=["Control Center"])
+async def get_zabudowa_corrections(
+    zabudowa_type_id: Optional[int] = None,
+    samar_class_id: Optional[int] = None,
 ) -> List[ZabudowaCorrection]:
     try:
         q = supabase.table("zabudowa_wr_corrections").select("*").order("id")

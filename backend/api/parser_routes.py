@@ -161,7 +161,7 @@ Wyniki z Google:
         # ================================================
 
         # Wywołanie TWARDEGO mapowania na backendzie!
-        klasa_kod, klasa_nazwa = map_to_samar_class(
+        klasa_nazwa, _ = map_to_samar_class(
             brand=offer_data.brand,
             model=offer_data.model,
             segment=offer_data.segment,
@@ -169,7 +169,7 @@ Wyniki z Google:
             trim=offer_data.trim,
             transmission=offer_data.transmission,
         )
-        offer_data.samar_class_name = f"[{klasa_kod}] {klasa_nazwa}"
+        offer_data.samar_class_name = klasa_nazwa
 
         return offer_data
 

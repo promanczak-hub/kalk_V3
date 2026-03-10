@@ -48,6 +48,22 @@ interface SearchResult {
 
 /* ── Component ────────────────────────────────────────────────── */
 
+const getSliderBounds = (featName: string) => {
+  const name = featName.toLowerCase();
+  
+  if (name.includes('europalet')) return { min: 0, max: 20 };
+  if (name.includes('pojemność bagażnika') || name.includes('pojemność przestrzeni') || name.includes('ładowność') || name.includes('masa') || name.includes('waga')) return { min: 0, max: 5000 };
+  if (name.includes('pojemność skokowa')) return { min: 0, max: 8000 };
+  if (name.includes('moc')) return { min: 0, max: 1000 };
+  if (name.includes('rok') || name.includes('lata')) return { min: 1990, max: 2030 };
+  if (name.includes('miejsc')) return { min: 1, max: 60 };
+  if (name.includes('drzwi')) return { min: 2, max: 6 };
+  if (name.includes('m3')) return { min: 0, max: 40 };
+  if (name.includes('przebieg')) return { min: 0, max: 500000 };
+  
+  return { min: 0, max: 1000 };
+};
+
 export function ReverseSearchPage() {
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +84,10 @@ export function ReverseSearchPage() {
   const [priceMonths, setPriceMonths] = useState<number>(48);
   const [priceMileage, setPriceMileage] = useState<number>(20000);
   const [priceDepositPct, setPriceDepositPct] = useState<number>(0);
+
+  // AI Extraction state
+  const [extractionText, setExtractionText] = useState("");
+  const [extracting, setExtracting] = useState(false);
 
   const baseUrl = import.meta.env.VITE_API_URL || "";
 
@@ -90,34 +110,82 @@ export function ReverseSearchPage() {
     fetchCatalog();
   }, [baseUrl]);
 
-  // Toggle feature filter
-  const toggleFilter = useCallback(
-    (feature: CatalogFeature) => {
-      setActiveFilters((prev) => {
-        const exists = prev.find((f) => f.feature_key === feature.feature_key);
-        if (exists) {
-          return prev.filter((f) => f.feature_key !== feature.feature_key);
-        }
-        return [
-          ...prev,
-          {
-            feature_key: feature.feature_key,
-            display_name: feature.display_name,
-            value_bool: (feature.feature_type === "boolean" || feature.feature_type === "bool") ? true : undefined,
-          },
-        ];
+  // Handle AI Extraction
+  const handleExtraction = async () => {
+    if (!extractionText.trim()) return;
+    setExtracting(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/features/extract-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query_text: extractionText })
       });
-    },
-    []
-  );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      
+      if (data.status === "success" && data.extracted_filters) {
+         // Merge extracted filters with existing ones.
+         // Wait for the LLM response and apply checkboxes.
+         setActiveFilters(data.extracted_filters.map((f: { feature_key: string; value_bool?: boolean }) => ({
+            feature_key: f.feature_key,
+            display_name: catalog.flatMap(c => c.features).find(cf => cf.feature_key === f.feature_key)?.display_name || f.feature_key,
+            value_bool: f.value_bool
+         })));
+         
+         // Highlight the cats that contain these features so user doesn't have to hunt
+         const newExpanded = new Set<string>();
+         data.extracted_filters.forEach((f: { feature_key: string }) => {
+             const cat = catalog.find(c => c.features.some(cf => cf.feature_key === f.feature_key));
+             if (cat) newExpanded.add(cat.id);
+         });
+         setExpandedCats(newExpanded);
+      }
+    } catch (err) {
+      console.error("Extraction failed:", err);
+      alert("Nie udało się przeanalizować zapytania. Spróbuj ponownie.");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
-  const updateFilter = useCallback((featureKey: string, updates: Partial<SearchFilter>) => {
-    setActiveFilters((prev) => prev.map((f) => f.feature_key === featureKey ? { ...f, ...updates } : f));
+  // Set feature filter value
+  const setFeatureFilter = useCallback((feature: CatalogFeature, field: keyof SearchFilter, value: string | number | boolean | undefined) => {
+    setActiveFilters((prev) => {
+      const existing = prev.find((f) => f.feature_key === feature.feature_key);
+      
+      let newFilters = [...prev];
+      if (existing) {
+        newFilters = newFilters.map(f => {
+          if (f.feature_key === feature.feature_key) {
+             return { ...f, [field]: value };
+          }
+          return f;
+        });
+      } else {
+        newFilters.push({
+          feature_key: feature.feature_key,
+          display_name: feature.display_name,
+          [field]: value 
+        });
+      }
+
+      // Cleanup step: remove filters that have NO values
+      return newFilters.filter(f => 
+        f.value_bool !== undefined || 
+        f.value_num_min !== undefined || 
+        f.value_num_max !== undefined || 
+        (f.value_text !== undefined && f.value_text !== "")
+      );
+    });
   }, []);
 
   // Search
   const runSearch = useCallback(async () => {
-    if (activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all") return;
+    if (activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all" && priceMin === "" && priceMax === "") {
+        setResults([]);
+        setTotalCount(0);
+        return;
+    }
     setSearching(true);
     setHasSearched(true);
     try {
@@ -154,6 +222,15 @@ export function ReverseSearchPage() {
     }
   }, [activeFilters, bodyTypes, vehicleScope, baseUrl, priceMin, priceMax, priceMonths, priceMileage, priceDepositPct]);
 
+  // Auto-run search when filters change with debounce
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      runSearch();
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [runSearch]);
+
   const clearFilters = () => {
     setActiveFilters([]);
     setBodyTypes([]);
@@ -166,6 +243,7 @@ export function ReverseSearchPage() {
     setResults([]);
     setTotalCount(0);
     setHasSearched(false);
+    setExtractionText("");
   };
 
   const toggleCat = (catId: string) => {
@@ -187,16 +265,52 @@ export function ReverseSearchPage() {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto">
+    <div className="max-w-[1400px] mx-auto pb-12">
       {/* Page header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-          <Search className="w-5 h-5 text-indigo-600" />
-          Reverse Search — Wyszukiwanie po cechach
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Zaznacz wymagane cechy pojazdu, aby znaleźć pasujące oferty w bazie.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+             <Search className="w-5 h-5 text-indigo-600" />
+             Reverse Search — Wyszukiwanie po cechach
+           </h1>
+           <p className="text-sm text-slate-500 mt-1">
+             Znajdź pojazdy metodą odwróconą za pomocą filtrów sprzętowych albo asystenta AI.
+           </p>
+        </div>
+      </div>
+
+      {/* AI Assistant Banner */}
+      <div className="mb-6 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-5 shadow-sm">
+        <div className="mb-3">
+           <h2 className="text-sm font-bold text-indigo-900 flex items-center gap-1.5">
+             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+             AI Feature Extractor
+           </h2>
+           <p className="text-[11px] text-indigo-700 mt-1 max-w-2xl">
+              Wklej treść maila od klienta, fragment zapytania przetargowego (SIWZ) lub specyfikację. Aplikacja przeanalizuje tekst, zmapuje synonimy (npm. "navigacja" → "System nawigacji satelitarnej") i automatycznie wyklika potrzebne filtry poniżej.
+           </p>
+        </div>
+        <div className="flex gap-3">
+          <textarea 
+             value={extractionText}
+             onChange={(e) => setExtractionText(e.target.value)}
+             placeholder={"Np. Potrzebuję SUVa, koniecznie napęd 4x4, automat, rocznik min 2021, biały, hak, klimatyzacja automatyczna, czujniki parkowania... "}
+             className="w-full h-24 text-xs p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none bg-white/80 backdrop-blur-sm"
+          />
+        </div>
+        <div className="flex justify-end mt-3">
+          <button 
+             onClick={handleExtraction}
+             disabled={extracting || !extractionText.trim()}
+             className="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+             {extracting ? (
+                 <><Loader2 className="w-3.5 h-3.5 animate-spin"/> Analizowanie...</>
+             ) : (
+                 <>Auto-Wyklikanie z Tekstu</>
+             )}
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-6">
@@ -421,52 +535,113 @@ export function ReverseSearchPage() {
                         const isActive = !!activeFlt;
                         return (
                           <div key={feat.id} className="mb-0.5">
-                            <button
-                              onClick={() => toggleFilter(feat)}
-                              className={`w-full text-left px-3 py-1.5 rounded text-xs transition-colors ${
-                                isActive
-                                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium"
-                                  : "text-slate-600 hover:bg-slate-100 border border-transparent"
-                              }`}
-                            >
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] shrink-0 ${
-                                    isActive
-                                      ? "bg-indigo-600 border-indigo-600 text-white"
-                                      : "border-slate-300"
-                                  }`}
-                                >
-                                  {isActive && "✓"}
-                                </span>
-                                <span className={!isActive ? "truncate" : ""}>{feat.display_name}</span>
-                              </span>
-                            </button>
-                            {/* Dynamic Inputs For Selected Filters */}
-                            {isActive && feat.feature_type === "numeric" && (
-                              <div className="pl-8 pr-3 pb-2 flex items-center gap-2 mt-1">
-                                <input type="number" placeholder="Min" className="w-16 h-7 px-1.5 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_num_min || ""} onChange={(e) => updateFilter(feat.feature_key, { value_num_min: e.target.value ? Number(e.target.value) : undefined })} />
-                                <span className="text-indigo-300 text-[10px]">-</span>
-                                <input type="number" placeholder="Max" className="w-16 h-7 px-1.5 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_num_max || ""} onChange={(e) => updateFilter(feat.feature_key, { value_num_max: e.target.value ? Number(e.target.value) : undefined })} />
+                            {(feat.feature_type === "boolean" || feat.feature_type === "bool") ? (
+                              <label className={`flex items-start gap-2 px-3 py-2 rounded text-xs cursor-pointer transition-colors border ${isActive ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:bg-slate-50"}`}>
+                                <input 
+                                  type="checkbox" 
+                                  className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 w-3.5 h-3.5"
+                                  checked={!!activeFlt?.value_bool}
+                                  onChange={(e) => setFeatureFilter(feat, "value_bool", e.target.checked ? true : undefined)}
+                                />
+                                <span className={`font-medium ${isActive ? "text-indigo-700" : "text-slate-700"}`}>{feat.display_name}</span>
+                              </label>
+                            ) : feat.feature_type === "numeric" ? (
+                              <div className={`px-3 py-2 border rounded transition-colors ${isActive ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:bg-slate-50"}`}>
+                                 <div className={`text-xs font-medium mb-1.5 flex items-center justify-between ${isActive ? "text-indigo-700" : "text-slate-700"}`}>
+                                   <span>{feat.display_name}</span>
+                                   {isActive && (activeFlt?.value_num_min || activeFlt?.value_num_max) && (
+                                     <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                                       {activeFlt?.value_num_min ?? '0'} - {activeFlt?.value_num_max ?? 'Max'}
+                                     </span>
+                                   )}
+                                 </div>
+                                 <div className="flex items-center gap-2 mb-2">
+                                   <input 
+                                     type="number" 
+                                     placeholder="Min" 
+                                     className="w-full h-7 px-2 border border-slate-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" 
+                                     value={activeFlt?.value_num_min ?? ""} 
+                                     onChange={(e) => setFeatureFilter(feat, "value_num_min", e.target.value ? Number(e.target.value) : undefined)} 
+                                   />
+                                   <span className="text-slate-400 text-xs">-</span>
+                                   <input 
+                                     type="number" 
+                                     placeholder="Max" 
+                                     className="w-full h-7 px-2 border border-slate-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" 
+                                     value={activeFlt?.value_num_max ?? ""} 
+                                     onChange={(e) => setFeatureFilter(feat, "value_num_max", e.target.value ? Number(e.target.value) : undefined)} 
+                                   />
+                                 </div>
+                                 <div className="flex flex-col gap-1.5 mt-2">
+                                   <div className="flex items-center gap-2">
+                                     <span className="text-[10px] text-slate-400 w-6">Min</span>
+                                     <input 
+                                       type="range"
+                                       min={getSliderBounds(feat.display_name).min}
+                                       max={getSliderBounds(feat.display_name).max}
+                                       className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                       value={activeFlt?.value_num_min ?? getSliderBounds(feat.display_name).min}
+                                       onChange={(e) => setFeatureFilter(feat, "value_num_min", Number(e.target.value))}
+                                       title="Min"
+                                     />
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                     <span className="text-[10px] text-slate-400 w-6">Max</span>
+                                     <input 
+                                       type="range"
+                                       min={getSliderBounds(feat.display_name).min}
+                                       max={getSliderBounds(feat.display_name).max}
+                                       className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                       value={activeFlt?.value_num_max ?? getSliderBounds(feat.display_name).max}
+                                       onChange={(e) => setFeatureFilter(feat, "value_num_max", Number(e.target.value))}
+                                       title="Max"
+                                     />
+                                   </div>
+                                 </div>
                               </div>
-                            )}
-                            {isActive && feat.feature_type === "enum" && feat.metadata?.options && (
-                              <div className="pl-8 pr-3 pb-2 mt-1">
+                            ) : feat.feature_type === "enum" && feat.metadata?.options ? (
+                              <div className={`px-3 py-2 border rounded transition-colors ${isActive ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:bg-slate-50"}`}>
+                                <div className={`text-xs font-medium mb-1.5 ${isActive ? "text-indigo-700" : "text-slate-700"}`}>{feat.display_name}</div>
                                 <select 
-                                  className="w-full h-7 px-2 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white text-slate-700" 
-                                  value={activeFlt.value_text || ""} 
-                                  onChange={(e) => updateFilter(feat.feature_key, { value_text: e.target.value || undefined })}
+                                  className="w-full h-7 px-2 border border-slate-200 rounded text-xs outline-none focus:border-indigo-400 bg-white text-slate-700" 
+                                  value={activeFlt?.value_text || ""} 
+                                  onChange={(e) => setFeatureFilter(feat, "value_text", e.target.value || undefined)}
                                 >
-                                  <option value="">-- wybierz --</option>
+                                  <option value="">-- dowolna --</option>
                                   {feat.metadata.options.map(opt => (
                                     <option key={opt} value={opt}>{opt}</option>
                                   ))}
                                 </select>
                               </div>
-                            )}
-                            {isActive && (feat.feature_type === "text" || (feat.feature_type === "enum" && !feat.metadata?.options)) && (
-                              <div className="pl-8 pr-3 pb-2 mt-1">
-                                <input type="text" placeholder="Szukana wartość..." className="w-full h-7 px-2 border border-indigo-200 rounded text-xs outline-none focus:border-indigo-400 bg-white" value={activeFlt.value_text || ""} onChange={(e) => updateFilter(feat.feature_key, { value_text: e.target.value || undefined })} />
+                            ) : (
+                              <div className={`px-3 py-2 border rounded transition-colors ${isActive ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:bg-slate-50"}`}>
+                                <div className={`text-xs font-medium mb-1.5 flex items-center justify-between ${isActive ? "text-indigo-700" : "text-slate-700"}`}>
+                                  <span>{feat.display_name}</span>
+                                  {isActive && activeFlt?.value_text && (
+                                     <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                                       {activeFlt?.value_text}
+                                     </span>
+                                  )}
+                                </div>
+                                <input 
+                                  type="text" 
+                                  placeholder="Wpisz wartość..." 
+                                  className="w-full h-7 px-2 border border-slate-200 rounded text-xs outline-none focus:border-indigo-400 bg-white mb-2" 
+                                  value={activeFlt?.value_text || ""} 
+                                  onChange={(e) => setFeatureFilter(feat, "value_text", e.target.value || undefined)} 
+                                />
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className="text-[10px] text-slate-400 w-6">Wart.</span>
+                                  <input 
+                                    type="range"
+                                    min={getSliderBounds(feat.display_name).min}
+                                    max={getSliderBounds(feat.display_name).max}
+                                    className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                    value={Number(activeFlt?.value_text) || getSliderBounds(feat.display_name).min}
+                                    onChange={(e) => setFeatureFilter(feat, "value_text", e.target.value)}
+                                    title="Wartość"
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>

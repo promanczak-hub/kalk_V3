@@ -1,9 +1,8 @@
 import json
 import logging
-import os
 
 from google.genai import types
-from supabase import Client, create_client
+from core.database import supabase
 
 from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 from core.json_utils import clean_json_response
@@ -39,14 +38,7 @@ def match_fleet_discount(pro_data: dict) -> dict:
     flash_model_id = "gemini-2.5-flash"
 
     try:
-        # Setup Supabase client safely
-        supabase_url = os.environ.get("VITE_SUPABASE_URL")
-        supabase_key = os.environ.get("VITE_SUPABASE_ANON_KEY")
-
-        if not supabase_url or not supabase_key:
-            return pro_data
-
-        supabase: Client = create_client(supabase_url, supabase_key)
+        # Use global Supabase client from core.database
 
         # 3. Pobierz wszystkie potencjalne wiersze z bazy danych
         # Zrezygnowano ze sztywnego filtra ILIKE marka, aby LLM sam łaczył VW z Volkswagen itp.

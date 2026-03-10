@@ -7,21 +7,18 @@ import { EquipmentToggleSection } from "./EquipmentToggleSection";
 import { NotesSection } from "./NotesSection";
 import { BlobProvider, PDFDownloadLink } from "@react-pdf/renderer";
 import { BrochurePDFDocument } from "./BrochurePDFDocument";
-
-interface BrochureBuilderModalProps {
+export default function BrochureBuilderModal({
+  vehicle,
+  initialBrochureData,
+  initialImages = [],
+  onClose,
+}: {
   vehicle: FleetVehicleView;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialBrochureData: any;
   initialImages?: string[];
   onClose: () => void;
-}
-
-export function BrochureBuilderModal({
-  vehicle,
-  initialBrochureData,
-  initialImages = [],
-  onClose,
-}: BrochureBuilderModalProps) {
+}) {
   // Map flat VehicleBrochureSchema fields to the vehicle_name object the UI expects
   const buildVehicleName = (data: any) => ({
     brand: data?.brand || "",

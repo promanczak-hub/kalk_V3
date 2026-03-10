@@ -78,15 +78,20 @@ Szczególną uwagę zwróć na dedukcję napędu, paliwa i skrzyni biegów.
 Jeśli widzisz 'obręcze', 'felgi', 'koła', wyodrębnij tylko i wyłącznie ich średnicę jako ciąg znaków (np. '17', '18') do pola wheels. 
 Jeśli widzisz zużycie paliwa lub cykl WLTP, podepnij to pod emisję (emissions). 
 
-KRYTYCZNE DANE FINANSOWE (WYMAGA TWOJEJ INTELIGENCJI I OBLICZEŃ):
-W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu, co oznacza, że dane finansowe mogą być rozrzucone w sekcjach tekstowych, surowych tabelach lub opisach (jako brudne dane, a nie dedykowany obiekt `financials`). Twoim bezwzględnym zadaniem jest przeanalizowanie tych kwot i wyodrębnienie lub wyliczenie z nich trzech wartości:
-1. `base_price` - faktyczną cenę katalogową bazową (bez opcji). Szukaj jej w sekcjach "Cena bazowa", "Cena modelu", "Wartość auta". Jeśli brakuje jej wprost w JSONie, musisz wyliczyć ją matematycznie (Cena Całkowita minus suma znalezionych Opcji).
-2. `options_price` - łączną cenę opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej.
-3. `total_price` - ostateczną cenę po ewentualnych rabatach.
+KRYTYCZNE DANE FINANSOWE (WYMAGA TWOJEJ INTELIGENCJI I DETERMINISTYCZNYCH OBLICZEŃ):
+W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu. Ponieważ dane finansowe mogą być rozrzucone jako "brudne dane", wprowadzamy rygorystyczny proces weryfikacji. ZACZNIJ od wypełnienia pola `financial_reasoning`. W tym polu wykonaj "myślenie głośno" stawiając przed sobą kwoty, które znalazłeś i testując ich matematyczne powiązania:
+1. NAJPIERW wypisz wszystkie liczby mające charakter kwot (np. 150 000 PLN, 130 000 PLN, 20 000 PLN, itd.). Wypisz obok nich etykiety z dokumentu.
+2. SPRAWDŹ relacje matematyczne: czy A + B = C? Czy Kwota A odjęta od B daje C? Zrób to w tekście by zweryfikować czy nie popełniasz błędu logicznego.
+3. Czy cena bazowa widniejąca w dokumencie, po dodaniu do niej opcji (i ewentualnych akcesoriów) sumuje się do ceny "Przed rabatami"? 
+4. ZAAKCEPTUJ to jako ostateczny podział, BEZ uwzględniania upustów i rabatów dealerskich w tych składowych. Rabat nie ma prawa być ukryty w `base_price` ani w opcjach.
+
+Dopiero PO poprawnym matematycznym uzasadnieniu zbuduj zmienne liczbowe:
+1. `base_price` - faktyczna CENA KATALOGOWA BAZOWA (bez opcji i ZAWSZE BEZ ZNIŻEK). Szukaj jej w sekcjach "Cena bazowa", "Cena modelu przed upustem", "Wartość auta wg. cennika". Zdarza się że "Cena łączna" w tabeli na pierwszych stronach to już cena obniżona! Musisz upewnić się, że Twoje `base_price` to czysta, cennikowa wartość startowa pojazdu wynikająca z konfiguratora. Jeśli musisz, wylicz to matematycznie (Cena Całkowita Przed Rabatem minus suma znalezionych Opcji). NIGDY nie przypisuj tu kwoty "po rabatach".
+2. `options_price` - łączna cena opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej przed rabatami.
+3. `total_price` - ostateczna cena pojazdu doliczająca rabaty i zniżki (czyli kwota finalna podana na ofercie).
 
 ZASADA SPÓJNOŚCI (BARDZO WAŻNE): 
-Jeśli widzisz w dokumencie kilka tabel z podsumowaniami cen (np. *Rozkład ceny* i *Szczegóły dotyczące ceny* które w inny sposób przypisują wartości Opcjom lub Bazie), BEZWZGLĘDNIE trzymaj się kwot z JEDNEJ, obranej tabeli/logiki. Nie skacz między tabelami kradnąc np. cenę bazową z pierwszej, a opcje z drugiej. 
-Przed podaniem ostatecznych cyfr ZAWSZE wykonaj testowe sprawdzenie matematyczne: Twoje `base_price` + `options_price` MUSI matematycznie równać się wybranemu przez ciebie `total_price`.
+Jeśli widzisz w dokumencie kilka tabel z podsumowaniami cen, BEZWZGLĘDNIE trzymaj się kwot z JEDNEJ, obranej tabeli/logiki. Przed podaniem ostatecznych cyfr ZAWSZE wykonaj testowe sprawdzenie matematyczne w `financial_reasoning`. Twoje `base_price` + `options_price` ZAWSZE ZBUDUJĄ WARTOŚĆ CENNIKOWĄ, a Twoje `total_price` ukaże końcową ofertę.
 
 Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny, wylicz to matematycznie na podstawie pozostałych liczb. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
 
