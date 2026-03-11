@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any, cast
 
 from google.genai import types
 from core.database import supabase
@@ -67,7 +68,9 @@ def match_fleet_discount(pro_data: dict) -> dict:
         }
 
         db_brands_raw: set[str] = {
-            (row.get("marka") or "").strip().lower() for row in discount_rows
+            (str(cast(dict[str, Any], row).get("marka") or "")).strip().lower()
+            for row in discount_rows
+            if isinstance(row, dict)
         }
         db_brands_raw.discard("")
 
@@ -156,7 +159,7 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
 
         response = client.models.generate_content(
             model=flash_model_id,
-            contents=[types.Part.from_text(text=prompt)],
+            contents=prompt,
             config=config,
         )
 
@@ -165,7 +168,7 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
         match_result = json.loads(clean_json_response(str(resp_text)))
 
         confidence = match_result.get("match_confidence", 0) if match_result else 0
-        min_confidence_threshold = 80
+        min_confidence_threshold = 95
 
         # Always store confidence for debugging purposes
         flash_data["suggested_discount_confidence"] = confidence

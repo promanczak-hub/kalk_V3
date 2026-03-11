@@ -45,9 +45,9 @@ interface SamarServiceCost {
 }
 
 const POWER_BANDS = [
-  { value: "LOW", label: "LOW (do 130 KM)" },
-  { value: "MID", label: "MID (131 - 200 KM)" },
-  { value: "HIGH", label: "HIGH (201 KM i więcej)" },
+  { value: "LOW", label: "LOW (do 100 kW)" },
+  { value: "MID", label: "MID (101 - 150 kW)" },
+  { value: "HIGH", label: "HIGH (powyżej 150 kW)" },
 ];
 
 export default function ServiceCostsCrudPanel() {

@@ -73,7 +73,7 @@ export default function DamageCoefficientsCrudPanel() {
     setLoading(true);
     try {
       const resp = await apiFetch(
-        `/api/samar-rv/insurance-coefficients`,
+        `/api/admin/damage-coefficients`,
       );
       if (resp.ok) {
         const raw = await resp.json();
@@ -113,7 +113,7 @@ export default function DamageCoefficientsCrudPanel() {
       const payload = { ...formData };
 
       const resp = await apiFetch(
-        `/api/samar-rv/insurance-coefficients`,
+        `/api/admin/damage-coefficients`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ export default function DamageCoefficientsCrudPanel() {
     if (!confirm("Na pewno usunąć?")) return;
     try {
       const resp = await apiFetch(
-        `/api/samar-rv/insurance-coefficients/${id}`,
+        `/api/admin/damage-coefficients/${id}`,
         { method: "DELETE" },
       );
       if (resp.ok) fetchData();

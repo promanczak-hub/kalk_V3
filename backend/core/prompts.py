@@ -22,8 +22,9 @@ E. (KRYTYCZNE FINANSE I CENNIKI): Przepisz dokładnie wszystkie informacje o cen
    - NIE wykonuj absolutnie żadnych obliczeń matematycznych.
    - NIE próbuj wymuszać na siłę struktury "cena bazowa" vs "opcje", jeśli nie wynika to jasno z sekcji dokumentu w danym miejscu.
    - Odczytaj wszystkie wycenione pozycje z wyposażenia (opcje, pakiety, akcesoria) pokazując ich ceny obok nazwy, jeśli takie ceny widnieją na papierze. Jeśli w dokumencie wypisano listę w pakiecie bez podziału na ceny - przepisz te elementy jako zwykłą listę (bez narzucania im cen).
+   - UWAGA NA PAKIETY: Często nazwa pakietu (np. "Pakiet...") nie ma ceny w swojej linii, a kwota (np. 738 zł) widnieje przy jednym z jego wypunktowanych elementów niżej. W takiej sytuacji przypisz tę cenę do CAŁEGO PAKIETU (jako głównej opcji), a wcięte pozycje potraktuj jako jego składowe. Nie traktuj pojedynczych składowych pakietu jako samodzielnych, płatnych opcji.
    - Zachowaj informację o walutach oraz wzmianki o kwotach netto/brutto na podstawie kontekstu dokumentu.
-F. (KRYTYCZNE DANE TECHNICZNE): Bezwzględnie zlokalizuj w dokumencie sekcje takie jak "Silnik", "Dane techniczne", "Masy i Wymiary", "Emisja", "Spalanie", "Napęd". ZAKAZUJĘ zwracania pustych bloków `content: []` dla tych sekcji, jeśli w dokumencie występuje jakikolwiek tekst, ikona, czy specyfikacja dotycząca pojemności skokowej, mocy (KM/kW), momentu obrotowego, układu napędowego (np. 4Drive, quattro, 4x4, 4Motion, oś przednia, tylna), skrzyni biegów (np. DSG, automatyczna, manual) lub rodzaju paliwa oraz emisji CO2 i WLTP. Wymagam przepisania tych danych niezależnie czy są w dużej tabeli czy w małym druczku pod zdjęciem.
+F. (KRYTYCZNE DANE TECHNICZNE): Bezwzględnie zlokalizuj w dokumencie sekcje takie jak "Silnik", "Dane techniczne", "Masy i Wymiary", "Emisja", "Spalanie", "Napęd". ZAKAZUJĘ zwracania pustych bloków `content: []` dla tych sekcji, jeśli w dokumencie występuje jakikolwiek tekst, ikona, czy specyfikacja dotycząca pojemności skokowej, mocy (KM/kW), momentu obrotowego, układu napędowego (np. 4Drive, quattro, 4x4, 4Motion, oś przednia, tylna), skrzyni biegów (np. DSG, automatyczna, manual) lub rodzaju paliwa oraz emisji CO2 i WLTP. Wymagam przepisania tych danych niezależnie czy są w dużej tabeli czy w małym druczku pod zdjęciu.
 Zachowaj pełną wierność względem oryginału, uwzględniając przypisy i opisy drobnym drukiem. Traktuj się jako bezwzględny OCR i parser układu, nie księgowy.
 
 The output MUST be a valid JSON object. Do not output any markdown blocks (like ```json), just the raw JSON. Upewnij się, że generowany JSON jest w 100% poprawny składniowo (zabezpiecz wszystkie cudzysłowy i znaki nowej linii). Nie ucinaj długich stringów w połowie słowa - w razie potrzeby skróć wyciągany tekst.
@@ -57,7 +58,7 @@ Wyodrębnij wyłącznie twarde, użyteczne biznesowo dane, mapując je rygorysty
 }
 
 1. TABELE: Odczytaj tabele cenników, tabele wymiarów, opcji i akcesoriów.
-2. NAGŁÓWKI I CECHY: Wyciągnij listę głównych nagłówków i połącz je z konkretnymi cechami.
+2. NAGŁÓWKI I CECHY: Wyciągnij listę głównych nagłówków i połącz je z konkretnymi cechami. UWAGA: Jeśli widzisz nazwę pakietu, a cena jest wyrównana do jednego z jego podpunktów, przypisz tę cenę do nazwy GŁÓWNEGO PAKIETU, a nie do podpunktu.
 3. IGNORUJ SZUM: Kategorycznie ignoruj dowolne bloki tekstu o rozmiarze powyżej 3 zdań (noty prawne, disclaimer o oponach, marketingowy opis sylwetki).
 """
 
@@ -74,6 +75,10 @@ KLUCZOWA RÓŻNICA: Cennik ogólny (np. tabela z wieloma wariantami silnikowymi 
 
 CARD_SUMMARY_PROMPT = """
 Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach (np. w nazwach akcesoriów, w disclaimerach lub elementach graficznych wyodrębnionych przez VLM).
+
+DEDUKCJA BRAKUJĄCYCH PÓL (KRYTYCZNE):
+Jeśli w specyfikacji nie wydzielono wprost typu nadwozia, napędu lub mocy - BEZWZGLĘDNIE wydedukuj je z nazwy modelu, wersji lub pomniejszych cenników (np. "Crafter Furgon" -> Typ nadwozia: Furgon, "Skoda Octavia Combi" -> Typ nadwozia: Kombi). Zlepiaj informacje jak "TDI", "KM", "kW" w poprawny `powertrain`. NIGDY NIE ODCHODŹ Z PUSTYMI RĘKAMI, bądź agresywny w dopasowywaniu.
+
 Szczególną uwagę zwróć na dedukcję napędu, paliwa i skrzyni biegów.
 Jeśli widzisz 'obręcze', 'felgi', 'koła', wyodrębnij tylko i wyłącznie ich średnicę jako ciąg znaków (np. '17', '18') do pola wheels. 
 Jeśli widzisz zużycie paliwa lub cykl WLTP, podepnij to pod emisję (emissions). 
@@ -214,13 +219,22 @@ Pozostałe zasady:
 - Zawsze wybieraj najbardziej szczegółowo dopasowany wiersz (np. dopasowanie po nazwie modelu i nadwoziu jest lepsze niż dopasowanie ogólne).
 
 Zwróć dokładny wynik jako czysty JSON bez znaczników markdown według schematu:
-OCENA PEWNOŚCI DOPASOWANIA (match_confidence):
-Musisz ocenić pewność dopasowania na skali 0–100:
-- 95–100: Dokładne dopasowanie marki + konkretnego modelu + nadwozia (np. BMW 320i Touring → wiersz "320 Touring")
-- 85–94: Marka OK + model w grupie (np. "Karoq" pasuje do wiersza "Karoq, Kodiaq") lub alias marki (VW↔Volkswagen)
-- 75–84: Marka OK + model pasuje ogólnie (np. do wiersza "Wszystkie modele" lub brak rozróżnienia nadwozia)
-- 50–74: Marka OK, ale model nie wymieniony wprost — dopasowanie luźne lub spekulatywne
-- 0–49: Brak sensownego dopasowania
+SKALA PEWNOŚCI (match_confidence) — KRYTYCZNE:
+Musisz ocenić pewność dopasowania na skali 0–100. Zasady są twarde i hierarchiczne:
+
+BEZWZGLĘDNY WARUNEK WSTĘPNY — WERYFIKACJA MARKI:
+  Zanim ocenisz model, sprawdź dosłownie czy wartość pola `marka` w którymkolwiek wierszu
+  `discount_rows` DOKŁADNIE odpowiada marce pojazdu (z uwzględnieniem dozwolonych aliasów:
+  VW=Volkswagen, SEAT/CUPRA=Seat=Cupra).
+  → Jeśli NIE ISTNIEJE ani jeden wiersz z pasującą marką: match_confidence = 0, is_matched = false. STOP.
+  → Spekulowanie ("Lexus to też Japończyk jak Toyota") = ZABRONIONE. Brak marki w bazie = brak rabatu.
+
+SKALA (tylko gdy marka potwierdzona w bazie):
+  - 95–100: Dokładne dopasowanie marki + konkretnego modelu + nadwozia (np. BMW 320i Touring → wiersz "320 Touring")
+  - 85–94: Marka OK + model w grupie (np. "Karoq" pasuje do wiersza "Karoq, Kodiaq") lub alias marki (VW↔Volkswagen)
+  - 75–84: Marka OK + model pasuje ogólnie (np. do wiersza "Wszystkie modele" lub brak rozróżnienia nadwozia)
+  - 50–74: Marka OK, ale model nie wymieniony wprost — dopasowanie luźne lub spekulatywne
+  - 0–49: Brak sensownego dopasowania
 
 Jeśli ZNAJDZIESZ poprawne dopasowanie (TYLKO jeśli marka się zgadza!):
 { "is_matched": true, "matched_discount_perc": <FLOAT np 24.0>, "match_confidence": <INT 0-100>, "matching_reason": "<logika uzasadnienia>" }

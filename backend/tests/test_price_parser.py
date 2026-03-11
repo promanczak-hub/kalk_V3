@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.price_parser import ParsedPrice, parse_price_string
+from core.price_parser import ParsedPrice, parse_price_string, extract_all_numbers, _extract_numeric_value
 
 
 class TestParseBasicFormats:
@@ -166,3 +166,36 @@ class TestRealWorldPrices:
         result = parse_price_string("99 000 PLN brutto")
         assert result is not None
         assert result.value == 99_000.0
+
+
+class TestMixedStrings:
+    """Testing extraction on strings containing multiple numbers and text."""
+
+    def test_extract_all_numbers(self) -> None:
+        text = "2.0 TDI 150 KM, WLTP 6.1 l/100km, cena 180 000 PLN brutto"
+        numbers = extract_all_numbers(text)
+        assert numbers == [2.0, 150.0, 6.1, 100.0, 180000.0]
+
+    def test_extract_all_numbers_with_bad_format(self) -> None:
+        text = "silnik 1,5 km, spalanie 5.5 litra. waga 1.234.567"
+        numbers = extract_all_numbers(text)
+        assert numbers == [1.5, 5.5, 1234567.0]
+
+    def test_extract_price_value_with_financial_keyword(self) -> None:
+        text = "2.0 TDI 150 KM, WLTP 6.1 l/100km, cena 180 000 PLN brutto"
+        # Since 'cena' and 'PLN' are financial keywords, 180000 should be selected.
+        val = _extract_numeric_value(text)
+        assert val == 180000.0
+
+    def test_extract_price_value_no_financial_keyword(self) -> None:
+        # If no financial keywords are present, fallback to the first number
+        text = "2.0 TDI 150 KM, 180 000"
+        val = _extract_numeric_value(text)
+        assert val == 2.0  # Fallback behavior
+
+    def test_extract_price_from_mixed_spec(self) -> None:
+        text = "Pojemność 1998 cm3, Moc 180 KM, Koszt netto 150000"
+        # 'netto' is a financial keyword, should select 150000
+        val = _extract_numeric_value(text)
+        assert val == 150000.0
+

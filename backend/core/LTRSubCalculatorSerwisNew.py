@@ -165,8 +165,8 @@ class ServiceCalculator:
         return service_total / self.data.okres
 
     def _determine_power_band(self) -> str:
-        """Determines the power band string used in the DB schema."""
-        if self.data.power_kw < 100:
+        """Determines the power band string used in the DB schema based on kW."""
+        if self.data.power_kw <= 100:
             return "LOW"
         elif self.data.power_kw <= 150:
             return "MID"

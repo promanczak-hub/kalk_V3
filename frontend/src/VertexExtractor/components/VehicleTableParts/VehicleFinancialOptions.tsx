@@ -18,6 +18,10 @@ interface VehicleFinancialOptionsProps {
   discountableOptionsTotal: number;
   nonDiscountableOptionsTotal: number;
   serviceOptionsTotal: number;
+  // Editable catalog base price (always netto)
+  catalogBasePriceNet: number;
+  setCatalogBasePriceNet: (val: number) => void;
+  aiExtractedBasePrice: string | null;
   // Discount state
   discountMode: "offer" | "suggested" | "custom";
   setDiscountMode: (mode: "offer" | "suggested" | "custom") => void;
@@ -140,7 +144,8 @@ const TIRE_COUNT_OPTIONS = [
 
 export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const {
-    vehicle, totalCatalogPrice, activeFinalPrice, dynamicTotalOptionsPrice,
+    vehicle, activeFinalPrice,
+    catalogBasePriceNet, setCatalogBasePriceNet, aiExtractedBasePrice,
     discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
     isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
     discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
@@ -191,12 +196,17 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const toNetto = (val: number) => isSourceNetto ? val : val / 1.23;
   const toBrutto = (val: number) => isSourceNetto ? val * 1.23 : val;
 
-  // Calculate Rozkład ceny rows
-  // dynamicTotalOptionsPrice is always netto (sum of price_net), convert to source domain
-  const optionsInSourceDomain = isSourceNetto
-    ? dynamicTotalOptionsPrice
-    : dynamicTotalOptionsPrice * 1.23;
-  const basePriceNum = totalCatalogPrice - optionsInSourceDomain;
+  // basePriceNum in source domain derived from editable catalogBasePriceNet
+  const basePriceNum = isSourceNetto
+    ? catalogBasePriceNet
+    : Math.round(catalogBasePriceNet * 1.23);
+
+  // AI-extracted base price (converted to netto for comparison)
+  const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
+  const aiBasePriceNetto = aiExtractedBasePrice?.toLowerCase().includes("netto")
+    ? aiBasePriceRaw
+    : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
+  const basePriceWasEdited = Math.abs(catalogBasePriceNet - aiBasePriceNetto) > 10;
 
   return (
     <>
@@ -295,19 +305,37 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 </tr>
               </thead>
               <tbody>
-                {/* Cena bazowa (katalogowa) */}
+                {/* Cena bazowa (katalogowa) — EDYTOWALNA */}
                 <tr className="border-b border-slate-100">
                   <td className="py-2.5 text-xs text-slate-500 flex flex-col gap-0.5">
-                    <span>Cena bazowa</span>
-                    {Math.abs(parsePriceToNumber(vehicle.base_price || "0") - basePriceNum) > 10 && (
+                    <span className="flex items-center gap-1.5">
+                      Cena bazowa katalogowa
+                      {basePriceWasEdited && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase tracking-wider">edytowano</span>
+                      )}
+                    </span>
+                    {aiExtractedBasePrice && basePriceWasEdited && (
                       <span className="text-[10px] text-amber-600 leading-tight mt-1 bg-amber-50 p-1 rounded border border-amber-100 w-max">
-                        ⚠ Wartość wyliczona tyłem (Suma - Opcje).<br/>
-                        Wg sztucznej inteligencji: <b>{vehicle.base_price}</b>
+                        Wg AI: <b>{aiExtractedBasePrice}</b>
+                        <button
+                          type="button"
+                          className="ml-1.5 text-blue-600 hover:text-blue-800 underline cursor-pointer font-semibold"
+                          onClick={() => setCatalogBasePriceNet(aiBasePriceNetto)}
+                        >
+                          Przywróć
+                        </button>
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-right tabular-nums text-sm text-slate-400 align-top">{basePriceNum > 0 ? fmtPLN(toNetto(basePriceNum)) : "—"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">{basePriceNum > 0 ? fmtPLN(toBrutto(basePriceNum)) : "—"}</td>
+                  <td className="py-2.5 text-right align-top">
+                    <NetGrossInput
+                      netValue={catalogBasePriceNet}
+                      onChangeNet={setCatalogBasePriceNet}
+                    />
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">
+                    {catalogBasePriceNet > 0 ? fmtPLN(Math.round(catalogBasePriceNet * 1.23)) : "—"}
+                  </td>
                 </tr>
 
                 {/* Opcje rabatowane */}

@@ -238,10 +238,10 @@ export function BrochurePDFDocument({
 
   // Build specs array from available data
   const specs: { label: string; value: string }[] = [
-    { label: "Silnik / Napęd", value: vn.engine || "-" },
-    { label: "Typ nadwozia", value: vn.body_type || "-" },
-    { label: "Moc", value: vn.horsepower ? `${vn.horsepower} KM` : "-" },
-    { label: "Skrzynia biegów", value: data.transmission || "-" },
+    { label: "Silnik / Napęd", value: vn.engine ? String(vn.engine) : "-" },
+    { label: "Typ nadwozia", value: vn.body_type ? String(vn.body_type) : "-" },
+    { label: "Moc", value: vn.horsepower && String(vn.horsepower).trim() !== "" ? `${String(vn.horsepower)} KM` : "-" },
+    { label: "Skrzynia biegów", value: data.transmission ? String(data.transmission) : "-" },
   ];
 
   // Split equipment into two-column layout
@@ -255,9 +255,9 @@ export function BrochurePDFDocument({
 
         <View style={styles.content}>
           {/* ── HEADER ── */}
-          <Text style={styles.brandName}>{vn.brand || "Marka"}</Text>
-          <Text style={styles.modelName}>{vn.model || "Model"}</Text>
-          {vn.edition && <Text style={styles.editionName}>{vn.edition}</Text>}
+          <Text style={styles.brandName}>{vn.brand ? String(vn.brand) : "Marka"}</Text>
+          <Text style={styles.modelName}>{vn.model ? String(vn.model) : "Model"}</Text>
+          {Boolean(vn.edition) && <Text style={styles.editionName}>{String(vn.edition)}</Text>}
 
           {/* ── HERO IMAGE ── */}
           {mainImage ? (
@@ -295,14 +295,14 @@ export function BrochurePDFDocument({
                   );
                   if (!visibleItems || visibleItems.length === 0) return null;
                   return (
-                    <View key={cIdx} style={styles.equipCategory}>
+                    <View key={cIdx} style={styles.equipCategory} wrap={false}>
                       <Text style={styles.equipCategoryTitle}>
-                        {cat.category_name}
+                        {cat.category_name ? String(cat.category_name) : "Inne"}
                       </Text>
-                      {visibleItems.map((item: string, idx: number) => (
+                      {visibleItems.filter((i: string) => i && String(i).trim() !== "").map((item: string, idx: number) => (
                         <View key={idx} style={styles.equipItem}>
                           <Text style={styles.equipBullet}>●</Text>
-                          <Text style={styles.equipText}>{item}</Text>
+                          <Text style={styles.equipText}>{String(item)}</Text>
                         </View>
                       ))}
                     </View>
@@ -313,7 +313,7 @@ export function BrochurePDFDocument({
           )}
 
           {/* ── NOTATKI ── */}
-          {notes && notes.trim() !== "" && (
+          {Boolean(notes && notes.trim() !== "") && (
             <View style={styles.notesBox}>
               <Text style={styles.notesTitle}>Dodatkowe informacje</Text>
               <Text style={styles.notesContent}>{notes}</Text>

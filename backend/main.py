@@ -22,6 +22,7 @@ from api.base_rv_routes import router as base_rv_router
 from api.catalog_routes import router as catalog_router
 from api.excel_draft_routes import router as excel_draft_router
 from api.document_library_routes import router as document_library_router
+from api.admin_insurance_routes import router as admin_insurance_router
 from core.database import supabase
 import pandas as pd
 import io
@@ -42,6 +43,7 @@ app.include_router(base_rv_router, prefix="/api", tags=["Control Center"])
 app.include_router(catalog_router, prefix="/api")
 app.include_router(excel_draft_router, prefix="/api")
 app.include_router(document_library_router, prefix="/api")
+app.include_router(admin_insurance_router, prefix="/api")
 
 from core.settings import FRONTEND_ORIGINS
 

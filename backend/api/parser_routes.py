@@ -326,7 +326,12 @@ async def extract_images_from_pdf(req: PDFImageExtractionRequest):
                     continue  # ignorujemy małe ikonki
 
                 image_bytes = base_image["image"]
-                ext = base_image["ext"]
+                ext = base_image.get("ext", "").lower()
+
+                # react-pdf obsługuje tylko formaty JPG i PNG, 
+                # więc ignorujemy wszystko inne (np. jpx, webp, tiff), aby uniknąć Błędu Renderingu PDF.
+                if ext not in ["png", "jpg", "jpeg"]:
+                    continue
 
                 # 3. Zapis do Supabase Storage
                 unique_filename = f"extracted/{uuid.uuid4().hex}.{ext}"

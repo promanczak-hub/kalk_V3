@@ -5,7 +5,7 @@ import { HeroSection, type BrochureImage } from "./HeroSection";
 import { TechSpecsSection } from "./TechSpecsSection";
 import { EquipmentToggleSection } from "./EquipmentToggleSection";
 import { NotesSection } from "./NotesSection";
-import { BlobProvider, PDFDownloadLink } from "@react-pdf/renderer";
+import { BlobProvider } from "@react-pdf/renderer";
 import { BrochurePDFDocument } from "./BrochurePDFDocument";
 export default function BrochureBuilderModal({
   vehicle,
@@ -121,41 +121,45 @@ export default function BrochureBuilderModal({
                    <h3 className="font-medium text-slate-200 flex items-center mb-4 text-sm">
                      Podgląd dokumentu
                    </h3>
-                   <div className="flex-1 bg-white rounded-lg flex items-center justify-center relative overflow-hidden">
-                      <BlobProvider document={<BrochurePDFDocument data={brochureData} images={images} hiddenItems={hiddenItems} notes={notes} />}>
-                        {({ url, loading, error }) => {
-                          if (loading) return <div className="flex items-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Generowanie podglądu...</div>;
-                          if (error) return <div className="text-red-500 text-sm p-4 text-center">Błąd podczas renderowania PDF:<br/>{error.message}</div>;
-                          if (url) return (
-                            <object data={`${url}#view=FitH`} type="application/pdf" className="w-full h-full border-0">
-                              <div className="flex flex-col items-center justify-center p-6 text-center text-slate-500 w-full h-full bg-slate-100">
-                                <p className="mb-2 text-sm z-10">Twoja przeglądarka blokuje wbudowany podgląd PDF.</p>
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="z-10 px-4 py-2 mt-2 font-medium bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
-                                  Pobierz wygenerowany dokument
-                                </a>
-                              </div>
-                            </object>
-                           );
-                          return null;
-                        }}
-                      </BlobProvider>
-                   </div>
-                   
-                   <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-3">
-                      <button className="flex items-center justify-center py-2 px-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors">
-                        <Save className="w-4 h-4 mr-2" /> Zapisz draft
-                      </button>
-                      <PDFDownloadLink
-                        document={<BrochurePDFDocument data={brochureData} images={images} hiddenItems={hiddenItems} notes={notes} />}
-                        fileName={`Broszura_${brochureData.vehicle_name?.brand}_${brochureData.vehicle_name?.model}.pdf`}
-                        className="flex items-center justify-center py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium shadow-md shadow-blue-900/20 transition-all"
-                      >
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        {({ loading }: any) =>
-                          loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generowanie...</> : <><Download className="w-4 h-4 mr-2" /> Pobierz PDF</>
-                        }
-                      </PDFDownloadLink>
-                   </div>
+                   <BlobProvider document={<BrochurePDFDocument data={brochureData} images={images} hiddenItems={hiddenItems} notes={notes} />}>
+                     {({ url, loading, error }) => (
+                       <>
+                         <div className="flex-1 bg-white rounded-lg flex items-center justify-center relative overflow-hidden">
+                           {loading && <div className="flex items-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Generowanie podglądu...</div>}
+                           {error && <div className="text-red-500 text-sm p-4 text-center">Błąd renderingu PDF:<br/>{error.message}</div>}
+                           {url && !loading && !error && (
+                             <object data={`${url}#view=FitH`} type="application/pdf" className="w-full h-full border-0">
+                               <div className="flex flex-col items-center justify-center p-6 text-center text-slate-500 w-full h-full bg-slate-100">
+                                 <p className="mb-2 text-sm z-10">Twoja przeglądarka blokuje podgląd PDF.</p>
+                                 <a href={url} target="_blank" rel="noopener noreferrer" className="z-10 px-4 py-2 mt-2 font-medium bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
+                                   Pobierz wygenerowany dokument
+                                 </a>
+                               </div>
+                             </object>
+                           )}
+                         </div>
+                         
+                         <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-3">
+                            <button className="flex items-center justify-center py-2 px-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors">
+                              <Save className="w-4 h-4 mr-2" /> Zapisz draft
+                            </button>
+                            {url ? (
+                              <a
+                                href={url}
+                                download={`Broszura_${brochureData.vehicle_name?.brand}_${brochureData.vehicle_name?.model}.pdf`.replace(/\s+/g, "_")}
+                                className="flex items-center justify-center py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium shadow-md shadow-blue-900/20 transition-all"
+                              >
+                                <Download className="w-4 h-4 mr-2" /> Pobierz PDF
+                              </a>
+                            ) : (
+                              <button disabled className="flex items-center justify-center py-2 px-3 bg-blue-600/50 text-white/50 rounded-lg text-sm font-medium cursor-not-allowed">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generowanie...
+                              </button>
+                            )}
+                         </div>
+                       </>
+                     )}
+                   </BlobProvider>
                 </div>
               </div>
 

@@ -26,7 +26,7 @@ from core.json_utils import clean_json_response
 
 logger = logging.getLogger(__name__)
 
-_STORAGE_BUCKET = "catalog-documents"
+_STORAGE_BUCKET = "raw-vehicle-pdfs"
 
 # ── Catalog extraction prompt ────────────────────────────────────
 

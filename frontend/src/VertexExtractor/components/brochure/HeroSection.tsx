@@ -18,7 +18,17 @@ export function HeroSection({ images, setImages }: HeroSectionProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newImages = Array.from(e.target.files).map(file => ({
+      const validFiles = Array.from(e.target.files).filter(file => 
+        file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/jpg"
+      );
+      
+      if (validFiles.length !== e.target.files.length) {
+        alert("Uwaga: Wybrano formaty obrazów nieobsługiwane przez kreator PDF (np. WebP, SVG). Zostały pominięte. Prosimy wgrywać wyłącznie pliki JPG lub PNG.");
+      }
+
+      if (validFiles.length === 0) return;
+
+      const newImages = validFiles.map(file => ({
         id: crypto.randomUUID(),
         url: URL.createObjectURL(file),
         isMain: images.length === 0 // Pierwsze dodane zdjęcie jest główne
@@ -70,7 +80,7 @@ export function HeroSection({ images, setImages }: HeroSectionProps) {
         <input 
           type="file" 
           multiple 
-          accept="image/*" 
+          accept="image/png, image/jpeg, image/jpg" 
           className="hidden" 
           ref={fileInputRef}
           onChange={handleFileChange}

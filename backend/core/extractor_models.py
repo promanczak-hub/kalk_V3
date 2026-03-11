@@ -247,7 +247,13 @@ class CardSummary(BaseModel):
         description="Podsumowanie łączna cena (końcowa / po upuście / oferta dealera) z walutą i przyrostkiem 'netto' lub 'brutto'. Zwróć 'Brak' jeśli nie znaleziono."
     )
     powertrain: str = Field(
-        description="Oznaczenie samego silnika i mocy, bez nazwy marki i modelu. Np. '2.0 TDI 177 KM', '1.5 TSI 150 KM', 'E-Tech EV60'. Zwróć 'Brak' jeśli nie przypisano."
+        description=(
+            "Oznaczenie samego silnika i mocy. Jeśli brakuje pełnego ciągu w tabelach, "
+            "zbuduj go samodzielnie z pojemności, nazwy technologii (TDI, TSI, e-Tech) "
+            "i mocy (KM/kW). Zwracaj moc przeliczoną zawsze na KM/HP. BĄDŹ ODWAŻNY "
+            "W DEDUKCJI z nazwy wersji. Nigdy nie zwracaj 'Brak' dopóki nie wyczerpiesz "
+            "wszystkich możliwości zidentyfikowania cech silnika z nazwy auta lub wersji."
+        )
     )
     vehicle_class: str = Field(
         description="Klasa pojazdu na podstawie oceny całego dokumentu. Musi być to ściśle jedna z dwóch wartości: 'Osobowy' lub 'Dostawczy'."
@@ -266,7 +272,12 @@ class CardSummary(BaseModel):
     )
     power_hp: Optional[int] = Field(
         None,
-        description="Wyciągnięta moc pojazdu w koniach mechanicznych (KM) jako liczba całkowita (int).",
+        description=(
+            "Wyciągnięta moc pojazdu w koniach mechanicznych (KM) jako liczba całkowita "
+            "(int). Szukaj 'KM', 'HP', 'PS'. Jeśli widzisz tylko 'kW', pomnóż przez 1.36 "
+            "i zwróć jako int. Jeśli moc ukryta jest w nazwie wersji (np. 'Crafter Kombi "
+            "103 kW'), wyciągnij i przelicz."
+        ),
     )
     power_range: Optional[PrzedzialMocy] = Field(
         None,
@@ -283,10 +294,21 @@ class CardSummary(BaseModel):
         description="Rodzaj skrzyni biegów, np. 'Automatyczna', 'Manualna', 'DSG'. Zwróć 'Brak' jeśli nie przypisano."
     )
     body_style: str = Field(
-        description="Typ nadwozia pojazdu wywnioskowany z nazwy lub specyfikacji. Jeśli osobowy, zwróć ściśle m.in: Hatchback, Kombi, SUV, Liftback, Sedan, Coupe, Cabrio, Minivan. Jeśli dostawczy, zwróć ściśle m.in: Furgon, Pickup, Wieloosobowy, Podwozie, Van, Dwuosobowy, 5 drzwiowy VAN. Jeśli brak pewności, wybierz najbardziej prawdopodobną lub 'Brak'."
+        description=(
+            "Typ nadwozia pojazdu. Jeśli w jakiejkolwiek sekcji (wersja, nazwa) widzisz "
+            "słowa takie jak: Furgon, Kombi, SUV, Hatchback, Pickup, Skrzykniowy, "
+            "Autolaweta, Liftback itp. - wypisz je. BĄDŹ ODWAŻNY W DEDUKCJI z nazwy auta "
+            "(np. Octavia Combi -> nadwozie Kombi, Crafter Furgon -> nadwozie Furgon). "
+            "Nie zwracaj 'Brak' dopóki nie wyczerpiesz wszystkich możliwości "
+            "zidentyfikowania bryły nadwozia."
+        )
     )
     trim_level: str = Field(
-        description="Wersja wyposażenia pojazdu, np. 'S line', 'AMG Line', 'R-Line', 'L&K', 'Centre-line'. Szukaj precyzyjnego oznaczenia wersji obok modelu bazowego. Zwróć 'Brak' jeśli nie przypisano."
+        description=(
+            "Wersja wyposażenia lub wariant nadwozia (np. 'S line', 'Furgon z wysokim "
+            "dachem'). Szukaj oznaczenia obok modelu bazowego. Zwróć 'Brak' "
+            "jeśli nie przypisano."
+        )
     )
     wheels: str = Field(
         description="Tylko i wyłącznie średnica felgi (kół) wyrażona jako liczba (np. '17', '18'). Zwracaj uwagę na słowa takie jak: 'Obręcze', 'Felgi', 'Kute' w dokumencie, następnie wyciągnij samą średnicę nominalną. Zwróć 'Brak' jeśli nie znaleziono."

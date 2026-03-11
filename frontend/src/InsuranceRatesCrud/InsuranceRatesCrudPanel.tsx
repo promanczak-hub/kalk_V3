@@ -74,7 +74,7 @@ export default function InsuranceRatesCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await apiFetch(`/api/samar-rv/insurance-rates`);
+      const resp = await apiFetch(`/api/admin/insurance-rates`);
       if (resp.ok) {
         const raw = await resp.json();
         setData(Array.isArray(raw) ? raw : []);
@@ -113,7 +113,7 @@ export default function InsuranceRatesCrudPanel() {
     try {
       const payload = { ...formData };
 
-      const resp = await apiFetch(`/api/samar-rv/insurance-rates`, {
+      const resp = await apiFetch(`/api/admin/insurance-rates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -134,7 +134,7 @@ export default function InsuranceRatesCrudPanel() {
     if (!confirm("Na pewno usunąć?")) return;
     try {
       const resp = await apiFetch(
-        `/api/samar-rv/insurance-rates/${id}`,
+        `/api/admin/insurance-rates/${id}`,
         { method: "DELETE" },
       );
       if (resp.ok) fetchData();

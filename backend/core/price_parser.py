@@ -55,6 +55,31 @@ _EMPTY_VALUES = frozenset(
 )
 
 
+def extract_all_numbers(text: str | None) -> list[float]:
+    """
+    Extract all unassociated numeric values from a string, handling Polish and International
+    formats. Used for finding technical specifications (engine size, range, weight).
+    """
+    if text is None:
+        return []
+
+    text_cleaned = str(text).strip()
+    if text_cleaned.lower() in _EMPTY_VALUES:
+        return []
+
+    results: list[float] = []
+    # Find all matches in the string
+    for match in _PRICE_PATTERN.finditer(text_cleaned):
+        num_str = match.group(0).strip()
+        # Remove spaces used as thousands separators
+        num_str = num_str.replace(" ", "")
+        val = _parse_numeric_string(num_str)
+        if val is not None:
+            results.append(val)
+
+    return results
+
+
 def parse_price_string(raw: str | None) -> ParsedPrice | None:
     """
     Parse a Polish price string into a structured ParsedPrice.
@@ -111,12 +136,13 @@ def _detect_currency(text: str) -> str:
 
 def _extract_numeric_value(text: str) -> float | None:
     """
-    Extract a numeric value from a noisy price string.
+    Extract a numeric value corresponding to a price from a noisy price string.
 
-    Strategy:
-    1. Find all digit groups with separators
-    2. Determine if dots/commas are thousands or decimal separators
-    3. Parse to float
+    Strategy for strings containing multiple numbers (e.g. tech specs + price):
+    1. Identify all financial keywords (PLN, EUR, USD, zł, netto, brutto, cena, kwota, rabat, suma)
+    2. Extract all numbers and their positions in the text
+    3. Choose the number that is closest (in string index) to any financial keyword
+    4. If no financial keywords are present, default to the first number found (fallback).
 
     Examples:
         "295 700"      → 295700.0
@@ -124,16 +150,52 @@ def _extract_numeric_value(text: str) -> float | None:
         "5.476"        → 5476.0  (dot as thousands sep in Polish)
         "1 234.56"     → 1234.56
         "180000"       → 180000.0
+        "2.0 TDI 150 KM, WLTP 6.1 l/100km, cena 180 000 PLN brutto" → 180000.0
     """
-    match = _PRICE_PATTERN.search(text)
-    if not match:
+    financial_keywords = [
+        "pln", "eur", "usd", "zł", "netto", "brutto",
+        "cena", "kwota", "rabat", "suma"
+    ]
+    lower_text = text.lower()
+    
+    # 1. Find indices of all financial keywords
+    keyword_indices: list[int] = []
+    for kw in financial_keywords:
+        idx = lower_text.find(kw)
+        while idx != -1:
+            keyword_indices.append(idx)
+            idx = lower_text.find(kw, idx + 1)
+            
+    # 2. Extract numbers and their positions
+    matches = list(_PRICE_PATTERN.finditer(text))
+    if not matches:
+        return None
+        
+    parsed_candidates: list[tuple[float, int]] = []
+    for match in matches:
+        num_str = match.group(0).strip().replace(" ", "")
+        val = _parse_numeric_string(num_str)
+        if val is not None:
+            # We use the midpoint of the match for distance scoring
+            midpoint = match.start() + (match.end() - match.start()) // 2
+            parsed_candidates.append((val, midpoint))
+            
+    if not parsed_candidates:
         return None
 
-    num_str = match.group(0).strip()
-    # Remove spaces used as thousands separators
-    num_str = num_str.replace(" ", "")
+    # 3. If there are keywords, score candidates by closest distance to any keyword
+    if keyword_indices:
+        best_candidate = None
+        min_distance = float('inf')
+        for val, p_idx in parsed_candidates:
+            dist = min(abs(p_idx - k_idx) for k_idx in keyword_indices)
+            if dist < min_distance:
+                min_distance = dist
+                best_candidate = val
+        return best_candidate
 
-    return _parse_numeric_string(num_str)
+    # 4. Fallback: if no keywords found, return the first number parsed
+    return parsed_candidates[0][0]
 
 
 def _parse_numeric_string(num_str: str) -> float | None:

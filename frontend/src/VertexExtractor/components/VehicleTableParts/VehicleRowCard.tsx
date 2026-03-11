@@ -243,6 +243,7 @@ export function VehicleRowCard({
       if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);
       if (fp.initial_deposit_pct != null) setInitialDepositPct(fp.initial_deposit_pct);
       if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
+      if (fp.catalog_base_price_net != null) setCatalogBasePriceNet(fp.catalog_base_price_net);
     }
     // Toggles
     if (setup.toggles) {
@@ -518,6 +519,7 @@ export function VehicleRowCard({
           active_discount_pct: activeDiscountPct,
           active_final_price: activeFinalPrice,
         },
+        catalog_base_price_net: catalogBasePriceNet,
         saved_at: new Date().toISOString(),
       };
 
@@ -968,9 +970,27 @@ export function VehicleRowCard({
 
   const customDiscountPct = Number(customDiscountPctRaw) || 0;
 
-  const basePrice = parsePriceToNumber(vehicle.base_price);
-  const optionsPrice = parsePriceToNumber(vehicle.options_price);
-  const totalCatalogPrice = basePrice + optionsPrice;
+  // ── Editable Catalog Base Price (NETTO) ────────────────────────────────
+  // AI-extracted base price → converted to netto. User can override.
+  const [catalogBasePriceNet, setCatalogBasePriceNet] = useState<number>(() => {
+    const aiBase = parsePriceToNumber(vehicle.base_price);
+    const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+    return isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100;
+  });
+
+  // AI-extracted raw string for comparison display
+  const aiExtractedBasePrice = vehicle.base_price || null;
+
+  // Detect source price domain (netto vs brutto) from AI-extracted string
+  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
+
+  // totalCatalogPrice in SOURCE DOMAIN (brutto or netto matching PDF) for display + discount logic
+  // catalogBasePriceNet is always netto; convert to source domain + add options
+  const catalogBaseInSourceDomain = isSourceNetto
+    ? catalogBasePriceNet
+    : Math.round(catalogBasePriceNet * 1.23);
+  const totalCatalogPrice = catalogBaseInSourceDomain
+    + parsePriceToNumber(vehicle.options_price);
 
   const offerFinalPrice = parsePriceToNumber(vehicle.final_price_pln);
   const hasOfferFinalPrice = Boolean(
@@ -1012,8 +1032,6 @@ export function VehicleRowCard({
     .filter(opt => opt.no_discount)
     .reduce((acc, curr) => acc + curr.price_net, 0);
 
-  // Detect source price domain for proper netto/brutto-aware calculations
-  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
   // Options are always stored as price_net - convert non-discountable to source domain
   const nonDiscInSourceDomain = isSourceNetto
     ? nonDiscountableOptionsTotal
@@ -1273,6 +1291,9 @@ export function VehicleRowCard({
              totalCatalogPrice={totalCatalogPrice}
              activeFinalPrice={activeFinalPrice}
              dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
+             catalogBasePriceNet={catalogBasePriceNet}
+             setCatalogBasePriceNet={setCatalogBasePriceNet}
+             aiExtractedBasePrice={aiExtractedBasePrice}
              discountableOptionsTotal={discountableOptionsTotal}
              nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
              serviceOptionsTotal={customServiceOptionsPriceTotal}

@@ -5,5 +5,6 @@ export const apiFetch = async (
   options?: RequestInit
 ): Promise<Response> => {
   const url = `${API_BASE_URL}${endpoint}`;
+  console.log("apiFetch URL:", url);
   return fetch(url, options);
 };

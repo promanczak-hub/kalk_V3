@@ -329,15 +329,6 @@ class LTRKalkulator:
     def build_matrix(self) -> List[Dict[str, Any]]:
         """Przelicza wszystkie warianty i zwraca siatkę (List of Cells)"""
         # V3 Matrix Generation: Linear 1D Grid (6 - 84 months) based on reference usage (Card Summary)
-        okres_bazowy = getattr(self.input_data, "okres_bazowy", 48)
-        przebieg_bazowy = getattr(self.input_data, "przebieg_bazowy", 140000)
-
-        if okres_bazowy <= 0:
-            okres_bazowy = 48
-
-        # Obliczenie wskaźnika stałego zużycia na miesiąc
-        km_per_month = przebieg_bazowy / okres_bazowy
-
         cells = []
 
         vehicle_capex, options_capex = self._calculate_capex()
@@ -365,9 +356,9 @@ class LTRKalkulator:
         if margin_pct >= 1.0:
             margin_pct = 0.9999  # Prevention of division by zero
 
-        for months in range(6, 85, 6):
-            total_km = int(km_per_month * months)
-            km_per_year = int(12 * total_km / months) if months > 0 else 0
+        grid_params = [(m, km_py) for m in range(12, 85, 12) for km_py in range(40000, 80001, 10000)]
+        for months, km_per_year in grid_params:
+            total_km = int((km_per_year / 12) * months)
 
             # 1. Koszty Opon
             tires_res = self.tires_calc.calculate_cost(months=months, total_km=total_km)

@@ -308,6 +308,51 @@ def process_and_save_document_bg(
                     f"[BG TASK ERROR] Nie udało się zapisać do document_library: {lib_err}"
                 )
 
+            # --- ALSO INSERT INTO model_document_sources ---
+            try:
+                ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else "pdf"
+                if ext not in ("pdf", "xlsx", "csv"):
+                    ext = "pdf"
+                    
+                cat_doc_id = str(uuid.uuid4())
+                
+                mds_payload = {
+                    "id": cat_doc_id,
+                    "brand": doc_meta.get("brand", "") or "Unknown",
+                    "model_family": doc_meta.get("model", "") or "Unknown",
+                    "document_type": doc_type,
+                    "display_name": file_name,
+                    "is_active": True,
+                    "file_type": ext,
+                    "storage_path": storage_path,  # Reuse already uploaded path from Stage 1
+                    "original_filename": file_name,
+                    "file_size_bytes": len(file_bytes),
+                    "extraction_status": "extracting",
+                    "variant_count": 0,
+                }
+                supabase.schema("reverse_search").table("model_document_sources").insert(mds_payload).execute()
+                print(f"[BG TASK] Dokument zapisany w model_document_sources ({cat_doc_id}).")
+                
+                # Uruchom ekstrakcję wariantów
+                from core.catalog_extractor import extract_catalog_variants
+                try:
+                    cat_result = extract_catalog_variants(mds_payload)
+                    supabase.schema("reverse_search").table("model_document_sources").update({
+                        "extraction_status": "ready",
+                        "extracted_data": cat_result["extracted_data"],
+                        "variant_count": cat_result["variant_count"],
+                        "extracted_at": "now()",
+                    }).eq("id", cat_doc_id).execute()
+                    print(f"[BG TASK] Wyekstrahowano {cat_result['variant_count']} wariantów do model_document_sources.")
+                except Exception as ex_err:
+                    print(f"[BG TASK ERROR] Błąd ekstrakcji wariantów: {ex_err}")
+                    supabase.schema("reverse_search").table("model_document_sources").update({
+                        "extraction_status": "error",
+                        "extraction_error": str(ex_err)
+                    }).eq("id", cat_doc_id).execute()
+            except Exception as mds_err:
+                print(f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}")
+
             # Oznaczamy rekord w synthesis jako przeniesiony
             _update_progress(supabase, file_id, "moved_to_library")
             return

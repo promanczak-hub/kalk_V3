@@ -199,13 +199,12 @@ def evaluate_and_rank_twins(client, twin_a: dict, twin_b: dict) -> dict:
         print(f"Reranking failed: {e}. Defaulting to Twin A (Pro).")
         return twin_a
 
-
 def extract_digital_twin_from_pdf(
     document_data: Union[str, bytes], mime_type: str = "application/pdf"
 ) -> dict:
     """
-    Extracts a raw JSON digital twin representation of the document using Gemini 2.5 Pro and Gemini 2.5 Flash in parallel.
-    Uses LLM-as-a-judge to select the best output (preventing bad price splits).
+    Extracts a raw JSON digital twin representation of the document using Gemini 2.5 Pro.
+    Falls back to Gemini 2.5 Flash if Pro fails completely.
     """
     client = get_gemini_client()
 
@@ -216,26 +215,16 @@ def extract_digital_twin_from_pdf(
     else:
         contents = [types.Part.from_text(text=document_data)]
 
-    import concurrent.futures
+    twin_pro = _call_gemini_pro(client, contents)
 
-    twin_pro = {}
-    twin_flash = {}
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        future_pro = executor.submit(_call_gemini_pro, client, contents)
-        future_flash = executor.submit(_call_gemini_flash, client, contents)
-
-        twin_pro = future_pro.result()
-        twin_flash = future_flash.result()
-
-    if not twin_pro and twin_flash:
-        print("Pro failed completely, returning Flash result.")
-        return twin_flash
-    elif not twin_flash and twin_pro:
-        print("Flash failed completely, returning Pro result.")
+    if twin_pro:
         return twin_pro
-    elif not twin_pro and not twin_flash:
-        print("Both extractions failed entirely.")
-        return {}
 
-    return evaluate_and_rank_twins(client, twin_pro, twin_flash)
+    print("[DIGITAL TWIN] Pro failed — falling back to Flash.")
+    twin_flash = _call_gemini_flash(client, contents)
+
+    if twin_flash:
+        return twin_flash
+
+    print("[DIGITAL TWIN] Both Pro and Flash failed entirely.")
+    return {}
