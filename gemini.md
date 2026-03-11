@@ -80,6 +80,31 @@ System nigdy nie powinien się wywalić (Crash 500) z powodu literówki w nazwie
   - Co jeżeli nazwa zawiera dodatkowe spacje lub błędną wielkość liter (`" porsche "` zamiast `"Porsche"`)?
   - Przewiduj, że API czasowo zniknie, a zapytanie bazodanowe zwróci pusty stan. Zawsze używaj spójnych metod normalizacji łańcuchów znaków (np. `.strip().upper()`).
 
+## 2A. 🚫 KATEGORYCZNY ZAKAZ FALLBACKÓW W PIPELINE KALKULACYJNYM
+
+> **⛔ TO JEST REGUŁA BEZWZGLĘDNA — ŻADNYCH WYJĄTKÓW.**
+
+Pipeline kalkulacyjny (12 kroków LTR: Opony → Koszty Dodatkowe → Samochód Zastępczy → Serwis → CAPEX → WR → Amortyzacja → Ubezpieczenie → Finanse → Koszt Dzienny → Stawka → Budżet Mktg) to **precyzyjny proces finansowy**.
+
+### ❌ ZABRONIONE w pipeline kalkulacyjnym:
+
+- **Fallbacki** — zastępowanie brakujących danych domyślnymi wartościami (np. `config.get("stawka", 0.0)`, `damage_coeff.get("WspWartoscSzkody", 1.0)`)
+- **Ciche pomijanie** — `try/except: pass` lub `return 0.0` gdy brak danych
+- **Domyślne stałe** — `DEFAULT_AC = 0.015` zamiast prawdziwych stawek z bazy
+- **Kontynuacja mimo błędu** — uruchamianie kolejnych kroków gdy poprzedni zwrócił nieprawidłowe wyniki
+
+### ✅ WYMAGANE zachowanie:
+
+- **Jawny błąd z komunikatem** — `raise ValueError("Brak stawki AC w tabeli ltr_admin_ubezpieczenia dla klasy {class_id}, rok {year}")` 
+- **Walidacja wejść na starcie** — sprawdź `samar_class_id > 0`, `base_price_net > 0`, `engine_id > 0` PRZED startem pipeline
+- **Readiness Check** — endpoint weryfikujący kompletność danych PRZED kalkulacją
+- **Logowanie** — `logger.error(...)` z kontekstem (klasa, marka, silnik) przed rzuceniem wyjątku
+
+> [!CAUTION]
+> **Każda brakująca dana w procesie kalkulacyjnym MUSI skutkować czytelnym ostrzeżeniem użytkownika, a NIE cichym fałszywym wynikiem.** Lepiej odmówić kalkulacji niż zwrócić błędną stawkę.
+
+---
+
 ## 3. FUZZY MATCHING / NORMALIZACJA WPROWADZANYCH ŚMIECOWYCH DANYCH
 
 Pamiętaj, że dane trafiające do systemu na etapie przetwarzania cenników, konfiguracji lub wyciągania przez LLM, bywają błędne (np. "Wolkswagen", "Vw", "Mercedes Benz" zamiast "Mercedes-Benz").
