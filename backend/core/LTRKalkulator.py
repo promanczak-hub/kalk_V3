@@ -54,13 +54,13 @@ _ENGINE_CATEGORY_TO_ID: Dict[str, int] = {
 def _resolve_engine_type_id(engine_category: str) -> int:
     """Mapuje engine_category (np. 'Benzyna mHEV (PB-mHEV)') → engine_type_id."""
     if not engine_category:
-        return 1
+        raise ValueError("Brak parametru engine_category. Nie można poprawnie zidentyfikować silnika.")
     upper = engine_category.strip().upper()
     # Try direct match first
     for key, eid in _ENGINE_CATEGORY_TO_ID.items():
         if key in upper:
             return eid
-    return 1  # fallback: benzyna
+    raise ValueError(f"Nieznana kategoria silnika: '{engine_category}'. Brak mapowania na engine_type_id.")
 
 
 @lru_cache(maxsize=128)
@@ -357,6 +357,16 @@ class LTRKalkulator:
             margin_pct = 0.9999  # Prevention of division by zero
 
         grid_params = [(m, km_py) for m in range(12, 85, 12) for km_py in range(40000, 80001, 10000)]
+
+        # Wstrzyknięcie wejściowego okres/przebieg do siatki
+        req_months = getattr(self.input_data, "okres_bazowy", 48)
+        req_total_km = getattr(self.input_data, "przebieg_bazowy", 140000)
+        if req_months > 0:
+            req_km_per_year = int((req_total_km / req_months) * 12)
+            req_pair = (req_months, req_km_per_year)
+            if req_pair not in grid_params:
+                grid_params.append(req_pair)
+
         for months, km_per_year in grid_params:
             total_km = int((km_per_year / 12) * months)
 

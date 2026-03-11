@@ -1,6 +1,4 @@
-import os
 import sys
-import asyncio
 from dotenv import load_dotenv
 
 sys.path.append('d:/kalk_v3/backend')

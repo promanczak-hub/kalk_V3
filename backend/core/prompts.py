@@ -75,7 +75,7 @@ KLUCZOWA RÓŻNICA: Cennik ogólny (np. tabela z wieloma wariantami silnikowymi 
 
 CARD_SUMMARY_PROMPT = """
 Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach (np. w nazwach akcesoriów, w disclaimerach lub elementach graficznych wyodrębnionych przez VLM).
-Plik wejściowy JSON może mieć różną strukturę (np. używać węzłów typu 'table', 'section', 'pricing_summary', 'technical_data', 'vehicle_summary' itp.). Nie polegaj na konkretnych nazwach kluczy w JSON-ie - analizuj semantycznie treść i etykiety danych (label, value, name, price, description itd.). Szukaj danych odpowiadających poszukiwanym atrybutom w całej strukturze dokumentu.
+KAŻDY DOKUMENT MA INNĄ STRUKTURĘ JSON — nie polegaj na konkretnych nazwach kluczy ani typach węzłów. Zamiast tego czytaj JSON jak człowiek czyta dokument: szukaj ZNACZENIA danych. Jeśli widzisz liczbę obok etykiety sugerującej cenę, moc lub wymiar — to jest Twój atrybut, niezależnie od tego, jak nazywa się klucz JSON, w którym się znajduje. Przeszukaj rekurencyjnie CAŁĄ strukturę dokumentu.
 
 DEDUKCJA BRAKUJĄCYCH PÓL (KRYTYCZNE):
 Jeśli w specyfikacji nie wydzielono wprost typu nadwozia, napędu lub mocy - BEZWZGLĘDNIE wydedukuj je z nazwy modelu, wersji lub pomniejszych cenników (np. "Crafter Furgon" -> Typ nadwozia: Furgon, "Skoda Octavia Combi" -> Typ nadwozia: Kombi). Zlepiaj informacje jak "TDI", "KM", "kW" w poprawny `powertrain`. NIGDY NIE ODCHODŹ Z PUSTYMI RĘKAMI, bądź agresywny w dopasowywaniu.
@@ -126,11 +126,11 @@ Następnie przyporządkuj zmienną `power_range` do JEDNEJ z poniższych wartoś
 - "MID (131 - 200 KM)"
 - "HIGH (201 KM i więcej)"
 
-Zidentyfikuj rodzaj napędu (oś napędzana) i przyporządkuj zmienną `drive_type` (lub odpowiednik wg schematu) do JEDNEJ z poniższych wartości:
-- "Napęd FWD" (przód)
-- "Napęd RWD" (tył)
-- "Napęd AWD" (4x4, Quattro, xDrive, 4Motion itp.)
-Jeśli brakuje ewidentnych informacji o napędzie, pozostaw to pole puste.
+Zidentyfikuj rodzaj napędu (oś napędzana) i przyporządkuj zmienną `drive_type` do JEDNEJ z poniższych wartości:
+- "Napęd FWD" (przód) — domyślny dla większości samochodów osobowych, chyba że dokument mówi inaczej.
+- "Napęd RWD" (tył) — pojazdy z napędem na oś tylną. Przykłady kontekstów sugerujących RWD: oznaczenia typu "rear-wheel drive", "napęd na oś tylną", "propulsion", klasyczne BMW serii 3/5, duże dostawcze jak Transit z napędem na tylne koła.
+- "Napęd AWD" (4x4) — pojazdy z napędem na wszystkie koła. Przykłady kontekstów sugerujących AWD: oznaczenia typu "4x4", "all-wheel drive", systemowe nazwy producentów jak Quattro (Audi), xDrive (BMW), 4MATIC (Mercedes), 4Motion (VW), ALL4 (Mini), e-4ORCE (Nissan), ALLGRIP (Suzuki), 4Drive (SEAT/Cupra).
+DEDUKCJA SEMANTYCZNA: Nie szukaj dosłownych słów kluczowych! Rozumiej ZNACZENIE opisu napędu. Jeśli w danych technicznych widzisz jakąkolwiek wzmiankę o napędzie na obie osie, napędzie integralnym, stałym 4x4 — to AWD. Jeśli widzisz wzmiankę o tylnej osi napędowej — to RWD. Jeśli brak jakichkolwiek informacji, pozostaw to pole puste (model deterministyczny uzupełni je później).
 
 Na podstawie wszystkich informacji oceń całościowo pojazd i przypisz wartość `vehicle_class` do JEDNEJ z opcji: "Osobowy" lub "Dostawczy".
 Dodatkowo rozbij `powertrain` na części składowe:

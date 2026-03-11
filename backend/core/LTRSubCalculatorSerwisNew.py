@@ -188,7 +188,7 @@ class ServiceCalculator:
             else:
                 self._rate_per_km = float(record.get("cost_non_aso_per_km", 0.0))
         else:
-            logger.warning(
-                "No matching service cost found in DB. Defaulting rate to 0."
+            raise ValueError(
+                f"Brak stawki serwisowej w bazie (samar_class_id={self.data.samar_class_id}, "
+                f"engine_type_id={self.data.engine_type_id}, power_band={power_band})."
             )
-            self._rate_per_km = 0.0

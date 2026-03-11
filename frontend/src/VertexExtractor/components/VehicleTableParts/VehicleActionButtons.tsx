@@ -1,7 +1,7 @@
 import { Loader2, Wand2, Database, ExternalLink } from "lucide-react";
-import { cn } from "../../../../lib/utils";
+import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
-import { API_BASE_URL } from "../../../../config/env";
+import { API_BASE_URL } from "../../../config/env";
 
 interface VehicleActionButtonsProps {
   vehicle: FleetVehicleView;

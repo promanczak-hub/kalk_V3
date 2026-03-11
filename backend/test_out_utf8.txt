@@ -1,0 +1,263 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\kalk_v3
+configfile: pyproject.toml
+plugins: anyio-4.12.1, timeout-2.4.0
+collected 1 item
+
+tests\test_calculate_matrix.py F                                         [100%]
+
+================================== FAILURES ===================================
+________________________ test_calculate_matrix_sanity _________________________
+
+    def test_calculate_matrix_sanity():
+        # Input settings
+        calc_input = CalculatorInput(
+            vehicle_id="mock-vehicle",
+            base_price_net=100000.0,
+            okres_bazowy=48,
+            przebieg_bazowy=80000, # 20k/year
+            service_cost_type="ASO"
+        )
+        settings = CalculationSettings(settings_version_id=None, overrides=None)
+    
+        with patch('core.LTRKalkulator.get_vehicle_from_db', return_value={
+            "id": "mock-vehicle",
+            "samar_class_id": 1,
+            "engine_type_id": 1,
+            "power_kw": 110.0,
+            "brand": "Toyota",
+            "model": "Corolla"
+        }), patch('core.LTRKalkulator.get_samar_klasa_from_db', return_value={}), \
+             patch('core.LTRKalkulator.get_insurance_rates_from_db', return_value=[]), \
+             patch('core.LTRKalkulator.get_damage_coefficients_from_db', return_value={}), \
+             patch('core.LTRKalkulator.get_replacement_car_rate_from_db', return_value={}), \
+             patch('core.LTRSubCalculatorSerwisNew.get_service_rate_from_db', return_value={
+                 "cost_aso_per_km": 0.15,
+                 "cost_non_aso_per_km": 0.10
+             }), \
+             patch('core.samar_rv.fetch_depreciation_rates_cached', return_value={0: {"base": 0.5}, 4: {"base": 0.0}}), \
+             patch('core.samar_rv.fetch_brand_correction_cached', return_value=0.0), \
+             patch('core.samar_rv.fetch_vintage_correction_cached', return_value=0.0), \
+             patch('core.samar_rv.fetch_color_correction_cached', return_value=0.0), \
+             patch('core.LTRKalkulator.LTRSubCalculatorOpony') as mock_tires:
+    
+            # mock tires calculate_cost to return valid dict
+            mock_tires.return_value.calculate_cost.return_value = {
+                "capex_initial_set": 0, "monthly_hardware": 0, "monthly_storage": 0, "monthly_swaps": 0, "IloscOpon": 4
+            }
+    
+            calc = LTRKalkulator(input_data=calc_input, settings=settings)
+            calc.tires_calc = mock_tires.return_value
+>           cells = calc.build_matrix()
+                    ^^^^^^^^^^^^^^^^^^^
+
+tests\test_calculate_matrix.py:46: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+core\LTRKalkulator.py:389: in build_matrix
+    rv_res = rv_calc.calculate_values(
+core\LTRSubCalculatorUtrataWartosciNew.py:147: in calculate_values
+    result: RVOutput = rv_calc.calculate()
+                       ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <core.samar_rv.SamarRVCalculator object at 0x000001B7405E21E0>
+
+    def calculate(self) -> RVOutput:
+        """Oblicza RV wg algorytmu Excel JŁ (6 kroków)."""
+        debug: Dict[str, Any] = {}
+    
+        # \u2500\u2500 Pobranie danych \u2500\u2500
+        rates = self._fetch_depreciation_rates()
+        config = self._fetch_class_config()
+        base_mileage = float(config.get("base_mileage_km", 140000))
+        mileage_threshold = float(config.get("mileage_threshold_km", 190000))
+    
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+        # KROK 1: WR bazy = cena_bazowa × (WR_klasa% + korekta_marka)
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+    
+        wr_base_pct = rates.get(0, {"base": 0.0})["base"]
+        brand_correction = self._fetch_brand_correction()
+        effective_pct = wr_base_pct + brand_correction
+    
+        # BS = L × BT (Excel)
+        wr_value = self.data.capex_base_net * effective_pct
+    
+        debug["krok1_wr_base_pct"] = wr_base_pct
+        debug["krok1_brand_correction"] = brand_correction
+        debug["krok1_effective_pct"] = effective_pct
+        debug["krok1_wr_value"] = wr_value
+    
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+        # KROK 2: Kaskadowa deprecjacja rok\u2192rok (ZAWSZE 7 lat)
+        # Rok 0 = bazowy WR. Rok 4 (col F w Excelu) = 0 (punkt bazowy).
+        # Lata < 4 \u2192 aprecjacja (dodajemy).
+        # Lata > 4 \u2192 deprecjacja (odejmujemy).
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+    
+        # Excel: BC=BS (rok 4\u21920), potem kaskadowo w obie strony
+        # Wg Excela: kolumna F(rok4)=0, kolumny B-E(rok0-3) = aprecjacja,
+        # kolumny G-I(rok5-7) = deprecjacja.
+        # Efektywna formuła: w przód od roku 0 (bazowego=rok4 w Excelu):
+        #   rok<4: wartość rośnie (1 + rate)
+        #   rok=4: baza (rate=0)
+        #   rok>4: wartość maleje (1 - rate)
+    
+        # Budujemy tabelę wartości od roku bazowego (0 w DB = rok 4 w Excelu)
+        # APRECJACJA: od roku 0 wstecz do roku -3 (Excel: rok3 do rok1)
+        # \u2192 ale w naszej DB rate na rok 1 = aprecjacja z Excela rok 3
+        # \u2192 rate na rok 2 = aprecjacja z Excela rok 2
+        # \u2192 rate na rok 3 = aprecjacja z Excela rok 1
+    
+        # Budujemy tak:
+        # year=0 (rok bazowy 48mc): wr_value (już obliczone)
+        # year=1 \u2192 Excel rok3: aprecjacja
+        #   value = prev * (1 + rates[1])
+        #   ALE to jest WSTECZ, więc: value_at_rok3 = wr_value * (1+rate_rok3_do_rok4)
+        # etc.
+    
+        # W Excelu:
+        # AN (rok 0/bie\u017c\u0105cy) = AR \xd7 (1 + AL)  gdzie AL = rate rok 0\u21921
+        # AR (rok 1)          = AV \xd7 (1 + AP)  gdzie AP = rate rok 1\u21922
+        # AV (rok 2)          = AZ \xd7 (1 + AT)  gdzie AT = rate rok 2\u21923
+        # AZ (rok 3)          = BC \xd7 (1 + AX)  gdzie AX = rate rok 3\u21924
+        # BC (rok 4)          = BS = baza       (rate = 0)
+        # BG (rok 5)          = BS - BE × BS = BS × (1 - BE)
+        # BK (rok 6)          = BG - BI × BG = BG × (1 - BI)
+        # BO (rok 7)          = BK - BM × BK = BK × (1 - BM)
+    
+        # Więc: od bazy (rok 4) w DÓŁ (roki 5+): multiplier = (1-rate)
+        #        od bazy (rok 4) w GÓRĘ (roki 3-): multiplier = (1+rate)
+        # Uwaga: Excel col I(rok7) i col H(rok6) i col G(rok5) to deprecjacje
+        #         Excel col E(rok3) i col D(rok2) i col C(rok1) i col B(rok0) to aprecjacje
+    
+        # W DB: year=0 \u2192 bazowe WR% (z TAB.WR KLASA)
+        #        year=1..3 \u2192 stawki aprecjacji (odwrotno\u015b\u0107: rok4\u2192rok1)
+        #        year=4 \u2192 0 (punkt bazowy)
+        #        year=5..7 \u2192 stawki deprecjacji
+    
+        # Aprecjacja (roki przed bazowym)
+        apreciated = wr_value
+        for yr in range(1, 4):  # rok 3, 2, 1 w Excelu
+            rate = rates.get(yr, {"base": 0.0})["base"]
+            apreciated = apreciated * (1.0 + rate)
+            # yr=1 \u2192 dane z DB rok 1 = aprecjacja Excel rok 3\u21924
+            # yr=2 \u2192 dane z DB rok 2 = aprecjacja Excel rok 2\u21923
+            # yr=3 \u2192 dane z DB rok 3 = aprecjacja Excel rok 1\u21922
+    
+        # Teraz mamy wartość po pełnej aprecjacji (rok 0 Excel = rok bieżący)
+        # Deprecjacja (roki po bazowym)
+        depreciated = wr_value
+        for yr in range(5, 8):  # rok 5, 6, 7
+            rate = rates.get(yr, {"base": 0.0})["base"]
+            depreciated = depreciated * (1.0 - rate)
+    
+        # Tabelka wartości per rok (0=bieżący, 7=najstarszy)
+        # Budujemy ją kaskadowo od bazy (rok 4)
+        value_table: Dict[int, float] = {4: wr_value}
+    
+        # W górę (od bazy do bieżącego)
+        v = wr_value
+        for yr in [3, 2, 1, 0]:
+            if yr == 0:
+                rate = rates.get(0, {"base": 0.0})["base"]
+                # Rok 0 w Excelu: col B \u2192 to powinno by\u0107 rate aprecjacji
+                # ale w DB year=0 to bazowe WR% \u2192 nie do kaskady
+                # W Excelu kolumna B (rok 0) = 0.05 (5%), to INNA aprecjacja
+                # Musimy obsłużyć to specjalnie
+                v = v * (1.0 + rate)
+            else:
+                rate = rates.get(4 - yr, {"base": 0.0})["base"]
+                v = v * (1.0 + rate)
+            value_table[yr] = v
+    
+        # W dół (od bazy do roku 7)
+        v = wr_value
+        for yr in [5, 6, 7]:
+            rate = rates.get(yr, {"base": 0.0})["base"]
+            v = v * (1.0 - rate)
+            value_table[yr] = v
+    
+        debug["krok2_value_table"] = {
+            k: round(v, 2) for k, v in sorted(value_table.items())
+        }
+    
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+        # KROK 3: Wybierz wartość per delta_lat + RV opcji
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+    
+        years = self.data.months // 12
+        years = max(0, min(years, self.LICZBA_LAT))
+    
+        # Potrzebujemy: AB (delta_lat) z Excela = ile lat trwa leasing
+        # W Excelu AB = rok_konca - rok_startu
+        # U nas: years = months // 12
+    
+        rv_base = value_table.get(years, wr_value)
+    
+        # RV opcji: z tabeli options (year w DB = delta_lat w Excelu)
+        options_rv_pct = rates.get(years, {"options": 0.0})["options"]
+        rv_options = self.data.capex_options_net * options_rv_pct
+    
+        rv_total = rv_base + rv_options
+    
+        debug["krok3_years"] = years
+        debug["krok3_rv_base"] = round(rv_base, 2)
+        debug["krok3_options_rv_pct"] = options_rv_pct
+        debug["krok3_rv_options"] = round(rv_options, 2)
+        debug["krok3_rv_total"] = round(rv_total, 2)
+    
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+        # KROK 4: Korekta przebiegu
+        # Excel: nadprzebieg w tyś km, 2 pasma: do50 i ponad50
+        # W naszej DB: progi base_mileage i mileage_threshold
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+    
+        nadprzebieg_km = self.data.total_km - base_mileage
+        nadprzebieg_tkm = nadprzebieg_km / 1000.0  # tyś km
+    
+        # Excel: AD = nadprzebieg do progu (max 50 tyś km nad bazą)
+        #   AF = nadprzebieg ponad próg
+        threshold_delta_tkm = (mileage_threshold - base_mileage) / 1000.0  # 50
+        nadprzebieg_do_progu = min(max(nadprzebieg_tkm, 0), threshold_delta_tkm)
+        nadprzebieg_ponad_prog = max(nadprzebieg_tkm - threshold_delta_tkm, 0)
+    
+        under_rate, over_rate = self._fetch_mileage_corrections()
+        unit_10tkm = 10.0  # per 10 tyś km
+    
+        # Excel: AK = AG × BR × (AD/10) + AH × BR × (AF/10)
+        korekta_przebieg = under_rate * rv_total * (
+            nadprzebieg_do_progu / unit_10tkm
+        ) + over_rate * rv_total * (nadprzebieg_ponad_prog / unit_10tkm)
+    
+        debug["krok4_nadprzebieg_tkm"] = round(nadprzebieg_tkm, 1)
+        debug["krok4_do_progu"] = round(nadprzebieg_do_progu, 1)
+        debug["krok4_ponad_prog"] = round(nadprzebieg_ponad_prog, 1)
+        debug["krok4_under_rate"] = under_rate
+        debug["krok4_over_rate"] = over_rate
+        debug["krok4_korekta_przebieg"] = round(korekta_przebieg, 2)
+    
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+        # KROK 5: Korekty dodatkowe (kolor, nadwozie, rocznik)
+        # NotebookLM: rocznik = MULTIPLIKATYWNA, reszta = addytywna
+        # \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+    
+>       color_correction_pct = self._fetch_color_correction()
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SamarRVCalculator' object has no attribute '_fetch_color_correction'. Did you mean: 'fetch_color_correction'?
+
+core\samar_rv.py:674: AttributeError
+============================== warnings summary ===============================
+backend/tests/test_calculate_matrix.py::test_calculate_matrix_sanity
+  C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'timeout' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+backend/tests/test_calculate_matrix.py::test_calculate_matrix_sanity
+  C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'verify' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests\test_calculate_matrix.py::test_calculate_matrix_sanity - Attribu...
+======================== 1 failed, 2 warnings in 2.44s ========================

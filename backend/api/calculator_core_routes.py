@@ -29,7 +29,11 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
             "message": "Matrix calculation completed successfully",
             "cells": matrix_cells,
         }
+    except ValueError as ve:
+        logging.warning(f"Validation error in calculate-matrix: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
+        logging.error(f"Internal error in calculate-matrix: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

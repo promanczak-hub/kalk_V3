@@ -140,7 +140,6 @@ class LTRSubCalculatorUtrataWartosciNew:
             body_type_id=self.body_type_id,
             rocznik=self.rocznik,
             zabudowa_apr_wr=self.zabudowa_apr_wr,
-            zabudowa_type_id=self.zabudowa_type_id,
             manual_wr_correction=manual_wr,
         )
 

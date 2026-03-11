@@ -112,13 +112,13 @@ capex = pp_res.total_capex
 print(f"\n{'='*80}")
 print("KROK 2: SUB-KALKULATORY")
 print(f"{'='*80}")
-print(f"\n  CAPEX:")
+print("\n  CAPEX:")
 print(f"    discounted_base: {pp_res.discounted_base:.2f}")
 print(f"    total_capex: {capex:.2f}")
 print(f"    tires_capex: {pp_res.tires_capex_net:.2f}")
 print(f"    gsm_capex: {pp_res.gsm_capex_net:.2f}")
 print(f"    transport: {pp_res.transport_fee_net:.2f}")
-print(f"    V1 Cena zakupu = 154278.97")  # from screenshot
+print("    V1 Cena zakupu = 154278.97")  # from screenshot
 
 # ---- 2b. OPONY ----
 from core.LTRSubCalculatorOpony import LTRSubCalculatorOpony
@@ -139,12 +139,12 @@ tires_base = (
 )
 tires_total = tires_base * MONTHS
 
-print(f"\n  OPONY:")
+print("\n  OPONY:")
 for k, v in tires_res.items():
     print(f"    {k}: {v}")
 print(f"    tires_base_mc: {tires_base:.2f}")
 print(f"    tires_total: {tires_total:.2f}")
-print(f"    V1 opony mc (z marza) = 220")
+print("    V1 opony mc (z marza) = 220")
 
 capex_for_financing = capex + tires_res["capex_initial_set"]
 print(f"\n  capex_for_financing: {capex_for_financing:.2f}")
@@ -173,7 +173,7 @@ utrata_z_czynszem = rv_res.get(
 )
 utrata_bez_czynszu = rv_res["UtrataWartosciBEZczynszu"]
 
-print(f"\n  UTRATA WARTOSCI:")
+print("\n  UTRATA WARTOSCI:")
 print(f"    WR: {vr_samar:.2f}")
 print(f"    WRdlaLO: {rv_res['WRdlaLO']:.2f}")
 print(f"    UtrataZCzynszem: {utrata_z_czynszem:.2f}")
@@ -195,7 +195,7 @@ finance_input = FinanseInput(
 )
 finance_res = FinanseCalculator(finance_input).calculate()
 
-print(f"\n  FINANSE:")
+print("\n  FINANSE:")
 print(f"    PMT z czynszem: {finance_res.monthly_pmt_z_czynszem:.2f}")
 print(f"    PMT bez czynszu: {finance_res.monthly_pmt_bez_czynszu:.2f}")
 print(f"    SumaOdsetekZczynszem: {finance_res.SumaOdsetekZczynszem:.2f}")
@@ -210,7 +210,7 @@ amort_res = AmortyzacjaCalculator(
     AmortyzacjaInput(wp=capex_for_financing, wr=vr_samar, okres=MONTHS)
 ).calculate()
 
-print(f"\n  AMORTYZACJA:")
+print("\n  AMORTYZACJA:")
 print(f"    procent: {amort_res.amortyzacja_procent:.6f}")
 
 # ---- 2f. UBEZPIECZENIE ----
@@ -242,10 +242,10 @@ insurance_res = ins_calc.calculate_cost(MONTHS, capex_for_financing)
 insurance_base = float(insurance_res["monthly_insurance"])
 insurance_total = float(insurance_res.get("total_insurance", insurance_base * MONTHS))
 
-print(f"\n  UBEZPIECZENIE:")
+print("\n  UBEZPIECZENIE:")
 for k, v in insurance_res.items():
     print(f"    {k}: {v}")
-print(f"    V1 ubezp mc (z marza) = 588")
+print("    V1 ubezp mc (z marza) = 588")
 
 # ---- 2g. SAMOCHOD ZASTEPCZY ----
 from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
@@ -255,10 +255,10 @@ rc_res = rc_calc.calculate_cost(months=MONTHS, enabled=True)
 rc_base = float(rc_res["monthly_replacement_car"])
 rc_total = float(rc_res.get("total_replacement_car", rc_base * MONTHS))
 
-print(f"\n  SAMOCHOD ZASTEPCZY:")
+print("\n  SAMOCHOD ZASTEPCZY:")
 for k, v in rc_res.items():
     print(f"    {k}: {v}")
-print(f"    V1 sam.zast mc (z marza) = 70")
+print("    V1 sam.zast mc (z marza) = 70")
 
 # ---- 2h. KOSZTY DODATKOWE ----
 from core.LTRSubCalculatorKosztyDodatkowe import AdditionalCostsCalculator
@@ -274,10 +274,10 @@ add_res = AdditionalCostsCalculator(settings, MockInputAdd(), MONTHS).calculate_
 additional_costs_base = float(add_res["monthly_additional_costs"])
 additional_costs_total = additional_costs_base * MONTHS
 
-print(f"\n  KOSZTY DODATKOWE:")
+print("\n  KOSZTY DODATKOWE:")
 for k, v in add_res.items():
     print(f"    {k}: {v}")
-print(f"    V1 koszty dod mc (z marza) = 79")
+print("    V1 koszty dod mc (z marza) = 79")
 
 # ---- 2i. SERWIS ----
 from core.LTRSubCalculatorSerwisNew import ServiceCalculator, ServiceCalculatorInput
@@ -297,10 +297,10 @@ service_input = ServiceCalculatorInput(
 service_base = ServiceCalculator(service_input).calculate()
 service_total = service_base * MONTHS
 
-print(f"\n  SERWIS:")
+print("\n  SERWIS:")
 print(f"    monthly: {service_base:.2f}")
 print(f"    total: {service_total:.2f}")
-print(f"    V1 serwis mc (z marza) = 455")
+print("    V1 serwis mc (z marza) = 455")
 
 # ---- 2j. KOSZT DZIENNY ----
 from core.LTRSubCalculatorKosztDzienny import KosztDziennyCalculator, KosztDziennyInput
@@ -319,12 +319,12 @@ kd_input = KosztDziennyInput(
 )
 kd_result = KosztDziennyCalculator(kd_input).calculate()
 
-print(f"\n  KOSZT DZIENNY:")
+print("\n  KOSZT DZIENNY:")
 print(f"    koszt_mc: {kd_result.koszt_mc:.2f}")
 print(f"    koszt_mc_bez_czynszu: {kd_result.koszt_mc_bez_czynszu:.2f}")
 print(f"    koszt_dzienny: {kd_result.koszt_dzienny:.2f}")
 print(f"    koszty_ogolem: {kd_result.koszty_ogolem:.2f}")
-print(f"    V1: dzienny=146, ogolem=106280")
+print("    V1: dzienny=146, ogolem=106280")
 
 # ---- 2k. STAWKA ----
 from core.LTRSubCalculatorStawka import StawkaCalculator, StawkaInput
@@ -345,14 +345,14 @@ stawka_input = StawkaInput(
 )
 stawka_result = StawkaCalculator(stawka_input).calculate()
 
-print(f"\n  STAWKA:")
+print("\n  STAWKA:")
 print(f"    oferowana_stawka: {stawka_result.oferowana_stawka:.2f}")
 print(f"    czynsz_finansowy: {stawka_result.czynsz_finansowy:.2f}")
 print(f"    czynsz_techniczny: {stawka_result.czynsz_techniczny:.2f}")
 print(f"    marza_mc: {stawka_result.marza_mc:.2f}")
 print(f"    marza_na_kontrakcie: {stawka_result.marza_na_kontrakcie:.2f}")
 
-print(f"\n  ROZKLAD (KosztPlusMarzaKorekta):")
+print("\n  ROZKLAD (KosztPlusMarzaKorekta):")
 print(f"    Finansowy:     {stawka_result.koszt_finansowy.koszt_plus_marza_korekta:.2f}")
 print(f"    Ubezpieczenie: {stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta:.2f}")
 print(f"    Serwis:        {stawka_result.koszt_serwis.koszt_plus_marza_korekta:.2f}")

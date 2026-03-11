@@ -623,54 +623,6 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
                 f"(keyword w exterior_color: '{exterior_color}')"
             )
 
-    # --- 8. Deterministic drive_type detection + FWD default ---
-    current_drive = str(card_summary.get("drive_type") or "").strip()
-    if not current_drive or current_drive.lower() in ("brak", "none", "null"):
-        # Check transmission and powertrain for AWD keywords
-        transmission_str = str(card_summary.get("transmission") or "").lower()
-        powertrain_str = str(card_summary.get("powertrain") or "").lower()
-        combined = f"{transmission_str} {powertrain_str}"
-
-        awd_keywords = (
-            "4motion",
-            "quattro",
-            "xdrive",
-            "4matic",
-            "4drive",
-            "4x4",
-            "4wd",
-            "awd",
-            "all4",
-            "on-demand",
-            "e-4orce",
-            "allgrip",
-        )
-        rwd_keywords = (
-            "rwd",
-            "tył",
-            "tylny",
-            "tylni",
-        )
-
-        if any(kw in combined for kw in awd_keywords):
-            card_summary["drive_type"] = "Napęd AWD"
-            print(
-                "[BACKFILL] drive_type: 'Napęd AWD' "
-                "(wykryto keyword 4WD w transmission/powertrain)"
-            )
-        elif any(kw in combined for kw in rwd_keywords):
-            card_summary["drive_type"] = "Napęd RWD"
-            print(
-                "[BACKFILL] drive_type: 'Napęd RWD' "
-                "(wykryto keyword RWD w transmission/powertrain)"
-            )
-        else:
-            card_summary["drive_type"] = "Napęd FWD"
-            print(
-                "[BACKFILL] drive_type: domyślnie 'Napęd FWD' "
-                "(brak danych w dokumencie)"
-            )
-
     return card_summary
 
 
