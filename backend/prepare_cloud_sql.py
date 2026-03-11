@@ -1,6 +1,3 @@
-import urllib.request
-import json
-import urllib.error
 
 # Project: gnpsdiarmwvqhqbyetce
 # I'll use the MCP Supabase execute_sql tool for this since it has proper auth.

@@ -5,6 +5,7 @@ import { ServiceOptionsManager } from "../../../components/Calculator/ServiceOpt
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
+import { CalculationReadinessBadge } from "./CalculationReadinessBadge";
 import { useMemo } from "react";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { parsePriceToNumber } from "./PriceDualFormat";
@@ -212,11 +213,19 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     <>
       {/* ═══ Analiza Finansowa ═══ */}
       <div className="border border-slate-200 rounded bg-white mb-8 mt-6">
-        <div className="px-5 py-3 border-b border-slate-200 bg-slate-50">
+        <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <h4 className="flex items-center text-xs font-semibold uppercase tracking-wider text-slate-500">
             <Banknote className="w-4 h-4 mr-2 text-slate-400" />
             Analiza Finansowa
           </h4>
+          <CalculationReadinessBadge
+            catalogBasePriceNet={catalogBasePriceNet}
+            rimDiameter={rimDiameter}
+            vehicle={vehicle}
+            paramPreview={paramPreview}
+            includeServicing={includeServicing}
+            replacementCar={replacementCar}
+          />
         </div>
 
         <div className="p-5 space-y-5">

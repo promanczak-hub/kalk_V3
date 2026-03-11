@@ -301,6 +301,7 @@ class RVInput:
     body_type_id: Optional[int] = None
     rocznik: str = "current"
     zabudowa_apr_wr: bool = False
+    zabudowa_type_id: Optional[int] = None
     manual_wr_correction: float = 0.0
 
 

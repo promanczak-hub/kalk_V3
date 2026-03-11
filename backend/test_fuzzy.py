@@ -1,4 +1,3 @@
-import os
 import json
 from supabase import create_client
 
@@ -9,7 +8,6 @@ client = create_client(ONLINE_URL, ONLINE_KEY)
 
 # Import the matching logic
 from core.feature_enrichment import (
-    _load_feature_catalog,
     _build_feature_index,
     _fuzzy_match,
 )

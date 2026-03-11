@@ -205,6 +205,7 @@ class FeatureSearchRequest(BaseModel):
     """Reverse search request payload."""
 
     query_text: str | None = Field(default=None, description="Raw text to extract from")
+    search_query: str | None = Field(default=None, description="Search query against synthesis_data")
     filters: list[FeatureFilterItem] = Field(default_factory=list)
     vehicle_scope: VehicleScope | None = None
     body_types: list[str] | None = None

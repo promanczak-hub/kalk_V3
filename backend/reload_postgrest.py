@@ -1,5 +1,4 @@
 import psycopg2
-import os
 import re
 
 with open("d:/kalk_v3/backend/.env", "r", encoding="utf-8") as f:

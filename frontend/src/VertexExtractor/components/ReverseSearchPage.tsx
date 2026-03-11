@@ -79,6 +79,10 @@ export function ReverseSearchPage() {
   const [bodyTypeSearch, setBodyTypeSearch] = useState("");
   const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState(false);
 
+  // Search Queries
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [featureSearchQuery, setFeatureSearchQuery] = useState("");
+
   // Price configuration state
   const [priceMin, setPriceMin] = useState<number | "">("");
   const [priceMax, setPriceMax] = useState<number | "">("");
@@ -182,7 +186,7 @@ export function ReverseSearchPage() {
 
   // Search
   const runSearch = useCallback(async () => {
-    if (activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all" && priceMin === "" && priceMax === "") {
+    if (globalSearchQuery.trim() === "" && activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all" && priceMin === "" && priceMax === "") {
         setResults([]);
         setTotalCount(0);
         return;
@@ -194,6 +198,7 @@ export function ReverseSearchPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          search_query: globalSearchQuery.trim() !== "" ? globalSearchQuery.trim() : undefined,
           filters: activeFilters.map((f) => ({
             feature_key: f.feature_key,
             value_bool: f.value_bool,
@@ -221,7 +226,7 @@ export function ReverseSearchPage() {
     } finally {
       setSearching(false);
     }
-  }, [activeFilters, bodyTypes, vehicleScope, baseUrl, priceMin, priceMax, priceMonths, priceMileage, priceDepositPct]);
+  }, [activeFilters, bodyTypes, vehicleScope, baseUrl, priceMin, priceMax, priceMonths, priceMileage, priceDepositPct, globalSearchQuery]);
 
   // Auto-run search when filters change with debounce
   useEffect(() => {
@@ -245,6 +250,8 @@ export function ReverseSearchPage() {
     setTotalCount(0);
     setHasSearched(false);
     setExtractionText("");
+    setGlobalSearchQuery("");
+    setFeatureSearchQuery("");
   };
 
   const toggleCat = (catId: string) => {
@@ -277,6 +284,22 @@ export function ReverseSearchPage() {
            <p className="text-sm text-slate-500 mt-1">
              Znajdź pojazdy metodą odwróconą za pomocą filtrów sprzętowych albo asystenta AI.
            </p>
+        </div>
+      </div>
+
+      {/* Global Live Search */}
+      <div className="mb-6">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-slate-400" />
+          </div>
+          <input
+            type="text"
+            value={globalSearchQuery}
+            onChange={(e) => setGlobalSearchQuery(e.target.value)}
+            className="block w-full pl-11 pr-4 py-4 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg shadow-sm"
+            placeholder="Szukaj swobodnie... np. diesel kombi automatyczna klimatyzacja matrix"
+          />
         </div>
       </div>
 
@@ -501,9 +524,33 @@ export function ReverseSearchPage() {
               )}
             </div>
 
+            {/* Local Feature Search */}
+            <div className="p-3 border-b border-slate-200 bg-white">
+               <div className="relative">
+                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input
+                   type="text"
+                   placeholder="Filtruj listę cech (np. klimat)..."
+                   value={featureSearchQuery}
+                   onChange={(e) => setFeatureSearchQuery(e.target.value)}
+                   className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                 />
+               </div>
+            </div>
+
             {/* Category list */}
             <div className="max-h-[calc(100vh-240px)] overflow-y-auto">
-              {catalog.map((cat) => (
+              {catalog.map((cat) => {
+                const categoryMatches = cat.display_name.toLowerCase().includes(featureSearchQuery.toLowerCase());
+                const matchingFeatures = cat.features.filter(f => 
+                  categoryMatches || f.display_name.toLowerCase().includes(featureSearchQuery.toLowerCase())
+                );
+                
+                if (featureSearchQuery && matchingFeatures.length === 0) return null;
+                
+                const isExpanded = featureSearchQuery ? true : expandedCats.has(cat.id);
+
+                return (
                 <div key={cat.id} className="border-b border-slate-100 last:border-b-0">
                   <button
                     onClick={() => toggleCat(cat.id)}
@@ -519,7 +566,7 @@ export function ReverseSearchPage() {
                         <span className="w-2 h-2 rounded-full bg-indigo-500" />
                       )}
                       <span className="text-[10px] text-slate-400">{cat.features.length}</span>
-                      {expandedCats.has(cat.id) ? (
+                      {isExpanded ? (
                         <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                       ) : (
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -527,9 +574,9 @@ export function ReverseSearchPage() {
                     </div>
                   </button>
 
-                  {expandedCats.has(cat.id) && (
+                  {isExpanded && (
                     <div className="px-3 pb-3 space-y-1">
-                      {cat.features
+                      {matchingFeatures
                         .filter(f => bodyTypes.length === 0 || !f.applicable_body_types?.length || bodyTypes.some(bt => f.applicable_body_types!.includes(bt)))
                         .map((feat) => {
                         const activeFlt = activeFilters.find((f) => f.feature_key === feat.feature_key);
@@ -651,14 +698,15 @@ export function ReverseSearchPage() {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Search button */}
             <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 rounded-b-lg">
               <button
                 onClick={runSearch}
-                disabled={(activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all") || searching}
+                disabled={(globalSearchQuery.trim() === "" && activeFilters.length === 0 && bodyTypes.length === 0 && vehicleScope === "all") || searching}
                 className="w-full py-2 px-4 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {searching ? (

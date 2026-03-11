@@ -1,6 +1,4 @@
 import json
-import urllib.request
-import os
 
 with open("d:/kalk_v3/backend/sql_chunks.json", "r", encoding="utf-8") as f:
     chunks = json.load(f)

@@ -18,16 +18,12 @@ class InsuranceCalculator:
         self.LICZBA_LAT = 7
 
     def calculate_cost(self, months: int, base_price: float) -> dict:
+        if months <= 0:
+            raise ValueError("Okres (months) musi być > 0")
+        if base_price <= 0:
+            raise ValueError("Cena bazowa (base_price) musi być > 0")
+
         total_cost_period = 0.0
-
-        # Optional Flags - assuming False for now unless logic added to UI
-        add_theft_insurance = False
-        add_driving_school = False
-
-        theft_doub_rate_pct = getattr(self.settings, "ins_theft_doub_pct", 0.0)
-        driving_school_rate_pct = getattr(
-            self.settings, "ins_driving_school_doub_pct", 0.0
-        )
 
         average_damage_value_base = getattr(
             self.settings, "ins_avg_damage_value", 1500.0
@@ -52,11 +48,6 @@ class InsuranceCalculator:
         else:
             srednia_szkoda_calosc = 0.0
 
-        # Zapamiętujemy ostatnią znaną stawkę (przydatne jako fallback dla brakujących lat)
-        last_known_rate = None
-        if self.insurance_rates:
-            last_known_rate = self.insurance_rates[0]
-
         for year in range(1, self.LICZBA_LAT + 1):
             v1 = year * 12
             v2 = (year - 1) * 12
@@ -66,18 +57,21 @@ class InsuranceCalculator:
                 (r for r in self.insurance_rates if r.get("KolejnyRok") == year), None
             )
 
-            # Zgodnie z wytycznymi z GEMINI.md, system nie powinien crashować - miękkie lądowanie z ostatnio znaną stawką
-            if not rok_rate and last_known_rate:
-                rok_rate = last_known_rate
-
             if not rok_rate:
-                # Ostateczny fallback, jeżeli baza jest kompletnie pusta
-                stawka_ac = 0.025
-                skladka_oc = 1200.0
-            else:
-                stawka_ac = float(rok_rate.get("StawkaBazowaAC", 0.025))
-                skladka_oc = float(rok_rate.get("SkladkaOC", 1200.0))
-                last_known_rate = rok_rate
+                raise ValueError(
+                    f"Brak stawki ubezpieczeniowej w tabeli "
+                    f"ltr_admin_ubezpieczenia dla roku {year}. "
+                    f"Kalkulacja niemożliwa bez kompletnych danych."
+                )
+
+            stawka_ac = float(rok_rate.get("StawkaBazowaAC", 0))
+            skladka_oc = float(rok_rate.get("SkladkaOC", 0))
+
+            if stawka_ac <= 0 or skladka_oc <= 0:
+                raise ValueError(
+                    f"Stawka AC ({stawka_ac}) lub OC ({skladka_oc}) "
+                    f"dla roku {year} jest <= 0. Uzupełnij dane w Control Center."
+                )
 
             liczba_miesiecy_przed_rokiem = (year - 1) * 12
             depreciation_factor = 1.0 - (
@@ -91,23 +85,7 @@ class InsuranceCalculator:
             skladka_ac_kwota = round(podstawa_naliczania * stawka_ac, 2)
             skladka_oc_kwota = skladka_oc
 
-            doubezpieczenie_kradziez = (
-                (skladka_ac_kwota * (theft_doub_rate_pct / 100.0))
-                if add_theft_insurance
-                else 0.0
-            )
-            doubezpieczenie_nauka = (
-                (skladka_ac_kwota * (driving_school_rate_pct / 100.0))
-                if add_driving_school
-                else 0.0
-            )
-
-            suma_skladki_rok = (
-                skladka_ac_kwota
-                + skladka_oc_kwota
-                + doubezpieczenie_kradziez
-                + doubezpieczenie_nauka
-            )
+            suma_skladki_rok = skladka_ac_kwota + skladka_oc_kwota
 
             # Pro-rata calculation per year logic from V1 C#
             skladka_roczna = 0.0

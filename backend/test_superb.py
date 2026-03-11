@@ -1,5 +1,4 @@
 import os
-import sys
 
 # Configure to use local supabase
 os.environ["SUPABASE_URL"] = "http://127.0.0.1:54321"

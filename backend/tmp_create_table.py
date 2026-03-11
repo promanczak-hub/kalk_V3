@@ -1,5 +1,4 @@
 import asyncio
-from core.database import supabase
 
 
 async def run():

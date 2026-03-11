@@ -1,5 +1,4 @@
 import psycopg2
-import os
 import re
 
 print("Starting to parse env...")

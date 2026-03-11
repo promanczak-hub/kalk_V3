@@ -291,7 +291,7 @@ def process_and_save_document_bg(
             from core.pipeline_digital_twin import extract_digital_twin_from_pdf
 
             print(
-                f"[BG TASK] Wyciąganie pełnego Digital Twin dla dokumentu biblioteki..."
+                "[BG TASK] Wyciąganie pełnego Digital Twin dla dokumentu biblioteki..."
             )
             pro_data = extract_digital_twin_from_pdf(gemini_data, gemini_mime)
 
@@ -312,7 +312,7 @@ def process_and_save_document_bg(
             }
             try:
                 supabase.table("document_library").insert(library_payload).execute()
-                print(f"[BG TASK] Dokument zapisany w document_library.")
+                print("[BG TASK] Dokument zapisany w document_library.")
             except Exception as lib_err:
                 print(
                     f"[BG TASK ERROR] Nie udało się zapisać do document_library: {lib_err}"
@@ -368,7 +368,7 @@ def process_and_save_document_bg(
             return
 
         print(
-            f"[BG TASK] Dokument sklasyfikowany jako OFFER. Kontynuuję standardowy proces."
+            "[BG TASK] Dokument sklasyfikowany jako OFFER. Kontynuuję standardowy proces."
         )
 
         # ── Phase 0: Multi-vehicle detection (Gemini Flash) ──

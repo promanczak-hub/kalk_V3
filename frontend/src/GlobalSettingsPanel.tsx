@@ -18,6 +18,7 @@ interface ControlCenterData {
   cost_grid_dismantling: number;
   cost_registration: number;
   cost_sales_prep: number;
+  cost_transport: number;
   budzet_marketingowy_ltr: number;
   przewidywana_cena_sprzedazy_lo: number;
   [key: string]: unknown;
@@ -52,6 +53,7 @@ const FIELDS: FieldDef[] = [
   { key: "cost_grid_dismantling", label: "Wymontowanie kraty", unit: "PLN", step: "1", group: "Koszty Dodatkowe (netto)" },
   { key: "cost_registration", label: "Rejestracja", unit: "PLN", step: "1", group: "Koszty Dodatkowe (netto)" },
   { key: "cost_sales_prep", label: "Przygotowanie do sprzedaży", unit: "PLN", step: "1", group: "Koszty Dodatkowe (netto)" },
+  { key: "cost_transport", label: "Opłata transportowa", unit: "PLN", step: "1", group: "Koszty Dodatkowe (netto)" },
 ];
 
 export default function GlobalSettingsPanel() {

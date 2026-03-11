@@ -30,8 +30,6 @@ def mock_settings():
         samar_rv_apply_options_depreciation=True,
         samar_rv_base_mileage=15000,
         samar_rv_mileage_unit_km=1000,
-        ins_theft_doub_pct=0.0,
-        ins_driving_school_doub_pct=0.0,
         ins_avg_damage_value=0.0,
         ins_avg_damage_mileage=0,
         ins_nnw_annual_rate=0.0,

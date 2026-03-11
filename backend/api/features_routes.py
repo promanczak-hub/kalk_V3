@@ -323,12 +323,17 @@ async def extract_features_from_text(
 
         json_resp = json.loads(response.text)
 
-        # Convert the boolean dictionary into a list of FeatureFilterItem
+        # Convert the matched features list into a list of FeatureFilterItem
         filters: list[FeatureFilterItem] = []
-        for feature_key, value in json_resp.items():
-            if value is True:
+        
+        matched_keys = json_resp.get("matched_features", [])
+        if not isinstance(matched_keys, list):
+            matched_keys = []
+
+        for feature_key in matched_keys:
+            if isinstance(feature_key, str) and feature_key.strip():
                 filters.append(
-                    FeatureFilterItem(feature_key=feature_key, value_bool=True)
+                    FeatureFilterItem(feature_key=feature_key.strip(), value_bool=True)
                 )
 
         return {
@@ -361,26 +366,40 @@ async def reverse_search_vehicles(
     sb = supabase
 
     if (
-        not request.filters
+        not request.search_query
+        and not request.filters
         and not request.body_types
         and request.vehicle_scope == "all"
     ):
         raise HTTPException(
             status_code=400,
-            detail="Przynajmniej jeden filtr cechy, typ zabudowy lub kategoria pojazdu jest wymagana",
+            detail="Przynajmniej jeden filtr cechy, wyszukiwanie tekstowe, typ zabudowy lub kategoria pojazdu jest wymagana",
         )
 
-    # 1. Base Scope and Body Type Filtering (STRICT)
+    # 1. Base Scope, Body Type and Free Text Filtering (STRICT)
     valid_vehicle_ids: set[str] | None = None
 
-    if request.body_types or (request.vehicle_scope and request.vehicle_scope != "all"):
+    if request.search_query or request.body_types or (request.vehicle_scope and request.vehicle_scope != "all"):
         bt_resp = sb.table("vehicle_synthesis").select("id, synthesis_data").execute()
 
         filtered_ids = set()
+        search_words = [w.lower() for w in request.search_query.split()] if request.search_query else []
+
         for r in bt_resp.data:
             sd = r.get("synthesis_data") or {}
             cs = sd.get("card_summary") or {}
             mapped = sd.get("mapped_ai_data") or {}
+
+            # Text Search Check
+            word_matches = True
+            if search_words:
+                # Dump the structure to a lowercased string to find the exact substrings
+                import json
+                sd_str = json.dumps(sd, ensure_ascii=False).lower()
+                for w in search_words:
+                    if w not in sd_str:
+                        word_matches = False
+                        break
 
             # Scope Check
             scope_matches = True
@@ -427,7 +446,7 @@ async def reverse_search_vehicles(
                         for req_bt in request.body_types
                     )
 
-            if scope_matches and body_matches:
+            if word_matches and scope_matches and body_matches:
                 filtered_ids.add(r["id"])
 
         valid_vehicle_ids = filtered_ids

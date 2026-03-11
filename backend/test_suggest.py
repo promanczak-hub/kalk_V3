@@ -7,7 +7,7 @@ async def run():
     try:
         res = await suggest_catalogs("c81aac34-abeb-4dc7-884a-6c26488c099b")
         print(res)
-    except Exception as e:
+    except Exception:
         print("ERROR:")
         traceback.print_exc()
 

@@ -28,8 +28,6 @@ def mock_settings() -> ControlCenterSettings:
         samar_rv_apply_options_depreciation=False,
         samar_rv_base_mileage=15000,
         samar_rv_mileage_unit_km=10000,
-        ins_theft_doub_pct=0.05,
-        ins_driving_school_doub_pct=0.05,
         ins_avg_damage_value=5000,
         ins_avg_damage_mileage=20000,
         cost_gsm_subscription_monthly=0.0,

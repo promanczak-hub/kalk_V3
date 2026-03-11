@@ -48,5 +48,5 @@ try:
     print("Encoding...")
     encoded = jsonable_encoder(resp)
     print("Success")
-except Exception as e:
+except Exception:
     traceback.print_exc()

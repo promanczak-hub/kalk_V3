@@ -1,6 +1,5 @@
 import urllib.request
 import json
-import sys
 
 req = urllib.request.Request("http://localhost:8000/api/features/catalog", method="GET")
 try:

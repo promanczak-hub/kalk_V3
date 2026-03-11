@@ -1,4 +1,3 @@
-import asyncio
 from core.database import supabase
 
 

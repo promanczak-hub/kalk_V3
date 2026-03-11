@@ -1,6 +1,4 @@
-import os
-import json
-from supabase import create_client, Client
+from supabase import create_client
 
 ONLINE_URL = "https://gnpsdiarmwvqhqbyetce.supabase.co"
 ONLINE_KEY = "sb_publishable_hXJmqJJyfONRRHwSUQjNVA_9w2k3TF9"

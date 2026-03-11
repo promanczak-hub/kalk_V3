@@ -9,7 +9,7 @@ try:
     )
     cur.execute("NOTIFY pgrst, 'reload config';")
     print("Config reloaded successfully.")
-except Exception as e:
+except Exception:
     import traceback
 
     traceback.print_exc()

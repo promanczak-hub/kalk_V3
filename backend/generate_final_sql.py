@@ -1,5 +1,4 @@
 import json
-import uuid
 
 with open("d:/kalk_v3/parsed_features.json", "r", encoding="utf-8") as f:
     features = json.load(f)

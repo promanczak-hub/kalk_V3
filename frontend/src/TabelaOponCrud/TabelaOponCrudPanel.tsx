@@ -135,6 +135,28 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
         {renderGroup('🛞 Opony wielosezonowe', ALL_SEASON_FIELDS)}
         {renderGroup('❄️ Opony sezonowe (letnie/zimowe)', SEASONAL_FIELDS)}
       </Box>
+
+      {/* Koszty serwisu opon — z tyre_configurations */}
+      <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+          🔧 Koszty serwisu opon (netto)
+        </Typography>
+        <Box display="grid" gridTemplateColumns="repeat(2, 1fr)" gap={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: 'grey.100', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>Przekładka (za komplet):</Typography>
+            <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>
+              {(thresholds['cost_tyre_swap'] ?? 0).toLocaleString('pl-PL')} PLN
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: 'grey.100', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>Przechowywanie (za sezon):</Typography>
+            <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>
+              {(thresholds['cost_tyre_storage'] ?? 0).toLocaleString('pl-PL')} PLN
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+
       <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: 'text.disabled', textAlign: 'center' }}>
         Progi km decydują o doliczaniu ułamkowych kompletów opon proporcjonalnie do przebiegu (V1 parity)
       </Typography>

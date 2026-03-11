@@ -19,9 +19,7 @@ class ControlCenterSettings(BaseModel):
     samar_rv_base_mileage: int
     samar_rv_mileage_unit_km: int
 
-    # Parametry ubezpieczeń V1 (Kradzież, Szkoda)
-    ins_theft_doub_pct: float
-    ins_driving_school_doub_pct: float
+    # Parametry ubezpieczeń V1 (Szkoda)
     ins_avg_damage_value: float
     ins_avg_damage_mileage: int
     ins_nnw_annual_rate: float
@@ -36,6 +34,7 @@ class ControlCenterSettings(BaseModel):
     cost_grid_dismantling: float
     cost_registration: float
     cost_sales_prep: float
+    cost_transport: float = 0.0
 
     # Normatywny przebieg floty (floor dla kosztu serwisu)
     normatywny_przebieg_mc: int = 1667  # km/mc (= 20 000 km/rok)
