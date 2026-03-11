@@ -1,0 +1,71 @@
+======================================================================
+V1 CAPEX (LTRSubCalculatorCenaZakupu.cs) — arytmetyka BRUTTO
+======================================================================
+
+CenaCennikowa (brutto):           212350.00
+OpcjeFabryczne (brutto):           28950.00
+cenaKatalogowaZOpcjami:            241300.00  (baza+opcje brutto)
+
+Rabat V1:                       23%
+poRabacie (brutto):                185801.00
+rabatKwotowo:                       55499.00  (V1 screenshot=55499)
+
+GSM opcja serwisowa (brutto):         761.37  (469.0+150.0)*1.23
+Opony 1 komplet (brutto):           11586.60  9420.0*1.23
+
+CAPEX FINAL (brutto):              198148.97
+CAPEX FINAL (netto = /1.23):       161096.72  ← V1 CenaZakupu
+V1 screenshot CenaZakupu:          154278.97
+Różnica:                             6817.75
+
+V1 BEZ opon (netto):               151676.72
+V1 BEZ opon+serwisowych (netto):   151057.72
+
+======================================================================
+V3 CAPEX (PurchasePriceCalculator) — arytmetyka NETTO
+======================================================================
+
+base_price_net:                    212350.00  ← CO TU TRAFIA?
+opcje fabryczne (net):              28950.00  ← CO TU TRAFIA?
+discount_pct:                   24%
+
+discounted_base:                   161386.00
+opcje po rabacie:                   22002.00
+GSM capex (netto):                    619.00
+Opony capex (netto):                    0.00  ← NIE DODANE!
+
+V3 total_capex:                    184007.00
+V3 diag output:                    184007.00
+
+======================================================================
+KLUCZOWE PYTANIE: czy base_price_net to BRUTTO czy NETTO?
+======================================================================
+
+Jeśli base_price_net = brutto/VAT:    172642.28
+Jeśli opcje netto = brutto/VAT:        23536.59
+
+discounted_base (netto):           131208.13
+opcje po rabacie (netto):           17887.80
+total CAPEX (netto, bez opon):     149714.93
+
+V1 BEZ opon (netto):               151676.72
+Różnica (V3_netto - V1_netto):      -1961.79
+  → z czego 1% rabatu:          1% =      1961.79 per 1%
+
+V3 z 23% rabatu (netto):           151676.72
+V1 z 23% (netto, z GSM):           151676.72
+Różnica przy tym samym 23%:             0.00
+  → powinno być 0 jeśli formuły identyczne
+
+======================================================================
+WNIOSEK
+======================================================================
+
+Jeśli CenaCennikowa i Opcje Fabryczne to wartości BRUTTO (z frontendu),
+to V3 musi je NAJPIERW przeliczyć na netto (/1.23) zanim zastosuje rabat.
+
+V1 robi: rabat na brutto → dzieli przez VAT na końcu
+V3 robi: rabat na wartość „jak jest" (base_price_net) — jeśli to brutto,
+         to rabat się aplikuje do brutto, ale potem nigdzie nie dzieli /VAT.
+
+To oznacza CAPEX V3 jest w brutto, nie w netto, mimo nazwy „base_price_net"!

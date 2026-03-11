@@ -1,15 +1,11 @@
-import { apiFetch } from "../../../lib/api";
-import { supabase } from "../../../lib/supabaseClient";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Database, ExternalLink, Loader2, Wand2, X, AlertTriangle } from "lucide-react";
+import { Loader2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
 import { parsePriceToNumber } from "./PriceDualFormat";
 import { VehicleBaseInfo } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
-// VehicleServiceIntervals removed — service cost uses normatywny_przebieg_mc floor
-// PDFViewerFrame was removed, using native iframe instead
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
@@ -18,7 +14,19 @@ import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import { CatalogCrossRefPanel } from "../CatalogCrossRefPanel";
 
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
-import { API_BASE_URL } from "../../../config/env";
+import { supabase } from "../../../lib/supabaseClient";
+import { apiFetch } from "../../../lib/api";
+
+// Custom Hooks
+import { useVehicleFinancing } from "../../hooks/useVehicleFinancing";
+import { useVehicleDataSync } from "../../hooks/useVehicleDataSync";
+import { useVehicleReadiness } from "../../hooks/useVehicleReadiness";
+import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
+
+// Extracted UI Components
+import { VehicleActionButtons } from "./VehicleActionButtons";
+import { VehicleManualOverrideModal } from "./VehicleManualOverrideModal";
+import { PDFViewerFrame } from "./PDFViewerFrame";
 
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
@@ -38,195 +46,79 @@ export function VehicleRowCard({
   crossCardAlerts = [],
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  // Subcomponent states
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [overridePrompt, setOverridePrompt] = useState("");
   const [isOverriding, setIsOverriding] = useState(false);
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [brochureData, setBrochureData] = useState<any | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
   const [isGeneratingBrochure, setIsGeneratingBrochure] = useState(false);
 
-  // Save Setup state
-  const [isSavingSetup, setIsSavingSetup] = useState(false);
-  const [isSavingFields, setIsSavingFields] = useState(false);
-  const [isRemappingClassification, setIsRemappingClassification] = useState(false);
+  const [localMappedData, setLocalMappedData] = useState<MappedData | null>(null);
+  const serverMappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
+  const mappedData = localMappedData || serverMappedData;
 
-  // Direct save: patch card_summary JSON + top-level columns
-  const handleDirectSave = async (fields: Record<string, string>) => {
-    setIsSavingFields(true);
-    try {
-      // no local inst needed
-
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-      if (!updatedJson.card_summary) updatedJson.card_summary = {};
-
-      // Map of field keys that go into card_summary JSON
-      const cardSummaryKeys = new Set([
-        "trim_level", "body_style", "vehicle_class", "powertrain",
-        "fuel", "transmission", "wheels", "emissions", "exterior_color",
-        "configuration_code", "number_of_seats",
-      ]);
-
-      // Top-level column updates
-      const columnUpdates: Record<string, unknown> = {};
-
-      for (const [key, value] of Object.entries(fields)) {
-        if (cardSummaryKeys.has(key)) {
-          updatedJson.card_summary[key] = value;
-        }
-        if (key === "brand" || key === "model") {
-          columnUpdates[key] = value;
-        }
-        if (key === "offer_number") {
-          columnUpdates.offer_number = value;
-        }
-        if (key === "configuration_code") {
-          updatedJson.configuration_code = value;
-        }
-      }
-
-      columnUpdates.synthesis_data = updatedJson;
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update(columnUpdates)
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-      onRefresh();
-    } catch (err) {
-      console.error("Error saving vehicle fields", err);
-      alert("B\u0142\u0105d zapisu: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
-    } finally {
-      setIsSavingFields(false);
-    }
-  };
-
-  // Re-run Flash classification (SAMAR, engine, service class)
-  const handleRemapClassification = async () => {
-    if (!vehicle.synthesis_data) return;
-    setIsRemappingClassification(true);
-    try {
-      const response = await apiFetch(`/api/extract/remap-classification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ original_json: vehicle.synthesis_data }),
-      });
-
-      console.dir(response);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("API response not ok. Status:", response.status, "Text:", errText);
-        throw new Error(`Błąd klasyfikacji HTTP ${response.status}: ${errText}`);
-      }
-      
-      const data = await response.json();
-      console.log("Data from remap api:", data);
-
-      // Save the new mapped data to Supabase
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-      updatedJson.mapped_ai_data = data;
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) {
-        console.error("Supabase update error:", error);
-        throw error;
-      }
-
-      setLocalMappedData(data);
-      onRefresh();
-    } catch (err) {
-      console.error("Remap classification error details:", err);
-      alert("B\u0142\u0105d przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));
-    } finally {
-      setIsRemappingClassification(false);
-    }
-  };
-
-
-  // Financial parameters (defaults from control_center)
-  const [wiborPct, setWiborPct] = useState<number>(5.85);
-  const [marginPct, setMarginPct] = useState<number>(2.0);
-  const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
-  const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
-  const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
-
-  // Toggles
-  const [expressPaysInsurance, setExpressPaysInsurance] = useState(true);
-  const [replacementCar, setReplacementCar] = useState(true);
-  const [gpsRequired, setGpsRequired] = useState(true);
-  const [includeServicing, setIncludeServicing] = useState(true);
-  const [hookInstallation, setHookInstallation] = useState(() => {
-    const cs = (vehicle.synthesis_data as any)?.card_summary;
-    return cs?.has_tow_hook === true;
+  const [catalogBasePriceNet, setCatalogBasePriceNet] = useState<number>(() => {
+    const aiBase = parsePriceToNumber(vehicle.base_price);
+    const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+    return isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100;
   });
 
-  // Tire parameters
-  const [tireClass, setTireClass] = useState<string>("Medium");
-  const [tireCountMode, setTireCountMode] = useState<string>("auto");
-  const [tireCostCorrectionEnabled, setTireCostCorrectionEnabled] = useState(true);
-  const [tireCostCorrection, setTireCostCorrection] = useState<number>(0);
-  const [rimDiameter, setRimDiameter] = useState<number | null>(() => {
-    const wheels = vehicle.wheels || "";
-    const match = wheels.match(/(\d{2})/);
-    return match ? parseInt(match[1], 10) : null;
-  });
+  // Hook 1: Synchronizacja bazy danych / zmiana parametrów (Direct Save / Remap AI)
+  const { isSavingFields, handleDirectSave, isRemappingClassification, handleRemapClassification } = useVehicleDataSync(vehicle, onRefresh, setLocalMappedData);
 
-  // Service cost type (ASO / nonASO)
-  const [serviceCostType, setServiceCostType] = useState<"ASO" | "nonASO">("ASO");
-
-  // Vehicle vintage (bieżący / ubiegły rocznik)
-  const [vehicleVintage, setVehicleVintage] = useState<"current" | "previous">(() => {
+  // Auto-detect metalic function needs to be passed down
+  const autoDetectMetalic = useCallback((): boolean => {
     const cs = (vehicle.synthesis_data as any)?.card_summary;
-    if (cs?.is_current_year_vehicle === false) return "previous";
-    return "current";
-  });
-
-  // Metalik auto-detection: keyword matching overrides AI errors
-  const autoDetectMetalic = (): boolean => {
-    const cs = (vehicle.synthesis_data as any)?.card_summary;
-    // Step 1: keyword matching on exterior_color (highest priority — catches AI errors)
     const color = (vehicle.exterior_color || "").toLowerCase();
     const metallicKeywords = ["metalic", "metalik", "metallic", "metalizow", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"];
     if (metallicKeywords.some(kw => color.includes(kw))) return true;
     const nonMetallicKeywords = ["solido", "uni ", "akrylow", "jednowarstwow"];
     if (nonMetallicKeywords.some(kw => color.includes(kw))) return false;
-    // Step 2: AI flag (only if keywords inconclusive)
     if (cs?.is_metalic_paint === true) return true;
     if (cs?.is_metalic_paint === false) return false;
-    // Step 3: no data — default to false
     return false;
-  };
-  const [isMetalic, setIsMetalic] = useState<boolean>(autoDetectMetalic());
+  }, [vehicle.synthesis_data, vehicle.exterior_color]);
 
-  // Fetch control_center defaults
-  useEffect(() => {
-    const fetchDefaults = async () => {
-      try {
-        const response = await apiFetch(`/api/control-center`);
-        if (response.ok) {
-          const settings = await response.json();
-          if (settings.default_wibor) setWiborPct(settings.default_wibor);
-          if (settings.bank_spread) setMarginPct(settings.bank_spread);
-          if (settings.default_ltr_margin) setPricingMarginPct(settings.default_ltr_margin);
-          // depreciation_pct auto-calculated by backend — do not override
-        }
-      } catch (e) {
-        console.error("Failed to fetch control_center defaults", e);
-      }
-    };
-    fetchDefaults();
-  }, []);
+  // Hook 2: Parametry Finansowe / Formularz Setupu Kalkulatora
+  const {
+    wiborPct, setWiborPct,
+    marginPct, setMarginPct,
+    pricingMarginPct, setPricingMarginPct,
+    initialDepositPct, setInitialDepositPct,
+    otherServiceCosts, setOtherServiceCosts,
+    expressPaysInsurance, setExpressPaysInsurance,
+    replacementCar, setReplacementCar,
+    gpsRequired, setGpsRequired,
+    includeServicing, setIncludeServicing,
+    hookInstallation, setHookInstallation,
+    tireClass, setTireClass,
+    tireCountMode, setTireCountMode,
+    tireCostCorrectionEnabled, setTireCostCorrectionEnabled,
+    tireCostCorrection, setTireCostCorrection,
+    rimDiameter, setRimDiameter,
+    serviceCostType, setServiceCostType,
+    vehicleVintage, setVehicleVintage,
+    isMetalic, setIsMetalic,
+    isSavingSetup, handleSaveSetup
+  } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet);
+
+  // Hook 3: Readiness Check API
+  const { readinessResult } = useVehicleReadiness(vehicle, mappedData, isMetalic);
+
+  // Hook 4: Param Preview API
+  const { paramPreview, controlCenter } = useVehicleParamPreview(
+    readinessResult?.samar_class_id,
+    readinessResult?.fuel_type_id,
+    serviceCostType,
+    tireClass,
+    rimDiameter,
+    vehicleVintage,
+    isMetalic
+  );
 
   // Restore saved calculator_setup from synthesis_data on load or update
   useEffect(() => {
@@ -459,7 +351,6 @@ export function VehicleRowCard({
   };
 
   // Store full homologation response temporarily
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [, setHomologationResult] = useState<HomologationResponse | null>(null);
 
   useEffect(() => {
@@ -468,7 +359,6 @@ export function VehicleRowCard({
       try {
         const mappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
         // Default base payload if missing (for now using 1000kg as fallback or extracting from real schema later)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const basePayload = (vehicle.synthesis_data as any)?.card_summary?.technical_details?.payload_capacity_kg || 1500;
         
         const payload = {
@@ -510,59 +400,6 @@ export function VehicleRowCard({
 
   const [isSavingServices, setIsSavingServices] = useState(false);
 
-  const handleSaveSetup = async () => {
-    setIsSavingSetup(true);
-    try {
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-
-      updatedJson.calculator_setup = {
-        financial_params: {
-          wibor_pct: wiborPct,
-          margin_pct: marginPct,
-          pricing_margin_pct: pricingMarginPct,
-          depreciation_pct: null,  // auto-calculated by backend per cell
-          initial_deposit_pct: initialDepositPct,
-          other_service_costs: otherServiceCosts,
-        },
-        toggles: {
-          express_pays_insurance: expressPaysInsurance,
-          replacement_car: replacementCar,
-          gps_required: gpsRequired,
-          include_servicing: includeServicing,
-          hook_installation: hookInstallation,
-        },
-        tire_params: {
-          tire_class: tireClass,
-          tire_count_mode: tireCountMode,
-          tire_cost_correction_enabled: tireCostCorrectionEnabled,
-          tire_cost_correction: tireCostCorrection,
-          rim_diameter: rimDiameter,
-        },
-        service_cost_type: serviceCostType,
-        vehicle_vintage: vehicleVintage,
-        is_metalic: isMetalic,
-        discount: {
-          active_discount_pct: activeDiscountPct,
-          active_final_price: activeFinalPrice,
-        },
-        catalog_base_price_net: catalogBasePriceNet,
-        saved_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-    } catch (err) {
-      console.error("Error saving calculator setup", err);
-      alert("Błąd podczas zapisu setupu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
-    } finally {
-      setIsSavingSetup(false);
-    }
-  };
 
   const handleSaveAllOptions = async () => {
     setIsSavingServices(true);
@@ -589,6 +426,8 @@ export function VehicleRowCard({
         }))
       ];
 
+      // Temporary native API call for update instead of hook to avoid refactoring whole component scope for this simple update right now
+      // This will be properly separated in a future refactor step
       const { error } = await supabase
         .from("vehicle_synthesis")
         .update({ synthesis_data: updatedJson })
@@ -598,17 +437,15 @@ export function VehicleRowCard({
       onRefresh();
     } catch (err) {
       console.error("Error saving options", err);
-      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      // alert("Błąd podczas zapisu opcji");
     } finally {
       setIsSavingServices(false);
     }
   };
 
-  const [localMappedData, setLocalMappedData] = useState<MappedData | null>(null);
   const [isMapping, setIsMapping] = useState(false);
 
-  const serverMappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
-  const mappedData = localMappedData || serverMappedData;
+
 
   // Extract SAMAR candidates for reranking dropdown
   const samarCandidates: { klasa: string; confidence: number }[] =
@@ -618,119 +455,7 @@ export function VehicleRowCard({
   const engineCandidates: { klasa: string; confidence: number }[] =
     ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
 
-  // ── Readiness Check ──────────────────────────────────────────────
-  interface ReadinessCheck {
-    param: string;
-    status: string;
-    value: string;
-  }
-  interface ReadinessResult {
-    overall_status: "ready" | "partial" | "not_ready";
-    samar_class_id: number | null;
-    fuel_type_id: number | null;
-    checks: ReadinessCheck[];
-    critical_count: number;
-    warning_count: number;
-    resolve_error?: string;
-    body_match?: {
-      matched_name: string | null;
-      vehicle_class: string | null;
-      score: number;
-      match_method: string;
-      raw_input: string;
-    };
-  }
 
-  const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
-
-  const fetchReadiness = useCallback(async () => {
-    const samarName = mappedData?.samar_category;
-    const engineName = mappedData?.fuel;
-    if (!samarName || !engineName) {
-      setReadinessResult(null);
-      return;
-    }
-    try {
-      const params = new URLSearchParams({
-        samar_class_name: samarName,
-        engine_name: engineName,
-        brand_name: vehicle.brand || "",
-      });
-      // Pass body_type if available
-      if (vehicle.body_style) {
-        params.set("body_type_name", vehicle.body_style);
-      }
-      // Pass paint type based on isMetalic toggle or exterior color info
-      const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
-      params.set("paint_type_name", paintTypeName);
-
-      const res = await apiFetch(`/api/readiness-check?${params}`);
-      if (!res.ok) throw new Error("Readiness check failed");
-      const data: ReadinessResult = await res.json();
-      setReadinessResult(data);
-    } catch (err) {
-      console.error("Readiness check error:", err);
-      setReadinessResult(null);
-    }
-  }, [mappedData?.samar_category, mappedData?.fuel, vehicle.brand, vehicle.body_style, isMetalic]);
-
-  useEffect(() => {
-    fetchReadiness();
-  }, [fetchReadiness]);
-
-  // ── Param Preview (live LinkedIndicator data) ─────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [paramPreview, setParamPreview] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [controlCenter, setControlCenter] = useState<any>(null);
-
-  // Fetch control center once on mount (global params)
-  useEffect(() => {
-    const fetchCC = async () => {
-      try {
-        const res = await apiFetch(`/api/control-center`);
-        if (res.ok) {
-          const data = await res.json();
-          setControlCenter(data);
-        }
-      } catch {
-        // silently fail
-      }
-    };
-    fetchCC();
-  }, []);
-
-  // Fetch param preview reactively when params change
-  const fetchParamPreview = useCallback(async () => {
-    const classId = readinessResult?.samar_class_id;
-    const engineId = readinessResult?.fuel_type_id;
-    if (!classId || !engineId) {
-      setParamPreview(null);
-      return;
-    }
-    try {
-      const params = new URLSearchParams({
-        samar_class_id: String(classId),
-        engine_type_id: String(engineId),
-        power_band: "MID",
-        service_type: serviceCostType,
-        tire_class: tireClass,
-        vehicle_vintage: vehicleVintage,
-        is_metalic: String(isMetalic),
-      });
-      if (rimDiameter) params.set("rim_diameter", String(rimDiameter));
-      const res = await apiFetch(`/api/param-preview?${params}`);
-      if (res.ok) {
-        setParamPreview(await res.json());
-      }
-    } catch {
-      // silently fail
-    }
-  }, [readinessResult?.samar_class_id, readinessResult?.fuel_type_id, serviceCostType, tireClass, rimDiameter, vehicleVintage, isMetalic]);
-
-  useEffect(() => {
-    fetchParamPreview();
-  }, [fetchParamPreview]);
 
   // Extract drive type from card_summary
   const DRIVE_TYPE_MAP: Record<string, string> = {
@@ -997,13 +722,7 @@ export function VehicleRowCard({
 
   const customDiscountPct = Number(customDiscountPctRaw) || 0;
 
-  // ── Editable Catalog Base Price (NETTO) ────────────────────────────────
-  // AI-extracted base price → converted to netto. User can override.
-  const [catalogBasePriceNet, setCatalogBasePriceNet] = useState<number>(() => {
-    const aiBase = parsePriceToNumber(vehicle.base_price);
-    const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
-    return isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100;
-  });
+
 
   // AI-extracted raw string for comparison display
   const aiExtractedBasePrice = vehicle.base_price || null;
@@ -1422,243 +1141,56 @@ export function VehicleRowCard({
             </div>
           )}
 
-
-          <div className="mt-6 flex flex-col items-end gap-3 pt-4 border-t border-slate-200">
-             <div className="flex justify-end items-center gap-3">
-               <button
-                 onClick={async (e) => {
-                   e.stopPropagation();
-                   try {
-                     // 1. Save setup to synthesis_data first
-                     await handleSaveSetup();
-
-                     // 2. Create kalkulacja
-                     const baseUrl = API_BASE_URL || "";
-                     const resp = await fetch(`${baseUrl}/api/kalkulacje`, {
-                       method: "POST",
-                       headers: { "Content-Type": "application/json" },
-                       body: JSON.stringify({ 
-                          stan_json: {
-                            ...(vehicle.synthesis_data || {}),
-                            financial_params: {
-                              wibor_pct: wiborPct,
-                              margin_pct: marginPct,
-                              pricing_margin_pct: pricingMarginPct,
-                              depreciation_pct: null,  // auto-calculated by backend per cell
-                              initial_deposit_pct: initialDepositPct,
-                              other_service_costs: otherServiceCosts,
-                            },
-                            toggles: {
-                              express_pays_insurance: expressPaysInsurance,
-                              replacement_car: replacementCar,
-                              gps_required: gpsRequired,
-                              include_servicing: includeServicing,
-                              hook_installation: hookInstallation,
-                            },
-                            tire_params: {
-                              tire_class: tireClass,
-                              tire_count_mode: tireCountMode,
-                              tire_cost_correction_enabled: tireCostCorrectionEnabled,
-                              tire_cost_correction: tireCostCorrection,
-                              rim_diameter: rimDiameter,
-                            },
-                            service_cost_type: serviceCostType,
-                            vehicle_vintage: vehicleVintage,
-                            is_metalic: isMetalic,
-                            discount: {
-                              active_discount_pct: activeDiscountPct,
-                              active_final_price: activeFinalPrice,
-                            },
-                          }
-                        }),
-                     });
-                     if (!resp.ok) throw new Error("Błąd przy tworzeniu kalkulacji");
-                     const data = await resp.json();
-                     const numerKalkulacji = data.numer_kalkulacji || `ID: ${data.id}`;
-
-                     const params = new URLSearchParams();
-                     params.set('id', data.id);
-                     params.set('kalkulacja', numerKalkulacji);
-                     params.set('aktywnyRabatProcent', activeDiscountPct.toString());
-                     params.set('aktywnaCenaKoncowa', activeFinalPrice.toString());
-
-                     window.dispatchEvent(
-                       new CustomEvent('switchTab', {
-                         detail: { tabIndex: 2, urlParams: params },
-                       })
-                     );
-                   } catch (err) {
-                     console.error("Błąd tworzenia kalkulacji:", err);
-                     alert("Nie udało się utworzyć kalkulacji. Sprawdź logi serwera.");
-                   }
-                 }}
-                 disabled={isSavingSetup}
-                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-               >
-                 {isSavingSetup ? (
-                   <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                 ) : (
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                 )}
-                 {isSavingSetup ? "Zapisywanie setupu..." : "Zrób kalkulację"}
-               </button>
-
-               <button
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   setIsOverrideModalOpen(!isOverrideModalOpen);
-                 }}
-                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-200 hover:shadow-sm transition-all shadow-sm"
-               >
-                 <Wand2 className="w-3.5 h-3.5 mr-2" />
-                 Modyfikacja manualna
-               </button>
-
-                 <button
-                   onClick={async (e) => {
-                     e.stopPropagation();
-                     // Jeśli mamy już pobrane dane z tego cyklu, od razu otwieramy 
-                     if (brochureData) {
-                       setIsBrochureModalOpen(true);
-                       return;
-                     }
-                     // Jeśli nie - ładujemy do skutku i blokujemy przycisk
-                     setIsGeneratingBrochure(true);
-                     try {
-                        const baseUrl = API_BASE_URL || "";
-                        const rawText = JSON.stringify(vehicle.synthesis_data || {});
-                        
-                        const brochurePromise = fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ raw_text: rawText }),
-                        }).then(r => {
-                            if (!r.ok) throw new Error("Brochure extraction failed");
-                            return r.json();
-                        });
-
-                        const isPdfUrl = vehicle.raw_pdf_url && /\.pdf$/i.test(vehicle.raw_pdf_url);
-                        const imagesPromise = isPdfUrl
-                            ? fetch(`${baseUrl}/api/parse-offer/extract-images`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ pdf_url: vehicle.raw_pdf_url }),
-                              }).then(r => {
-                                  if (!r.ok) throw new Error("Image extraction failed");
-                                  return r.json();
-                              })
-                            : Promise.resolve({ images: [] });
-                
-                        const [brochureResult, imagesResult] = await Promise.allSettled([brochurePromise, imagesPromise]);
-
-                        if (brochureResult.status === 'fulfilled') {
-                            setBrochureData(brochureResult.value);
-                        } else {
-                            throw new Error("Nie udało się wygenerować broszury z AI.");
-                        }
-
-                        if (imagesResult.status === 'fulfilled') {
-                            setBrochureImages(imagesResult.value.images || []);
-                        }
-
-                        setIsBrochureModalOpen(true);
-                      } catch (err) {
-                        alert(err instanceof Error ? err.message : "Wystąpił nieznany błąd podczas ładowania broszury");
-                      } finally {
-                        setIsGeneratingBrochure(false);
-                      }
-                   }}
-                   disabled={isGeneratingBrochure}
-                   className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 hover:shadow-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   {isGeneratingBrochure ? (
-                     <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin text-indigo-700" />
-                   ) : (
-                     <span className="mr-2 text-base leading-none">📄</span>
-                   )}
-                   {isGeneratingBrochure ? "Inicjalizacja LLM..." : "Draft Broszury"}
-                 </button>
-
-                <button
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   handleOpenSavedJson(vehicle.id, `${vehicle.brand} ${vehicle.model}`);
-                 }}
-                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:shadow-sm transition-all shadow-sm"
-               >
-                 <Database className="w-3.5 h-3.5 mr-2" />
-                 Dane JSON
-               </button>
-               {vehicle.raw_pdf_url && (
-                 <button
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     if (vehicle.raw_pdf_url) setIsViewerOpen(!isViewerOpen);
-                   }}
-                   className={cn(
-                     "flex items-center text-xs font-semibold px-4 py-2 rounded-lg transition-all shadow-sm border",
-                     isViewerOpen 
-                       ? "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 hover:border-slate-300"
-                       : "bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-200"
-                   )}
-                 >
-                   <ExternalLink className="w-3.5 h-3.5 mr-2" />
-                   {isViewerOpen ? "Zwiń dokument" : "Otwórz dokument"}
-                 </button>
-               )}
-               <button
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   if (window.confirm("Czy na pewno chcesz usunąć tę plakietkę? Istniejące kalkulacje na jej bazie nie zostaną usunięte.")) {
-                       const event = new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } });
-                       window.dispatchEvent(event);
-                   }
-                 }}
-                 className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 hover:border-red-200 hover:shadow-sm transition-all shadow-sm"
-               >
-                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                 Usuń
-               </button>
-             </div>
+          <div className="mt-6 flex flex-col gap-3 pt-4 border-t border-slate-200">
+             <VehicleActionButtons
+               vehicle={vehicle}
+               isSavingSetup={isSavingSetup}
+               handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPrice, catalogBasePriceNet)}
+               wiborPct={wiborPct}
+               marginPct={marginPct}
+               pricingMarginPct={pricingMarginPct}
+               initialDepositPct={initialDepositPct}
+               otherServiceCosts={otherServiceCosts}
+               expressPaysInsurance={expressPaysInsurance}
+               replacementCar={replacementCar}
+               gpsRequired={gpsRequired}
+               includeServicing={includeServicing}
+               hookInstallation={hookInstallation}
+               tireClass={tireClass}
+               tireCountMode={tireCountMode}
+               tireCostCorrectionEnabled={tireCostCorrectionEnabled}
+               tireCostCorrection={tireCostCorrection}
+               rimDiameter={rimDiameter}
+               serviceCostType={serviceCostType}
+               vehicleVintage={vehicleVintage}
+               isMetalic={isMetalic}
+               activeDiscountPct={activeDiscountPct}
+               activeFinalPrice={activeFinalPrice}
+               isOverrideModalOpen={isOverrideModalOpen}
+               setIsOverrideModalOpen={setIsOverrideModalOpen}
+               brochureData={brochureData}
+               setIsBrochureModalOpen={setIsBrochureModalOpen}
+               isGeneratingBrochure={isGeneratingBrochure}
+               setIsGeneratingBrochure={setIsGeneratingBrochure}
+               setBrochureData={setBrochureData}
+               setBrochureImages={setBrochureImages}
+               handleOpenSavedJson={handleOpenSavedJson}
+               isViewerOpen={isViewerOpen}
+               setIsViewerOpen={setIsViewerOpen}
+             />
 
               {isOverrideModalOpen && (
-               <div className="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-top-2">
-                 <h5 className="text-[11px] font-bold text-slate-700 mb-2 flex items-center uppercase tracking-wider">
-                   <Wand2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600" /> Nadpisywanie Danych z użyciem AI (Flash)
-                 </h5>
-                 <div className="flex gap-2">
-                   <input
-                     type="text"
-                     placeholder="np. Dodaj hak holowniczy, moc silnika to 300KM, ma napęd AWD..."
-                     value={overridePrompt}
-                     onChange={(e) => setOverridePrompt(e.target.value)}
-                     className="flex-1 px-3 py-2 text-sm rounded-md border border-slate-300 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-sm"
-                     onKeyDown={(e) => {
-                       if (e.key === "Enter") handleManualOverride();
-                     }}
-                   />
-                   <button
-                     onClick={() => handleManualOverride()}
-                     disabled={isOverriding || !overridePrompt.trim()}
-                     className="px-4 py-2 bg-emerald-600 text-white rounded-md font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm transition-colors"
-                   >
-                     {isOverriding ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
-                     {isOverriding ? "Korygowanie..." : "Zastosuj"}
-                   </button>
-                 </div>
-                 <p className="text-xs text-slate-500 mt-2">
-                   Algorytm chirurgicznie zedytuje wyłącznie zlecane parametry w obrębie Cyfrowego Bliźniaka, zachowując 100% spójności reszty dokumentu. Zmiana widoczna będzie po odświeżeniu.
-                 </p>
-               </div>
+               <VehicleManualOverrideModal
+                 overridePrompt={overridePrompt}
+                 setOverridePrompt={setOverridePrompt}
+                 isOverriding={isOverriding}
+                 handleManualOverride={handleManualOverride}
+               />
              )}
 
               {isViewerOpen && vehicle.raw_pdf_url && (
-                <div className="w-full h-full xl:w-1/2 p-2 border-l border-slate-200">
-                  <iframe
-                    src={vehicle.raw_pdf_url}
-                    title={vehicle.model || "Dokument"}
-                    className="w-full h-[800px] border-none rounded bg-slate-50"
-                  />
+                <div className="w-full h-full xl:w-1/2 p-2 border-l border-slate-200 mt-4 rounded-lg">
+                  <PDFViewerFrame url={vehicle.raw_pdf_url} />
                 </div>
               )}
             </div>

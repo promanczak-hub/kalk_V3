@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -6,6 +6,9 @@ import {
 } from "@mui/material";
 import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2 } from "lucide-react";
 import { API_BASE_URL } from "./config/env";
+import { MatrixFilterToolbar, type MatrixFilters } from "./CalculatorPanel/MatrixFilterToolbar";
+import { ReversePriceLookup } from "./CalculatorPanel/ReversePriceLookup";
+import { MatrixHeatmapView, MatrixViewToggle } from "./CalculatorPanel/MatrixHeatmapView";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -379,10 +382,19 @@ export default function CalculatorPanel() {
   const [originalCells, setOriginalCells] = useState<MatrixCell[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCell, setExpandedCell] = useState<number | null>(null);
+  const [expandedCell, setExpandedCell] = useState<string | null>(null);
   const [cellOverrides, setCellOverrides] = useState<Record<number, CellOverrides>>({});
   const [modifiedCells, setModifiedCells] = useState<Set<number>>(new Set());
   const [recalculating, setRecalculating] = useState<number | null>(null);
+  const [marginRecalculating, setMarginRecalculating] = useState(false);
+  const [matrixView, setMatrixView] = useState<"cards" | "heatmap">("heatmap");
+
+  // Filter state
+  const [filters, setFilters] = useState<MatrixFilters>({
+    monthsRange: [12, 84],
+    targetKmPerYear: null,
+    globalMarginPct: 15.0,
+  });
 
   // Store the base payload for per-cell recalculation
   const basePayloadRef = useRef<Payload | null>(null);
@@ -457,7 +469,7 @@ export default function CalculatorPanel() {
       // 2. Build CalculatorInput payload from stan_json
       const payload: Payload = {
         calculation_id: kalkulacjaId,
-        vehicle_id: kalkData.vehicle_id || cardSummary.model || "unknown",
+        vehicle_id: stanJson.vehicle_id || kalkData.vehicle_id || cardSummary.model || "unknown",
         base_price_net: parseFloat(cardSummary.base_price || cardSummary.total_price || "0"),
         discount_pct: discount.active_discount_pct || 0,
         factory_options: (stanJson.factory_options || []).map((o: { name: string; price_net: number; include_in_wr?: boolean }) => ({
@@ -514,6 +526,12 @@ export default function CalculatorPanel() {
       setOriginalCells(newCells);
       setModifiedCells(new Set());
       setCellOverrides({});
+
+      // Sync filter margin with the payload's default
+      setFilters(prev => ({
+        ...prev,
+        globalMarginPct: payload.pricing_margin_pct ?? 15.0,
+      }));
     } catch (err) {
       console.error("Matrix fetch error:", err);
       setError(err instanceof Error ? err.message : "Nieznany błąd");
@@ -608,6 +626,56 @@ export default function CalculatorPanel() {
   const handleOverridesChange = (months: number, overrides: CellOverrides) => {
     setCellOverrides(prev => ({ ...prev, [months]: overrides }));
   };
+
+  // ─── Filtered cells (client-side) ──────────────────────────────────
+
+  const filteredCells = useMemo(() => {
+    return cells.filter((c) => {
+      // Period filter
+      if (c.months < filters.monthsRange[0] || c.months > filters.monthsRange[1]) {
+        return false;
+      }
+      // Km/year filter with ±5% margin
+      if (filters.targetKmPerYear !== null) {
+        const lo = filters.targetKmPerYear * 0.95;
+        const hi = filters.targetKmPerYear * 1.05;
+        if (c.km_per_year < lo || c.km_per_year > hi) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [cells, filters.monthsRange, filters.targetKmPerYear]);
+
+  // ─── Global margin recalculation ───────────────────────────────────
+
+  const recalculateWithMargin = useCallback(async (marginPct: number) => {
+    if (!basePayloadRef.current) return;
+    setMarginRecalculating(true);
+    try {
+      const baseUrl = API_BASE_URL || "";
+      const modifiedPayload = {
+        ...basePayloadRef.current,
+        pricing_margin_pct: marginPct,
+      };
+      const resp = await fetch(`${baseUrl}/api/calculate-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modifiedPayload),
+      });
+      if (!resp.ok) throw new Error("Błąd przeliczania matrycy");
+      const data = await resp.json();
+      const newCells = data.cells || [];
+      setCells(newCells);
+      setOriginalCells(newCells);
+      setModifiedCells(new Set());
+      setCellOverrides({});
+    } catch (err) {
+      console.error("Margin recalculation error:", err);
+    } finally {
+      setMarginRecalculating(false);
+    }
+  }, []);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -859,10 +927,25 @@ export default function CalculatorPanel() {
 
         {!loading && !error && cells.length > 0 && (
           <div>
-            <h3 className="flex items-center text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">
-              <Calculator className="w-4 h-4 mr-2" />
-              Matryca rat LTR ({cells.length} wariantów)
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center text-sm font-bold uppercase tracking-wider text-slate-500">
+                <Calculator className="w-4 h-4 mr-2" />
+                Matryca rat LTR ({filteredCells.length} / {cells.length} wariantów)
+              </h3>
+              <MatrixViewToggle view={matrixView} onViewChange={setMatrixView} />
+            </div>
+
+            {/* Matrix filter toolbar */}
+            <MatrixFilterToolbar
+              defaultMarginPct={basePayloadRef.current?.pricing_margin_pct ?? 15.0}
+              filters={filters}
+              onFiltersChange={setFilters}
+              onMarginRecalculate={recalculateWithMargin}
+              isRecalculating={marginRecalculating}
+            />
+
+            {/* Reverse price lookup */}
+            <ReversePriceLookup basePayload={basePayloadRef.current} />
 
             {/* Data quality warnings */}
             {cells.some(c => c.warnings?.service_fallback_used) && (
@@ -882,17 +965,22 @@ export default function CalculatorPanel() {
               </div>
             )}
 
-            {/* Matrix Grid */}
+            {/* Matrix View: Heatmap or Cards */}
+            {matrixView === "heatmap" ? (
+              <MatrixHeatmapView cells={filteredCells} />
+            ) : (
+            /* Matrix Card Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {cells.map((cell) => {
-                const isExpanded = expandedCell === cell.months;
+              {filteredCells.map((cell) => {
+                const cellKey = `${cell.months}-${cell.km_per_year}`;
+                const isExpanded = expandedCell === cellKey;
                 const isMod = modifiedCells.has(cell.months);
 
                 return (
-                  <div key={cell.months} className={isExpanded ? "sm:col-span-2 lg:col-span-3 xl:col-span-4" : ""}>
+                  <div key={cellKey} className={isExpanded ? "sm:col-span-2 lg:col-span-3 xl:col-span-4" : ""}>
                     {/* Matrix Cell Card */}
                     <button
-                      onClick={() => setExpandedCell(isExpanded ? null : cell.months)}
+                      onClick={() => setExpandedCell(isExpanded ? null : cellKey)}
                       className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer hover:shadow-md ${
                         isExpanded
                           ? "bg-blue-50 border-blue-300 shadow-md"
@@ -947,6 +1035,7 @@ export default function CalculatorPanel() {
                 );
               })}
             </div>
+            )}
           </div>
         )}
 

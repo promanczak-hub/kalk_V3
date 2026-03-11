@@ -1,0 +1,1203 @@
+============================================================
+SERWIS — samar_service_costs (class 103)
+============================================================
+{
+  "samar_class_id": 103,
+  "engine_type_id": 6,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.29,
+  "cost_non_aso_per_km": 0.19
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 6,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.34,
+  "cost_non_aso_per_km": 0.22
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 6,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.4,
+  "cost_non_aso_per_km": 0.25
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 9,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.29,
+  "cost_non_aso_per_km": 0.19
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 9,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.34,
+  "cost_non_aso_per_km": 0.22
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 9,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.4,
+  "cost_non_aso_per_km": 0.25
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 1,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.29,
+  "cost_non_aso_per_km": 0.19
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 1,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.34,
+  "cost_non_aso_per_km": 0.22
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 1,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.4,
+  "cost_non_aso_per_km": 0.25
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 3,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.29,
+  "cost_non_aso_per_km": 0.19
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 3,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.34,
+  "cost_non_aso_per_km": 0.22
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 3,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.4,
+  "cost_non_aso_per_km": 0.25
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 2,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.31,
+  "cost_non_aso_per_km": 0.2
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 2,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.36,
+  "cost_non_aso_per_km": 0.23
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 2,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.42,
+  "cost_non_aso_per_km": 0.27
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 4,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.31,
+  "cost_non_aso_per_km": 0.2
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 4,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.36,
+  "cost_non_aso_per_km": 0.23
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 4,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.42,
+  "cost_non_aso_per_km": 0.27
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 5,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.29,
+  "cost_non_aso_per_km": 0.19
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 5,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.34,
+  "cost_non_aso_per_km": 0.22
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 5,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.4,
+  "cost_non_aso_per_km": 0.25
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 7,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.22,
+  "cost_non_aso_per_km": 0.14
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 7,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.25,
+  "cost_non_aso_per_km": 0.16
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 7,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.3,
+  "cost_non_aso_per_km": 0.19
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 8,
+  "power_band": "LOW",
+  "cost_aso_per_km": 0.22,
+  "cost_non_aso_per_km": 0.14
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 8,
+  "power_band": "MID",
+  "cost_aso_per_km": 0.25,
+  "cost_non_aso_per_km": 0.16
+}
+{
+  "samar_class_id": 103,
+  "engine_type_id": 8,
+  "power_band": "HIGH",
+  "cost_aso_per_km": 0.3,
+  "cost_non_aso_per_km": 0.19
+}
+
+============================================================
+UBEZPIECZENIE — ltr_admin_ubezpieczenia (class 103)
+============================================================
+{
+  "id": 64,
+  "samar_class_id": 103,
+  "KolejnyRok": 1,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+{
+  "id": 65,
+  "samar_class_id": 103,
+  "KolejnyRok": 2,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+{
+  "id": 66,
+  "samar_class_id": 103,
+  "KolejnyRok": 3,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+{
+  "id": 67,
+  "samar_class_id": 103,
+  "KolejnyRok": 4,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+{
+  "id": 68,
+  "samar_class_id": 103,
+  "KolejnyRok": 5,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+{
+  "id": 69,
+  "samar_class_id": 103,
+  "KolejnyRok": 6,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+{
+  "id": 70,
+  "samar_class_id": 103,
+  "KolejnyRok": 7,
+  "StawkaBazowaAC": 0.015,
+  "SkladkaOC": 1476
+}
+
+============================================================
+SAMOCHOD ZASTEPCZY — replacement_car_rates (class 103)
+============================================================
+{
+  "id": "f9a8128b-d848-4d31-9a4d-017adf8df77d",
+  "samar_class_id": 103,
+  "samar_class_name": "Podstawowa - D \u015aREDNIA",
+  "average_days_per_year": 6.5,
+  "daily_rate_net": 100
+}
+
+============================================================
+WSP. SZKODOWE — ltr_admin_wspolczynniki_szkodowe (class 103)
+============================================================
+{
+  "id": 4,
+  "samar_class_id": 103,
+  "WspSredniPrzebieg": 1,
+  "WspWartoscSzkody": 1
+}
+
+============================================================
+WSZYSTKIE STAWKI SERWISOWE (wszystkie klasy)
+============================================================
+class=1 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=1 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=1 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=1 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=1 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=1 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=1 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=1 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=1 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=1 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=1 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=1 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=1 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=1 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=1 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=1 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=1 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=1 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=1 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=1 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=1 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=1 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=1 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=1 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=1 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=1 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=1 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=2 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=2 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=2 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=2 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=2 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=2 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=2 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=2 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=2 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=2 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=2 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=2 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=2 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=2 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=2 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=2 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=2 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=2 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=2 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=2 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=2 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=2 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=2 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=2 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=2 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=2 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=2 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=3 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=3 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=3 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=3 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=3 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=3 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=3 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=3 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=3 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=3 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=3 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=3 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=3 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=3 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=3 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=3 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=3 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=3 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=3 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=3 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=3 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=3 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=3 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=3 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=3 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=3 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=3 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=4 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=4 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=4 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=4 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=4 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=4 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=4 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=4 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=4 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=4 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=4 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=4 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=4 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=4 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=4 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=4 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=4 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=4 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=4 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=4 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=4 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=4 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=4 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=4 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=4 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=4 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=4 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=5 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=5 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=5 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=5 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=5 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=5 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=5 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=5 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=5 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=5 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=5 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=5 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=5 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=5 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=5 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=5 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=5 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=5 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=5 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=5 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=5 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=5 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=5 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=5 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=5 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=5 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=5 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=6 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=6 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=6 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=6 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=6 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=6 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=6 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=6 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=6 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=6 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=6 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=6 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=6 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=6 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=6 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=6 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=6 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=6 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=6 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=6 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=6 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=6 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=6 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=6 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=6 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=6 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=6 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=100 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=100 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=100 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=100 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=100 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=100 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=100 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=100 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=100 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=100 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=100 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=100 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=100 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=100 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=100 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=100 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=100 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=100 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=100 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=100 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=100 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=100 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=100 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=100 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=100 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=100 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=100 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=101 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=101 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=101 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=101 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=101 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=101 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=101 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=101 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=101 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=101 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=101 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=101 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=101 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=101 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=101 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=101 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=101 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=101 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=101 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=101 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=101 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=101 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=101 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=101 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=101 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=101 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=101 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=102 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=102 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=102 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=102 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=102 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=102 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=102 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=102 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=102 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=102 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=102 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=102 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=102 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=102 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=102 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=102 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=102 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=102 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=102 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=102 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=102 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=102 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=102 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=102 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=102 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=102 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=102 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=103 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=103 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=103 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=103 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=103 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=103 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=103 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=103 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=103 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=103 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=103 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=103 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=103 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=103 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=103 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=103 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=103 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=103 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=103 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=103 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=103 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=103 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=103 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=103 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=103 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=103 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=103 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=104 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=104 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=104 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=104 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=104 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=104 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=104 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=104 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=104 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=104 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=104 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=104 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=104 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=104 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=104 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=104 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=104 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=104 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=104 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=104 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=104 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=104 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=104 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=104 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=104 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=104 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=104 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=105 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=105 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=105 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=105 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=105 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=105 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=105 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=105 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=105 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=105 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=105 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=105 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=105 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=105 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=105 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=105 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=105 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=105 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=105 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=105 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=105 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=105 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=105 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=105 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=105 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=105 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=105 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=106 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=106 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=106 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=106 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=106 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=106 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=106 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=106 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=106 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=106 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=106 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=106 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=106 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=106 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=106 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=106 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=106 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=106 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=106 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=106 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=106 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=106 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=106 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=106 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=106 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=106 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=106 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=107 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=107 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=107 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=107 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=107 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=107 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=107 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=107 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=107 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=107 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=107 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=107 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=107 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=107 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=107 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=107 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=107 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=107 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=107 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=107 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=107 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=107 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=107 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=107 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=107 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=107 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=107 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=108 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=108 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=108 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=108 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=108 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=108 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=108 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=108 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=108 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=108 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=108 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=108 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=108 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=108 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=108 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=108 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=108 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=108 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=108 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=108 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=108 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=108 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=108 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=108 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=108 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=108 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=108 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=109 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=109 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=109 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=109 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=109 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=109 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=109 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=109 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=109 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=109 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=109 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=109 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=109 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=109 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=109 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=109 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=109 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=109 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=109 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=109 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=109 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=109 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=109 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=109 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=109 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=109 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=109 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=111 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=111 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=111 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=111 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=111 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=111 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=111 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=111 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=111 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=111 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=111 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=111 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=111 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=111 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=111 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=111 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=111 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=111 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=111 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=111 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=111 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=111 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=111 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=111 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=111 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=111 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=111 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=110 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=110 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=110 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=110 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=110 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=110 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=110 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=110 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=110 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=110 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=110 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=110 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=110 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=110 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=110 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=110 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=110 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=110 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=110 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=110 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=110 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=110 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=110 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=110 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=110 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=110 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=110 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=112 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=112 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=112 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=112 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=112 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=112 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=112 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=112 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=112 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=112 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=112 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=112 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=112 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=112 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=112 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=112 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=112 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=112 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=112 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=112 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=112 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=112 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=112 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=112 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=112 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=112 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=112 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=113 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=113 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=113 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=113 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=113 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=113 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=113 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=113 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=113 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=113 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=113 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=113 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=113 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=113 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=113 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=113 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=113 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=113 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=113 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=113 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=113 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=113 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=113 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=113 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=113 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=113 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=113 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=114 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=114 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=114 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=114 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=114 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=114 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=114 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=114 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=114 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=114 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=114 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=114 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=114 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=114 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=114 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=114 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=114 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=114 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=114 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=114 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=114 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=114 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=114 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=114 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=114 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=114 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=114 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=115 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=115 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=115 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=115 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=115 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=115 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=115 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=115 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=115 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=115 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=115 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=115 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=115 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=115 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=115 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=115 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=115 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=115 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=115 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=115 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=115 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=115 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=115 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=115 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=115 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=115 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=115 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=116 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=116 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=116 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=116 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=116 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=116 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=116 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=116 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=116 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=116 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=116 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=116 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=116 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=116 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=116 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=116 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=116 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=116 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=116 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=116 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=116 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=116 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=116 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=116 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=116 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=116 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=116 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=117 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=117 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=117 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=117 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=117 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=117 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=117 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=117 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=117 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=117 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=117 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=117 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=117 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=117 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=117 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=117 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=117 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=117 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=117 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=117 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=117 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=117 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=117 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=117 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=117 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=117 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=117 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=118 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=118 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=118 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=118 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=118 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=118 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=118 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=118 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=118 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=118 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=118 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=118 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=118 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=118 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=118 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=118 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=118 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=118 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=118 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=118 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=118 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=118 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=118 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=118 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=118 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=118 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=118 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=119 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=119 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=119 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=119 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=119 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=119 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=119 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=119 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=119 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=119 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=119 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=119 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=119 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=119 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=119 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=119 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=119 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=119 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=119 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=119 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=119 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=119 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=119 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=119 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=119 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=119 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=119 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=120 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=120 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=120 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=120 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=120 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=120 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=120 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=120 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=120 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=120 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=120 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=120 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=120 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=120 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=120 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=120 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=120 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=120 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=120 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=120 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=120 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=120 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=120 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=120 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=120 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=120 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=120 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=121 eng=6 band=LOW ASO=0.29 nonASO=0.19
+class=121 eng=6 band=MID ASO=0.34 nonASO=0.22
+class=121 eng=6 band=HIGH ASO=0.4 nonASO=0.25
+class=121 eng=9 band=LOW ASO=0.29 nonASO=0.19
+class=121 eng=9 band=MID ASO=0.34 nonASO=0.22
+class=121 eng=9 band=HIGH ASO=0.4 nonASO=0.25
+class=121 eng=1 band=LOW ASO=0.29 nonASO=0.19
+class=121 eng=1 band=MID ASO=0.34 nonASO=0.22
+class=121 eng=1 band=HIGH ASO=0.4 nonASO=0.25
+class=121 eng=3 band=LOW ASO=0.29 nonASO=0.19
+class=121 eng=3 band=MID ASO=0.34 nonASO=0.22
+class=121 eng=3 band=HIGH ASO=0.4 nonASO=0.25
+class=121 eng=2 band=LOW ASO=0.31 nonASO=0.2
+class=121 eng=2 band=MID ASO=0.36 nonASO=0.23
+class=121 eng=2 band=HIGH ASO=0.42 nonASO=0.27
+class=121 eng=4 band=LOW ASO=0.31 nonASO=0.2
+class=121 eng=4 band=MID ASO=0.36 nonASO=0.23
+class=121 eng=4 band=HIGH ASO=0.42 nonASO=0.27
+class=121 eng=5 band=LOW ASO=0.29 nonASO=0.19
+class=121 eng=5 band=MID ASO=0.34 nonASO=0.22
+class=121 eng=5 band=HIGH ASO=0.4 nonASO=0.25
+class=121 eng=7 band=LOW ASO=0.22 nonASO=0.14
+class=121 eng=7 band=MID ASO=0.25 nonASO=0.16
+class=121 eng=7 band=HIGH ASO=0.3 nonASO=0.19
+class=121 eng=8 band=LOW ASO=0.22 nonASO=0.14
+class=121 eng=8 band=MID ASO=0.25 nonASO=0.16
+class=121 eng=8 band=HIGH ASO=0.3 nonASO=0.19
+class=122 eng=6 band=LOW ASO=0.47 nonASO=0.29
+class=122 eng=6 band=MID ASO=0.54 nonASO=0.34
+class=122 eng=6 band=HIGH ASO=0.64 nonASO=0.4
+class=122 eng=9 band=LOW ASO=0.47 nonASO=0.29
+class=122 eng=9 band=MID ASO=0.54 nonASO=0.34
+class=122 eng=9 band=HIGH ASO=0.64 nonASO=0.4
+class=122 eng=1 band=LOW ASO=0.47 nonASO=0.29
+class=122 eng=1 band=MID ASO=0.54 nonASO=0.34
+class=122 eng=1 band=HIGH ASO=0.64 nonASO=0.4
+class=122 eng=3 band=LOW ASO=0.47 nonASO=0.29
+class=122 eng=3 band=MID ASO=0.54 nonASO=0.34
+class=122 eng=3 band=HIGH ASO=0.64 nonASO=0.4
+class=122 eng=2 band=LOW ASO=0.5 nonASO=0.31
+class=122 eng=2 band=MID ASO=0.57 nonASO=0.36
+class=122 eng=2 band=HIGH ASO=0.67 nonASO=0.42
+class=122 eng=4 band=LOW ASO=0.5 nonASO=0.31
+class=122 eng=4 band=MID ASO=0.57 nonASO=0.36
+class=122 eng=4 band=HIGH ASO=0.67 nonASO=0.42
+class=122 eng=5 band=LOW ASO=0.47 nonASO=0.29
+class=122 eng=5 band=MID ASO=0.54 nonASO=0.34
+class=122 eng=5 band=HIGH ASO=0.64 nonASO=0.4
+class=122 eng=7 band=LOW ASO=0.35 nonASO=0.22
+class=122 eng=7 band=MID ASO=0.41 nonASO=0.25
+class=122 eng=7 band=HIGH ASO=0.48 nonASO=0.3
+class=122 eng=8 band=LOW ASO=0.35 nonASO=0.22
+class=122 eng=8 band=MID ASO=0.41 nonASO=0.25
+class=122 eng=8 band=HIGH ASO=0.48 nonASO=0.3
+class=123 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=123 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=123 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=123 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=123 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=123 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=123 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=123 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=123 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=123 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=123 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=123 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=123 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=123 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=123 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=123 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=123 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=123 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=123 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=123 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=123 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=123 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=123 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=123 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=123 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=123 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=123 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=124 eng=6 band=LOW ASO=0.83 nonASO=0.53
+class=124 eng=6 band=MID ASO=0.95 nonASO=0.61
+class=124 eng=6 band=HIGH ASO=1.12 nonASO=0.72
+class=124 eng=9 band=LOW ASO=0.83 nonASO=0.53
+class=124 eng=9 band=MID ASO=0.95 nonASO=0.61
+class=124 eng=9 band=HIGH ASO=1.12 nonASO=0.72
+class=124 eng=1 band=LOW ASO=0.83 nonASO=0.53
+class=124 eng=1 band=MID ASO=0.95 nonASO=0.61
+class=124 eng=1 band=HIGH ASO=1.12 nonASO=0.72
+class=124 eng=3 band=LOW ASO=0.83 nonASO=0.53
+class=124 eng=3 band=MID ASO=0.95 nonASO=0.61
+class=124 eng=3 band=HIGH ASO=1.12 nonASO=0.72
+class=124 eng=2 band=LOW ASO=0.87 nonASO=0.56
+class=124 eng=2 band=MID ASO=1.0 nonASO=0.64
+class=124 eng=2 band=HIGH ASO=1.17 nonASO=0.75
+class=124 eng=4 band=LOW ASO=0.87 nonASO=0.56
+class=124 eng=4 band=MID ASO=1.0 nonASO=0.64
+class=124 eng=4 band=HIGH ASO=1.17 nonASO=0.75
+class=124 eng=5 band=LOW ASO=0.83 nonASO=0.53
+class=124 eng=5 band=MID ASO=0.95 nonASO=0.61
+class=124 eng=5 band=HIGH ASO=1.12 nonASO=0.72
+class=124 eng=7 band=LOW ASO=0.62 nonASO=0.4
+class=124 eng=7 band=MID ASO=0.71 nonASO=0.46
+class=124 eng=7 band=HIGH ASO=0.84 nonASO=0.54
+class=124 eng=8 band=LOW ASO=0.62 nonASO=0.4
+class=124 eng=8 band=MID ASO=0.71 nonASO=0.46
+class=124 eng=8 band=HIGH ASO=0.84 nonASO=0.54
+class=125 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=125 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=125 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=125 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=125 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=125 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=125 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=125 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=125 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=125 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=125 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=125 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=125 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=125 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=125 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=125 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=125 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=125 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=125 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=125 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=125 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=125 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=125 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=125 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=125 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=125 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=125 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+class=126 eng=6 band=LOW ASO=0.21 nonASO=0.14
+class=126 eng=6 band=MID ASO=0.24 nonASO=0.16
+class=126 eng=6 band=HIGH ASO=0.29 nonASO=0.19
+class=126 eng=9 band=LOW ASO=0.21 nonASO=0.14
+class=126 eng=9 band=MID ASO=0.24 nonASO=0.16
+class=126 eng=9 band=HIGH ASO=0.29 nonASO=0.19
+class=126 eng=1 band=LOW ASO=0.21 nonASO=0.14
+class=126 eng=1 band=MID ASO=0.24 nonASO=0.16
+class=126 eng=1 band=HIGH ASO=0.29 nonASO=0.19
+class=126 eng=3 band=LOW ASO=0.21 nonASO=0.14
+class=126 eng=3 band=MID ASO=0.24 nonASO=0.16
+class=126 eng=3 band=HIGH ASO=0.29 nonASO=0.19
+class=126 eng=2 band=LOW ASO=0.22 nonASO=0.15
+class=126 eng=2 band=MID ASO=0.26 nonASO=0.17
+class=126 eng=2 band=HIGH ASO=0.3 nonASO=0.2
+class=126 eng=4 band=LOW ASO=0.22 nonASO=0.15
+class=126 eng=4 band=MID ASO=0.26 nonASO=0.17
+class=126 eng=4 band=HIGH ASO=0.3 nonASO=0.2
+class=126 eng=5 band=LOW ASO=0.21 nonASO=0.14
+class=126 eng=5 band=MID ASO=0.24 nonASO=0.16
+class=126 eng=5 band=HIGH ASO=0.29 nonASO=0.19
+class=126 eng=7 band=LOW ASO=0.18 nonASO=0.12
+class=126 eng=7 band=MID ASO=0.18 nonASO=0.12
+class=126 eng=7 band=HIGH ASO=0.22 nonASO=0.14
+class=126 eng=8 band=LOW ASO=0.18 nonASO=0.12
+class=126 eng=8 band=MID ASO=0.18 nonASO=0.12
+class=126 eng=8 band=HIGH ASO=0.22 nonASO=0.14
+
+============================================================
+SAMAR CLASSES — id/name
+============================================================
+  id=1: Lekkie dostawcze - KOMBI VAN
+  id=2: Lekkie dostawcze - VAN
+  id=3: Pick-up - PICK-UP
+  id=4: Średnie dostawcze - ŚREDNIE DOSTAWCZE
+  id=5: Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE
+  id=6: Autobusy - AUTOBUSY
+  id=100: Podstawowa - A MINI
+  id=101: Podstawowa - B MAŁE
+  id=102: Podstawowa - C NIŻSZA ŚREDNIA
+  id=103: Podstawowa - D ŚREDNIA
+  id=104: Podstawowa - E WYŻSZA
+  id=105: Podstawowa - F LUKSUSOWE
+  id=106: Podstawowa - G SUPER LUKSUSOWE
+  id=107: Vany - B MICROVANY
+  id=108: Vany - C MINIVANY
+  id=109: Vany - D VANY
+  id=111: Vany - F LUKSUSOWE
+  id=110: Vany - E WYŻSZA
+  id=112: Sportowo-rekreacyjne - A MINI
+  id=113: Sportowo-rekreacyjne - B MAŁE
+  id=114: Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA
+  id=115: Sportowo-rekreacyjne - D ŚREDNIA
+  id=116: Sportowo-rekreacyjne - E WYŻSZA
+  id=117: Sportowo-rekreacyjne - F LUKSUSOWE
+  id=118: Sportowo-rekreacyjne - G SUPER LUKSUSOWE
+  id=119: Terenowo-rekreacyjne (SUV) - B MAŁE
+  id=120: Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA
+  id=121: Terenowo-rekreacyjne (SUV) - D ŚREDNIA
+  id=122: Terenowo-rekreacyjne (SUV) - E WYŻSZA
+  id=123: Terenowo-rekreacyjne (SUV) - F LUKSUSOWE
+  id=124: Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE
+  id=125: Kombivany - H KOMBI-VANY
+  id=126: Minibusy - I MINIBUSY
+
+============================================================
+CONTROL CENTER — ustawienia globalne
+============================================================
+  Error: {'message': "Could not find the table 'public.ltr_admin_parametry' in the schema cache", 'code': 'PGRST205', 'hint': "Perhaps you meant the table 'public.ltr_admin_ubezpieczenia'", 'details': None}

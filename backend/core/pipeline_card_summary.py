@@ -645,11 +645,24 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
             "e-4orce",
             "allgrip",
         )
+        rwd_keywords = (
+            "rwd",
+            "tył",
+            "tylny",
+            "tylni",
+        )
+
         if any(kw in combined for kw in awd_keywords):
             card_summary["drive_type"] = "Napęd AWD"
             print(
                 "[BACKFILL] drive_type: 'Napęd AWD' "
                 "(wykryto keyword 4WD w transmission/powertrain)"
+            )
+        elif any(kw in combined for kw in rwd_keywords):
+            card_summary["drive_type"] = "Napęd RWD"
+            print(
+                "[BACKFILL] drive_type: 'Napęd RWD' "
+                "(wykryto keyword RWD w transmission/powertrain)"
             )
         else:
             card_summary["drive_type"] = "Napęd FWD"
@@ -706,17 +719,17 @@ def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) 
 
 def generate_card_summary_from_twin(pro_data: dict) -> dict:
     """
-    Given a raw JSON digital twin, generates a structured summary using Gemini Flash.
+    Given a raw JSON digital twin, generates a structured summary using Gemini Pro.
     Returns the pro_data augmented with "card_summary" and doc type metadata.
     """
     client = get_gemini_client()
 
-    flash_model_id = "gemini-2.5-flash"
+    pro_model_id = "gemini-2.5-pro"
     pro_response_text = json.dumps(pro_data, ensure_ascii=False)
 
     try:
         # Step 1: Classify document
-        doc_type_str = classify_document_type(pro_data, client, flash_model_id)
+        doc_type_str = classify_document_type(pro_data, client, pro_model_id)
 
         # Step 2: Extract specific summaries based on type
         chosen_schema: Any
@@ -727,7 +740,7 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
             chosen_schema = OtherDocumentSummary
             instruction = OTHER_DOC_SUMMARY_PROMPT
 
-        flash_config = types.GenerateContentConfig(
+        summary_config = types.GenerateContentConfig(
             temperature=0.0,
             max_output_tokens=8192,
             response_mime_type="application/json",
@@ -736,64 +749,21 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
             safety_settings=SAFETY_SETTINGS_PERMISSIVE,
         )
 
-        flash_contents: list[types.Part] = [
+        summary_contents: list[types.Part] = [
             types.Part.from_text(text=pro_response_text)
         ]
 
-        flash_response = client.models.generate_content(
-            model=flash_model_id,
-            contents=flash_contents,
-            config=flash_config,
+        summary_response = client.models.generate_content(
+            model=pro_model_id,
+            contents=summary_contents,
+            config=summary_config,
         )
 
-        flash_json_str = getattr(flash_response, "text", "{}") or "{}"
-        flash_data = json.loads(clean_json_response(str(flash_json_str)))
-
-        # --- AI FALLBACK FOR MISSING DATA ---
-        if doc_type_str == "Oferta na samochód":
-            base_price = flash_data.get("base_price", "Brak")
-            options_price = flash_data.get("options_price", "Brak")
-            powertrain = flash_data.get("powertrain", "Brak")
-
-            if base_price == "Brak" or options_price == "Brak" or powertrain == "Brak":
-                print(
-                    "Brak podstawowych danych. Uruchamiam model PRO dla uzupełnienia."
-                )
-                pro_model_id = "gemini-2.5-pro"
-                try:
-                    pro_response = client.models.generate_content(
-                        model=pro_model_id,
-                        contents=[types.Part.from_text(text=pro_response_text)],
-                        config=flash_config,
-                    )
-                    pro_json_str = getattr(pro_response, "text", "{}") or "{}"
-                    pro_extracted_data = json.loads(
-                        clean_json_response(str(pro_json_str))
-                    )
-
-                    # Merge ONLY if Flash failed, to preserve the rest
-                    for key in [
-                        "base_price",
-                        "options_price",
-                        "powertrain",
-                        "total_price",
-                        "fuel",
-                    ]:
-                        val = str(flash_data.get(key, "Brak")).strip()
-                        if val in ["Brak", "", "None", "null"]:
-                            pro_val = pro_extracted_data.get(key, "Brak")
-                            if pro_val:
-                                flash_data[key] = pro_val
-
-                    print("PRO FALLBACK uzupełnił dane.")
-                except Exception as pro_e:
-                    print(
-                        f"Błąd podczas wyciągania brakujących danych modelem PRO: {pro_e}"
-                    )
-        # ----------------------------------------
+        summary_json_str = getattr(summary_response, "text", "{}") or "{}"
+        summary_data = json.loads(clean_json_response(str(summary_json_str)))
 
         # Merge the CardSummary into the main output
-        pro_data["card_summary"] = flash_data
+        pro_data["card_summary"] = summary_data
 
         # Deterministic backfill: fill gaps from digital_twin
         digital_twin = pro_data.get("digital_twin", {})
@@ -814,12 +784,12 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
 
     except Exception as e:
         tb = traceback.format_exc()
-        print(f"[CARD SUMMARY ERROR] Błąd potoku Card Summary (Flash): {e}\n{tb}")
-        # Safety net: even if Flash fails, try pages backfill
+        print(f"[CARD SUMMARY ERROR] Błąd potoku Card Summary (Pro): {e}\n{tb}")
+        # Safety net: even if Pro fails, try pages backfill
         digital_twin = pro_data.get("digital_twin", {})
         pages = digital_twin.get("pages")
         if isinstance(pages, list) and pages:
-            print("[CARD SUMMARY FALLBACK] Flash failed — applying pages backfill")
+            print("[CARD SUMMARY FALLBACK] Pro failed — applying pages backfill")
             card_summary = pro_data.get("card_summary", {})
             pro_data["card_summary"] = _backfill_from_digital_twin(
                 card_summary, digital_twin

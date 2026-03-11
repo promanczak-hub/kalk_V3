@@ -109,63 +109,63 @@ Error fetching param VAT: {'message': "Could not find the table 'public.LTRAdmin
     V1 sam.zast mc (z marza) = 70
 
   KOSZTY DODATKOWE:
-    total_additional_costs: 5442.67
-    monthly_additional_costs: 113.39
+    total_additional_costs: 1881.0
+    monthly_additional_costs: 39.19
     V1 koszty dod mc (z marza) = 79
 
   SERWIS:
-    monthly: 904.17
-    total: 43400.00
+    monthly: 193.38
+    total: 9282.00
     V1 serwis mc (z marza) = 455
 
   KOSZT DZIENNY:
-    koszt_mc: 4020.83
-    koszt_mc_bez_czynszu: 4947.96
-    koszt_dzienny: 132.26
-    koszty_ogolem: 192999.96
+    koszt_mc: 3235.84
+    koszt_mc_bez_czynszu: 4162.97
+    koszt_dzienny: 106.44
+    koszty_ogolem: 155320.36
     V1: dzienny=146, ogolem=106280
 
   STAWKA:
-    oferowana_stawka: 4730.39
+    oferowana_stawka: 3806.87
     czynsz_finansowy: 2818.41
-    czynsz_techniczny: 1911.98
-    marza_mc: 709.56
-    marza_na_kontrakcie: 34058.82
+    czynsz_techniczny: 988.46
+    marza_mc: 571.03
+    marza_na_kontrakcie: 27409.47
 
   ROZKLAD (KosztPlusMarzaKorekta):
     Finansowy:     2818.41
     Ubezpieczenie: 508.28
-    Serwis:        1063.73
+    Serwis:        227.50
     Opony:         142.84
     Sam. zast.:    63.73
-    Koszty dod.:   133.40
+    Koszty dod.:   46.11
 
 ================================================================================
 POROWNANIE V1 vs V3 (24mc / 140k / rabat 24% / marza 15%)
 ================================================================================
 Skladnik                       V1         V3      Delta        %
 --------------------------------------------------------------
-Stawka laczna                5210       4730       -480    -9.2% !!!
+Stawka laczna                5210       3807      -1403   -26.9% !!!
 Czynsz finansowy             3798       2818       -980   -25.8% !!!
-Czynsz techniczny            1412       1912       +500   +35.4% !!!
+Czynsz techniczny            1412        988       -424   -30.0% !!!
 Ubezpieczenie                 588        508        -80   -13.6% !!!
-Serwis                        455       1064       +609  +133.8% !!!
+Serwis                        455        228       -227   -49.9% !!!
 Opony                         220        143        -77   -35.0% !!!
 Sam. zastepczy                 70         64         -6    -8.6% !!!
-Koszty dodatkowe               79        133        +54   +68.4% !!!
-Koszt dzienny                 146        132        -14    -9.6% !!!
-Koszty ogolem              106280     193000     +86720   +81.6% !!!
-Przychod                   125036     227059    +102023   +81.6% !!!
-Marza kontrakt              18755      34059     +15304   +81.6% !!!
+Koszty dodatkowe               79         46        -33   -41.8% !!!
+Koszt dzienny                 146        106        -40   -27.4% !!!
+Koszty ogolem              106280     155320     +49040   +46.1% !!!
+Przychod                   125036     182730     +57694   +46.1% !!!
+Marza kontrakt              18755      27409      +8654   +46.1% !!!
 
 ================================================================================
 KOSZTY BAZOWE (przed marza)
 ================================================================================
   Ubezpieczenie mc: 432.04
-  Serwis mc:        904.17
+  Serwis mc:        193.38
   Opony mc:         121.42
   Sam.zast mc:      54.17
-  Koszty dod mc:    113.39
+  Koszty dod mc:    39.19
   Finance (odsetki z cz): 33576.16
   Finance (odsetki bez): 33576.16
   Utrata z czynszem:     81415.12

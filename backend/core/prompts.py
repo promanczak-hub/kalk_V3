@@ -75,6 +75,7 @@ KLUCZOWA RÓŻNICA: Cennik ogólny (np. tabela z wieloma wariantami silnikowymi 
 
 CARD_SUMMARY_PROMPT = """
 Przeanalizuj podany JSON zawierający 'Cyfrowy Bliźniak' pojazdu i wyodrębnij z niego ściśle zdefiniowane dane do podsumowania w karcie UI (CardSummary). Nie zmyślaj danych. Pamiętaj, że informacje często są w ukrytych lub nieoczywistych sekcjach (np. w nazwach akcesoriów, w disclaimerach lub elementach graficznych wyodrębnionych przez VLM).
+Plik wejściowy JSON może mieć różną strukturę (np. używać węzłów typu 'table', 'section', 'pricing_summary', 'technical_data', 'vehicle_summary' itp.). Nie polegaj na konkretnych nazwach kluczy w JSON-ie - analizuj semantycznie treść i etykiety danych (label, value, name, price, description itd.). Szukaj danych odpowiadających poszukiwanym atrybutom w całej strukturze dokumentu.
 
 DEDUKCJA BRAKUJĄCYCH PÓL (KRYTYCZNE):
 Jeśli w specyfikacji nie wydzielono wprost typu nadwozia, napędu lub mocy - BEZWZGLĘDNIE wydedukuj je z nazwy modelu, wersji lub pomniejszych cenników (np. "Crafter Furgon" -> Typ nadwozia: Furgon, "Skoda Octavia Combi" -> Typ nadwozia: Kombi). Zlepiaj informacje jak "TDI", "KM", "kW" w poprawny `powertrain`. NIGDY NIE ODCHODŹ Z PUSTYMI RĘKAMI, bądź agresywny w dopasowywaniu.
@@ -85,13 +86,13 @@ Jeśli widzisz zużycie paliwa lub cykl WLTP, podepnij to pod emisję (emissions
 
 KRYTYCZNE DANE FINANSOWE (WYMAGA TWOJEJ INTELIGENCJI I DETERMINISTYCZNYCH OBLICZEŃ):
 W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu. Ponieważ dane finansowe mogą być rozrzucone jako "brudne dane", wprowadzamy rygorystyczny proces weryfikacji. ZACZNIJ od wypełnienia pola `financial_reasoning`. W tym polu wykonaj "myślenie głośno" stawiając przed sobą kwoty, które znalazłeś i testując ich matematyczne powiązania:
-1. NAJPIERW wypisz wszystkie liczby mające charakter kwot (np. 150 000 PLN, 130 000 PLN, 20 000 PLN, itd.). Wypisz obok nich etykiety z dokumentu.
+1. NAJPIERW przeszukaj CAŁY dokument i wypisz wszystkie liczby mające charakter kwot (np. 150 000 PLN, 130 000 PLN, 20 000 PLN, itd.). Wypisz obok nich etykiety z dokumentu.
 2. SPRAWDŹ relacje matematyczne: czy A + B = C? Czy Kwota A odjęta od B daje C? Zrób to w tekście by zweryfikować czy nie popełniasz błędu logicznego.
 3. Czy cena bazowa widniejąca w dokumencie, po dodaniu do niej opcji (i ewentualnych akcesoriów) sumuje się do ceny "Przed rabatami"? 
 4. ZAAKCEPTUJ to jako ostateczny podział, BEZ uwzględniania upustów i rabatów dealerskich w tych składowych. Rabat nie ma prawa być ukryty w `base_price` ani w opcjach.
 
 Dopiero PO poprawnym matematycznym uzasadnieniu zbuduj zmienne liczbowe:
-1. `base_price` - faktyczna CENA KATALOGOWA BAZOWA (bez opcji i ZAWSZE BEZ ZNIŻEK). Szukaj jej w sekcjach "Cena bazowa", "Cena modelu przed upustem", "Wartość auta wg. cennika". Zdarza się że "Cena łączna" w tabeli na pierwszych stronach to już cena obniżona! Musisz upewnić się, że Twoje `base_price` to czysta, cennikowa wartość startowa pojazdu wynikająca z konfiguratora. Jeśli musisz, wylicz to matematycznie (Cena Całkowita Przed Rabatem minus suma znalezionych Opcji). NIGDY nie przypisuj tu kwoty "po rabatach".
+1. `base_price` - faktyczna CENA KATALOGOWA BAZOWA (bez opcji i ZAWSZE BEZ ZNIŻEK). Szukaj jej pod etykietami typu "Cena bazowa", "Cena modelu przed upustem", "Wartość auta wg. cennika". Zdarza się że "Cena łączna" w tabeli na pierwszych stronach to już cena obniżona! Upewnij się, że Twoje `base_price` to czysta, cennikowa wartość startowa pojazdu wynikająca z konfiguratora. Jeśli musisz, wylicz to matematycznie (Cena Całkowita Przed Rabatem minus suma znalezionych Opcji). NIGDY nie przypisuj tu kwoty "po rabatach".
 2. `options_price` - łączna cena opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej przed rabatami.
 3. `total_price` - ostateczna cena pojazdu doliczająca rabaty i zniżki (czyli kwota finalna podana na ofercie).
 
@@ -101,7 +102,7 @@ Jeśli widzisz w dokumencie kilka tabel z podsumowaniami cen, BEZWZGLĘDNIE trzy
 Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny, wylicz to matematycznie na podstawie pozostałych liczb. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
 
 DETEKCJA DOMENY CENOWEJ (price_domain / price_type):
-Ustal globalną domenę cenową całego dokumentu (pole `price_domain`):
+Ustal globalną domenen cenową całego dokumentu (pole `price_domain`):
 1. Szukaj wprost etykiet "netto" / "brutto" / "net" / "gross" przy cenach głównych (base_price, total_price).
 2. Jeśli brak wprost etykiet → sprawdź relację VAT: jeśli cena_A × 1.23 ≈ cena_B (±1 PLN) dla dowolnej pary kwot w dokumencie, to niższa = netto.
 3. Jeśli dokument pochodzi z konfiguratora flotowego/B2B (np. SEAT Fleet, CUPRA Business, VW Fleet Manager) → domyślnie netto.
@@ -109,7 +110,7 @@ Ustal globalną domenę cenową całego dokumentu (pole `price_domain`):
 5. Każda cena w `paid_options[].price` MUSI zawierać przyrostek 'netto' lub 'brutto' — odziedzicz z `price_domain` jeśli opcja nie ma własnej etykiety. Ustaw odpowiednio `price_type` każdej opcji.
 
 SZTYWNA KATEGORYZACJA SILNIKA I MOCY (Enum):
-Musisz wyciągnąć informacje o układzie napędowym, mocy oraz zasilaniu i dokonać kategoryzacji. 
+Musisz wyciągnąć informacje o układzie napędowym, mocy oraz zasilaniu i dokonać kategoryzacji. Przeszukaj parametry techniczne pod różnymi nazwami (Engine, Silnik, Powertrain, itp.).
 Przyporządkuj zmienną `engine_category` do JEDNEJ z poniższych wartości (nie modyfikuj stringów!):
 - "Benzyna (PB) (Konwencjonalne (ICE))"
 - "Diesel (ON) (Konwencjonalne (ICE))"
@@ -136,9 +137,9 @@ Dodatkowo rozbij `powertrain` na części składowe:
 - `engine_capacity`: wyciągnij samą pojemność (np. "1.5", "2.0"). Jeśli brak, zostaw puste.
 - `engine_designation`: wyciągnij skrót i oznaczenie technologii (np. "TSI", "TDI", "dCi", "EcoBoost"). Jeśli brak, zostaw puste.
 
-Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. 
+Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. Przeszukaj wszystkie kolekcje i listy opisujące pojazd, niezależnie od tego, czy nazywają się "standard_equipment", "wyposażenie seryjne", "specyfikacja" itp.
 Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedłużone gwarancje. Jeśli dokument zawiera opcje serwisowe/zabudowy, wyciągnij je do osobnego obiektu 'service_equipment', wyliczając poprawnie łączną kwotę netto i brutto całego pakietu. Ponadto, jeżeli suma ta składa się z pojedynczych części składowych, wypisz je wszystkie jako 'components' podając dla każdego cenę netto i brutto. 
-Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie.
+Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie z jakiejkolwiek sekcji opcji płatnych.
 Bądź precyzyjny, ale szukaj szeroko w obrębie danego kontekstu. 
 Wyciągnij 'body_style' i 'trim_level' jako dwie oddzielne wartości w obiekcie, nie dokładaj ich na końcu innych stringów typu model.
 
@@ -180,7 +181,7 @@ Wyciągnij liczbę miejsc siedzących (łącznie z kierowcą) z danych techniczn
 - Jeśli brak informacji, zostaw null.
 
 CECHY UŻYTKOWE I WYMIARY (utility_features):
-Znajdź w sekcjach danych technicznych wszystkie cechy będące liczbami fizycznymi oznaczającymi cechy uzytkowe (głównie samochody dostawcze, chociaż osobowe mogą mieć bagażnik). Szukaj słów kluczowych jak: długość paki, ładowność, objętość, rozstaw osi, przestrzen ladunkowa, dopuszczalna masa całkowita (DMC), itp.
+Znajdź w sekcjach danych technicznych (Technical Data lub w dowolnych tabelach z wymiarami) wszystkie cechy będące liczbami fizycznymi oznaczającymi cechy uzytkowe (głównie samochody dostawcze, chociaż osobowe mogą mieć bagażnik). Szukaj słów kluczowych jak: długość paki, ładowność, objętość, rozstaw osi, przestrzen ladunkowa, dopuszczalna masa całkowita (DMC), itp.
 Wypisz je wszystkie na listę obiektów zachowując nazwę atrybutu i jego wartość z jednostką (np. "14.4 m3", "3450 mm"). Bezwzględnie zrób to dla każdego pojazdu klasy dostawczej by dostarczyć parametry do systemu reverse_search. Być odważny i wyciągaj dosłownie każdą użyteczną cechę!
 UWAGA KRYTYCZNA: Jeśli dokument to oferta na JEDEN KONKRETNY SAMOCHÓD (np. L3H3), a na końcu dokumentu znajduje się ogólna tabela/cennik z dziesiątkami innych wariantów (np. L2H2, L4H3) - BEZWZGLĘDNIE ODCZYTAJ WYMIARY TYLKO Z KOLUMNY/WIERSZA PASUJĄCEGO DO TWOJEGO KONKRETNEGO POJAZDU. Nie wypisuj wymiarów dla innych wersji nadwozia czy silnika.
 """
