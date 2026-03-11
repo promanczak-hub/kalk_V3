@@ -38,19 +38,14 @@ VALUES ('0dc73a9b-3c75-4849-bc7e-82f18b450f4d', 'c8d1c814-0769-4ed0-83e7-09d7385
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('5f919743-8edf-4e81-9ad7-d5878f2e8fc3', 'c6c23615-2428-4118-a4cd-aa20abddda84', 'ilość_europalet', 'ilość europalet', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('f3c8d065-69ee-4369-bfd0-c83f0401cba3', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'wysokość_progu_załadunku_w_mm', 'wysokość progu załadunku w mm', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('a49f267c-5e20-4638-8fa3-131c33d0978d', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'wysokość_tylnych_drzwi_załadunku_w_mm', 'wysokość tylnych drzwi załadunku w mm', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('6f51e866-61f7-4803-907d-e148d43e98a3', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'szerokość_tylnych_drzwi_załadunku_w_mm', 'szerokość tylnych drzwi załadunku w mm', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('79cae73d-bfe3-4441-9ea8-9990bf4f211b', 'fc56af5c-266f-49f6-b698-fd31811c9450', 'sposób_otwarcia_tylnych_drzwi', 'sposób otwarcia tylnych drzwi', 'enum', '{"options": ["skrzydła", "klapa"]}'::jsonb);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('3b3ffab9-5e02-444e-88b3-4435fa65e34d', 'fc56af5c-266f-49f6-b698-fd31811c9450', 'kąt_otwarcia_tylnych_drzwi', 'kąt otwarcia tylnych drzwi', 'enum', '{"options": ["180°", "270°"]}'::jsonb);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('9e9a4679-e3e1-4f37-8692-913aad683b64', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'wysokość_drzwi_bocznego_załadunku_w_mm', 'wysokość drzwi bocznego załadunku w mm', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('25a8e368-7a70-455a-aeb7-d5ba7961065c', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'szerokość_drzwi_bocznego_załadunku_w_mm', 'szerokość drzwi bocznego załadunku w mm', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('462cd6b7-cb4b-4112-8443-e7ea0b613203', 'fc56af5c-266f-49f6-b698-fd31811c9450', 'boczne_drzwi', 'boczne drzwi', 'enum', '{"options": ["z lewej strony", "z prawej strony", "z obu stron"]}'::jsonb);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
@@ -62,17 +57,12 @@ VALUES ('0956cb86-1775-450f-a2b7-66f6ccaabf94', '4fb15092-4bff-47ca-aac0-c0a8d2d
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('42f3f824-1d76-43be-a0a8-0007864485ff', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'skrzynia_narzędziowa', 'Skrzynia narzędziowa', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('62e2bf2b-9537-4334-9393-0b80f55707d2', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'skrzynia_narzędziowa_1_w_litrach', 'Skrzynia narzędziowa 1 w litrach', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('0596354d-53ab-4c57-9839-34af65d28f9a', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'skrzynia_narzędziowa_2_w_litrach', 'Skrzynia narzędziowa 2 w litrach', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('bba9597d-a2f1-426a-875a-7545bd060dc1', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'zbiornik_na_wodę', 'Zbiornik na wodę', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('811f09db-aa82-45ef-8ecb-6e33544bd42e', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'zbiornik_na_wodę_1_pojemność_w_litrach', 'zbiornik na wodę 1 pojemność w litrach', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('e21a1092-d206-460f-9d95-71ff62f268ed', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'zbiornik_na_wodę_2_pojemność_zbiorniaka_w_litrach', 'zbiornik na wodę 2 pojemność zbiorniaka w litrach', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('bff53fd5-8926-48ab-809e-7b15d54ee714', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'wysokość_burt_załadunku_w_mm', 'wysokość burt załadunku w mm', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('148b9a16-fffc-46c8-ac48-c933f1817776', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'otwieranie_burty_tylnej', 'otwieranie burty tylnej', 'enum', '{"options": ["otwierana w osi górnej", "otwierana w osi dolnej"]}'::jsonb);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
@@ -96,9 +86,9 @@ VALUES ('a38400ee-0a0d-4ad8-8881-37bc47a57b61', '0e0f944f-49e9-429c-9871-7b55991
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('96ae6d23-176d-48e5-8c8c-787a08b9f5d1', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'hak_holowniczyzaczep', 'Hak holowniczy/zaczep', 'enum', '{"options": ["hak", "zaczep", "brak"]}'::jsonb);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('d8291d5f-ba01-4577-9af4-769b982444f7', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'd_uciag', 'D - uciag', 'text', NULL);
+VALUES ('d8291d5f-ba01-4577-9af4-769b982444f7', 'cf35a46c-2bf1-400f-8971-2752d1236f18', 'd_uciag', 'D - uciag', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('8d412f40-b62f-4224-9aad-be1571d69ebe', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 's_nacisk_na_hak', 'S - nacisk na hak', 'text', NULL);
+VALUES ('8d412f40-b62f-4224-9aad-be1571d69ebe', 'cf35a46c-2bf1-400f-8971-2752d1236f18', 's_nacisk_na_hak', 'S - nacisk na hak', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('53c00550-2511-4bbb-b790-2c0fb28d7b7b', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'dopuszczalna_masa_całkowita_zespołu_pojazdów_kg', 'dopuszczalna masa całkowita zespołu pojazdów (kg)', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
@@ -154,9 +144,7 @@ VALUES ('d982b9cc-51f4-4ddc-ba9a-7b07820faa9c', '4fb15092-4bff-47ca-aac0-c0a8d2d
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('92cced0e-74b6-46b3-9e5b-ff76c4f66d23', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'udźwig_windy_w_kg', 'Udźwig windy w kg', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('f955c4f8-368c-4900-8edf-f25a028e84cf', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'długość_platformy_windy', 'Długość platformy windy', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('e9c1705a-c54d-4b20-a0e1-0fbeca24553f', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'szerokość_platformy_windy', 'Szerokość platformy windy', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('52b7c1f9-a9cf-4fe5-ad13-af63a38ea5f4', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'sterowanie_windą', 'sterowanie windą', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
@@ -260,13 +248,13 @@ VALUES ('dfe68a43-6203-429f-b112-628d11b02146', '57668cc7-e413-416f-ab2d-77501e2
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('67b1dc48-1493-4a18-a460-51f366b8c623', '57668cc7-e413-416f-ab2d-77501e2f10ef', 'fotele_przednie_wentylowane', 'Fotele przednie wentylowane', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('d3718065-acf4-4f09-bf74-aca781682bf2', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'fotele_przednie_z_funkcją_masażu', 'Fotele przednie z funkcją masażu', 'boolean', NULL);
+VALUES ('d3718065-acf4-4f09-bf74-aca781682bf2', '1f9892a9-51cc-4ed2-921e-36f30f2c9145', 'fotele_przednie_z_funkcją_masażu', 'Fotele przednie z funkcją masażu', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('a23dc063-e236-40c0-b5ab-91ea4f0e4594', '57668cc7-e413-416f-ab2d-77501e2f10ef', 'fotele_tylne_podgrzewane', 'Fotele tylne podgrzewane', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('e6d7daff-6734-40f9-b9ad-9890c9aef9e9', '57668cc7-e413-416f-ab2d-77501e2f10ef', 'fotele_tylne_wentylowane', 'Fotele tylne wentylowane', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('ce17ed81-9509-4e67-a337-3646b7d854e8', 'c8d1c814-0769-4ed0-83e7-09d7385a948b', 'fotele_tylne_z_funkcją_masażu', 'Fotele tylne z funkcją masażu', 'boolean', NULL);
+VALUES ('ce17ed81-9509-4e67-a337-3646b7d854e8', '1f9892a9-51cc-4ed2-921e-36f30f2c9145', 'fotele_tylne_z_funkcją_masażu', 'Fotele tylne z funkcją masażu', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('f037d15d-53f4-41f8-bbd1-e5848bbcda33', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'funkcja_szybkiego_ładowania_samochodu', 'Funkcja szybkiego ładowania samochodu', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
@@ -364,10 +352,7 @@ VALUES ('1a32ab0a-f51c-4406-a751-afe1afc1b426', '4fb15092-4bff-47ca-aac0-c0a8d2d
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
 VALUES ('02ca7805-db34-4573-bca7-9afc1d2933cf', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'zmiana_biegów_w_kierownicy', 'Zmiana biegów w kierownicy', 'boolean', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('dc9c2bf9-c052-44c8-ab02-d629286daf31', '4fb15092-4bff-47ca-aac0-c0a8d2d67727', 'm2', 'm2', 'text', NULL);
+VALUES ('dc9c2bf9-c052-44c8-ab02-d629286daf31', 'c6c23615-2428-4118-a4cd-aa20abddda84', 'm2', 'm2', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('e78e0684-8488-4e3e-bace-dc14b5baf8da', 'c6c23615-2428-4118-a4cd-aa20abddda84', 'il_europalet', 'il europalet', 'text', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('5f94cc76-0b21-45a2-865b-25afe03cb96d', 'c6c23615-2428-4118-a4cd-aa20abddda84', 'ilość_europalet1', 'ilość europalet.1', 'numeric', NULL);
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) 
-VALUES ('07c7a779-04ad-4f73-92df-5c17561f8507', 'c6c23615-2428-4118-a4cd-aa20abddda84', 'ilość_europalet2', 'ilość europalet.2', 'numeric', NULL);

@@ -41,7 +41,7 @@ class MatchedFeature(BaseModel):
 
     feature_key: str = Field(
         description="Klucz cechy z universal_features (np. 'liczba_miejsc', "
-        "'dlugosc_przestrzeni_ladunkowej', 'europalety')"
+        "'długość_przestrzeni_ładunkowej_w_mm', 'ilość_europalet')"
     )
     mapping_confidence: float = Field(
         description="Ocena w skali 0.0 - 1.0 jak bardzo nazwa cechy producenta odpowiada semantycznie wybranemu kluczowi 'feature_key'."
@@ -122,34 +122,29 @@ def _load_feature_id_map() -> dict[str, str]:
 # ── LLM Variant Matching ────────────────────────────────────────
 
 CROSS_REF_SYSTEM_PROMPT = """\
-Jesteś ekspertem ds. pojazdów dostawczych i osobowych. Otrzymujesz:
-1. `vehicle_spec` — podsumowanie pojazdu (marka, model, silnik, wymiary, nadwozie)
-2. `catalog_variants` — lista wariantów z katalogów/cenników z ich parametrami
+Jesteś rygorystycznym ekspertem ds. pojazdów dostawczych i osobowych. Otrzymujesz:
+1. `vehicle_spec` — podsumowanie i dane pojazdu (marka, model, silnik, wymiary, wersja wyposażenia / trim_level)
+2. `catalog_variants` — lista wariantów wyciągniętych z dopasowanych katalogów/cenników z ich parametrami i wyposażeniem
 3. `available_feature_keys` — lista kluczy cech w systemie
 
 ZADANIE:
-A) Dopasuj pojazd do NAJLEPSZEGO wariantu z katalogu na podstawie:
-   - Marka + model
-   - Typ nadwozia (Furgon, Kombi, Podwozie, etc.)
-   - Klasa długości/wysokości (L1H1, L2H2, L3H3, etc.)
-   - Silnik (moc, pojemność)
-   - Napęd (FWD, RWD, AWD)
+A) Dopasuj pojazd do NAJLEPSZEGO wariantu z katalogu na podstawie kryteriów (w tej kolejności):
+   1. Marka + model
+   2. Wersja wyposażenia / Trim level - **KRYTYCZNE**. Jeśli specyfikacja zawiera konkretną wersję (np. "Edition 130"), to MUSISZ szukać wariantu, który odpowiada DOKŁADNIE tej wersji wyposażenia!
+   3. Parametry silnika (moc, pojemność), napęd i skrzynia biegów
+   4. Typ nadwozia (Furgon, Hatchback, itp.) oraz klasy wymiarów
 
-B) Wyciągnij z dopasowanego wariantu WSZYSTKIE użyteczne cechy i zmapuj je
-   na klucze z `available_feature_keys`. Cechy numeryczne podaj w odpowiednich
-   jednostkach (mm, kg, l, szt). Dla każdej zmapowanej cechy podaj `mapping_confidence` 
-   (w skali 0.0 - 1.0) oceniając, jak precyzyjnie oryginalna nazwa cechy w katalogu producenta 
-   odpowiada uniwersalnemu kluczowi.
+B) Wyciągnij z dopasowanego wariantu WSZYSTKIE użyteczne cechy należące do STANDARDU TEJ WERSJI lub zadeklarowanych w specyfikacji opcji i zmapuj je na klucze z `available_feature_keys`.
+   Cechy numeryczne podaj w odpowiednich jednostkach (mm, kg, l, szt). Oszacuj `mapping_confidence` (0.0 - 1.0) dla dokładności mapowania.
 
-C) Jeśli wariant zawiera wymiary ładunkowe (długość, szerokość, wysokość cargo),
-   KONIECZNIE wyciągnij je jako osobne cechy.
+C) Wymiary ładunkowe/zewnętrzne potraktuj absolutnie priorytetowo jako osobne cechy, jeśli występują.
 
-WAŻNE:
-- confidence < 0.5 → brak sensownego dopasowania, zwróć pustą listę features
-- Zwracaj w features TYLKO te cechy, dla których `mapping_confidence` wynosi >= 0.80. Sprawdzaj rygorystycznie różnice w nazewnictwie!
-- Jeśli dane z katalogu uzupełniają dane z konfiguracji (np. wymiary ładunkowe
-  których nie ma w specyfikacji), wyciągnij je
-- NIE wymyślaj danych — wyciągaj TYLKO to, co jest wprost w katalogu
+BEZWZGLĘDNE ZASADY I OSTRZEŻENIA:
+- ZAKAZ MIESZANIA CECH: Jeśli badasz auto w wersji (np. "Edition 130"), NIE WOLNO Ci dopasowywać ani wyciągać cech z innej wersji (np. "Essence" lub "Selection"), nawet jeśli tej "Twojej" wersji brakuje w cenniku!
+- BRAK WERSJI W CENNIKU: Jeśli w `catalog_variants` NIE ZNAJDZIESZ wersji z `vehicle_spec.trim_level`, TO ZNACZY ŻE CENNIK JEST NIEPRAWIDŁOWY/NIEKOMPLETNY. Ustaw wtedy `confidence` na `0.0`, `matched_variant_name` na "Brak wersji w katalogu" i wyjaśnij w `reasoning` (np. "Cennik nie zawiera wersji Edition 130"). Zwróć wtedy PUSTĄ listę `features`!
+- PRÓG AKCEPTACJI WARIANTU: confidence całkowite dopasowania < 0.8 → brak pewnego dopasowania, zwróć pustą listę features. MUSI to być niemal idealne odbicie.
+- WYPOSAŻENIE: Zwracaj w features TYLKO te cechy, dla których `mapping_confidence` wynosi >= 0.95. Sprawdzaj ekstremalnie rygorystycznie różnice w nazewnictwie! Zbieżność nazw opcji między cennikiem a specyfikacją musi być niemal 1:1.
+- NIE wymyślaj danych — wyciągaj TYLKO to, co jest wprost przypisane do prawidłowej wersji w katalogu.
 """
 
 
@@ -308,7 +303,7 @@ def _create_evidence_batch(
     sb = sb_client
 
     for feat in match_result.features:
-        if feat.mapping_confidence < 0.8:
+        if feat.mapping_confidence < 0.95:
             logger.debug(
                 "Skipping feature '%s' due to low confidence: %s",
                 feat.feature_key,
@@ -366,12 +361,13 @@ def _create_body_param_evidence(
     """Create body parameter evidence from dimensions."""
     dims: dict[str, float] = {}
     for feat in match_result.features:
-        if "cargo" in feat.feature_key and feat.value_num:
-            if "dlugosc" in feat.feature_key or "length" in feat.feature_key:
+        key = feat.feature_key.lower()
+        if ("cargo" in key or "ładunkow" in key or "ladunkow" in key) and feat.value_num is not None:
+            if "dlugosc" in key or "length" in key or "długość" in key:
                 dims["length_mm"] = feat.value_num
-            elif "szerokosc" in feat.feature_key or "width" in feat.feature_key:
+            elif "szerokosc" in key or "width" in key or "szerokość" in key:
                 dims["width_mm"] = feat.value_num
-            elif "wysokosc" in feat.feature_key or "height" in feat.feature_key:
+            elif "wysokosc" in key or "height" in key or "wysokość" in key:
                 dims["height_mm"] = feat.value_num
 
     if not dims:
@@ -387,15 +383,15 @@ def _create_body_param_evidence(
     sb = sb_client
 
     calc_features = {
-        "powierzchnia_ladunkowa": (
+        "m2": (
             params.area_m2,
             "m²",
         ),
-        "europalety": (
+        "ilość_europalet": (
             params.europallets,
             "szt",
         ),
-        "kubatura_ladunkowa": (
+        "kubatura_przestrzeni_ładunkowej_w_m3": (
             params.volume_m3,
             "m³",
         ),
@@ -616,10 +612,11 @@ def cross_reference_vehicle(
     # 4. LLM variant matching
     match_result = _match_variant_with_llm(vehicle_spec, all_variants, feature_keys)
 
-    if not match_result or match_result.confidence < 0.3:
+    if not match_result or match_result.confidence < 0.8:
+        reason = match_result.reasoning if match_result else "Brak odpowiedzi LLM"
         return {
             "status": "no_match",
-            "message": "LLM nie znalazł pasującego wariantu",
+            "message": f"LLM nie znalazł pasującego wariantu wg rygorystycznych kryteriów sprzężenia (Odrzucono. Powód: {reason})",
             "confidence": match_result.confidence if match_result else 0,
         }
 

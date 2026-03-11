@@ -178,6 +178,11 @@ ILOŚĆ MIEJSC (number_of_seats):
 Wyciągnij liczbę miejsc siedzących (łącznie z kierowcą) z danych technicznych, specyfikacji lub homologacji pojazdu.
 - Zwróć jako liczbę całkowitą (np. 5, 7, 3, 9).
 - Jeśli brak informacji, zostaw null.
+
+CECHY UŻYTKOWE I WYMIARY (utility_features):
+Znajdź w sekcjach danych technicznych wszystkie cechy będące liczbami fizycznymi oznaczającymi cechy uzytkowe (głównie samochody dostawcze, chociaż osobowe mogą mieć bagażnik). Szukaj słów kluczowych jak: długość paki, ładowność, objętość, rozstaw osi, przestrzen ladunkowa, dopuszczalna masa całkowita (DMC), itp.
+Wypisz je wszystkie na listę obiektów zachowując nazwę atrybutu i jego wartość z jednostką (np. "14.4 m3", "3450 mm"). Bezwzględnie zrób to dla każdego pojazdu klasy dostawczej by dostarczyć parametry do systemu reverse_search. Być odważny i wyciągaj dosłownie każdą użyteczną cechę!
+UWAGA KRYTYCZNA: Jeśli dokument to oferta na JEDEN KONKRETNY SAMOCHÓD (np. L3H3), a na końcu dokumentu znajduje się ogólna tabela/cennik z dziesiątkami innych wariantów (np. L2H2, L4H3) - BEZWZGLĘDNIE ODCZYTAJ WYMIARY TYLKO Z KOLUMNY/WIERSZA PASUJĄCEGO DO TWOJEGO KONKRETNEGO POJAZDU. Nie wypisuj wymiarów dla innych wersji nadwozia czy silnika.
 """
 
 BROCHURE_SUMMARY_PROMPT = """

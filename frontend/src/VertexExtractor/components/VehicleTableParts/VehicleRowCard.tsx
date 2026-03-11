@@ -9,7 +9,7 @@ import { VehicleBaseInfo } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 // VehicleServiceIntervals removed — service cost uses normatywny_przebieg_mc floor
-import { DocumentViewerFrame } from "./PDFViewerFrame";
+// PDFViewerFrame was removed, using native iframe instead
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
@@ -111,14 +111,22 @@ export function VehicleRowCard({
     if (!vehicle.synthesis_data) return;
     setIsRemappingClassification(true);
     try {
-      const response = await apiFetch(`/api/regenerate-features/map-classification`, {
+      const response = await apiFetch(`/api/extract/remap-classification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ original_json: vehicle.synthesis_data }),
       });
 
-      if (!response.ok) throw new Error("B\u0142\u0105d klasyfikacji");
+      console.dir(response);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("API response not ok. Status:", response.status, "Text:", errText);
+        throw new Error(`Błąd klasyfikacji HTTP ${response.status}: ${errText}`);
+      }
+      
       const data = await response.json();
+      console.log("Data from remap api:", data);
 
       // Save the new mapped data to Supabase
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
@@ -130,13 +138,16 @@ export function VehicleRowCard({
         .update({ synthesis_data: updatedJson })
         .eq("id", vehicle.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase update error:", error);
+        throw error;
+      }
 
       setLocalMappedData(data);
       onRefresh();
     } catch (err) {
-      console.error("Remap classification error", err);
-      alert("B\u0142\u0105d przeliczania klasyfikacji: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
+      console.error("Remap classification error details:", err);
+      alert("B\u0142\u0105d przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));
     } finally {
       setIsRemappingClassification(false);
     }
@@ -232,6 +243,10 @@ export function VehicleRowCard({
       const wheels = vehicle.wheels || "";
       const match = wheels.match(/(\d{2})/);
       if (match) setRimDiameter(parseInt(match[1], 10));
+
+      const aiBase = parsePriceToNumber(vehicle.base_price);
+      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
       return;
     }
 
@@ -243,7 +258,19 @@ export function VehicleRowCard({
       if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);
       if (fp.initial_deposit_pct != null) setInitialDepositPct(fp.initial_deposit_pct);
       if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
-      if (fp.catalog_base_price_net != null) setCatalogBasePriceNet(fp.catalog_base_price_net);
+      if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
+      
+      if (fp.catalog_base_price_net != null && fp.catalog_base_price_net > 0) {
+        setCatalogBasePriceNet(fp.catalog_base_price_net);
+      } else {
+        const aiBase = parsePriceToNumber(vehicle.base_price);
+        const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+        setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
+      }
+    } else {
+      const aiBase = parsePriceToNumber(vehicle.base_price);
+      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
     }
     // Toggles
     if (setup.toggles) {
@@ -1626,11 +1653,13 @@ export function VehicleRowCard({
              )}
 
               {isViewerOpen && vehicle.raw_pdf_url && (
-                 <DocumentViewerFrame 
-                    rawDocUrl={vehicle.raw_pdf_url} 
-                    brand={vehicle.brand || "?"} 
-                    model={vehicle.model || "?"} 
-                 />
+                <div className="w-full h-full xl:w-1/2 p-2 border-l border-slate-200">
+                  <iframe
+                    src={vehicle.raw_pdf_url}
+                    title={vehicle.model || "Dokument"}
+                    className="w-full h-[800px] border-none rounded bg-slate-50"
+                  />
+                </div>
               )}
             </div>
         </div>

@@ -74,6 +74,47 @@ _LLM_RESPONSE_SCHEMA: dict[str, Any] = {
     "required": ["matches"],
 }
 
+_LLM_UTILITY_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "matches": {
+            "type": "array",
+            "description": (
+                "One entry per input utility feature item, in the same order."
+            ),
+            "items": {
+                "type": "object",
+                "properties": {
+                    "item_name": {
+                        "type": "string",
+                        "description": "Original utility feature name.",
+                    },
+                    "feature_key": {
+                        "type": "string",
+                        "description": (
+                            "Matched feature_key from the catalog, "
+                            "or empty string when no match."
+                        ),
+                    },
+                     "value_num": {
+                        "type": "number",
+                        "description": "Wyciągnięta wartość liczbowa z cechy (np. 14.4 dla '14.4 m3' albo 3450 dla '3450 mm').",
+                    },
+                    "unit": {
+                        "type": "string",
+                        "description": "Jednostka wyciągnięta z tekstu (np. 'm3', 'kg', 'mm').",
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Match certainty 0.0–1.0.",
+                    },
+                },
+                "required": ["item_name", "feature_key", "value_num", "unit", "confidence"],
+            },
+        },
+    },
+    "required": ["matches"],
+}
 
 def _build_feature_catalog_text(features: list[dict[str, Any]]) -> str:
     """Build a compact text representation of the feature catalog."""
@@ -166,6 +207,61 @@ Pozycje wyposażenia do dopasowania:
         )
         return []
 
+def _llm_match_utility_features(
+    utility_items: list[dict[str, Any]],
+    features: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not utility_items or not features:
+        return []
+
+    catalog_text = _build_feature_catalog_text(features)
+    items_text = "\n".join(f"- {item.get('name')}: {item.get('value')}" for item in utility_items)
+
+    prompt = f"""Jesteś wnikliwym ekspertem klasyfikacji wymiarów i cech użytkowych.
+Poniżej znajduje się katalog ustandaryzowanych cech z systemu bazodanowego (feature_key: opis):
+{catalog_text}
+
+Przyporządkuj każdą z poniższych cech wymiarowych do DOKŁADNIE JEDNEJ cechy z katalogu.
+Jeśli pozycja nie pasuje (np. wyciągnięta cecha nie jest wymiarem, albo nie ma jej w katalogu), zwróć pusty feature_key i confidence=0.0.
+
+WAŻNE ZASADY:
+1. Zawsze wyciągaj "value_num" (liczbę) oraz "unit" (jednostkę) z tekstu wymiaru!
+2. Odrzucasz opis słowny i zostawiasz tylko twarde wartości liczbowe dla "value_num". 
+3. Dopasowujesz feature_key po przemyśleniu znaczenia wymiaru. Zwróć uwagę na długość przestrzeni bagażowej ("cargo_length"), objętość ("cargo_volume"), itp. 
+
+Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
+{items_text}
+"""
+
+    try:
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                response_mime_type="application/json",
+                response_schema=_LLM_UTILITY_RESPONSE_SCHEMA,
+                safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+            ),
+        )
+        resp_text = getattr(response, "text", "{}") or "{}"
+        result = json.loads(resp_text)
+        matches: list[dict[str, Any]] = result.get("matches", [])
+
+        return [
+            m
+            for m in matches
+            if m.get("feature_key") and m.get("confidence", 0) >= _CONFIDENCE_THRESHOLD
+        ]
+
+    except Exception as exc:
+        logger.warning(
+            "LLM utility matching failed for batch of %d items: %s",
+            len(utility_items),
+            exc,
+        )
+        return []
 
 def _load_feature_catalog() -> list[dict[str, Any]]:
     """Load all active universal_features."""
@@ -255,6 +351,32 @@ def enrich_vehicle_features(
                 "evidence_status": "observed",
                 "value_bool": True,
                 "value_text": match["item"],
+                "confidence": round(match["confidence"], 4),
+            }
+        )
+
+    # ── 2b. Utility Features → LLM match → numeric evidence ──
+    utility_features: list[dict] = card_summary.get("utility_features", [])
+    valid_utility = [
+        opt for opt in utility_features 
+        if isinstance(opt, dict) and opt.get("name") and opt.get("value")
+    ]
+    
+    utility_matches = _llm_match_utility_features(valid_utility, features)
+    for match in utility_matches:
+        feat_id = feature_by_key.get(match["feature_key"])
+        if not feat_id:
+            continue
+            
+        evidence_batch.append(
+            {
+                "source_vehicle_id": vehicle_id,
+                "feature_id": feat_id,
+                "source_type": "catalog",
+                "evidence_status": "observed",
+                "value_num": float(match.get("value_num", 0)),
+                "unit": match.get("unit"),
+                "value_text": f"{match['value_num']} {match.get('unit', '')}".strip() if match.get("value_num") else "",
                 "confidence": round(match["confidence"], 4),
             }
         )

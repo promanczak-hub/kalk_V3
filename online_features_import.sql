@@ -87,21 +87,18 @@ ON CONFLICT (feature_key) DO UPDATE SET
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT '90f6fdb9-56ea-4d2c-80d8-0b8ddc5fd984', id, 'wysokość_progu_załadunku_w_mm', 'wysokość progu załadunku w mm', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'dimensions'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'bed5567f-c8de-4774-8404-99684c97e159', id, 'wysokość_tylnych_drzwi_załadunku_w_mm', 'wysokość tylnych drzwi załadunku w mm', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'dimensions'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT '7af8f07d-c0aa-4980-9600-dd23407cc9ed', id, 'szerokość_tylnych_drzwi_załadunku_w_mm', 'szerokość tylnych drzwi załadunku w mm', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'dimensions'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
@@ -126,14 +123,12 @@ ON CONFLICT (feature_key) DO UPDATE SET
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'b957f91b-c06b-4340-95eb-1512e889b6b1', id, 'wysokość_drzwi_bocznego_załadunku_w_mm', 'wysokość drzwi bocznego załadunku w mm', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'dimensions'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'f34fd7d6-cbc9-4e1d-93bb-2702a6e89e42', id, 'szerokość_drzwi_bocznego_załadunku_w_mm', 'szerokość drzwi bocznego załadunku w mm', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'dimensions'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
@@ -186,14 +181,12 @@ ON CONFLICT (feature_key) DO UPDATE SET
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'ffdce5f5-2f64-44d6-9b38-50337dc392d0', id, 'skrzynia_narzędziowa_1_w_litrach', 'Skrzynia narzędziowa 1 w litrach', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'bodywork'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT '01a5a1b6-cfa7-4c51-8e06-1dac3df7d5d6', id, 'skrzynia_narzędziowa_2_w_litrach', 'Skrzynia narzędziowa 2 w litrach', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'bodywork'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
@@ -209,21 +202,18 @@ ON CONFLICT (feature_key) DO UPDATE SET
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'bb83559d-aadd-4514-be96-3c2f34349c1e', id, 'zbiornik_na_wodę_1_pojemność_w_litrach', 'zbiornik na wodę 1 pojemność w litrach', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'bodywork'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT '9a939a69-0f9e-4529-a564-7472b55aef40', id, 'zbiornik_na_wodę_2_pojemność_zbiorniaka_w_litrach', 'zbiornik na wodę 2 pojemność zbiorniaka w litrach', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'bodywork'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'c5cccad5-d297-4420-99c4-53c53fc80be3', id, 'wysokość_burt_załadunku_w_mm', 'wysokość burt załadunku w mm', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'dimensions'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,
@@ -1474,7 +1464,6 @@ ON CONFLICT (feature_key) DO UPDATE SET
     feature_type = EXCLUDED.feature_type;
 
 INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, vehicle_scope, is_filterable, source_standard)
-SELECT 'b6d49c6a-19d3-4412-95fd-289d8d372b75', id, 'il_europalet', 'il europalet', 'numeric', 'both', true, 'fleet_excel'
 FROM reverse_search.universal_feature_categories WHERE category_key = 'cargo'
 ON CONFLICT (feature_key) DO UPDATE SET 
     display_name = EXCLUDED.display_name,

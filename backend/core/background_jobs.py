@@ -189,6 +189,16 @@ def _finalize_vehicle(
     supabase.table("vehicle_synthesis").update(update_payload).eq(
         "id", vehicle_id
     ).execute()
+    
+    # ── 3. Wzbogacanie cech (Feature Enrichment) ──
+    from core.feature_enrichment import enrich_vehicle_features
+    print(f"[BG TASK] Uruchamiam wzbogacanie cech dla {vehicle_id}...")
+    try:
+        enrich_result = enrich_vehicle_features(vehicle_id, parsed_data)
+        print(f"[BG TASK] Zakończono wzbogacanie. Utworzono {enrich_result.get('evidence_created', 0)} cech.")
+    except Exception as enrich_err:
+        print(f"[BG TASK] Błąd wzbogacania cech dla {vehicle_id}: {enrich_err}")
+
     print(f"[BG TASK] Gotowe dla {vehicle_id}")
 
 

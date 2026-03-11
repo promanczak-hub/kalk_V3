@@ -9,7 +9,8 @@ import {
   FileText,
   Plus,
   X,
-  Star
+  Star,
+  ExternalLink
 } from "lucide-react";
 
 const API = API_BASE_URL || "";
@@ -52,6 +53,7 @@ export function CatalogCrossRefPanel({
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [crossRefLoading, setCrossRefLoading] = useState(false);
   const [wipeLoading, setWipeLoading] = useState(false);
   const [result, setResult] = useState<CrossRefResult | null>(null);
@@ -78,6 +80,7 @@ export function CatalogCrossRefPanel({
         (c) => c.extraction_status === "ready" && c.variant_count > 0
       );
       setCatalogs(ready);
+      setHasLoaded(true);
     } catch (err) {
       console.error("Catalog fetch error:", err);
     } finally {
@@ -85,9 +88,13 @@ export function CatalogCrossRefPanel({
     }
   }, [vehicleBrand, vehicleModel]);
 
+  // Czyszczenie stanu po zmianie auta
   useEffect(() => {
-    fetchCatalogs();
-  }, [fetchCatalogs]);
+    setCatalogs([]);
+    setHasLoaded(false);
+    setResult(null);
+    setError(null);
+  }, [vehicleId, vehicleBrand, vehicleModel]);
 
   const toggleCatalog = (id: string) => {
     setSelectedIds((prev) => {
@@ -271,6 +278,18 @@ export function CatalogCrossRefPanel({
 
       {/* Catalog list */}
       <div className="p-4">
+        {!hasLoaded && !loading && (
+          <div className="flex flex-col items-center justify-center py-4 text-slate-500">
+            <span className="text-xs mb-3">Lista powiązanych katalogów nie została wczytana.</span>
+            <button
+              onClick={fetchCatalogs}
+              className="px-4 py-2 bg-white border border-slate-300 rounded text-xs font-medium hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              Wyszukaj pasujące katalogi
+            </button>
+          </div>
+        )}
+
         {loading && (
           <div className="flex items-center justify-center py-4 text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -278,14 +297,14 @@ export function CatalogCrossRefPanel({
           </div>
         )}
 
-        {!loading && catalogs.length === 0 && (
+        {hasLoaded && !loading && catalogs.length === 0 && (
           <div className="text-xs text-slate-400 py-3 text-center">
             Brak gotowych katalogów{vehicleBrand ? ` dla ${vehicleBrand}` : ""}.
             Wgraj katalog w zakładce &quot;Biblioteka Cenników&quot;.
           </div>
         )}
 
-        {!loading && catalogs.length > 0 && (
+        {hasLoaded && !loading && catalogs.length > 0 && (
           <>
             <div className="text-xs text-slate-500 mb-2">
               Wybierz katalogi do cross-reference:
@@ -308,6 +327,16 @@ export function CatalogCrossRefPanel({
                   />
                   <FileText className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="font-medium">{cat.display_name}</span>
+                  <a
+                    href={`${API}/api/catalogs/${cat.id}/file`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-white/50"
+                    title="Otwórz dokument"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                   {cat._ranking && cat._ranking.score >= 0.8 && (
                     <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-[9px] font-bold uppercase tracking-wider ml-2">
                        <Star className="w-2.5 h-2.5" /> LLM Match
@@ -456,6 +485,16 @@ export function CatalogCrossRefPanel({
                             <span className="text-sm font-medium text-slate-900 truncate">
                               {cat.display_name}
                             </span>
+                            <a
+                              href={`${API}/api/catalogs/${cat.id}/file`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-slate-100"
+                              title="Otwórz dokument"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
                             {isHighMatch && (
                               <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded uppercase tracking-wider whitespace-nowrap">
                                 {Math.round(score * 100)}% Match

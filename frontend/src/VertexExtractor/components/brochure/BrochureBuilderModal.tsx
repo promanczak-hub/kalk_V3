@@ -25,7 +25,7 @@ export default function BrochureBuilderModal({
     model: data?.model || "",
     edition: data?.trim_level || "",
     engine: data?.engine_description || "",
-    body_type: data?.drive_type || "",
+    body_type: data?.body_type || "",
     horsepower: data?.power_hp ? String(data.power_hp) : "",
   });
 
@@ -49,7 +49,7 @@ export default function BrochureBuilderModal({
     model: "model",
     edition: "trim_level",
     engine: "engine_description",
-    body_type: "drive_type",
+    body_type: "body_type",
     horsepower: "power_hp",
   };
 

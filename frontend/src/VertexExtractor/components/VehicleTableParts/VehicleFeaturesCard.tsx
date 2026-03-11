@@ -43,61 +43,49 @@ function getStatusIcon(status: string): string {
 
 export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
   const [categories, setCategories] = useState<CategoryGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const fetchFeatures = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiFetch(`/api/features/vehicle/${vehicleId}/state`);
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      const grouped: CategoryGroup[] = Object.entries(data.categories as Record<string, FeatureItem[]>)
+        .map(([name, features]) => ({
+          name,
+          features,
+          presentCount: features.filter(
+            (f) => f.resolved_status?.startsWith("present")
+          ).length,
+        }))
+        .filter((g) => g.features.length > 0)
+        .sort((a, b) => b.presentCount - a.presentCount);
+
+      setCategories(grouped);
+      const autoExpand = new Set(
+        grouped.filter((g) => g.presentCount > 0).map((g) => g.name)
+      );
+      setExpandedCats(autoExpand);
+      setHasLoaded(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd pobierania cech");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchFeatures = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // The original instruction had a syntactically incorrect second argument for apiFetch.
-        // Assuming the intent was to replace the original fetch call with apiFetch for the same endpoint,
-        // or to use a new endpoint `/api/features/save-override` with `vehicleId` as a path parameter.
-        // Given the original structure, the most likely correct interpretation for a direct replacement
-        // while maintaining `vehicleId` in the path is:
-        const response = await apiFetch(`/api/features/vehicle/${vehicleId}/state`);
-        // If the intent was to use `/api/features/save-override` and pass vehicleId in the body or query,
-        // the instruction `{vehicleId}/state` was ambiguous.
-        // For now, we'll assume the endpoint remains the same as the original `fetch` call,
-        // but using `apiFetch`.
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        // data.categories is { "CategoryName": [...features] }
-        const grouped: CategoryGroup[] = Object.entries(data.categories as Record<string, FeatureItem[]>)
-          .map(([name, features]) => ({
-            name,
-            features,
-            presentCount: features.filter(
-              (f) => f.resolved_status?.startsWith("present")
-            ).length,
-          }))
-          .filter((g) => g.features.length > 0)
-          .sort((a, b) => b.presentCount - a.presentCount);
-
-        if (!cancelled) {
-          setCategories(grouped);
-          // Auto-expand categories with present features
-          const autoExpand = new Set(
-            grouped.filter((g) => g.presentCount > 0).map((g) => g.name)
-          );
-          setExpandedCats(autoExpand);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Błąd pobierania cech");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchFeatures();
-    return () => { cancelled = true; };
+    // Zresetuj stan, gdy zmieni się vehicleId
+    setCategories([]);
+    setHasLoaded(false);
+    setError(null);
   }, [vehicleId]);
 
   const toggleCategory = (name: string) => {
@@ -132,6 +120,18 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
 
       {/* Content */}
       <div className="p-5">
+        {!hasLoaded && !loading && !error && (
+          <div className="flex flex-col items-center justify-center py-6 text-slate-500">
+            <span className="text-sm mb-3">Cechy nie zostały jeszcze wczytane.</span>
+            <button
+              onClick={fetchFeatures}
+              className="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              Wczytaj cechy użytkowe
+            </button>
+          </div>
+        )}
+
         {loading && (
           <div className="flex items-center justify-center py-8 text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -145,13 +145,13 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
           </div>
         )}
 
-        {!loading && !error && categories.length === 0 && (
+        {hasLoaded && !loading && !error && categories.length === 0 && (
           <div className="text-sm text-slate-400 py-6 text-center">
             Brak danych o cechach użytkowych dla tego pojazdu.
           </div>
         )}
 
-        {!loading && !error && categories.length > 0 && (
+        {hasLoaded && !loading && !error && categories.length > 0 && (
           <div className="space-y-2">
             {categories.map((cat) => (
               <div key={cat.name} className="border border-slate-100 rounded-lg overflow-hidden">
@@ -204,6 +204,11 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
                             {f.resolved_value_text && (
                               <span className="opacity-60 ml-0.5">
                                 {f.resolved_value_text}
+                              </span>
+                            )}
+                            {f.resolved_value_num !== null && (
+                              <span className="opacity-60 ml-0.5">
+                                {f.resolved_value_num}
                               </span>
                             )}
                           </span>

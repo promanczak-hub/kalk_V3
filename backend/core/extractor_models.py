@@ -226,6 +226,15 @@ class ServiceEquipment(BaseModel):
     )
 
 
+class UtilityFeatureItem(BaseModel):
+    name: str = Field(
+        description="Nazwa parametry liczbowego (np. Wymiary przedziału ładunkowego (dł.), Pojemność przestrzeni ładunkowej, Objętość, Długość pojazdu)"
+    )
+    value: str = Field(
+        description="Wartość z jednostką (np. 3450 mm, 14.4 m3, 1140 kg). Przekaż absolutnie bez zmian z pliku."
+    )
+
+
 class CardSummary(BaseModel):
     financial_reasoning: str = Field(
         description="SZCZEGÓŁOWA ANALIZA I UZASADNIENIE DLA CEN. Zanim wypiszesz kwoty, wyszczególnij tu krok po kroku wszystkie ceny znalezione w PDF / tekście. Testuj relacje (Czy A + B = C? Czy B to A pomnożone przez 1.23?). 1. Zidentyfikuj główną cenę bazową PRZED rabatami dealera. 2. Oblicz sumę opcji by sprawdzić, czy cena bazowa + opcje = cena pojazdu. 3. Jeśli kwota jest niższa, zidentyfikuj to jako po rabacie i nie używaj jako ceny bazowej."
@@ -359,6 +368,10 @@ class CardSummary(BaseModel):
     suggested_discount_source: Optional[str] = Field(
         None,
         description="Krótkie uzasadnienie z jakiego wiersza i na jakiej podstawie przyznano dany sugerowany rabat.",
+    )
+    utility_features: list[UtilityFeatureItem] = Field(
+        default_factory=list,
+        description="Lista wszelkich cech użytkowych i wymiarów liczbowych znalezionych w dokumencie. Wyodrębnij pojemność załadunkową, wymiary długość/szerokość/wysokość paki w mm, ładowność (kg), objętość (m3), rozstaw osi, masy całkowite (DMC)."
     )
 
 

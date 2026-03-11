@@ -22,8 +22,8 @@ _samar_cache: dict = {"data": None, "ts": 0.0}
 
 def _build_samar_client() -> Client:
     """Create a lightweight Supabase client for SAMAR lookups."""
-    url = os.environ.get("VITE_SUPABASE_URL", "")
-    key = os.environ.get("VITE_SUPABASE_ANON_KEY", "")
+    url = os.environ.get("SUPABASE_URL", os.environ.get("VITE_SUPABASE_URL", ""))
+    key = os.environ.get("SUPABASE_KEY", os.environ.get("VITE_SUPABASE_ANON_KEY", ""))
     return create_client(url, key)
 
 
@@ -202,24 +202,3 @@ Posortuj wyniki od najwyższego do najniższego confidence.
 
     return fallback
 
-    if not segment:
-        if "luksus" in name_lower:
-            segment = "F"
-        elif "mini" in name_lower and not is_minibus:
-            segment = "A"
-
-    # Build compound code
-    if is_suv:
-        return f"{segment}suv"
-    if is_sport:
-        return f"{segment}sport"
-    if is_van:
-        return f"{segment}van"
-    if is_dostawcze:
-        return "DOSTx"
-    if is_minibus:
-        return "MINIBUS"
-    if is_pickup:
-        return "PICKUP"
-
-    return segment or "UNKNOWN"
