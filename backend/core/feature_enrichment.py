@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from google.genai import types
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Minimum confidence required to accept an LLM match.
 _CONFIDENCE_THRESHOLD = 0.70
 
-# Direct card_summary field → feature_key mappings (unchanged).
+# Direct card_summary field → feature_key mappings (text/bool).
 _DIRECT_FIELD_MAP: dict[str, str] = {
     "fuel": "paliwo",
     "transmission": "skrzynia_biegow",
@@ -38,6 +39,46 @@ _DIRECT_FIELD_MAP: dict[str, str] = {
     "is_metalic_paint": "lakier_metalik",
     "has_automatic_ac": "klimatyzacja_automatyczna",
 }
+
+# Direct numeric field → feature_key mappings.
+# card_summary fields that contain numeric values → universal_features keys.
+_NUMERIC_DIRECT_MAP: dict[str, tuple[str, str]] = {
+    # card_summary_key: (feature_key, unit)
+    "power_hp": ("moc_silnika_km", "KM"),
+    "engine_capacity_cc": ("pojemnosc_silnika", "cm³"),
+    "length_mm": ("długość_pojazdu_w_mm_bez_haka", "mm"),
+    "width_mm": ("szerokość_pojazdu_rozłożone_lusterka_w_mm", "mm"),
+    "height_mm": ("wysokość_pojazdu_w_mm", "mm"),
+    "wheelbase_mm": ("wheelbase_mm", "mm"),
+    "cargo_volume_l": ("kubatura_przestrzeni_ładunkowej_w_m3", "m³"),
+    "cargo_length_mm": ("długość_przestrzeni_ładunkowej_w_mm", "mm"),
+    "cargo_width_mm": ("szerokość_przestrzeni_ładunkowej_w_mm", "mm"),
+    "cargo_height_mm": ("wysokość_przestrzeni_ładunkowej_w_mm", "mm"),
+    "payload_kg": ("dopuszczalna_ładowność_w_kg", "kg"),
+    "dmc_kg": ("dmc_kg", "kg"),
+    "curb_weight_kg": ("curb_weight_kg", "kg"),
+    "euro_pallets": ("ilość_europalet", "szt"),
+    "battery_capacity_kwh": ("pojemność_akumulatora_dla_pojazdu_elektrycznego_w_kwh", "kWh"),
+    "ev_range_km": ("zasięg_wltp_dla_pojazdów_elektrycznych_w_km", "km"),
+    # NOTE: "seats" is handled by _DIRECT_FIELD_MAP ("number_of_seats")
+}
+
+
+def _safe_parse_num(raw_value: Any) -> float | None:
+    """Safely extract a numeric value from a string or number."""
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, (int, float)):
+        return float(raw_value)
+    if isinstance(raw_value, str):
+        cleaned = raw_value.strip().replace(",", ".").replace(" ", "")
+        match = re.match(r"^-?[\d]+\.?[\d]*", cleaned)
+        if match:
+            try:
+                return float(match.group(0))
+            except ValueError:
+                return None
+    return None
 
 # JSON schema returned by the LLM matcher.
 _LLM_RESPONSE_SCHEMA: dict[str, Any] = {
@@ -410,6 +451,40 @@ def enrich_vehicle_features(
                 continue
 
         evidence_batch.append(evidence)
+
+    # ── 3b. Direct numeric field mappings (power_hp, dimensions, etc.) ──
+    numeric_count = 0
+    for cs_field, (feat_key, unit) in _NUMERIC_DIRECT_MAP.items():
+        raw_value = card_summary.get(cs_field)
+        parsed = _safe_parse_num(raw_value)
+        if parsed is None:
+            continue
+        feat_id = feature_by_key.get(feat_key)
+        if not feat_id:
+            logger.debug(
+                "Numeric field %s → feature_key %s not found in catalog",
+                cs_field, feat_key,
+            )
+            continue
+
+        evidence_batch.append(
+            {
+                "source_vehicle_id": vehicle_id,
+                "feature_id": feat_id,
+                "source_type": "catalog",
+                "evidence_status": "observed",
+                "value_num": parsed,
+                "unit": unit,
+                "value_text": f"{parsed} {unit}",
+                "confidence": 0.95,
+            }
+        )
+        numeric_count += 1
+
+    logger.info(
+        "Vehicle %s: extracted %d numeric fields from card_summary",
+        vehicle_id, numeric_count,
+    )
 
     # ── 4. Insert evidence (batch upsert) ──
     created_count = 0

@@ -533,8 +533,7 @@ export function VehicleBaseInfo({
             {/* ·  separator  · */}
             {(hasIdGroup || hasRabatGroup || hasClassGroup || hasServiceGroup) && hasStatusGroup && <Separator />}
 
-            {/* ⑤ Status: gotowość, alerty */}
-            {readinessResult && <ReadinessBadge result={readinessResult} />}
+            {/* ⑤ Status: alerty */}
             {crossCardAlerts.length > 0 && (
               <button
                 type="button"

@@ -7,7 +7,7 @@ class ReplacementCarCalculator:
     def __init__(self, rate_data: Dict[str, Any]):
         """
         Inicjalizacja na podstawie danych stawki pobranej z tabeli replacement_car_rates.
-        rate_data może pochodzić z replacement_car_rates lub ltr_admin_stawka_zastepczy.
+        rate_data pochodzi z tabeli replacement_car_rates (per klasa SAMAR).
         """
         self.average_days_per_year = float(
             rate_data.get("average_days_per_year", 0.0)

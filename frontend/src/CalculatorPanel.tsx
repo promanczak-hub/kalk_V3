@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   Typography,
-  CircularProgress,
   Chip,
 } from "@mui/material";
 import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2 } from "lucide-react";
@@ -658,12 +657,190 @@ export default function CalculatorPanel() {
       {/* Main content */}
       <Box sx={{ px: 2, maxWidth: "1400px", margin: "0 auto" }}>
         {loading && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <CircularProgress size={48} />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              Obliczanie matrycy LTR...
-            </Typography>
-          </div>
+          <>
+            {/* Animated Loading Overlay */}
+            <style>{`
+              @keyframes matrixFadeIn {
+                0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+                60% { opacity: 1; transform: scale(1.05) translateY(-5px); }
+                100% { opacity: 1; transform: scale(1) translateY(0); }
+              }
+              @keyframes matrixPulse {
+                0%, 100% { opacity: 0.7; transform: scale(1); }
+                50% { opacity: 1; transform: scale(1.02); }
+              }
+              @keyframes matrixFloat {
+                0% { transform: translateY(0px); }
+                50% { transform: translateY(-8px); }
+                100% { transform: translateY(0px); }
+              }
+              @keyframes matrixSpin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              @keyframes matrixDot {
+                0%, 20% { opacity: 0; }
+                40% { opacity: 1; }
+                60%, 100% { opacity: 0; }
+              }
+              @keyframes matrixGridLine {
+                0% { opacity: 0; transform: scaleX(0); }
+                50% { opacity: 0.3; transform: scaleX(1); }
+                100% { opacity: 0; transform: scaleX(0); }
+              }
+              @keyframes matrixParticle {
+                0% { opacity: 0; transform: translate(0, 0) scale(0); }
+                50% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(1); }
+                100% { opacity: 0; transform: translate(var(--tx2), var(--ty2)) scale(0); }
+              }
+              .matrix-loading-dot:nth-child(1) { animation-delay: 0s; }
+              .matrix-loading-dot:nth-child(2) { animation-delay: 0.3s; }
+              .matrix-loading-dot:nth-child(3) { animation-delay: 0.6s; }
+            `}</style>
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(15, 23, 42, 0.65)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+              }}
+            >
+              {/* Background grid effect */}
+              <div style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `
+                  linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px)
+                `,
+                backgroundSize: "40px 40px",
+                animation: "matrixPulse 3s ease-in-out infinite",
+              }} />
+
+              {/* Floating particles */}
+              {[...Array(6)].map((_, i) => (
+                <div key={i} style={{
+                  position: "absolute",
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: `hsl(${210 + i * 25}, 80%, 65%)`,
+                  // @ts-expect-error CSS custom properties
+                  "--tx": `${(i % 2 === 0 ? 1 : -1) * (30 + i * 15)}px`,
+                  "--ty": `${(i % 3 === 0 ? -1 : 1) * (20 + i * 10)}px`,
+                  "--tx2": `${(i % 2 === 0 ? -1 : 1) * (50 + i * 10)}px`,
+                  "--ty2": `${(i % 3 === 0 ? 1 : -1) * (40 + i * 5)}px`,
+                  left: `${25 + i * 10}%`,
+                  top: `${35 + (i % 3) * 15}%`,
+                  animation: `matrixParticle ${2 + i * 0.4}s ease-in-out infinite`,
+                  animationDelay: `${i * 0.3}s`,
+                }} />
+              ))}
+
+              {/* Main card */}
+              <div style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "24px",
+                padding: "48px 56px",
+                borderRadius: "24px",
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                boxShadow: "0 25px 80px -12px rgba(0, 0, 0, 0.4), 0 0 60px -15px rgba(59, 130, 246, 0.15)",
+                animation: "matrixFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              }}>
+                {/* Animated ring */}
+                <div style={{
+                  position: "relative",
+                  width: "80px",
+                  height: "80px",
+                  animation: "matrixFloat 3s ease-in-out infinite",
+                }}>
+                  {/* Outer ring */}
+                  <svg
+                    viewBox="0 0 80 80"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      animation: "matrixSpin 2.5s linear infinite",
+                    }}
+                  >
+                    <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(59, 130, 246, 0.15)" strokeWidth="3" />
+                    <circle
+                      cx="40" cy="40" r="36" fill="none"
+                      stroke="url(#matrixGrad)" strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray="80 150"
+                    />
+                    <defs>
+                      <linearGradient id="matrixGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#3b82f6" />
+                        <stop offset="50%" stopColor="#8b5cf6" />
+                        <stop offset="100%" stopColor="#06b6d4" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  {/* Inner icon */}
+                  <div style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "32px",
+                  }}>
+                    🧮
+                  </div>
+                </div>
+
+                {/* Text */}
+                <div style={{ textAlign: "center" }}>
+                  <div style={{
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "rgba(255, 255, 255, 0.95)",
+                    letterSpacing: "-0.02em",
+                    marginBottom: "8px",
+                    animation: "matrixPulse 2.5s ease-in-out infinite",
+                  }}>
+                    Daj mi 20 sekund
+                  </div>
+                  <div style={{
+                    fontSize: "14px",
+                    color: "rgba(148, 163, 184, 0.9)",
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                  }}>
+                    Liczę Twoje matrixy
+                    <span className="matrix-loading-dot" style={{ animation: "matrixDot 1.2s ease-in-out infinite", fontSize: "18px" }}>.</span>
+                    <span className="matrix-loading-dot" style={{ animation: "matrixDot 1.2s ease-in-out infinite", fontSize: "18px" }}>.</span>
+                    <span className="matrix-loading-dot" style={{ animation: "matrixDot 1.2s ease-in-out infinite", fontSize: "18px" }}>.</span>
+                  </div>
+                </div>
+
+                {/* Subtle bottom tag */}
+                <div style={{
+                  fontSize: "11px",
+                  color: "rgba(100, 116, 139, 0.7)",
+                  fontWeight: 500,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}>
+                  Obliczanie matrycy LTR
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         {error && (

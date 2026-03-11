@@ -87,7 +87,7 @@ async def import_excel_features(
 
 
 @router.get("/features/catalog")
-async def get_feature_catalog() -> FeatureCatalogResponse:
+def get_feature_catalog() -> FeatureCatalogResponse:
     """List all universal features grouped by category."""
     sb = supabase
 
@@ -190,7 +190,7 @@ def get_vehicle_feature_state(
 
 
 @router.get("/features/vehicle/{vehicle_id}/evidence")
-async def get_vehicle_feature_evidence(
+def get_vehicle_feature_evidence(
     vehicle_id: str,
 ) -> dict[str, Any]:
     """Get raw feature evidence for a vehicle."""
@@ -216,7 +216,7 @@ async def get_vehicle_feature_evidence(
 
 
 @router.delete("/features/vehicle/{vehicle_id}/evidence")
-async def wipe_vehicle_evidence(
+def wipe_vehicle_evidence(
     vehicle_id: str,
     source_type: str | None = None,
 ) -> dict[str, Any]:
@@ -245,7 +245,7 @@ class CrossRefRequest(BaseModel):
 
 
 @router.post("/features/vehicle/{vehicle_id}/cross-reference")
-async def cross_reference_vehicle_features(
+def cross_reference_vehicle_features(
     vehicle_id: str,
     body: CrossRefRequest,
 ) -> dict[str, Any]:
@@ -268,7 +268,7 @@ async def cross_reference_vehicle_features(
 
 
 @router.post("/features/vehicle/{vehicle_id}/rebuild")
-async def rebuild_vehicle_features(
+def rebuild_vehicle_features(
     vehicle_id: str,
     bundle_id: str | None = None,
 ) -> dict[str, Any]:
@@ -285,7 +285,7 @@ async def rebuild_vehicle_features(
 
 
 @router.post("/features/extract-text")
-async def extract_features_from_text(
+def extract_features_from_text(
     request: FeatureExtractionRequest,
 ) -> dict[str, Any]:
     """Extract structured feature filters from raw text using LLM."""
@@ -356,7 +356,7 @@ async def extract_features_from_text(
 
 
 @router.post("/features/search")
-async def reverse_search_vehicles(
+def reverse_search_vehicles(
     request: FeatureSearchRequest,
 ) -> FeatureSearchResponse:
     """Search vehicles by feature criteria.
@@ -711,7 +711,7 @@ async def reverse_search_vehicles(
 
 
 @router.get("/features/card-summary/{vehicle_id}")
-async def get_features_card_summary(
+def get_features_card_summary(
     vehicle_id: str,
 ) -> dict[str, Any]:
     """Get features formatted for card summary display."""
@@ -735,7 +735,7 @@ async def get_features_card_summary(
 
 
 @router.get("/features/brochure/{vehicle_id}")
-async def get_features_brochure(
+def get_features_brochure(
     vehicle_id: str,
 ) -> dict[str, Any]:
     """Get features formatted for brochure."""
@@ -759,7 +759,7 @@ async def get_features_brochure(
 
 
 @router.post("/features/vehicle/{vehicle_id}/enrich")
-async def enrich_single_vehicle(
+def enrich_single_vehicle(
     vehicle_id: str,
 ) -> dict[str, Any]:
     """Enrich a single vehicle with features from card_summary."""
@@ -790,7 +790,7 @@ async def enrich_single_vehicle(
 
 
 @router.post("/features/enrich-all")
-async def enrich_all(
+def enrich_all(
     limit: int = 100,
 ) -> dict[str, Any]:
     """Batch-enrich all vehicles with features from card_summary."""

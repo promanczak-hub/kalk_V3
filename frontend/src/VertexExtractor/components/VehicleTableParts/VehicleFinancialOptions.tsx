@@ -254,7 +254,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 <input 
                   type="text"
                   className={cn(
-                    "w-10 text-right text-xs px-1.5 py-1 focus:outline-none font-bold transition-colors",
+                    "w-14 text-right text-xs px-1.5 py-1 focus:outline-none font-bold transition-colors",
                     discountMode === "custom" ? "text-blue-700 bg-white" : "text-slate-400 bg-slate-50"
                   )}
                   value={discountMode === "custom" ? customDiscountPctRaw : activeDiscountPct}
@@ -265,12 +265,22 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                     }
                   }}
                   onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9]/g, '');
-                    const num = parseInt(raw, 10);
-                    if (!raw) {
+                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                    // Prevent multiple dots
+                    const parts = raw.split('.');
+                    const sanitized = parts.length > 2
+                      ? parts[0] + '.' + parts.slice(1).join('')
+                      : raw;
+                    // Limit to 2 decimal places
+                    const decimalParts = sanitized.split('.');
+                    const capped = decimalParts.length === 2 && decimalParts[1].length > 2
+                      ? decimalParts[0] + '.' + decimalParts[1].slice(0, 2)
+                      : sanitized;
+                    const num = parseFloat(capped);
+                    if (!capped || capped === '.') {
                       setCustomDiscountPctRaw("");
                     } else if (!isNaN(num) && num >= 0 && num <= 100) {
-                      setCustomDiscountPctRaw(raw);
+                      setCustomDiscountPctRaw(capped);
                     }
                     setDiscountMode("custom");
                   }}

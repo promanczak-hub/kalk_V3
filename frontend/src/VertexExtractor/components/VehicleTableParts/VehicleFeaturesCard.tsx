@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "../../../lib/api";
-import { ChevronDown, ChevronRight, Loader2, Package } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Package, Settings } from "lucide-react";
+import VehicleFeaturesCrud from "../VehicleFeaturesCrud";
 
 interface FeatureItem {
   feature_key: string;
@@ -47,6 +48,7 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
   const [error, setError] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [showCrudPanel, setShowCrudPanel] = useState(false);
 
   const fetchFeatures = async () => {
     setLoading(true);
@@ -111,14 +113,40 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
           <Package className="w-3.5 h-3.5" />
           Cechy użytkowe pojazdu
         </h4>
-        {!loading && totalFeatures > 0 && (
-          <span className="text-xs text-slate-400">
-            {totalPresent} / {totalFeatures} potwierdzonych
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {!loading && totalFeatures > 0 && (
+            <span className="text-xs text-slate-400">
+              {totalPresent} / {totalFeatures} potwierdzonych
+            </span>
+          )}
+          <button
+            onClick={() => setShowCrudPanel(prev => !prev)}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors"
+            style={{
+              background: showCrudPanel ? '#3b82f6' : 'white',
+              color: showCrudPanel ? 'white' : '#64748b',
+              borderColor: showCrudPanel ? '#3b82f6' : '#cbd5e1',
+            }}
+            title="Edytuj cechy (widok CRUD)"
+          >
+            <Settings className="w-3 h-3" />
+            {showCrudPanel ? 'Zamknij CRUD' : 'Edytuj'}
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
+      {/* CRUD Panel (full editing mode) */}
+      {showCrudPanel && (
+        <div className="p-2">
+          <VehicleFeaturesCrud
+            vehicleId={vehicleId}
+            onClose={() => setShowCrudPanel(false)}
+          />
+        </div>
+      )}
+
+      {/* Content (read-only chips view) */}
+      {!showCrudPanel && (
       <div className="p-5">
         {!hasLoaded && !loading && !error && (
           <div className="flex flex-col items-center justify-center py-6 text-slate-500">
@@ -221,6 +249,7 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

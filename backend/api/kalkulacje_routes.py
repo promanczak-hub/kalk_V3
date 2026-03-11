@@ -210,7 +210,7 @@ def update_kalkulacja_status(kalk_id: str, req: StatusUpdateRequest):
 
 @router.post("/extract-matrix-v3/{vehicle_id}")
 def generate_matrix_from_extracted_v3(vehicle_id: str, req: dict):
-    from main import CalculatorInput, VehicleOptions
+    from api.schemas.calculator import CalculatorInput, VehicleOptions
     from core.LTRKalkulator import LTRKalkulator
 
     try:
@@ -276,7 +276,7 @@ def generate_matrix_from_extracted_v3(vehicle_id: str, req: dict):
 
 @router.post("/debug-pipeline/{vehicle_id}")
 def debug_calculation_pipeline(vehicle_id: str, req: dict):
-    from main import CalculatorInput, VehicleOptions
+    from api.schemas.calculator import CalculatorInput, VehicleOptions
     from core.PipelineDebugger import PipelineDebugger
     from core.models import ControlCenterSettings
     from typing import cast, Any, Dict
