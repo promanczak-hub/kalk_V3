@@ -78,6 +78,7 @@ def _finalize_vehicle(
     parsed_data: dict,
     raw_pdf_url: str | None,
     cancel_event: threading.Event,
+    document_markdown: str | None = None,
 ) -> None:
     """
     Shared post-extraction logic: AI mapping, SAMAR, engine class, DB save.
@@ -184,18 +185,23 @@ def _finalize_vehicle(
         "raw_pdf_url": raw_pdf_url,
         "document_category": parsed_data.get("card_summary", {}).get("vehicle_class"),
     }
+    if document_markdown is not None:
+        update_payload["document_markdown"] = document_markdown
 
     print(f"[BG TASK] Zapisuję wyniki do DB dla {vehicle_id}")
     supabase.table("vehicle_synthesis").update(update_payload).eq(
         "id", vehicle_id
     ).execute()
-    
+
     # ── 3. Wzbogacanie cech (Feature Enrichment) ──
     from core.feature_enrichment import enrich_vehicle_features
+
     print(f"[BG TASK] Uruchamiam wzbogacanie cech dla {vehicle_id}...")
     try:
         enrich_result = enrich_vehicle_features(vehicle_id, parsed_data)
-        print(f"[BG TASK] Zakończono wzbogacanie. Utworzono {enrich_result.get('evidence_created', 0)} cech.")
+        print(
+            f"[BG TASK] Zakończono wzbogacanie. Utworzono {enrich_result.get('evidence_created', 0)} cech."
+        )
     except Exception as enrich_err:
         print(f"[BG TASK] Błąd wzbogacania cech dla {vehicle_id}: {enrich_err}")
 
@@ -203,7 +209,12 @@ def _finalize_vehicle(
 
 
 def process_and_save_document_bg(
-    file_id: str, file_bytes: bytes, file_name: str, mime_type: str, md5_hash: str
+    file_id: str,
+    file_bytes: bytes,
+    file_name: str,
+    mime_type: str,
+    md5_hash: str,
+    force_doc_type: str | None = None,
 ) -> None:
     """
     Background task fired by FastAPI.
@@ -269,13 +280,46 @@ def process_and_save_document_bg(
                 f"[BG TASK] Skonwertowano {mime_type} → tekst ({len(gemini_data)} znaków)"
             )
 
-        # ── Phase -1: Document Router (Gemini Flash) ──
+        # ── Extract Markdown via Docling for Router Analysis (Phase -1) ──
+        router_data = gemini_data
+        router_mime = gemini_mime
+        tmp_pdf_path = None
+        if mime_type == "application/pdf":
+            from core.pdf_pipeline.extractor import PDFExtractor
+            import tempfile
+            import os
+
+            try:
+                # Save PDF to temporary file for Docling
+                fd, tmp_pdf_path = tempfile.mkstemp(suffix=".pdf")
+                with os.fdopen(fd, "wb") as f:
+                    f.write(file_bytes)
+
+                print(
+                    f"[BG TASK] Ekstrakcja Docling z tymczasowego PDF {tmp_pdf_path} na potrzeby routera..."
+                )
+                extractor = PDFExtractor()
+                router_data = extractor.extract_to_markdown(tmp_pdf_path)
+                router_mime = "text/plain"
+            except Exception as docling_err:
+                print(
+                    f"[BG TASK] Docling extraction failed! Zrzut na docelowe bajty PDF. Błąd: {docling_err}"
+                )
+                router_data = gemini_data
+                router_mime = gemini_mime
+
+        # ── Phase -1: Document Router (Gemini Pro z Docling/Markdown) ──
         _update_progress(supabase, file_id, "classifying_document")
         print(f"[BG TASK] Faza -1: Klasyfikacja dokumentu {file_name}...")
 
         from core.pipeline_router import classify_document, DOC_TYPE_OFFER
 
-        doc_type, doc_meta = classify_document(gemini_data, gemini_mime)
+        if force_doc_type:
+            print(f"[BG TASK] Klasyfikacja POMINIĘTA. Wymuszono typ: {force_doc_type}")
+            doc_type = force_doc_type
+            doc_meta = {"brand": None, "model": None, "date": None, "description": None}
+        else:
+            doc_type, doc_meta = classify_document(router_data, router_mime)
 
         if _is_cancelled(cancel_event):
             _update_progress(supabase, file_id, "cancelled")
@@ -309,6 +353,7 @@ def process_and_save_document_bg(
                 "valid_from": doc_meta.get("date"),
                 "description": doc_meta.get("description"),
                 "digital_twin": pro_data,
+                "document_markdown": router_data,
             }
             try:
                 supabase.table("document_library").insert(library_payload).execute()
@@ -320,12 +365,14 @@ def process_and_save_document_bg(
 
             # --- ALSO INSERT INTO model_document_sources ---
             try:
-                ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else "pdf"
+                ext = (
+                    file_name.rsplit(".", 1)[-1].lower() if "." in file_name else "pdf"
+                )
                 if ext not in ("pdf", "xlsx", "csv"):
                     ext = "pdf"
-                    
+
                 cat_doc_id = str(uuid.uuid4())
-                
+
                 mds_payload = {
                     "id": cat_doc_id,
                     "brand": doc_meta.get("brand", "") or "Unknown",
@@ -340,28 +387,42 @@ def process_and_save_document_bg(
                     "extraction_status": "extracting",
                     "variant_count": 0,
                 }
-                supabase.schema("reverse_search").table("model_document_sources").insert(mds_payload).execute()
-                print(f"[BG TASK] Dokument zapisany w model_document_sources ({cat_doc_id}).")
-                
+                supabase.schema("reverse_search").table(
+                    "model_document_sources"
+                ).insert(mds_payload).execute()
+                print(
+                    f"[BG TASK] Dokument zapisany w model_document_sources ({cat_doc_id})."
+                )
+
                 # Uruchom ekstrakcję wariantów
                 from core.catalog_extractor import extract_catalog_variants
+
                 try:
                     cat_result = extract_catalog_variants(mds_payload)
-                    supabase.schema("reverse_search").table("model_document_sources").update({
-                        "extraction_status": "ready",
-                        "extracted_data": cat_result["extracted_data"],
-                        "variant_count": cat_result["variant_count"],
-                        "extracted_at": "now()",
-                    }).eq("id", cat_doc_id).execute()
-                    print(f"[BG TASK] Wyekstrahowano {cat_result['variant_count']} wariantów do model_document_sources.")
+                    supabase.schema("reverse_search").table(
+                        "model_document_sources"
+                    ).update(
+                        {
+                            "extraction_status": "ready",
+                            "extracted_data": cat_result["extracted_data"],
+                            "variant_count": cat_result["variant_count"],
+                            "extracted_at": "now()",
+                        }
+                    ).eq("id", cat_doc_id).execute()
+                    print(
+                        f"[BG TASK] Wyekstrahowano {cat_result['variant_count']} wariantów do model_document_sources."
+                    )
                 except Exception as ex_err:
                     print(f"[BG TASK ERROR] Błąd ekstrakcji wariantów: {ex_err}")
-                    supabase.schema("reverse_search").table("model_document_sources").update({
-                        "extraction_status": "error",
-                        "extraction_error": str(ex_err)
-                    }).eq("id", cat_doc_id).execute()
+                    supabase.schema("reverse_search").table(
+                        "model_document_sources"
+                    ).update(
+                        {"extraction_status": "error", "extraction_error": str(ex_err)}
+                    ).eq("id", cat_doc_id).execute()
             except Exception as mds_err:
-                print(f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}")
+                print(
+                    f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}"
+                )
 
             # Oznaczamy rekord w synthesis jako przeniesiony
             _update_progress(supabase, file_id, "moved_to_library")
@@ -463,7 +524,7 @@ def process_and_save_document_bg(
 
                 # Finalize: mapping, SAMAR, engine class, DB save
                 _finalize_vehicle(
-                    supabase, current_id, parsed_data, raw_pdf_url, cancel_event
+                    supabase, current_id, parsed_data, raw_pdf_url, cancel_event, router_data
                 )
 
             print(
@@ -498,7 +559,7 @@ def process_and_save_document_bg(
         cleaned_json = clean_json_response(json_response)
         parsed_data = json.loads(cleaned_json)
 
-        _finalize_vehicle(supabase, file_id, parsed_data, raw_pdf_url, cancel_event)
+        _finalize_vehicle(supabase, file_id, parsed_data, raw_pdf_url, cancel_event, router_data)
 
     except Exception as e:
         import traceback
@@ -525,3 +586,11 @@ def process_and_save_document_bg(
             )
     finally:
         _cleanup_cancel_event(file_id)
+        if tmp_pdf_path and os.path.exists(tmp_pdf_path):
+            try:
+                os.remove(tmp_pdf_path)
+                print(f"[BG TASK] Usunięto tymczasowy plik PDF: {tmp_pdf_path}")
+            except Exception as e:
+                print(
+                    f"[BG TASK] Wystąpił błąd podczas usuwania tymczasowego pliku {tmp_pdf_path}: {e}"
+                )

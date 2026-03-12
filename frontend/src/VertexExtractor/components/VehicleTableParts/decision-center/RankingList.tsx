@@ -22,17 +22,17 @@ function sortCells(cells: MiniMatrixCell[], criterion: SortCriterion): MiniMatri
   const sorted = [...cells];
   switch (criterion) {
     case "price":
-      return sorted.sort((a, b) => a.price_net - b.price_net);
+      return sorted.sort((a, b) => a.LacznaStawka - b.LacznaStawka);
     case "margin_pct":
-      return sorted.sort((a, b) => b.marza_na_kontrakcie_pct - a.marza_na_kontrakcie_pct);
+      return sorted.sort((a, b) => b.MarzaNaKontrakcieProcent - a.MarzaNaKontrakcieProcent);
     case "margin_value":
-      return sorted.sort((a, b) => b.marza_na_kontrakcie - a.marza_na_kontrakcie);
+      return sorted.sort((a, b) => b.MarzaNaKontrakcie - a.MarzaNaKontrakcie);
     case "ratio":
       // Ratio = margin_pct / normalized_price (higher = better deal)
       return sorted.sort((a, b) => {
-        const maxPrice = Math.max(...cells.map((c) => c.price_net), 1);
-        const ratioA = a.marza_na_kontrakcie_pct / (a.price_net / maxPrice);
-        const ratioB = b.marza_na_kontrakcie_pct / (b.price_net / maxPrice);
+        const maxPrice = Math.max(...cells.map((c) => c.LacznaStawka), 1);
+        const ratioA = a.MarzaNaKontrakcieProcent / (a.LacznaStawka / maxPrice);
+        const ratioB = b.MarzaNaKontrakcieProcent / (b.LacznaStawka / maxPrice);
         return ratioB - ratioA;
       });
     default:
@@ -46,7 +46,7 @@ export function RankingList({ cells, budgetMax }: RankingListProps) {
 
   const filtered = useMemo(() => {
     const base = budgetMax !== null
-      ? cells.filter((c) => c.price_net <= budgetMax)
+      ? cells.filter((c) => c.LacznaStawka <= budgetMax)
       : cells;
     return sortCells(base, sortBy);
   }, [cells, budgetMax, sortBy]);
@@ -92,8 +92,8 @@ export function RankingList({ cells, budgetMax }: RankingListProps) {
         )}
 
         {filtered.map((cell, idx) => {
-          const key = `${cell.months}_${cell.km_per_year}`;
-          const marginPct = cell.marza_na_kontrakcie_pct * 100;
+          const key = `${cell.Okres}_${cell.Przebieg}`;
+          const marginPct = cell.MarzaNaKontrakcieProcent * 100;
           const tier = getMarginTier(marginPct);
           const isExpanded = expandedKey === key;
           const medal = idx < 3 ? MEDALS[idx] : null;
@@ -129,10 +129,10 @@ export function RankingList({ cells, budgetMax }: RankingListProps) {
                   {/* Config */}
                   <div className="min-w-[80px]">
                     <div className="text-xs font-bold text-slate-700">
-                      {cell.months} mc
+                      {cell.Okres} mc
                     </div>
                     <div className="text-[9px] text-slate-400">
-                      {fmtKm(cell.km_per_year)} km/rok • {fmtKm(cell.total_km)} km
+                      {fmtKm(cell.Przebieg)} km/rok • {fmtKm((cell.Przebieg / 12) * cell.Okres)} km
                     </div>
                   </div>
 
@@ -159,7 +159,7 @@ export function RankingList({ cells, budgetMax }: RankingListProps) {
                   {/* Price */}
                   <div className="text-right min-w-[90px]">
                     <div className="text-sm font-black text-blue-700 tabular-nums">
-                      {fmtPLN(cell.price_net)}
+                      {fmtPLN(cell.LacznaStawka)}
                       <span className="text-[8px] text-slate-400 font-normal ml-0.5">
                         PLN
                       </span>
@@ -168,12 +168,12 @@ export function RankingList({ cells, budgetMax }: RankingListProps) {
                       marża:{" "}
                       <span
                         className={`font-bold ${
-                          cell.marza_na_kontrakcie >= 0
+                          cell.MarzaNaKontrakcie >= 0
                             ? "text-emerald-600"
                             : "text-red-600"
                         }`}
                       >
-                        {fmtPLN2(cell.marza_na_kontrakcie)}
+                        {fmtPLN2(cell.MarzaNaKontrakcie)}
                       </span>
                     </div>
                   </div>

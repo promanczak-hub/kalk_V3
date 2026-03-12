@@ -9,6 +9,7 @@ import { useVehicleFilters } from "../hooks/useVehicleFilters";
 import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
 import { API_BASE_URL } from "../../config/env";
+import type { ControlCenterSettings } from "../../hooks/useCalculator";
 
 interface VehicleTableProps {
   savedVehicles: FleetVehicleView[];
@@ -20,6 +21,7 @@ interface VehicleTableProps {
   fetchSavedVehicles: () => void;
   handleOpenSavedJson: (vehicleId: string, titleName: string) => void;
   handleDeleteVehicle?: (vehicleId: string) => void;
+  globalSettings?: ControlCenterSettings | null;
 }
 
 export function VehicleTable({
@@ -32,6 +34,7 @@ export function VehicleTable({
   fetchSavedVehicles,
   handleOpenSavedJson,
   handleDeleteVehicle,
+  globalSettings,
 }: VehicleTableProps) {
   const {
     filters,
@@ -256,6 +259,7 @@ export function VehicleTable({
                   isSelected={isSelected(vehicle.id)}
                   onToggleSelect={() => toggleSelect(vehicle.id)}
                   crossCardAlerts={discountAlerts.get(vehicle.id)}
+                  globalSettings={globalSettings}
                 />
               ))
             )}

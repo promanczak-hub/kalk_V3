@@ -35,7 +35,9 @@ def test_api():
         files = {"file": ("BMW 320i Touring.pdf", f, "application/pdf")}
         data = {"file_id": file_id}
         response = requests.post(
-            os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/extract/async", files=files, data=data
+            os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/extract/async",
+            files=files,
+            data=data,
         )
 
     print(f"API Returned: {response.text}")

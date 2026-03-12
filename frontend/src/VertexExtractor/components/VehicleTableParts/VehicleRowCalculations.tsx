@@ -5,10 +5,10 @@ import {
   Chip,
 } from "@mui/material";
 import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2 } from "lucide-react";
-import { API_BASE_URL } from "./config/env";
-import { MatrixFilterToolbar, type MatrixFilters } from "./CalculatorPanel/MatrixFilterToolbar";
-import { ReversePriceLookup } from "./CalculatorPanel/ReversePriceLookup";
-import { MatrixHeatmapView, MatrixViewToggle } from "./CalculatorPanel/MatrixHeatmapView";
+import { API_BASE_URL } from "../../../config/env";
+import { MatrixFilterToolbar, type MatrixFilters } from "../../../CalculatorPanel/MatrixFilterToolbar";
+import { ReversePriceLookup } from "../../../CalculatorPanel/ReversePriceLookup";
+import { MatrixHeatmapView, MatrixViewToggle } from "../../../CalculatorPanel/MatrixHeatmapView";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -377,7 +377,23 @@ function CellDetail({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function CalculatorPanel() {
+export function VehicleRowCalculations({ 
+  kalkulacjaId, 
+  kalkulacjaNumer,
+  vehicleName = "",
+  powertrain = "",
+  offerNumber = "",
+  configCode = "",
+  basePrice = 0
+}: { 
+  kalkulacjaId: string; 
+  kalkulacjaNumer: string;
+  vehicleName?: string;
+  powertrain?: string;
+  offerNumber?: string;
+  configCode?: string;
+  basePrice?: number;
+}) {
   const [cells, setCells] = useState<MatrixCell[]>([]);
   const [originalCells, setOriginalCells] = useState<MatrixCell[]>([]);
   const [loading, setLoading] = useState(true);
@@ -400,10 +416,7 @@ export default function CalculatorPanel() {
   const basePayloadRef = useRef<Payload | null>(null);
   const kmPerMonthRef = useRef<number>(0);
 
-  // Read kalkulacja ID from URL
-  const urlParams = new URLSearchParams(window.location.search);
-  const kalkulacjaId = urlParams.get("id");
-  const kalkulacjaNumer = urlParams.get("kalkulacja") || "Brak numeru";
+
 
   // Build default overrides from base payload
   const buildDefaultOverrides = (payload: Payload): CellOverrides => ({
@@ -466,11 +479,14 @@ export default function CalculatorPanel() {
       const przebiegBazowy = mappedAi.total_km || 140000;
       kmPerMonthRef.current = przebiegBazowy / okresBazowy;
 
+      const rawBasePrice = String(cardSummary.base_price || cardSummary.total_price || "0");
+      const cleanBasePrice = rawBasePrice.replace(/\s+/g, "").replace(",", ".");
+      
       // 2. Build CalculatorInput payload from stan_json
       const payload: Payload = {
         calculation_id: kalkulacjaId,
         vehicle_id: stanJson.vehicle_id || kalkData.vehicle_id || cardSummary.model || "unknown",
-        base_price_net: parseFloat(cardSummary.base_price || cardSummary.total_price || "0"),
+        base_price_net: parseFloat(cleanBasePrice) || 0,
         discount_pct: discount.active_discount_pct || 0,
         factory_options: (stanJson.factory_options || []).map((o: { name: string; price_net: number; include_in_wr?: boolean }) => ({
           name: o.name || "Opcja",
@@ -494,7 +510,7 @@ export default function CalculatorPanel() {
         z_oponami: toggles.z_oponami !== false,
         klasa_opony_string: stanJson.tire_params?.tire_class || "Medium",
         srednica_felgi: stanJson.tire_params?.rim_diameter || null,
-        liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : parseFloat(stanJson.tire_params?.tire_count_mode) || null,
+        liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : (isNaN(parseFloat(stanJson.tire_params?.tire_count_mode)) ? null : parseFloat(stanJson.tire_params?.tire_count_mode)),
         korekta_kosztu_opon: stanJson.tire_params?.tire_cost_correction_enabled !== false,
         koszt_opon_korekta: stanJson.tire_params?.tire_cost_correction || 0,
         service_cost_type: stanJson.service_cost_type || "ASO",
@@ -670,8 +686,62 @@ export default function CalculatorPanel() {
       setOriginalCells(newCells);
       setModifiedCells(new Set());
       setCellOverrides({});
+      // Sync filter margin with the payload's default
+      setFilters(prev => ({
+        ...prev,
+        globalMarginPct: marginPct,
+      }));
     } catch (err) {
       console.error("Margin recalculation error:", err);
+    } finally {
+      setMarginRecalculating(false);
+    }
+  }, []);
+
+  // ─── Exact Variant recalculation ───────────────────────────────────
+
+  const handleExactRecalculate = useCallback(async (months: number, kmPerYear: number, marginPct: number) => {
+    if (!basePayloadRef.current) return;
+    setMarginRecalculating(true); // Reuse this flag for the toolbar button loading state
+    try {
+      const baseUrl = API_BASE_URL || "";
+      const targetKm = Math.round((kmPerYear / 12) * months);
+      
+      const modifiedPayload = {
+        ...basePayloadRef.current,
+        okres_bazowy: months,
+        przebieg_bazowy: targetKm,
+        pricing_margin_pct: marginPct,
+      };
+
+      const resp = await fetch(`${baseUrl}/api/calculate-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modifiedPayload),
+      });
+
+      if (!resp.ok) throw new Error("Błąd przeliczania wariantu precyzyjnego");
+      const data = await resp.json();
+      const newCells = data.cells || [];
+      
+      setCells(newCells);
+      setOriginalCells(newCells);
+      setModifiedCells(new Set());
+      setCellOverrides({});
+
+      // Expand the filters to ensure the newly generated cell is visible
+      setFilters(prev => ({
+        ...prev,
+        monthsRange: [
+          Math.min(prev.monthsRange[0], months),
+          Math.max(prev.monthsRange[1], months)
+        ],
+        // Set targetKmPerYear to null so it doesn't filter out the new element
+        targetKmPerYear: null,
+        globalMarginPct: marginPct,
+      }));
+    } catch (err) {
+      console.error("Exact variant recalculation error:", err);
     } finally {
       setMarginRecalculating(false);
     }
@@ -690,20 +760,39 @@ export default function CalculatorPanel() {
   }
 
   return (
-    <Box sx={{ pb: 5, backgroundColor: "#fcfcfc", minHeight: "100vh" }}>
+    <Box sx={{ mt: 4, pt: 4, borderTop: "1px dashed #cbd5e1", backgroundColor: "transparent" }}>
       {/* Top Banner */}
-      <Box sx={{ p: 2, borderBottom: "1px solid #e2e8f0", mb: 2, bgcolor: "#fff" }}>
+      <Box sx={{ p: 2, mb: 2, bgcolor: "transparent" }}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Calculator className="w-6 h-6 text-blue-700" />
-            <div>
-              <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
-                Kalkulacja: {kalkulacjaNumer}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                ID: {kalkulacjaId}
-              </Typography>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <Calculator className="w-6 h-6 text-blue-700" />
+              <div>
+                <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
+                  Kalkulacja: {kalkulacjaNumer}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  ID: {kalkulacjaId}
+                </Typography>
+              </div>
             </div>
+            {/* Added context details */}
+            {(offerNumber || configCode || vehicleName) && (
+              <div className="flex flex-wrap items-center gap-2 mt-1 pl-9 text-xs text-slate-500 font-medium">
+                {offerNumber && (
+                  <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">Oferta: {offerNumber}</span>
+                )}
+                {configCode && (
+                  <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">Kod: {configCode}</span>
+                )}
+                {vehicleName && (
+                  <span className="text-slate-600 ml-1">
+                    {vehicleName} {powertrain && `• ${powertrain}`} 
+                    {basePrice > 0 && ` • ${fmtPLN(basePrice)} PLN netto`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {modifiedCells.size > 0 && (
@@ -723,7 +812,7 @@ export default function CalculatorPanel() {
       </Box>
 
       {/* Main content */}
-      <Box sx={{ px: 2, maxWidth: "1400px", margin: "0 auto" }}>
+      <Box sx={{ px: 0, width: "100%" }}>
         {loading && (
           <>
             {/* Animated Loading Overlay */}
@@ -941,6 +1030,7 @@ export default function CalculatorPanel() {
               filters={filters}
               onFiltersChange={setFilters}
               onMarginRecalculate={recalculateWithMargin}
+              onExactRecalculate={handleExactRecalculate}
               isRecalculating={marginRecalculating}
             />
 

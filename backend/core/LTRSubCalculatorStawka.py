@@ -9,8 +9,7 @@ Obsługuje korekty ręczne podziału marży (MarzaKosztFinansowyProcent itp.).
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
-
+from typing import Any, Optional
 
 @dataclass
 class KosztItem:
@@ -75,6 +74,7 @@ class StawkaResult:
     koszt_serwis: KosztItem = field(default_factory=lambda: KosztItem(""))
     koszt_opony: KosztItem = field(default_factory=lambda: KosztItem(""))
     koszt_admin: KosztItem = field(default_factory=lambda: KosztItem(""))
+    trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 class StawkaCalculator:
@@ -124,6 +124,7 @@ class StawkaCalculator:
         koszty_laczne_mc: float,
         marza_mc: float,
         korekta_override: Optional[float],
+        trace: list[dict[str, Any]],
     ) -> KosztItem:
         """Buduje KosztItem z automatycznym lub ręcznym podziałem marży."""
         okres = self.input.okres
@@ -134,6 +135,15 @@ class StawkaCalculator:
         rozklad = koszt_mc / koszty_laczne_mc if koszty_laczne_mc != 0 else 0.0
         rozklad_korekta = korekta_override if korekta_override is not None else rozklad
         marza_dla_kalk = rozklad_korekta if koszt_mc != 0 else 0.0
+        
+        kwota_marzy_korekta = marza_mc * rozklad_korekta
+        koszt_plus_marza_korekta = koszt_mc + kwota_marzy_korekta
+        
+        trace.append({
+            "krok": f"Stawka (Podział): {name}",
+            "rownanie": f"Koszt Mc {koszt_mc:.2f} + Marża {kwota_marzy_korekta:.2f} (Alokacja: {rozklad_korekta*100:.2f}%)",
+            "wynik": koszt_plus_marza_korekta
+        })
 
         return KosztItem(
             name=name,
@@ -143,16 +153,22 @@ class StawkaCalculator:
             rozklad_marzy_korekta=rozklad_korekta,
             marza_dla_kalk=marza_dla_kalk,
             kwota_marzy=marza_mc * rozklad,
-            kwota_marzy_korekta=marza_mc * rozklad_korekta,
+            kwota_marzy_korekta=kwota_marzy_korekta,
             koszt_plus_marza=koszt_mc + marza_mc * rozklad,
-            koszt_plus_marza_korekta=koszt_mc + marza_mc * rozklad_korekta,
+            koszt_plus_marza_korekta=koszt_plus_marza_korekta,
         )
 
     def calculate(self) -> StawkaResult:
         d = self.input
+        trace: list[dict[str, Any]] = []
 
         if d.okres <= 0:
-            return StawkaResult()
+            trace.append({
+                "krok": "Stawka (Błąd)",
+                "rownanie": "Okres <= 0",
+                "wynik": 0.0
+            })
+            return StawkaResult(trace=trace)
 
         marza = d.marza
         if (1.0 - marza) == 0.0:
@@ -163,12 +179,20 @@ class StawkaCalculator:
         # Podstawa marży: zależy od czynszu inicjalnego
         if d.czynsz_inicjalny == 0.0:
             podstawa_marzy = d.koszt_mc
+            baza_typ = "Koszt MC (z czynszem)"
         else:
             podstawa_marzy = d.koszt_mc_bez_czynszu
+            baza_typ = "Koszt MC (BEZ czynszu symulowany)"
 
         # Marża MC (V1: marzaMC = podstawaMarzy * (1 / (1 - marza)) - podstawaMarzy)
         marza_mc = podstawa_marzy * (1.0 / (1.0 - marza)) - podstawa_marzy
         marza_na_kontrakcie = marza_mc * d.okres
+        
+        trace.append({
+            "krok": "Stawka: Kalkulacja Marży (Marż-up)",
+            "rownanie": f"Podstawa {podstawa_marzy:.2f} [{baza_typ}] * (1 / (1 - {marza*100:.2f}%)) - Podstawa",
+            "wynik": marza_mc
+        })
 
         # Budowa poszczególnych składników
         kf_laczne = d.koszty_finansowe_netto + d.utrata_wartosci_netto
@@ -179,6 +203,7 @@ class StawkaCalculator:
             koszty_laczne_mc,
             marza_mc,
             d.marza_koszt_finansowy_pct,
+            trace
         )
         k_ubezp = self._build_koszt(
             "Ubezpieczenie",
@@ -186,6 +211,7 @@ class StawkaCalculator:
             koszty_laczne_mc,
             marza_mc,
             d.marza_ubezpieczenie_pct,
+            trace
         )
         k_zastepczy = self._build_koszt(
             "Samochód zastępczy",
@@ -193,6 +219,7 @@ class StawkaCalculator:
             koszty_laczne_mc,
             marza_mc,
             d.marza_samochod_zastepczy_pct,
+            trace
         )
         k_serwis = self._build_koszt(
             "Serwis",
@@ -200,6 +227,7 @@ class StawkaCalculator:
             koszty_laczne_mc,
             marza_mc,
             d.marza_serwis_pct,
+            trace
         )
         k_opony = self._build_koszt(
             "Opony",
@@ -207,6 +235,7 @@ class StawkaCalculator:
             koszty_laczne_mc,
             marza_mc,
             d.marza_opony_pct,
+            trace
         )
         k_admin = self._build_koszt(
             "Serwis admin rej",
@@ -214,6 +243,7 @@ class StawkaCalculator:
             koszty_laczne_mc,
             marza_mc,
             d.marza_koszty_dodatkowe_pct,
+            trace
         )
 
         czynsz_fin = k_fin.koszt_plus_marza_korekta
@@ -226,6 +256,13 @@ class StawkaCalculator:
         )
 
         oferowana_stawka = czynsz_fin + czynsz_tech
+        
+        trace.append({
+            "krok": "Stawka: Oferowana Stawka Miesięczna",
+            "rownanie": f"Czynsz Finansowy {czynsz_fin:.2f} + Czynsz Techniczny {czynsz_tech:.2f}",
+            "wynik": oferowana_stawka
+        })
+        
         przychod = oferowana_stawka * d.okres
 
         marza_pct = marza_na_kontrakcie / przychod if przychod != 0 else 0.0
@@ -248,4 +285,5 @@ class StawkaCalculator:
             koszt_serwis=k_serwis,
             koszt_opony=k_opony,
             koszt_admin=k_admin,
+            trace=trace,
         )

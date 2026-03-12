@@ -1,0 +1,30 @@
+- wheelbase_mm: Rozstaw osi (mm)
+- curb_weight_kg: Masa własna (kg)
+- dmc_kg: Dopuszczalna masa całkowita (DMC) (kg)
+- threshold_height_mm: Wysokość progu załadunkowego (mm)
+- rear_door_height_mm: Wysokość tylnych drzwi załadunkowych (mm)
+- rear_door_width_mm: Szerokość tylnych drzwi załadunkowych (mm)
+- side_door_height_mm: Wysokość drzwi bocznych załadunkowych (mm)
+- side_door_width_mm: Szerokość drzwi bocznych załadunkowych (mm)
+- sidewall_height_mm: Wysokość burt załadunkowych (mm)
+- liftgate_platform_length_mm: Długość platformy windy (mm)
+- liftgate_platform_width_mm: Szerokość platformy windy (mm)
+- długość_pojazdu_w_mm_bez_haka: długość pojazdu w mm (bez haka)
+- szerokość_pojazdu_rozłożone_lusterka_w_mm: szerokość pojazdu (rozłożone lusterka) w mm
+- wysokość_pojazdu_w_mm: wysokość pojazdu w mm
+- długość_przestrzeni_ładunkowej_w_mm: długość przestrzeni ładunkowej w mm
+- wysokość_przestrzeni_ładunkowej_w_mm: wysokość przestrzeni ładunkowej w mm
+- szerokość_przestrzeni_ładunkowej_w_mm: szerokość przestrzeni ładunkowej w mm
+- minimalna_szerokość_między_nadkolami_w_mm: minimalna szerokość między nadkolami w mm
+- długość_przestrzeni_ładunkowej_dla_złożonych_siedzeń_w_mm_iii_rząd: długość przestrzeni ładunkowej dla złożonych siedzeń w mm (III rząd)
+- dopuszczalna_ładowność_w_kg: dopuszczalna ładowność w kg
+- regulacja_wysokości_plandeki_szkieletu_konstrukcji: regulacja wysokości plandeki (szkieletu konstrukcji)
+- cykl_obowiązkowego_serwisu_instalacji_lpg_w_kmmiesiącach: cykl obowiązkowego serwisu instalacji LPG w km/miesiącach
+- dopuszczalna_masa_całkowita_zespołu_pojazdów_kg: dopuszczalna masa całkowita zespołu pojazdów (kg)
+- maksymalna_masa_całkowita_przyczepy_z_hamulcem_kg: maksymalna masa całkowita przyczepy z hamulcem (kg)
+- maksymalna_masa_całkowita_przyczepy_bez_hamulca_kg: maksymalna masa całkowita przyczepy bez hamulca (kg)
+- udźwig_windy_w_kg: Udźwig windy w kg
+- fotel_kierowcy_z_regulacją_wysokości: Fotel kierowcy z regulacją wysokości
+- immobiliser: immobiliser
+- fotele_przednie_z_funkcją_masażu: Fotele przednie z funkcją masażu
+- fotele_tylne_z_funkcją_masażu: Fotele tylne z funkcją masażu

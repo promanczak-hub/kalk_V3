@@ -134,23 +134,22 @@ function StackedBar({ segments }: { segments: BarSegment[] }) {
 // ── Main Panel ───────────────────────────────────────────────────────────────
 
 export function CostBreakdownPanel({ cell }: CostBreakdownPanelProps) {
-  const marginPct = cell.marza_na_kontrakcie_pct * 100;
-  const revenue = cell.price_net * cell.months;
-  const bd = cell.breakdown;
+  const marginPct = cell.MarzaNaKontrakcieProcent * 100;
+  const revenue = cell.LacznaStawka * cell.Okres;
 
   const segments: BarSegment[] = [
-    { label: "Finanse", value: bd.finance.price, color: "#3b82f6" },
-    { label: "Serwis", value: bd.technical.service.price, color: "#8b5cf6" },
-    { label: "Opony", value: bd.technical.tires.price, color: "#06b6d4" },
-    { label: "Ubezpieczenie", value: bd.technical.insurance.price, color: "#f59e0b" },
-    { label: "Auto zastępcze", value: bd.technical.replacement_car.price, color: "#ec4899" },
-    { label: "Koszty dodatkowe", value: bd.technical.additional_costs.price, color: "#64748b" },
+    { label: "Finanse", value: cell.CzynszFinansowy, color: "#3b82f6" },
+    { label: "Serwis", value: cell.Serwis, color: "#8b5cf6" },
+    { label: "Opony", value: cell.Opony, color: "#06b6d4" },
+    { label: "Ubezpieczenie", value: cell.Ubezpieczenie, color: "#f59e0b" },
+    { label: "Auto zastępcze", value: cell.SamochodZastepczy, color: "#ec4899" },
+    { label: "Koszty dodatkowe", value: cell.Admin, color: "#64748b" },
   ];
 
   return (
     <div className="mt-3 p-5 bg-white rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
       <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-4">
-        Rozkład kosztów — {cell.months} mc • {cell.km_per_year / 1000}k km/rok
+        Rozkład kosztów — {cell.Okres} mc • {cell.Przebieg / 1000}k km/rok
       </h5>
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-6 items-start">
@@ -165,15 +164,15 @@ export function CostBreakdownPanel({ cell }: CostBreakdownPanelProps) {
           <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-slate-100">
             <div>
               <p className="text-[9px] text-slate-400 uppercase font-semibold">Czynsz fin.</p>
-              <p className="text-xs font-bold text-slate-700 tabular-nums">{fmtPLN2(cell.czynsz_finansowy)}</p>
+              <p className="text-xs font-bold text-slate-700 tabular-nums">{fmtPLN2(cell.CzynszFinansowy)}</p>
             </div>
             <div>
               <p className="text-[9px] text-slate-400 uppercase font-semibold">Czynsz tech.</p>
-              <p className="text-xs font-bold text-slate-700 tabular-nums">{fmtPLN2(cell.czynsz_techniczny)}</p>
+              <p className="text-xs font-bold text-slate-700 tabular-nums">{fmtPLN2(cell.CzynszTechniczny)}</p>
             </div>
             <div>
               <p className="text-[9px] text-slate-400 uppercase font-semibold">WR SAMAR</p>
-              <p className="text-xs font-bold text-slate-700 tabular-nums">{fmtPLN2(cell.rv_samar_net)}</p>
+              <p className="text-xs font-bold text-slate-700 tabular-nums">{fmtPLN2(cell.WR)}</p>
             </div>
           </div>
         </div>
@@ -185,8 +184,8 @@ export function CostBreakdownPanel({ cell }: CostBreakdownPanelProps) {
           </p>
           <DonutChart
             revenue={revenue}
-            cost={cell.koszty_ogolem}
-            margin={cell.marza_na_kontrakcie}
+            cost={cell.KosztyOgolem}
+            margin={cell.MarzaNaKontrakcie}
             marginPct={marginPct}
           />
         </div>

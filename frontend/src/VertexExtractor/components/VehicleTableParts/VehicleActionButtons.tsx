@@ -1,4 +1,5 @@
-import { Loader2, Wand2, Database, ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Wand2, Database, ExternalLink, FileCode } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
@@ -39,6 +40,9 @@ interface VehicleActionButtonsProps {
   handleOpenSavedJson: (id: string, name: string) => void;
   isViewerOpen: boolean;
   setIsViewerOpen: (val: boolean) => void;
+  isMarkdownOpen: boolean;
+  setIsMarkdownOpen: (val: boolean) => void;
+  onCalculationCreated: (kalkulacjaId: string, numerKalkulacji: string) => void;
 }
 
 export function VehicleActionButtons({
@@ -76,10 +80,14 @@ export function VehicleActionButtons({
   handleOpenSavedJson,
   isViewerOpen,
   setIsViewerOpen,
+  setIsMarkdownOpen,
+  onCalculationCreated,
 }: VehicleActionButtonsProps) {
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleCreateCalculation = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsCreating(true);
     try {
       await handleSaveSetup();
       const baseUrl = API_BASE_URL || "";
@@ -129,20 +137,12 @@ export function VehicleActionButtons({
       const data = await resp.json();
       const numerKalkulacji = data.numer_kalkulacji || `ID: ${data.id}`;
 
-      const params = new URLSearchParams();
-      params.set('id', data.id);
-      params.set('kalkulacja', numerKalkulacji);
-      params.set('aktywnyRabatProcent', activeDiscountPct.toString());
-      params.set('aktywnaCenaKoncowa', activeFinalPrice.toString());
-
-      window.dispatchEvent(
-        new CustomEvent('switchTab', {
-          detail: { tabIndex: 2, urlParams: params },
-        })
-      );
+      onCalculationCreated(data.id, numerKalkulacji);
     } catch (err) {
       console.error("Błąd tworzenia kalkulacji:", err);
       alert("Nie udało się utworzyć kalkulacji. Sprawdź logi serwera.");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -202,15 +202,19 @@ export function VehicleActionButtons({
     <div className="flex justify-end items-center gap-3">
       <button
         onClick={handleCreateCalculation}
-        disabled={isSavingSetup}
+        disabled={isSavingSetup || isCreating}
         className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isSavingSetup ? (
+        {isSavingSetup || isCreating ? (
           <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
         ) : (
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
         )}
-        {isSavingSetup ? "Zapisywanie setupu..." : "Zrób kalkulację"}
+        {isSavingSetup
+          ? "Zapisywanie setupu..."
+          : isCreating
+            ? "Kalkulowanie..."
+            : "Zrób kalkulację"}
       </button>
 
       <button
@@ -249,21 +253,33 @@ export function VehicleActionButtons({
       </button>
 
       {vehicle.raw_pdf_url && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsViewerOpen(!isViewerOpen);
-          }}
-          className={cn(
-            "flex items-center text-xs font-semibold px-4 py-2 rounded-lg transition-all shadow-sm border",
-            isViewerOpen 
-              ? "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 hover:border-slate-300"
-              : "bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-200"
-          )}
-        >
-          <ExternalLink className="w-3.5 h-3.5 mr-2" />
-          {isViewerOpen ? "Zwiń dokument" : "Otwórz dokument"}
-        </button>
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMarkdownOpen(true);
+            }}
+            className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 hover:shadow-sm transition-all shadow-sm"
+          >
+            <FileCode className="w-3.5 h-3.5 mr-2" />
+            Podgląd MD
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsViewerOpen(!isViewerOpen);
+            }}
+            className={cn(
+              "flex items-center text-xs font-semibold px-4 py-2 rounded-lg transition-all shadow-sm border",
+              isViewerOpen 
+                ? "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 hover:border-slate-300"
+                : "bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-200"
+            )}
+          >
+            <ExternalLink className="w-3.5 h-3.5 mr-2" />
+            {isViewerOpen ? "Zwiń dokument" : "Otwórz dokument"}
+          </button>
+        </>
       )}
 
       <button

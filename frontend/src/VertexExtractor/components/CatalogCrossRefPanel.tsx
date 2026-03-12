@@ -76,7 +76,7 @@ export function CatalogCrossRefPanel({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       // Only show catalogs with extracted variants
-      const ready = (data as CatalogItem[]).filter(
+      const ready = (data.catalogs as CatalogItem[] || []).filter(
         (c) => c.extraction_status === "ready" && c.variant_count > 0
       );
       setCatalogs(ready);

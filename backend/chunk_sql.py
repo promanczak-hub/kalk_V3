@@ -1,4 +1,3 @@
-
 with open("d:/kalk_v3/deploy_to_cloud.sql", "r", encoding="utf-8") as f:
     sql = f.read()
 

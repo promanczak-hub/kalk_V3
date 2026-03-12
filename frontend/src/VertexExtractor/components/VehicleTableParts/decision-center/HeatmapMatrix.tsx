@@ -21,12 +21,12 @@ export function HeatmapMatrix({
 }: HeatmapMatrixProps) {
   const cellMap = new Map<string, MiniMatrixCell>();
   for (const c of cells) {
-    cellMap.set(`${c.months}_${c.km_per_year}`, c);
+    cellMap.set(`${c.Okres}_${c.Przebieg}`, c);
   }
 
   const bestCell = findBestCell(cells);
   const bestKey = bestCell
-    ? `${bestCell.months}_${bestCell.km_per_year}`
+    ? `${bestCell.Okres}_${bestCell.Przebieg}`
     : null;
 
   // Legend tiers
@@ -78,12 +78,12 @@ export function HeatmapMatrix({
                     );
                   }
 
-                  const marginPct = cell.marza_na_kontrakcie_pct * 100;
+                  const marginPct = cell.MarzaNaKontrakcieProcent * 100;
                   const tier = getMarginTier(marginPct);
                   const isSelected = selectedKey === key;
                   const isBest = bestKey === key;
                   const isOutOfBudget =
-                    budgetMax !== null && cell.price_net > budgetMax;
+                    budgetMax !== null && cell.LacznaStawka > budgetMax;
 
                   return (
                     <td key={km} className="text-center">
@@ -121,12 +121,12 @@ export function HeatmapMatrix({
 
                         {/* Price */}
                         <div className="text-lg font-black tabular-nums" style={{ color: tier.heatColor }}>
-                          {fmtPLN(cell.price_net)}
+                          {fmtPLN(cell.LacznaStawka)}
                         </div>
 
                         {/* Small info */}
                         <div className="text-[9px] text-slate-400 mt-0.5">
-                          {fmtKm(cell.total_km)} km
+                          {fmtKm((cell.Przebieg / 12) * cell.Okres)} km
                         </div>
 
                         {/* Margin badge */}
@@ -140,7 +140,7 @@ export function HeatmapMatrix({
 
                         {/* Hover tooltip: margin PLN */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
-                          Marża: {fmtPLN(cell.marza_na_kontrakcie)} PLN
+                          Marża: {fmtPLN(cell.MarzaNaKontrakcie)} PLN
                           <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45 -mt-1" />
                         </div>
                       </button>

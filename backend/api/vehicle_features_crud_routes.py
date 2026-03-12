@@ -72,14 +72,10 @@ async def get_vehicle_features(
     feat_resp = (
         sb.schema("reverse_search")
         .table("universal_features")
-        .select(
-            "id, feature_key, display_name, feature_type, category_id"
-        )
+        .select("id, feature_key, display_name, feature_type, category_id")
         .execute()
     )
-    feat_map: dict[str, dict[str, Any]] = {
-        f["id"]: f for f in (feat_resp.data or [])
-    }
+    feat_map: dict[str, dict[str, Any]] = {f["id"]: f for f in (feat_resp.data or [])}
 
     # Load categories for grouping
     cat_resp = (
@@ -88,9 +84,7 @@ async def get_vehicle_features(
         .select("id, category_key, display_name")
         .execute()
     )
-    cat_map: dict[str, dict[str, str]] = {
-        c["id"]: c for c in (cat_resp.data or [])
-    }
+    cat_map: dict[str, dict[str, str]] = {c["id"]: c for c in (cat_resp.data or [])}
 
     enriched: list[dict[str, Any]] = []
     for row in state_rows:
@@ -188,9 +182,7 @@ async def upsert_vehicle_features(
             state_row["resolved_unit"] = feat.unit
 
         try:
-            sb.schema("reverse_search").table(
-                "vehicle_feature_state"
-            ).upsert(
+            sb.schema("reverse_search").table("vehicle_feature_state").upsert(
                 state_row,
                 on_conflict="source_vehicle_id,feature_id",
             ).execute()
@@ -237,22 +229,14 @@ async def delete_vehicle_feature(
     feature_id = rows[0]["id"]
 
     # Delete state
-    sb.schema("reverse_search").table(
-        "vehicle_feature_state"
-    ).delete().eq(
+    sb.schema("reverse_search").table("vehicle_feature_state").delete().eq(
         "source_vehicle_id", vehicle_id
-    ).eq(
-        "feature_id", feature_id
-    ).execute()
+    ).eq("feature_id", feature_id).execute()
 
     # Also delete evidence
-    sb.schema("reverse_search").table(
-        "vehicle_feature_evidence"
-    ).delete().eq(
+    sb.schema("reverse_search").table("vehicle_feature_evidence").delete().eq(
         "source_vehicle_id", vehicle_id
-    ).eq(
-        "feature_id", feature_id
-    ).execute()
+    ).eq("feature_id", feature_id).execute()
 
     return {
         "deleted": True,

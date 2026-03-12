@@ -8,6 +8,7 @@ na samar_class_id + fuel_type_id i wstawia dane do:
 Operacja INSERT-only — nie modyfikuje excel_drafts.
 Domyślnie dry-run. Użyj --execute aby wstawić.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -119,15 +120,9 @@ def migrate(*, dry_run: bool = True) -> None:
     przebieg_rows = _load_sheet(supabase, "TAB. PRZEBIEG")
 
     # Index TAB. OKRES FINAL & DOPOSAŻENIA by monolith key for fast lookup
-    okres_by_key: dict[str, dict[str, Any]] = {
-        r["col_1"]: r for r in okres_rows
-    }
-    dopos_by_key: dict[str, dict[str, Any]] = {
-        r["col_1"]: r for r in dopos_rows
-    }
-    przebieg_by_key: dict[str, dict[str, Any]] = {
-        r["col_1"]: r for r in przebieg_rows
-    }
+    okres_by_key: dict[str, dict[str, Any]] = {r["col_1"]: r for r in okres_rows}
+    dopos_by_key: dict[str, dict[str, Any]] = {r["col_1"]: r for r in dopos_rows}
+    przebieg_by_key: dict[str, dict[str, Any]] = {r["col_1"]: r for r in przebieg_rows}
 
     depreciation_inserts: list[dict[str, Any]] = []
     mileage_inserts: list[dict[str, Any]] = []
@@ -157,9 +152,7 @@ def migrate(*, dry_run: bool = True) -> None:
                 "fuel_type_id": fuel_type_id,
                 "year": 0,
                 "base_depreciation_percent": base_wr,
-                "options_depreciation_percent": _safe_float(
-                    dopos_row.get("col_2")
-                ),
+                "options_depreciation_percent": _safe_float(dopos_row.get("col_2")),
             }
         )
 
@@ -179,9 +172,7 @@ def migrate(*, dry_run: bool = True) -> None:
                     "samar_class_id": samar_class_id,
                     "fuel_type_id": fuel_type_id,
                     "year": yr,
-                    "base_depreciation_percent": _safe_float(
-                        okres_row.get(okres_col)
-                    ),
+                    "base_depreciation_percent": _safe_float(okres_row.get(okres_col)),
                     "options_depreciation_percent": _safe_float(
                         dopos_row.get(dopos_col)
                     ),
@@ -195,12 +186,8 @@ def migrate(*, dry_run: bool = True) -> None:
                 {
                     "samar_class_id": samar_class_id,
                     "fuel_type_id": fuel_type_id,
-                    "under_threshold_percent": _safe_float(
-                        przebieg_row.get("col_2")
-                    ),
-                    "over_threshold_percent": _safe_float(
-                        przebieg_row.get("col_3")
-                    ),
+                    "under_threshold_percent": _safe_float(przebieg_row.get("col_2")),
+                    "over_threshold_percent": _safe_float(przebieg_row.get("col_3")),
                 }
             )
 
@@ -232,13 +219,19 @@ def migrate(*, dry_run: bool = True) -> None:
     for i in range(0, len(depreciation_inserts), batch_size):
         batch = depreciation_inserts[i : i + batch_size]
         supabase.table("samar_class_depreciation_rates").insert(batch).execute()
-        logger.info("  batch %d/%d", i // batch_size + 1, -(-len(depreciation_inserts) // batch_size))
+        logger.info(
+            "  batch %d/%d",
+            i // batch_size + 1,
+            -(-len(depreciation_inserts) // batch_size),
+        )
 
     logger.info("Wstawianie przebiegu (%d)...", len(mileage_inserts))
     for i in range(0, len(mileage_inserts), batch_size):
         batch = mileage_inserts[i : i + batch_size]
         supabase.table("samar_class_mileage_corrections").insert(batch).execute()
-        logger.info("  batch %d/%d", i // batch_size + 1, -(-len(mileage_inserts) // batch_size))
+        logger.info(
+            "  batch %d/%d", i // batch_size + 1, -(-len(mileage_inserts) // batch_size)
+        )
 
     logger.info("✅ Migracja zakończona!")
 

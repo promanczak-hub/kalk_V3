@@ -23,19 +23,38 @@ class ReplacementCarCalculator:
         - months: Czas trwania leasingu/wynajmu
         - enabled: Czy checkbox włączony w UI
         """
-        if (
-            not enabled
-            or self.average_days_per_year == 0.0
-            or self.daily_rate_net == 0.0
-            or months == 0
-        ):
-            return {"total_replacement_car": 0.0, "monthly_replacement_car": 0.0}
+        trace: list[dict[str, Any]] = []
+
+        if not enabled or months == 0:
+            trace.append({
+                "krok": "Auto Zastępcze (Wyłączone)",
+                "rownanie": "enabled = False",
+                "wynik": 0.0
+            })
+            return {"total_replacement_car": 0.0, "monthly_replacement_car": 0.0, "trace": trace}
+            
+        if self.average_days_per_year == 0.0 or self.daily_rate_net == 0.0:
+            raise ValueError("Koszty samochodu zastępczego uaktywnione, ale brak stawek (Dni/Raty) w 'replacement_car_rates'. Kalkulacja przerwana.")
 
         years = months / 12.0
         total_days = self.average_days_per_year * years
+        
+        trace.append({
+            "krok": "Auto Zastępcze: Ilość Dni",
+            "rownanie": f"Średnia roczna z bazy: {self.average_days_per_year:.2f} dni * {years:.2f} lat",
+            "wynik": total_days
+        })
+
         total_cost = total_days * self.daily_rate_net
+
+        trace.append({
+            "krok": "Auto Zastępcze: Łączny Koszt",
+            "rownanie": f"Łącznie {total_days:.2f} dni * Stawka Netto {self.daily_rate_net:.2f} PLN",
+            "wynik": total_cost
+        })
 
         return {
             "total_replacement_car": round(total_cost, 2),
             "monthly_replacement_car": round(total_cost / months, 2),
+            "trace": trace
         }

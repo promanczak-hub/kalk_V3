@@ -100,6 +100,3 @@ def update_base_percentage(data: Dict[str, Any]) -> Dict[str, Any]:
         return cast(Dict[str, Any], res.data[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-

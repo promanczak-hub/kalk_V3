@@ -371,7 +371,7 @@ class CardSummary(BaseModel):
     )
     utility_features: list[UtilityFeatureItem] = Field(
         default_factory=list,
-        description="Lista wszelkich cech użytkowych i wymiarów liczbowych znalezionych w dokumencie. Wyodrębnij pojemność załadunkową, wymiary długość/szerokość/wysokość paki w mm, ładowność (kg), objętość (m3), rozstaw osi, masy całkowite (DMC)."
+        description="Lista wszelkich cech użytkowych i wymiarów liczbowych znalezionych w dokumencie. Wyodrębnij pojemność załadunkową, wymiary długość/szerokość/wysokość paki w mm, ładowność (kg), objętość (m3), rozstaw osi, masy całkowite (DMC).",
     )
 
 

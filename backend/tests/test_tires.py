@@ -25,8 +25,23 @@ def _mock_supabase() -> MagicMock:
     mock.table.return_value.select.return_value.ilike.return_value.limit.return_value.execute.return_value.data = []
     # _fetch_tire_configurations → pusty wynik → defaults
     mock.table.return_value.select.return_value.execute.return_value.data = []
-    # _fetch_tire_cost → pusty wynik → fallback 375.0
-    mock.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+    # _fetch_tire_cost → zwraca generyczny słownik by uniknąć ValueError (brak fallbacków)
+    mock.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {
+            "budget": 1000.0,
+            "medium": 1000.0,
+            "premium": 1000.0,
+            "wzmocnione_budget": 1000.0,
+            "wzmocnione_medium": 1000.0,
+            "wzmocnione_premium": 1000.0,
+            "wielosezon_budget": 1000.0,
+            "wielosezon_medium": 1000.0,
+            "wielosezon_premium": 1000.0,
+            "wielosezon_wzmocnione_budget": 1000.0,
+            "wielosezon_wzmocnione_medium": 1000.0,
+            "wielosezon_wzmocnione_premium": 1000.0,
+        }
+    ]
     return mock
 
 
@@ -41,6 +56,10 @@ def _make_calc(
             z_oponami=z_oponami,
             klasa_opony_string=klasa,
             srednica_felgi=srednica,
+            korekta_kosztu=False,
+            koszt_opon_korekta=0.0,
+            sets_needed_override=None,
+            odkup_opon_enabled=False,
         )
     return calc
 

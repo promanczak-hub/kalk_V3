@@ -199,6 +199,7 @@ def evaluate_and_rank_twins(client, twin_a: dict, twin_b: dict) -> dict:
         print(f"Reranking failed: {e}. Defaulting to Twin A (Pro).")
         return twin_a
 
+
 def extract_digital_twin_from_pdf(
     document_data: Union[str, bytes], mime_type: str = "application/pdf"
 ) -> dict:

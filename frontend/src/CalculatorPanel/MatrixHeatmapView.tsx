@@ -39,28 +39,28 @@ interface MarginTier {
 
 function getMarginTier(pct: number): MarginTier {
   if (pct < 0) return {
-    label: "< 0%", heatBg: "#fef2f2", heatColor: "#dc2626",
-    badgeBg: "bg-red-100", badgeText: "text-red-700"
+    label: "< 0%", heatBg: "#ffffff", heatColor: "#dc2626",
+    badgeBg: "bg-red-50", badgeText: "text-red-700"
   };
   if (pct < 8) return {
-    label: "0–8%", heatBg: "#fff7ed", heatColor: "#ea580c",
-    badgeBg: "bg-orange-100", badgeText: "text-orange-700"
+    label: "0–8%", heatBg: "#ffffff", heatColor: "#ea580c",
+    badgeBg: "bg-orange-50", badgeText: "text-orange-700"
   };
   if (pct < 12) return {
-    label: "8–12%", heatBg: "#fefce8", heatColor: "#ca8a04",
-    badgeBg: "bg-yellow-100", badgeText: "text-yellow-700"
+    label: "8–12%", heatBg: "#ffffff", heatColor: "#ca8a04",
+    badgeBg: "bg-yellow-50", badgeText: "text-yellow-700"
   };
   if (pct < 15) return {
-    label: "12–15%", heatBg: "#f0fdf4", heatColor: "#16a34a",
-    badgeBg: "bg-green-100", badgeText: "text-green-700"
+    label: "12–15%", heatBg: "#ffffff", heatColor: "#16a34a",
+    badgeBg: "bg-green-50", badgeText: "text-green-700"
   };
   if (pct < 20) return {
-    label: "15–20%", heatBg: "#ecfdf5", heatColor: "#059669",
-    badgeBg: "bg-emerald-100", badgeText: "text-emerald-700"
+    label: "15–20%", heatBg: "#ffffff", heatColor: "#059669",
+    badgeBg: "bg-emerald-50", badgeText: "text-emerald-700"
   };
   return {
-    label: "> 20%", heatBg: "#ecfeff", heatColor: "#0891b2",
-    badgeBg: "bg-cyan-100", badgeText: "text-cyan-700"
+    label: "> 20%", heatBg: "#ffffff", heatColor: "#0891b2",
+    badgeBg: "bg-cyan-50", badgeText: "text-cyan-700"
   };
 }
 
@@ -125,8 +125,8 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
   return (
     <div>
       {/* Matrix table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-sm">
-        <table className="w-full border-separate" style={{ borderSpacing: "4px", padding: "4px" }}>
+      <div className="overflow-x-auto border border-slate-200 bg-white">
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               {/* Corner cell */}
@@ -149,7 +149,7 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
             {months.map((m) => (
               <tr key={m}>
                 {/* Row header */}
-                <td className="py-1 px-3">
+                <td className="py-2 px-3 border-b border-r border-slate-100 align-middle">
                   <div className="text-xs font-bold text-slate-600">{m} mc</div>
                   <div className="text-[9px] text-slate-400">
                     {m === 12 ? "1 rok" : m === 24 ? "2 lata" : m === 36 ? "3 lata" : m === 48 ? "4 lata" : m === 60 ? "5 lat" : m === 72 ? "6 lat" : m === 84 ? "7 lat" : `${(m / 12).toFixed(1)} lat`}
@@ -163,8 +163,8 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
 
                   if (!cell) {
                     return (
-                      <td key={km} className="text-center p-0.5">
-                        <div className="rounded-xl p-3 bg-slate-50 border border-dashed border-slate-200">
+                      <td key={km} className="text-center p-2 border-b border-slate-100">
+                        <div className="p-3 bg-slate-50 border border-dashed border-slate-200">
                           <span className="text-xs text-slate-300">—</span>
                         </div>
                       </td>
@@ -180,63 +180,51 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
                   const totalKmK = (cell.total_km / 1000).toFixed(0);
 
                   return (
-                    <td key={km} className="text-center p-0.5">
+                    <td key={km} className="text-center p-2 border-b border-slate-100">
                       <button
                         onClick={() => {
                           setSelectedKey(isSelected ? null : key);
                           if (onCellClick && !isSelected) onCellClick(cell);
                         }}
                         className={`
-                          relative w-full rounded-xl p-2.5 transition-all duration-200
-                          cursor-pointer group min-w-[100px]
+                          relative w-full rounded-sm p-3 transition-all duration-150
+                          cursor-pointer group min-w-[100px] bg-white
                           ${isSelected
-                            ? "ring-2 ring-blue-500 ring-offset-1 shadow-lg scale-[1.03]"
-                            : "hover:shadow-md hover:scale-[1.02]"
+                            ? "ring-1 ring-offset-0 shadow-sm"
+                            : "hover:shadow-sm"
                           }
                         `}
                         style={{
-                          backgroundColor: tier.heatBg,
-                          borderWidth: "2px",
+                          borderWidth: "1px",
                           borderStyle: "solid",
-                          borderColor: isSelected ? tier.heatColor : `${tier.heatColor}40`,
+                          borderColor: isSelected ? tier.heatColor : `${tier.heatColor}60`,
+                          boxShadow: isSelected ? `0 0 0 1px ${tier.heatColor}` : undefined
                         }}
                       >
                         {/* Best cell star */}
                         {isBest && (
-                          <div className="absolute -top-1.5 -right-1.5 z-10">
-                            <div className="bg-amber-400 rounded-full p-0.5 shadow-md">
-                              <Star className="w-2.5 h-2.5 text-white fill-white" />
-                            </div>
+                          <div className="absolute top-1 right-1 z-10">
+                            <Star className="w-3 h-3" style={{ color: tier.heatColor, fill: tier.heatColor }} />
                           </div>
                         )}
 
                         {/* Price */}
-                        <div
-                          className="text-sm font-black tabular-nums leading-tight"
-                          style={{ color: tier.heatColor }}
-                        >
+                        <div className="text-[13px] font-bold tabular-nums leading-tight text-slate-800">
                           {fmtPLN(cell.price_net)}
                         </div>
 
                         {/* Total km */}
-                        <div className="text-[8px] text-slate-400 mt-0.5">
+                        <div className="text-[9px] text-slate-500 mt-1">
                           {totalKmK}k km
                         </div>
 
                         {/* Margin badge */}
-                        <div className="mt-1">
+                        <div className="mt-1.5">
                           <span
-                            className={`inline-block text-[8px] font-bold px-1.5 py-0.5 rounded-full ${tier.badgeBg} ${tier.badgeText}`}
+                            className={`inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-sm ${tier.badgeBg} ${tier.badgeText}`}
                           >
                             {marginPct.toFixed(1)}%
                           </span>
-                        </div>
-
-                        {/* Hover tooltip */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
-                          <div>Koszt bazowy: {fmtPLN(cell.base_cost_net)} PLN</div>
-                          <div>Marża: {fmtPLN(cell.price_net - cell.base_cost_net)} PLN/mc</div>
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45 -mt-1" />
                         </div>
                       </button>
                     </td>
@@ -256,7 +244,7 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
           return (
             <span
               key={t.label}
-              className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${tier.badgeBg} ${tier.badgeText}`}
+              className={`text-[9px] font-semibold px-2 py-0.5 rounded-sm ${tier.badgeBg} ${tier.badgeText}`}
             >
               {t.label}
             </span>
@@ -275,8 +263,8 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
 
         return (
           <div
-            className="mt-3 p-4 rounded-xl border-2 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200"
-            style={{ borderColor: `${tier.heatColor}40`, backgroundColor: `${tier.heatBg}` }}
+            className="mt-3 p-4 rounded-sm border shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 bg-white"
+            style={{ borderColor: tier.heatColor }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">

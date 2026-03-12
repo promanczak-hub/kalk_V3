@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { supabase } from "../../../../lib/supabaseClient";
-import { apiFetch } from "../../../lib/api";
-import type { FleetVehicleView } from "../../types";
+﻿import { useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
+import { apiFetch } from "../../lib/api";
+import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
 
 export function useVehicleDataSync(
@@ -51,7 +51,7 @@ export function useVehicleDataSync(
       onRefresh();
     } catch (err) {
       console.error("Error saving vehicle fields", err);
-      alert("Błąd zapisu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+      alert("BĹ‚Ä…d zapisu: " + (err instanceof Error ? err.message : "Nieznany bĹ‚Ä…d"));
     } finally {
       setIsSavingFields(false);
     }
@@ -70,7 +70,7 @@ export function useVehicleDataSync(
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Błąd klasyfikacji HTTP ${response.status}: ${errText}`);
+        throw new Error(`BĹ‚Ä…d klasyfikacji HTTP ${response.status}: ${errText}`);
       }
       
       const data = await response.json();
@@ -90,7 +90,7 @@ export function useVehicleDataSync(
       onRefresh();
     } catch (err) {
       console.error("Remap classification error details:", err);
-      alert("Błąd przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));
+      alert("BĹ‚Ä…d przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));
     } finally {
       setIsRemappingClassification(false);
     }
@@ -103,3 +103,4 @@ export function useVehicleDataSync(
     handleRemapClassification
   };
 }
+

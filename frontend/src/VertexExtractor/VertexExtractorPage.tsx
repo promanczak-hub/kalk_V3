@@ -5,6 +5,10 @@ import { UploadZone } from "./components/UploadZone";
 import { DocumentList } from "./components/DocumentList";
 import { VehicleTable } from "./components/VehicleTable";
 import { JsonViewerModal } from "./components/JsonViewerModal";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { API_BASE_URL } from "../config/env";
+import type { ControlCenterSettings } from "../hooks/useCalculator";
 
 export default function VertexExtractorPage() {
   const {
@@ -17,6 +21,24 @@ export default function VertexExtractorPage() {
     handleGlobalSearch,
     handleDeleteVehicle,
   } = useVehicles();
+
+  const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const resp = await axios.get<ControlCenterSettings>(
+          `${API_BASE_URL || ""}/api/control-center`,
+        );
+        if (resp.data) {
+          setGlobalSettings(resp.data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch settings", e);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const {
     documents,
@@ -51,6 +73,7 @@ export default function VertexExtractorPage() {
           fetchSavedVehicles={fetchSavedVehicles}
           handleOpenSavedJson={handleOpenSavedJson}
           handleDeleteVehicle={handleDeleteVehicle}
+          globalSettings={globalSettings}
         />
       </main>
 

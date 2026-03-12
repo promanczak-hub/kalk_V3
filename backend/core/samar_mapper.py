@@ -93,12 +93,16 @@ def map_to_samar_class(
 
     try:
         sb_client = _build_samar_client()
-        url_used = os.environ.get("SUPABASE_URL", os.environ.get("VITE_SUPABASE_URL", "NOT SET"))
+        url_used = os.environ.get(
+            "SUPABASE_URL", os.environ.get("VITE_SUPABASE_URL", "NOT SET")
+        )
         print(f"[SAMAR MAPPER DEBUG] Supabase URL used: {url_used[:40]}...")
         samar_dict = _fetch_samar_dictionary(sb_client)
         print(f"[SAMAR MAPPER DEBUG] Fetched {len(samar_dict)} SAMAR classes from DB")
     except Exception as exc:
-        print(f"[SAMAR MAPPER DEBUG] EXCEPTION during init/fetch: {type(exc).__name__}: {exc}")
+        print(
+            f"[SAMAR MAPPER DEBUG] EXCEPTION during init/fetch: {type(exc).__name__}: {exc}"
+        )
         logger.exception(
             "[SAMAR MAPPER] Error initializing or fetching samar dict: %s", exc
         )
@@ -188,7 +192,9 @@ Posortuj wyniki od najwyższego do najniższego confidence.
         )
 
         resp_text = getattr(response, "text", "{}") or "{}"
-        print(f"[SAMAR MAPPER DEBUG] Gemini raw response (first 300 chars): {resp_text[:300]}")
+        print(
+            f"[SAMAR MAPPER DEBUG] Gemini raw response (first 300 chars): {resp_text[:300]}"
+        )
         result = json.loads(resp_text)
         candidates = result.get("candidates", [])
         print(f"[SAMAR MAPPER DEBUG] Got {len(candidates)} candidates from Gemini")
@@ -198,12 +204,16 @@ Posortuj wyniki od najwyższego do najniższego confidence.
 
         # Filter out zero-confidence noise
         candidates = [c for c in candidates if c.get("confidence", 0) > 0.01]
-        print(f"[SAMAR MAPPER DEBUG] After filtering: {len(candidates)} candidates, top={candidates[0] if candidates else 'NONE'}")
+        print(
+            f"[SAMAR MAPPER DEBUG] After filtering: {len(candidates)} candidates, top={candidates[0] if candidates else 'NONE'}"
+        )
 
         if candidates:
             best = candidates[0]
             best_class = best["klasa"].strip()
-            print(f"[SAMAR MAPPER DEBUG] BEST CLASS: {best_class} (confidence={best.get('confidence')})")
+            print(
+                f"[SAMAR MAPPER DEBUG] BEST CLASS: {best_class} (confidence={best.get('confidence')})"
+            )
             return (best_class, candidates)
 
     except Exception as exc:
@@ -211,4 +221,3 @@ Posortuj wyniki od najwyższego do najniższego confidence.
         logger.exception("[SAMAR MAPPER] Gemini error: %s", exc)
 
     return fallback
-

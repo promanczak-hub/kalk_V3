@@ -33,28 +33,28 @@ export function DecisionCenterKPI({
 
   // Cheapest option
   const cheapest = cells.reduce((a, b) =>
-    a.price_net < b.price_net ? a : b
+    a.LacznaStawka < b.LacznaStawka ? a : b
   );
 
   // If a cell is selected, show its data; otherwise show cheapest
   const activeCell = selectedCell || cheapest;
 
-  // Tire info: show per-cell count + cost from backend
-  const tireData = activeCell.breakdown.technical.tires;
-  const tireSets = tireData.ilosc_opon ?? 0;
+  // Tire info: single string
+  const tireSets = activeCell.IloscOpon ?? 0;
+  const tireCost = activeCell.Opony ?? 0;
   const tireLabel = tireSets > 0
-    ? `${tireSets} kpl • ${fmtNum(Math.round(tireData.price))} PLN/mc`
+    ? `${tireSets} kpl • ${fmtNum(Math.round(tireCost))} PLN/mc`
     : `${tireClass}`;
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
       <Badge
         label="Stawka"
-        value={`${fmtNum(activeCell.price_net)} PLN`}
+        value={`${fmtNum(activeCell.LacznaStawka)} PLN`}
       />
       <Badge
         label="Przebieg"
-        value={`${fmtNum(activeCell.total_km)} km`}
+        value={`${fmtNum((activeCell.Przebieg / 12) * activeCell.Okres)} km`}
       />
       <Badge
         label="Opony"
@@ -62,11 +62,11 @@ export function DecisionCenterKPI({
       />
       <Badge
         label="Amortyzacja"
-        value={`${(activeCell.amortyzacja_pct * 100).toFixed(2)}%`}
+        value={`${(activeCell.AmortyzacjaProcent * 100).toFixed(2)}%`}
       />
       <Badge
         label="Marża"
-        value={`${(activeCell.marza_na_kontrakcie_pct * 100).toFixed(1)}%`}
+        value={`${(activeCell.MarzaNaKontrakcieProcent * 100).toFixed(1)}%`}
       />
     </div>
   );

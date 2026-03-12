@@ -1,6 +1,6 @@
-
 with open("d:/kalk_v3/backend/core/samar_rv.py", "r", encoding="utf-8") as f:
     lines = f.readlines()
+
 
 def find_line(lines, substr):
     for i, l in enumerate(lines):
@@ -8,13 +8,18 @@ def find_line(lines, substr):
             return i
     return -1
 
+
 class_start = find_line(lines, "class SamarRVCalculator:")
-class_end = find_line(lines, "@lru_cache(maxsize=128)\ndef fetch_color_correction_cached")
+class_end = find_line(
+    lines, "@lru_cache(maxsize=128)\ndef fetch_color_correction_cached"
+)
 if class_end == -1:
     class_end = find_line(lines, "def fetch_color_correction_cached(") - 1
 
 monkey_start = find_line(lines, "def _sc_fetch_color_correction(self) -> float:")
-sc_block_end = find_line(lines, "SamarRVCalculator._fetch_color_correction = _sc_fetch_color_correction")
+sc_block_end = find_line(
+    lines, "SamarRVCalculator._fetch_color_correction = _sc_fetch_color_correction"
+)
 
 new_lines = []
 # 0 to class_end
@@ -29,7 +34,9 @@ for line in lines[monkey_start:sc_block_end]:
         new_lines.append(line)
     elif line.startswith("def _sc_"):
         new_lines.append("    def " + line[8:])
-    elif not line.startswith("    ") and not line.startswith("#") and line.strip() != "":
+    elif (
+        not line.startswith("    ") and not line.startswith("#") and line.strip() != ""
+    ):
         new_lines.append("    " + line)
     else:
         new_lines.append("    " + line)

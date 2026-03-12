@@ -122,29 +122,28 @@ def _load_feature_id_map() -> dict[str, str]:
 # ── LLM Variant Matching ────────────────────────────────────────
 
 CROSS_REF_SYSTEM_PROMPT = """\
-Jesteś rygorystycznym ekspertem ds. pojazdów dostawczych i osobowych. Otrzymujesz:
+Jesteś ekspertem ds. pojazdów dostawczych i osobowych. Otrzymujesz:
 1. `vehicle_spec` — podsumowanie i dane pojazdu (marka, model, silnik, wymiary, wersja wyposażenia / trim_level)
 2. `catalog_variants` — lista wariantów wyciągniętych z dopasowanych katalogów/cenników z ich parametrami i wyposażeniem
 3. `available_feature_keys` — lista kluczy cech w systemie
 
 ZADANIE:
-A) Dopasuj pojazd do NAJLEPSZEGO wariantu z katalogu na podstawie kryteriów (w tej kolejności):
-   1. Marka + model
-   2. Wersja wyposażenia / Trim level - **KRYTYCZNE**. Jeśli specyfikacja zawiera konkretną wersję (np. "Edition 130"), to MUSISZ szukać wariantu, który odpowiada DOKŁADNIE tej wersji wyposażenia!
-   3. Parametry silnika (moc, pojemność), napęd i skrzynia biegów
-   4. Typ nadwozia (Furgon, Hatchback, itp.) oraz klasy wymiarów
+A) Dopasuj pojazd do NAJLEPSZEGO wariantu z katalogu stosując ocenę prawdopodobieństwa (probabilistyczną):
+   1. Idealnie (Score 0.95 - 1.0): Marka, model, silnik i DOKŁADNA wersja wyposażenia (trim_level) pasują perfekcyjnie.
+   2. Wysoce prawdopodobnie (Score 0.80 - 0.94): Brakuje części nazwy lub dokładnego znacznika (np. brakuje "eDrive", "130"), ale bazowa nazwa wyposażenia (np. "Essence" zamiast "Edition 130") lub parametry silnika/nadwozia zgadzają się na tyle, że cechy standardowe dla tego wariantu mogą być bezpiecznie przypisane do pojazdu. 
+   3. Akceptowalnie (Score 0.65 - 0.79): Wersja się nieco różni, ale większość kluczowych parametrów wskazuje na silne prawdopodobieństwo, że wyposażenie standardowe pokrewnych wersji jest zbliżone.
+   4. Brak związku (Score < 0.65): Zupełnie inna bazowa wersja wyposażenia (np. badasz najwyższą wersję, a cennik ma tylko wersję podstawową) lub niezgodny model/marka. Ustaw wtedy `matched_variant_name` na "Brak dopasowania w katalogu" i pustą listę `features`.
 
 B) Wyciągnij z dopasowanego wariantu WSZYSTKIE użyteczne cechy należące do STANDARDU TEJ WERSJI lub zadeklarowanych w specyfikacji opcji i zmapuj je na klucze z `available_feature_keys`.
-   Cechy numeryczne podaj w odpowiednich jednostkach (mm, kg, l, szt). Oszacuj `mapping_confidence` (0.0 - 1.0) dla dokładności mapowania.
+   Cechy numeryczne podaj w odpowiednich jednostkach (mm, kg, l, szt). Oszacuj `mapping_confidence` (0.0 - 1.0) dla dokładności mapowania samej cechy (tylko wysokiej pewności mapowania cech >= 0.90 będą akceptowane przez system).
 
 C) Wymiary ładunkowe/zewnętrzne potraktuj absolutnie priorytetowo jako osobne cechy, jeśli występują.
 
-BEZWZGLĘDNE ZASADY I OSTRZEŻENIA:
-- ZAKAZ MIESZANIA CECH: Jeśli badasz auto w wersji (np. "Edition 130"), NIE WOLNO Ci dopasowywać ani wyciągać cech z innej wersji (np. "Essence" lub "Selection"), nawet jeśli tej "Twojej" wersji brakuje w cenniku!
-- BRAK WERSJI W CENNIKU: Jeśli w `catalog_variants` NIE ZNAJDZIESZ wersji z `vehicle_spec.trim_level`, TO ZNACZY ŻE CENNIK JEST NIEPRAWIDŁOWY/NIEKOMPLETNY. Ustaw wtedy `confidence` na `0.0`, `matched_variant_name` na "Brak wersji w katalogu" i wyjaśnij w `reasoning` (np. "Cennik nie zawiera wersji Edition 130"). Zwróć wtedy PUSTĄ listę `features`!
-- PRÓG AKCEPTACJI WARIANTU: confidence całkowite dopasowania < 0.8 → brak pewnego dopasowania, zwróć pustą listę features. MUSI to być niemal idealne odbicie.
-- WYPOSAŻENIE: Zwracaj w features TYLKO te cechy, dla których `mapping_confidence` wynosi >= 0.95. Sprawdzaj ekstremalnie rygorystycznie różnice w nazewnictwie! Zbieżność nazw opcji między cennikiem a specyfikacją musi być niemal 1:1.
-- NIE wymyślaj danych — wyciągaj TYLKO to, co jest wprost przypisane do prawidłowej wersji w katalogu.
+ZASADY:
+- NIE jesteś zero-jedynkowy: jeśli wersja w specyfikacji to "Edition 130", a w katalogu jest tylko "Essence", i parametry techniczne są bardzo zbliżone, możesz dopasować ten wariant z `confidence` około 0.85 i uzasadnić to w `reasoning` (np. "Wariant 'Essence' ma częściowe pokrycie opcji z badaną wersją 'Edition 130'").
+- `confidence` zwracasz jako ocenę całościową dla wybranego wariantu.
+- Uzasadnienie (`reasoning`) MUSI krótko tłumaczyć dlaczego przyznałeś taki score (np. "Zgodność silnika i bazowej wersji, brak precyzyjnego tagu obniża pewność").
+- Zwracaj w features tylko cechy realnie pasujące do wybranego wariantu.
 """
 
 
@@ -303,7 +302,7 @@ def _create_evidence_batch(
     sb = sb_client
 
     for feat in match_result.features:
-        if feat.mapping_confidence < 0.95:
+        if feat.mapping_confidence < 0.90:
             logger.debug(
                 "Skipping feature '%s' due to low confidence: %s",
                 feat.feature_key,
@@ -362,7 +361,9 @@ def _create_body_param_evidence(
     dims: dict[str, float] = {}
     for feat in match_result.features:
         key = feat.feature_key.lower()
-        if ("cargo" in key or "ładunkow" in key or "ladunkow" in key) and feat.value_num is not None:
+        if (
+            "cargo" in key or "ładunkow" in key or "ladunkow" in key
+        ) and feat.value_num is not None:
             if "dlugosc" in key or "length" in key or "długość" in key:
                 dims["length_mm"] = feat.value_num
             elif "szerokosc" in key or "width" in key or "szerokość" in key:
@@ -612,11 +613,11 @@ def cross_reference_vehicle(
     # 4. LLM variant matching
     match_result = _match_variant_with_llm(vehicle_spec, all_variants, feature_keys)
 
-    if not match_result or match_result.confidence < 0.8:
+    if not match_result or match_result.confidence < 0.65:
         reason = match_result.reasoning if match_result else "Brak odpowiedzi LLM"
         return {
             "status": "no_match",
-            "message": f"LLM nie znalazł pasującego wariantu wg rygorystycznych kryteriów sprzężenia (Odrzucono. Powód: {reason})",
+            "message": f"LLM nie znalazł wystarczająco pasującego wariantu (Odrzucono. Zaufanie: {match_result.confidence if match_result else 0:.2f}. Powód: {reason})",
             "confidence": match_result.confidence if match_result else 0,
         }
 

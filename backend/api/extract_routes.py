@@ -492,3 +492,20 @@ DANE POJAZDÓW:
             status_code=500,
             detail=f"Vehicle comparison failed: {str(e)}",
         )
+
+
+@router.get("/extract/{vehicle_id}/markdown")
+async def get_vehicle_markdown(vehicle_id: str) -> Dict[str, Any]:
+    """Fetch the raw markdown for a vehicle synthesis record."""
+    try:
+        response = (
+            supabase_client.table("vehicle_synthesis")
+            .select("document_markdown")
+            .eq("id", vehicle_id)
+            .execute()
+        )
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+        return {"markdown": response.data[0].get("document_markdown") or ""}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

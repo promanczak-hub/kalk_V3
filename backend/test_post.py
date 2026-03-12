@@ -4,7 +4,9 @@ import json
 import urllib.error
 
 try:
-    req_get = urllib.request.urlopen(os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/control-center")
+    req_get = urllib.request.urlopen(
+        os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/control-center"
+    )
     d = json.loads(req_get.read())
     req_post = urllib.request.Request(
         os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/control-center",

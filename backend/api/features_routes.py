@@ -325,7 +325,7 @@ def extract_features_from_text(
 
         # Convert the matched features list into a list of FeatureFilterItem
         filters: list[FeatureFilterItem] = []
-        
+
         matched_keys = json_resp.get("matched_features", [])
         if not isinstance(matched_keys, list):
             matched_keys = []
@@ -379,11 +379,19 @@ def reverse_search_vehicles(
     # 1. Base Scope, Body Type and Free Text Filtering (STRICT)
     valid_vehicle_ids: set[str] | None = None
 
-    if request.search_query or request.body_types or (request.vehicle_scope and request.vehicle_scope != "all"):
+    if (
+        request.search_query
+        or request.body_types
+        or (request.vehicle_scope and request.vehicle_scope != "all")
+    ):
         bt_resp = sb.table("vehicle_synthesis").select("id, synthesis_data").execute()
 
         filtered_ids = set()
-        search_words = [w.lower() for w in request.search_query.split()] if request.search_query else []
+        search_words = (
+            [w.lower() for w in request.search_query.split()]
+            if request.search_query
+            else []
+        )
 
         for r in bt_resp.data:
             sd = r.get("synthesis_data") or {}
@@ -395,6 +403,7 @@ def reverse_search_vehicles(
             if search_words:
                 # Dump the structure to a lowercased string to find the exact substrings
                 import json
+
                 sd_str = json.dumps(sd, ensure_ascii=False).lower()
                 for w in search_words:
                     if w not in sd_str:
@@ -712,7 +721,7 @@ def reverse_search_vehicles(
         chunk_size = 150
         for i in range(0, len(result_ids_list), chunk_size):
             chunk = result_ids_list[i : i + chunk_size]
-            
+
             facet_resp = (
                 sb.schema("reverse_search")
                 .table("vehicle_feature_state")
@@ -729,7 +738,7 @@ def reverse_search_vehicles(
                 )
                 .execute()
             )
-            
+
             for r in facet_resp.data:
                 uf = r.get("universal_features")
                 if uf and isinstance(uf, dict):

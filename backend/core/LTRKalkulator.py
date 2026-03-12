@@ -54,13 +54,17 @@ _ENGINE_CATEGORY_TO_ID: Dict[str, int] = {
 def _resolve_engine_type_id(engine_category: str) -> int:
     """Mapuje engine_category (np. 'Benzyna mHEV (PB-mHEV)') → engine_type_id."""
     if not engine_category:
-        raise ValueError("Brak parametru engine_category. Nie można poprawnie zidentyfikować silnika.")
+        raise ValueError(
+            "Brak parametru engine_category. Nie można poprawnie zidentyfikować silnika."
+        )
     upper = engine_category.strip().upper()
     # Try direct match first
     for key, eid in _ENGINE_CATEGORY_TO_ID.items():
         if key in upper:
             return eid
-    raise ValueError(f"Nieznana kategoria silnika: '{engine_category}'. Brak mapowania na engine_type_id.")
+    raise ValueError(
+        f"Nieznana kategoria silnika: '{engine_category}'. Brak mapowania na engine_type_id."
+    )
 
 
 @lru_cache(maxsize=128)
@@ -128,6 +132,14 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
             kw_match = re.search(r"(\d+)\s*kW", powertrain, re.IGNORECASE)
             if kw_match:
                 power_kw_raw = int(kw_match.group(1))
+            else:
+                km_match = re.search(r"(\d+)\s*KM", powertrain, re.IGNORECASE)
+                if km_match:
+                    power_km = int(km_match.group(1))
+                    power_kw_raw = round(power_km / 1.36)
+
+        if not power_kw_raw or float(power_kw_raw) <= 0:
+            raise ValueError(f"Nie udało się ustalić mocy pojazdu (brak kW i KM) dla ID: {vid}. Uzupełnij dane w panelu (Kalkulacja bez fallbacku przerwana).")
 
         vehicle_dict: Dict[str, Any] = {
             "id": vid,
@@ -136,7 +148,7 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
             "Segment": samar_category,
             "samar_class_id": samar_class_id,
             "engine_type_id": engine_type_id,
-            "power_kw": float(power_kw_raw or 100),
+            "power_kw": float(power_kw_raw),
             "paint_type_id": cs.get("paint_type_id"),
             "body_type_id": cs.get("body_type_id"),
             "zabudowa_apr_wr": bool(row.get("zabudowa_apr_wr", False)),
@@ -252,6 +264,7 @@ class LTRKalkulator:
             sets_needed_override=getattr(
                 self.input_data, "liczba_kompletow_opon", None
             ),
+            odkup_opon_enabled=getattr(self.input_data, "odkup_opon_enabled", False),
         )
 
         # Load vehicle if needed
@@ -260,8 +273,15 @@ class LTRKalkulator:
             vid = self.input_data.get("vehicle_id", "")
         self.vehicle = get_vehicle_from_db(vid) if vid else {}
 
-        samar_id = str(self.vehicle.get("samar_class_id", ""))
-        self.samar_klasa = get_samar_klasa_from_db(samar_id) if samar_id else {}
+        self.samar_id = self.vehicle.get("samar_class_id", 0)
+        self.vehicle["samar_class_id"] = self.samar_id
+
+        samar_id_str = str(self.samar_id)
+        self.samar_klasa = (
+            get_samar_klasa_from_db(samar_id_str)
+            if samar_id_str and samar_id_str != "0"
+            else {}
+        )
 
         # Service calculator (ASO/nonASO)
         self.service_cost_type = getattr(self.input_data, "service_cost_type", "ASO")
@@ -270,7 +290,7 @@ class LTRKalkulator:
             "NON-ASO" if self.service_cost_type == "nonASO" else "ASO"
         )
 
-    def _calculate_capex(self) -> Tuple[float, float]:
+    def _calculate_capex(self) -> Tuple[float, float, Any]:
         """Kalkuluje wejściową sumę finansowaną (CAPEX) autorskim kalkulatorem (V3)"""
         base_net = self.input_data.base_price_net
 
@@ -324,14 +344,14 @@ class LTRKalkulator:
             - res.gsm_capex_net
             - res.transport_fee_net
         )
-        return res.discounted_base, discounted_options_capex
+        return res.discounted_base, discounted_options_capex, res
 
     def build_matrix(self) -> List[Dict[str, Any]]:
         """Przelicza wszystkie warianty i zwraca siatkę (List of Cells)"""
         # V3 Matrix Generation: Linear 1D Grid (6 - 84 months) based on reference usage (Card Summary)
         cells = []
 
-        vehicle_capex, options_capex = self._calculate_capex()
+        vehicle_capex, options_capex, capex_res = self._calculate_capex()
         capex = vehicle_capex + options_capex
         # V1 parity: WR curve uses full catalogue prices (no discount)
         base_price_net_full = float(getattr(self.input_data, "base_price_net", 0))
@@ -356,7 +376,11 @@ class LTRKalkulator:
         if margin_pct >= 1.0:
             margin_pct = 0.9999  # Prevention of division by zero
 
-        grid_params = [(m, km_py) for m in range(12, 85, 12) for km_py in range(40000, 80001, 10000)]
+        grid_params = [
+            (m, km_py)
+            for m in range(12, 85, 12)
+            for km_py in range(40000, 80001, 10000)
+        ]
 
         # Wstrzyknięcie wejściowego okres/przebieg do siatki
         req_months = getattr(self.input_data, "okres_bazowy", 48)
@@ -442,9 +466,7 @@ class LTRKalkulator:
                 z_serwisem=True,
                 opcja_serwisowa=self._opcja_serwisowa,
                 normatywny_przebieg_mc=normatywny_przebieg,
-                samar_class_id=int(self.vehicle.get("samar_class_id", 0))
-                if self.vehicle
-                else 0,
+                samar_class_id=int(self.samar_id),
                 engine_type_id=int(self.vehicle.get("engine_type_id", 1))
                 if self.vehicle
                 else 1,
@@ -457,17 +479,17 @@ class LTRKalkulator:
                 inne_koszty_serwisowania_netto=inne_koszty_val,
             )
             service_calc = ServiceCalculator(service_input)
-            service_from_new = service_calc.calculate()
+            service_from_new_dict = service_calc.calculate()
+            service_from_new = float(service_from_new_dict["monthly_service"])
             # Use new ServiceCalculator result; warn if zero (no legacy fallback)
             service_base = service_from_new
             service_fallback_used = service_from_new <= 0
             if service_fallback_used:
-                logging.warning(
-                    "ServiceCalculator returned 0 for months=%d, "
-                    "samar_class_id=%s, engine_type_id=%s — brak stawek serwisowych w DB",
-                    months,
-                    self.vehicle.get("samar_class_id", "?") if self.vehicle else "?",
-                    self.vehicle.get("engine_type_id", "?") if self.vehicle else "?",
+                raise ValueError(
+                    f"Brak stawek serwisowych (ServiceCalculator zwrócił 0) dla "
+                    f"okres={months}, klasa={self.vehicle.get('samar_class_id', '?')}, "
+                    f"silnik={self.vehicle.get('engine_type_id', '?')}. "
+                    f"Uzupełnij brakujące dane w panelu w tabeli ltr_v2_service_costs."
                 )
 
             # --- SUB-KALKULATOR: AMORTYZACJA (V1 port) ---
@@ -483,9 +505,7 @@ class LTRKalkulator:
                 procent_amortyzacji_miesiecznie = amort_result.amortyzacja_procent
 
             # --- SUB-KALKULATOR: UBEZPIECZENIE ---
-            s_class_id = (
-                str(self.vehicle.get("samar_class_id", "")) if self.vehicle else ""
-            )
+            s_class_id = str(self.samar_id)
             insurance_rates = get_insurance_rates_from_db(s_class_id)
             damage_coeffs = get_damage_coefficients_from_db(s_class_id)
             ins_calc = InsuranceCalculator(
@@ -571,150 +591,114 @@ class LTRKalkulator:
             )
             bm_result = BudzetMarketingowyCalculator(bm_input).calculate()
 
-            # Wyniki z nowego StawkaCalculator
-            total_base = kd_result.koszt_mc
-            total_price = stawka_result.oferowana_stawka
+            # Wyniki z nowego StawkaCalculator (użyte bezpośrednio niżej)
 
-            cells.append(
-                {
-                    "months": months,
-                    "km_per_year": km_per_year,
-                    "total_km": total_km,
-                    "base_cost_net": round(total_base, 2),
-                    "price_net": round(total_price, 2),
-                    "rv_samar_net": round(vr_samar, 2),
-                    "rv_lo_net": round(rv_res["WRdlaLO"], 2),
-                    "utrata_wartosci_bez_czynszu_net": round(
-                        rv_res["UtrataWartosciBEZczynszu"], 2
-                    ),
-                    # Nowe pola V1
-                    "koszt_dzienny": round(kd_result.koszt_dzienny, 2),
-                    "koszty_ogolem": round(kd_result.koszty_ogolem, 2),
-                    "amortyzacja_pct": round(procent_amortyzacji_miesiecznie, 6),
-                    "korekta_wr_maks": round(bm_result.korekta_wr_maks, 2),
-                    "marza_mc": round(stawka_result.marza_mc, 2),
-                    "marza_na_kontrakcie": round(stawka_result.marza_na_kontrakcie, 2),
-                    "marza_na_kontrakcie_pct": round(
-                        stawka_result.marza_na_kontrakcie_procent, 6
-                    ),
-                    "czynsz_finansowy": round(stawka_result.czynsz_finansowy, 2),
-                    "czynsz_techniczny": round(stawka_result.czynsz_techniczny, 2),
-                    "breakdown": {
-                        "finance": {
-                            "base": round(stawka_result.koszt_finansowy.koszt_mc, 2),
-                            "margin": round(
-                                stawka_result.koszt_finansowy.kwota_marzy_korekta, 2
-                            ),
-                            "price": round(
-                                stawka_result.koszt_finansowy.koszt_plus_marza_korekta,
-                                2,
-                            ),
-                            "monthly_pmt_z_czynszem": round(
-                                finance_res.monthly_pmt_z_czynszem, 2
-                            ),
-                            "monthly_pmt_bez_czynszu": round(
-                                finance_res.monthly_pmt_bez_czynszu, 2
-                            ),
-                            "suma_odsetek_z_czynszem": round(
-                                finance_res.SumaOdsetekZczynszem, 2
-                            ),
-                            "suma_odsetek_bez_czynszu": round(
-                                finance_res.SumaOdsetekBEZczynszu, 2
-                            ),
-                            "czynsz_inicjalny_netto": round(
-                                finance_res.CzynszInicjalnyNetto, 2
-                            ),
-                            "czynsz_procent": round(
-                                finance_res.CzynszInicjalnyProcent, 2
-                            ),
-                            "wykup_kwota": round(finance_res.WykupKwota, 2),
-                            "rozklad_marzy": round(
-                                stawka_result.koszt_finansowy.rozklad_marzy, 4
-                            ),
-                        },
-                        "technical": {
-                            "service": {
-                                "base": round(stawka_result.koszt_serwis.koszt_mc, 2),
-                                "margin": round(
-                                    stawka_result.koszt_serwis.kwota_marzy_korekta, 2
-                                ),
-                                "price": round(
-                                    stawka_result.koszt_serwis.koszt_plus_marza_korekta,
-                                    2,
-                                ),
-                                "rozklad_marzy": round(
-                                    stawka_result.koszt_serwis.rozklad_marzy, 4
-                                ),
-                            },
-                            "tires": {
-                                "base": round(stawka_result.koszt_opony.koszt_mc, 2),
-                                "margin": round(
-                                    stawka_result.koszt_opony.kwota_marzy_korekta, 2
-                                ),
-                                "price": round(
-                                    stawka_result.koszt_opony.koszt_plus_marza_korekta,
-                                    2,
-                                ),
-                                "rozklad_marzy": round(
-                                    stawka_result.koszt_opony.rozklad_marzy, 4
-                                ),
-                                "ilosc_opon": tires_res["IloscOpon"],
-                            },
-                            "insurance": {
-                                "base": round(
-                                    stawka_result.koszt_ubezpieczenie.koszt_mc, 2
-                                ),
-                                "margin": round(
-                                    stawka_result.koszt_ubezpieczenie.kwota_marzy_korekta,
-                                    2,
-                                ),
-                                "price": round(
-                                    stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta,
-                                    2,
-                                ),
-                                "rozklad_marzy": round(
-                                    stawka_result.koszt_ubezpieczenie.rozklad_marzy, 4
-                                ),
-                            },
-                            "replacement_car": {
-                                "base": round(
-                                    stawka_result.koszt_samochod_zastepczy.koszt_mc, 2
-                                ),
-                                "margin": round(
-                                    stawka_result.koszt_samochod_zastepczy.kwota_marzy_korekta,
-                                    2,
-                                ),
-                                "price": round(
-                                    stawka_result.koszt_samochod_zastepczy.koszt_plus_marza_korekta,
-                                    2,
-                                ),
-                                "rozklad_marzy": round(
-                                    stawka_result.koszt_samochod_zastepczy.rozklad_marzy,
-                                    4,
-                                ),
-                            },
-                            "additional_costs": {
-                                "base": round(stawka_result.koszt_admin.koszt_mc, 2),
-                                "margin": round(
-                                    stawka_result.koszt_admin.kwota_marzy_korekta, 2
-                                ),
-                                "price": round(
-                                    stawka_result.koszt_admin.koszt_plus_marza_korekta,
-                                    2,
-                                ),
-                                "rozklad_marzy": round(
-                                    stawka_result.koszt_admin.rozklad_marzy, 4
-                                ),
-                            },
-                        },
-                    },
-                    "status": "OK" if total_km <= 200000 else "WARNING_HIGH_KM",
-                    "warnings": {
-                        "service_fallback_used": service_fallback_used,
-                        "replacement_car_missing": rc_base == 0.0
-                        and self.input_data.replacement_car_enabled,
-                    },
+            # --- WYNIK OSTATECZNY (FLAT V1 FORMAT) ---
+            def to_koszt_dict(k_item):
+                return {
+                    "RozkladMarzy": k_item.rozklad_marzy,
+                    "RozkladMarzyKorekta": k_item.rozklad_marzy_korekta,
+                    "KwotaMarzy": round(k_item.kwota_marzy, 0),
+                    "KwotaMarzyKorekta": round(k_item.kwota_marzy_korekta, 0),
+                    "KosztPlusMarza": round(k_item.koszt_plus_marza, 0),
+                    "KosztPlusMarzaKorekta": round(k_item.koszt_plus_marza_korekta, 0),
                 }
-            )
+
+            report_html = ""
+
+            cells.append({
+                "Okres": months,
+                "Przebieg": km_per_year,
+                
+                # 1. Stawka (Math.Round(0))
+                "LacznaStawka": round(stawka_result.oferowana_stawka, 0),
+                "CzynszFinansowy": round(stawka_result.czynsz_finansowy, 0),
+                "CzynszTechniczny": round(stawka_result.czynsz_techniczny, 0),
+                "Ubezpieczenie": round(stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta, 0),
+                "Serwis": round(stawka_result.koszt_serwis.koszt_plus_marza_korekta, 0),
+                "Admin": round(stawka_result.koszt_admin.koszt_plus_marza_korekta, 0),
+                "Opony": round(stawka_result.koszt_opony.koszt_plus_marza_korekta, 0),
+                "SamochodZastepczy": round(stawka_result.koszt_samochod_zastepczy.koszt_plus_marza_korekta, 0),
+                "Przychod": round(stawka_result.przychod, 0),
+                "PodstawaMarzy": stawka_result.podstawa_marzy,
+                "MarzaMiesiac": round(stawka_result.marza_mc, 0),
+                "MarzaNaKontrakcie": round(stawka_result.marza_na_kontrakcie, 0),
+                "MarzaNaKontrakcieProcent": stawka_result.marza_na_kontrakcie_procent,
+                "KosztyLaczneMC": stawka_result.koszty_laczne_mc,
+                "KosztFinansowyLacznie": round(stawka_result.koszt_finansowy_lacznie, 0),
+                "KosztFinansowyMiesiecznie": round(stawka_result.koszt_finansowy_miesiecznie, 0),
+                "Koszt": [
+                    to_koszt_dict(stawka_result.koszt_finansowy),
+                    to_koszt_dict(stawka_result.koszt_ubezpieczenie),
+                    to_koszt_dict(stawka_result.koszt_samochod_zastepczy),
+                    to_koszt_dict(stawka_result.koszt_serwis),
+                    to_koszt_dict(stawka_result.koszt_opony),
+                    to_koszt_dict(stawka_result.koszt_admin),
+                ],
+
+                # 2. Zakup (decimal - bez zaokrągleń)
+                "CenaZakupu": capex_res.CenaZakupu,
+                "CenaZakupuBezOpon": capex_res.CenaZakupuBezOpon,
+                "CenaZakupuBezOponIOpcjiSerwisowych": capex_res.CenaZakupuBezOponIOpcjiSerwisowych,
+                "CenaZakupuBezOponIOpcjiSerwisowychIPakietu": capex_res.CenaZakupuBezOponIOpcjiSerwisowychIPakietu,
+                "RabatKwotowo": capex_res.RabatKwotowo,
+
+                # 3. Utrata Wartości
+                "WR": vr_samar,
+                "WRdlaLO": round(rv_res.get("WRdlaLO", vr_samar), 0),
+                "UtrataWartosci": round(utrata_z_czynszem, 0),
+                "KorektaZaPrzebiegKwotowo": round(rv_res.get("KorektaZaPrzebiegKwotowo", 0.0), 0),
+                "KorektaAdministracyjnaKwotowo": 0.0,
+
+                # 4. Finanse
+                "CzynszInicjalnyProcent": finance_res.CzynszInicjalnyProcent,
+                "CzynszInicjalnyNetto": round(finance_res.CzynszInicjalnyNetto, 0),
+                "LacznyKosztCzesciOdsetkowejRaty": round(finance_res.SumaOdsetekZczynszem, 0),
+                "SumaOdsetekBezCzynszuInicjalnego": round(finance_res.SumaOdsetekBEZczynszu, 0),
+
+                # 5. Opony
+                "LacznyKosztOpon": round(tires_total, 0),
+                "IloscOpon": round(tires_res["IloscOpon"], 0),
+                "Cena1KompletOpon": round(tires_res.get("Cena1KompletOpon", 0.0), 0),
+
+                # 6. Serwis
+                "LacznieKosztySerwisowe": round(service_total, 0),
+                "KosztySerwisowe": round(service_total, 0),
+
+                # 7. Pozostałe
+                "LacznieUbezpieczenie": round(insurance_total, 0),
+                "KosztyDodatkowe": round(additional_costs_total, 0),
+                "LacznieSamochodZastepczy": round(rc_total, 0),
+                "KosztyOgolem": round(kd_result.koszty_ogolem, 0),
+                "KosztDzienny": round(kd_result.koszt_dzienny, 2),
+                "AmortyzacjaProcent": procent_amortyzacji_miesiecznie,
+                "KorektaWRMaks": round(bm_result.korekta_wr_maks, 2),
+
+                # 8. Diagnostyka
+                "ReportHtml": report_html,
+
+                # 9. Ślad rewizyjny (Calculation Trace)
+                "calculation_trace": (
+                    capex_res.trace
+                    + rv_res.get("trace", [])
+                    + (amort_result.trace if 'amort_result' in locals() else [])
+                    + tires_res.get("trace", [])
+                    + service_from_new_dict.get("trace", [])
+                    + insurance_res.get("trace", [])
+                    + rc_res.get("trace", [])
+                    + add_calc_res.get("trace", [])
+                    + finance_res.trace
+                    + kd_result.trace
+                    + stawka_result.trace
+                    + bm_result.trace
+                ),
+
+                # Extra technical output (status/warnings)
+                "status": "OK" if total_km <= 200000 else "WARNING_HIGH_KM",
+                "warnings": {
+                    "service_fallback_used": service_fallback_used,
+                    "replacement_car_missing": rc_base == 0.0 and self.input_data.replacement_car_enabled,
+                },
+            })
 
         return cells

@@ -58,7 +58,10 @@ _NUMERIC_DIRECT_MAP: dict[str, tuple[str, str]] = {
     "dmc_kg": ("dmc_kg", "kg"),
     "curb_weight_kg": ("curb_weight_kg", "kg"),
     "euro_pallets": ("ilość_europalet", "szt"),
-    "battery_capacity_kwh": ("pojemność_akumulatora_dla_pojazdu_elektrycznego_w_kwh", "kWh"),
+    "battery_capacity_kwh": (
+        "pojemność_akumulatora_dla_pojazdu_elektrycznego_w_kwh",
+        "kWh",
+    ),
     "ev_range_km": ("zasięg_wltp_dla_pojazdów_elektrycznych_w_km", "km"),
     # NOTE: "seats" is handled by _DIRECT_FIELD_MAP ("number_of_seats")
 }
@@ -80,15 +83,14 @@ def _safe_parse_num(raw_value: Any) -> float | None:
                 return None
     return None
 
+
 # JSON schema returned by the LLM matcher.
 _LLM_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "matches": {
             "type": "array",
-            "description": (
-                "One entry per input equipment item, in the same order."
-            ),
+            "description": ("One entry per input equipment item, in the same order."),
             "items": {
                 "type": "object",
                 "properties": {
@@ -137,7 +139,7 @@ _LLM_UTILITY_RESPONSE_SCHEMA: dict[str, Any] = {
                             "or empty string when no match."
                         ),
                     },
-                     "value_num": {
+                    "value_num": {
                         "type": "number",
                         "description": "Wyciągnięta wartość liczbowa z cechy (np. 14.4 dla '14.4 m3' albo 3450 dla '3450 mm').",
                     },
@@ -150,12 +152,19 @@ _LLM_UTILITY_RESPONSE_SCHEMA: dict[str, Any] = {
                         "description": "Match certainty 0.0–1.0.",
                     },
                 },
-                "required": ["item_name", "feature_key", "value_num", "unit", "confidence"],
+                "required": [
+                    "item_name",
+                    "feature_key",
+                    "value_num",
+                    "unit",
+                    "confidence",
+                ],
             },
         },
     },
     "required": ["matches"],
 }
+
 
 def _build_feature_catalog_text(features: list[dict[str, Any]]) -> str:
     """Build a compact text representation of the feature catalog."""
@@ -248,6 +257,7 @@ Pozycje wyposażenia do dopasowania:
         )
         return []
 
+
 def _llm_match_utility_features(
     utility_items: list[dict[str, Any]],
     features: list[dict[str, Any]],
@@ -256,7 +266,9 @@ def _llm_match_utility_features(
         return []
 
     catalog_text = _build_feature_catalog_text(features)
-    items_text = "\n".join(f"- {item.get('name')}: {item.get('value')}" for item in utility_items)
+    items_text = "\n".join(
+        f"- {item.get('name')}: {item.get('value')}" for item in utility_items
+    )
 
     prompt = f"""Jesteś wnikliwym ekspertem klasyfikacji wymiarów i cech użytkowych.
 Poniżej znajduje się katalog ustandaryzowanych cech z systemu bazodanowego (feature_key: opis):
@@ -303,6 +315,7 @@ Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
             exc,
         )
         return []
+
 
 def _load_feature_catalog() -> list[dict[str, Any]]:
     """Load all active universal_features."""
@@ -399,26 +412,29 @@ def enrich_vehicle_features(
     # ── 2b. Utility Features → LLM match → numeric evidence ──
     utility_features: list[dict] = card_summary.get("utility_features", [])
     valid_utility = [
-        opt for opt in utility_features 
+        opt
+        for opt in utility_features
         if isinstance(opt, dict) and opt.get("name") and opt.get("value")
     ]
-    
+
     utility_matches = _llm_match_utility_features(valid_utility, features)
     for match in utility_matches:
         feat_id = feature_by_key.get(match["feature_key"])
         if not feat_id:
             continue
-            
+
         evidence_batch.append(
             {
                 "source_vehicle_id": vehicle_id,
                 "feature_id": feat_id,
                 "source_type": "catalog",
                 "evidence_status": "observed",
-                "value_num": float(match.get("value_num", 0)),
+                "value_num": _safe_parse_num(match.get("value_num")),
                 "unit": match.get("unit"),
-                "value_text": f"{match['value_num']} {match.get('unit', '')}".strip() if match.get("value_num") else "",
-                "confidence": round(match["confidence"], 4),
+                "value_text": f"{match.get('value_num', '')} {match.get('unit', '')}".strip()
+                if match.get("value_num") is not None
+                else "",
+                "confidence": round(match.get("confidence", 0), 4),
             }
         )
 
@@ -463,7 +479,8 @@ def enrich_vehicle_features(
         if not feat_id:
             logger.debug(
                 "Numeric field %s → feature_key %s not found in catalog",
-                cs_field, feat_key,
+                cs_field,
+                feat_key,
             )
             continue
 
@@ -483,7 +500,8 @@ def enrich_vehicle_features(
 
     logger.info(
         "Vehicle %s: extracted %d numeric fields from card_summary",
-        vehicle_id, numeric_count,
+        vehicle_id,
+        numeric_count,
     )
 
     # ── 4. Insert evidence (batch upsert) ──

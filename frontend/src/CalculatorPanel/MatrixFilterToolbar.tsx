@@ -14,6 +14,7 @@ interface MatrixFilterToolbarProps {
   filters: MatrixFilters;
   onFiltersChange: (f: MatrixFilters) => void;
   onMarginRecalculate: (marginPct: number) => void;
+  onExactRecalculate: (months: number, kmPerYear: number, marginPct: number) => void;
   isRecalculating: boolean;
 }
 
@@ -71,7 +72,7 @@ function DualRangeSlider({
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"low" | "high" | null>(null);
 
-  const snapToStep = (raw: number) => Math.round(raw / step) * step;
+  const snapToStep = useCallback((raw: number) => Math.round(raw / step) * step, [step]);
 
   const getValueFromX = useCallback(
     (clientX: number) => {
@@ -222,10 +223,16 @@ export function MatrixFilterToolbar({
   filters,
   onFiltersChange,
   onMarginRecalculate,
+  onExactRecalculate,
   isRecalculating,
 }: MatrixFilterToolbarProps) {
   const [kmActive, setKmActive] = useState(filters.targetKmPerYear !== null);
   const [marginDirty, setMarginDirty] = useState(false);
+
+  // Precision Variant state
+  const [exactMonths, setExactMonths] = useState<string>("48");
+  const [exactKm, setExactKm] = useState<string>("40000");
+  const [exactMargin, setExactMargin] = useState<string>(defaultMarginPct.toFixed(2));
 
   const update = (partial: Partial<MatrixFilters>) => {
     onFiltersChange({ ...filters, ...partial });
@@ -258,6 +265,15 @@ export function MatrixFilterToolbar({
     } else {
       update({ targetKmPerYear: 60_000 });
       setKmActive(true);
+    }
+  };
+
+  const handleExactRecalculateClick = () => {
+    const m = parseInt(exactMonths, 10);
+    const k = parseInt(exactKm, 10);
+    const mar = parseFloat(exactMargin);
+    if (!isNaN(m) && !isNaN(k) && !isNaN(mar)) {
+      onExactRecalculate(m, k, mar);
     }
   };
 
@@ -463,6 +479,64 @@ export function MatrixFilterToolbar({
               )}
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Precision Variant Form */}
+      <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              Wariant precyzyjny:
+            </span>
+          </div>
+          <div className="flex flex-1 items-center gap-3">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1 shadow-sm">
+              <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactMonths">Okres (mc):</label>
+              <input
+                id="exactMonths"
+                type="number"
+                min="6"
+                max="120"
+                value={exactMonths}
+                onChange={(e) => setExactMonths(e.target.value)}
+                className="w-12 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1 shadow-sm">
+              <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactKm">Przebieg (km/rok):</label>
+              <input
+                id="exactKm"
+                type="number"
+                min="10000"
+                max="200000"
+                step="1000"
+                value={exactKm}
+                onChange={(e) => setExactKm(e.target.value)}
+                className="w-16 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1 shadow-sm">
+              <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactMargin">Marża (%):</label>
+              <input
+                id="exactMargin"
+                type="number"
+                min="-10"
+                max="50"
+                step="0.01"
+                value={exactMargin}
+                onChange={(e) => setExactMargin(e.target.value)}
+                className="w-14 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
+              />
+            </div>
+            <button
+              onClick={handleExactRecalculateClick}
+              disabled={isRecalculating}
+              className="ml-auto flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRecalculating ? "Przeliczam..." : "⚡ Wygeneruj wariant"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

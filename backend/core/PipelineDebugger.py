@@ -40,7 +40,7 @@ class PipelineDebugger(LTRKalkulator):
         km_per_month = przebieg_bazowy / okres_bazowy
         total_km = int(km_per_month * months)
 
-        vehicle_capex, options_capex = self._calculate_capex()
+        vehicle_capex, options_capex, capex_res = self._calculate_capex()
         capex = vehicle_capex + options_capex
         # V1 parity: WR curve uses FULL catalogue prices (no discount)
         # vehicle_capex = discounted_base (for financing),
@@ -199,7 +199,8 @@ class PipelineDebugger(LTRKalkulator):
             inne_koszty_serwisowania_netto=inne_koszty_val,
         )
         service_calc = ServiceCalculator(service_input)
-        service_from_new = service_calc.calculate()
+        service_from_new_dict = service_calc.calculate()
+        service_from_new = float(service_from_new_dict["monthly_service"])
 
         # Legacy ops calc just mapped to new service base
         orig_service_base = service_from_new

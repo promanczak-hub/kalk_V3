@@ -100,60 +100,105 @@ class ServiceCalculator:
         self.data = data
         self._rate_per_km = 0.0
 
-    def calculate(self) -> float:
-        """Zwraca miesięczny koszt serwisu (netto)."""
+    def calculate(self) -> dict[str, Any]:
+        """Zwraca miesięczny koszt serwisu (netto) wraz z trajektorią."""
+        trace: list[dict[str, Any]] = []
+
         if not self.data.z_serwisem:
             logger.info("Service costs skipped (z_serwisem=False).")
-            return 0.0
+            trace.append({
+                "krok": "Serwis (Wyłączony)",
+                "rownanie": "z_serwisem = False",
+                "wynik": 0.0
+            })
+            return {"monthly_service": 0.0, "trace": trace}
 
         if self.data.okres <= 0:
-            return 0.0
+            return {"monthly_service": 0.0, "trace": trace}
 
-        monthly_base = self._calculate_base_monthly()
+        base_res = self._calculate_base_monthly()
+        monthly_base = base_res["monthly"]
+        trace.extend(base_res["trace"])
+
         monthly_extra = self.data.inne_koszty_serwisowania_netto
+        if monthly_extra > 0:
+            trace.append({
+                "krok": "Serwis: Inne Koszty Serwisowania (miesięcznie)",
+                "rownanie": f"Kwota z konfiguracji ręcznej: {monthly_extra:.2f}",
+                "wynik": monthly_extra
+            })
 
         total_monthly = monthly_base + monthly_extra
+
+        trace.append({
+            "krok": "Serwis: Razem Miesięcznie",
+            "rownanie": f"{monthly_base:.2f} (Baza) + {monthly_extra:.2f} (Koszty Dodatkowe)",
+            "wynik": total_monthly
+        })
 
         logger.info(
             f"Service monthly: base={monthly_base:.2f}, "
             f"extra={monthly_extra:.2f}, total={total_monthly:.2f}"
         )
 
-        return total_monthly
+        return {"monthly_service": total_monthly, "trace": trace}
 
-    def _calculate_base_monthly(self) -> float:
+    def _calculate_base_monthly(self) -> dict[str, Any]:
         """Oblicza bazowy koszt miesięczny serwisu.
 
         PakietSerwisowy > 0 → override (total na kontrakt / miesiące).
         W przeciwnym razie → km-ówka z DB.
         """
+        trace: list[dict[str, Any]] = []
         if self.data.pakiet_serwisowy > 0:
             monthly = self.data.pakiet_serwisowy / self.data.okres
+            trace.append({
+                "krok": "Serwis: Pakiet Serwisowy (Nadpisanie)",
+                "rownanie": f"Całkowity pakiet {self.data.pakiet_serwisowy:.2f} PLN / {self.data.okres} msc",
+                "wynik": monthly
+            })
             logger.info(
                 f"PakietSerwisowy override: "
                 f"{self.data.pakiet_serwisowy:.2f} / "
                 f"{self.data.okres} mc = {monthly:.2f}/mc"
             )
-            return monthly
+            return {"monthly": monthly, "trace": trace}
 
         return self._calculate_km_based_monthly()
 
-    def _calculate_km_based_monthly(self) -> float:
+    def _calculate_km_based_monthly(self) -> dict[str, Any]:
         """Logika km-owa: stawka × effective_km / miesiące + korekta %."""
+        trace: list[dict[str, Any]] = []
         self._fetch_rate_from_db()
 
         floor_km = self.data.normatywny_przebieg_mc * self.data.okres
         effective_km = max(self.data.przebieg, floor_km)
 
+        trace.append({
+            "krok": "Serwis: Efektywny przebieg (km-ówka)",
+            "rownanie": f"MAX( {self.data.przebieg} km, (Normatywny {self.data.normatywny_przebieg_mc} * {self.data.okres} = {floor_km}) )",
+            "wynik": effective_km
+        })
+
         service_total = effective_km * self._rate_per_km
+        trace.append({
+            "krok": "Serwis: Wynik przed korektą",
+            "rownanie": f"{effective_km:.2f} km * Stawka Baza {self._rate_per_km:.5f} PLN/km",
+            "wynik": service_total
+        })
 
         # Korekta serwis ±% (V1: KorektaSerwisProcent = 5% admin)
         if self.data.korekta_serwis_procent != 0.0:
-            korekta = service_total * self.data.korekta_serwis_procent
-            service_total += korekta
+            korekta_kwota = service_total * self.data.korekta_serwis_procent
+            service_total += korekta_kwota
+            trace.append({
+                "krok": "Serwis: Korekta Serwis Procent",
+                "rownanie": f"Korekta o {self.data.korekta_serwis_procent * 100:.2f}% ({korekta_kwota:+.2f} PLN)",
+                "wynik": service_total
+            })
             logger.info(
                 f"Service correction: {self.data.korekta_serwis_procent:+.2%} "
-                f"= {korekta:+.2f} PLN"
+                f"= {korekta_kwota:+.2f} PLN"
             )
 
         logger.info(
@@ -162,7 +207,14 @@ class ServiceCalculator:
             f"rate={self._rate_per_km}/km, total={service_total:.2f}"
         )
 
-        return service_total / self.data.okres
+        monthly = service_total / self.data.okres
+        trace.append({
+            "krok": "Serwis: Miesięczna rata (km-ówka)",
+            "rownanie": f"{service_total:.2f} PLN / {self.data.okres} msc",
+            "wynik": monthly
+        })
+
+        return {"monthly": monthly, "trace": trace}
 
     def _determine_power_band(self) -> str:
         """Determines the power band string used in the DB schema based on kW."""

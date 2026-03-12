@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../../../../lib/supabaseClient";
-import type { FleetVehicleView } from "../../../types";
+import { supabase } from "../../lib/supabaseClient";
+import type { FleetVehicleView } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
+import type { ControlCenterSettings } from "../../hooks/useCalculator";
 
 export function useVehicleFinancing(
   vehicle: FleetVehicleView,
   autoDetectMetalic: () => boolean,
-  setCatalogBasePriceNet: (val: number) => void
+  setCatalogBasePriceNet: (val: number) => void,
+  globalSettings?: ControlCenterSettings | null
 ) {
   // Financial parameters
-  const [wiborPct, setWiborPct] = useState<number>(5.85);
-  const [marginPct, setMarginPct] = useState<number>(2.0);
+  const [wiborPct, setWiborPct] = useState<number>(globalSettings?.default_wibor ?? 5.85);
+  const [marginPct, setMarginPct] = useState<number>(globalSettings?.default_ltr_margin ?? 2.0);
   const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
   const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
   const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
@@ -60,6 +62,10 @@ export function useVehicleFinancing(
     const setup = (vehicle.synthesis_data as any)?.calculator_setup;
 
     if (!setup) {
+      if (globalSettings) {
+        setWiborPct(globalSettings.default_wibor ?? 5.85);
+        setMarginPct(globalSettings.default_ltr_margin ?? 2.0);
+      }
       setIsMetalic(autoDetectMetalic());
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cs = (vehicle.synthesis_data as any)?.card_summary;
@@ -131,7 +137,7 @@ export function useVehicleFinancing(
       const keywordDetected = autoDetectMetalic();
       const color = (vehicle.exterior_color || "").toLowerCase();
       const hasKeyword = [
-        "metalic", "metalik", "metallic", "metalizow", "perłowy",
+        "metalic", "metalik", "metallic", "metalizow", "perĹ‚owy",
         "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"
       ].some(kw => color.includes(kw)) ||
       ["solido", "uni ", "akrylow", "jednowarstwow"].some(kw => color.includes(kw));
@@ -141,7 +147,7 @@ export function useVehicleFinancing(
       setIsMetalic(autoDetectMetalic());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color, vehicle.wheels]);
+  }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color, vehicle.wheels, globalSettings]);
 
   const handleSaveSetup = async (activeDiscountPct: number, activeFinalPrice: number, catalogBasePriceNet: number) => {
     setIsSavingSetup(true);
@@ -219,3 +225,4 @@ export function useVehicleFinancing(
     isSavingSetup, handleSaveSetup
   };
 }
+

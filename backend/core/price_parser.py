@@ -153,11 +153,19 @@ def _extract_numeric_value(text: str) -> float | None:
         "2.0 TDI 150 KM, WLTP 6.1 l/100km, cena 180 000 PLN brutto" → 180000.0
     """
     financial_keywords = [
-        "pln", "eur", "usd", "zł", "netto", "brutto",
-        "cena", "kwota", "rabat", "suma"
+        "pln",
+        "eur",
+        "usd",
+        "zł",
+        "netto",
+        "brutto",
+        "cena",
+        "kwota",
+        "rabat",
+        "suma",
     ]
     lower_text = text.lower()
-    
+
     # 1. Find indices of all financial keywords
     keyword_indices: list[int] = []
     for kw in financial_keywords:
@@ -165,12 +173,12 @@ def _extract_numeric_value(text: str) -> float | None:
         while idx != -1:
             keyword_indices.append(idx)
             idx = lower_text.find(kw, idx + 1)
-            
+
     # 2. Extract numbers and their positions
     matches = list(_PRICE_PATTERN.finditer(text))
     if not matches:
         return None
-        
+
     parsed_candidates: list[tuple[float, int]] = []
     for match in matches:
         num_str = match.group(0).strip().replace(" ", "")
@@ -179,14 +187,14 @@ def _extract_numeric_value(text: str) -> float | None:
             # We use the midpoint of the match for distance scoring
             midpoint = match.start() + (match.end() - match.start()) // 2
             parsed_candidates.append((val, midpoint))
-            
+
     if not parsed_candidates:
         return None
 
     # 3. If there are keywords, score candidates by closest distance to any keyword
     if keyword_indices:
         best_candidate = None
-        min_distance = float('inf')
+        min_distance = float("inf")
         for val, p_idx in parsed_candidates:
             dist = min(abs(p_idx - k_idx) for k_idx in keyword_indices)
             if dist < min_distance:

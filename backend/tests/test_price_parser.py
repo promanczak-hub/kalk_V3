@@ -2,7 +2,12 @@
 
 import pytest
 
-from core.price_parser import ParsedPrice, parse_price_string, extract_all_numbers, _extract_numeric_value
+from core.price_parser import (
+    ParsedPrice,
+    parse_price_string,
+    extract_all_numbers,
+    _extract_numeric_value,
+)
 
 
 class TestParseBasicFormats:
@@ -198,4 +203,3 @@ class TestMixedStrings:
         # 'netto' is a financial keyword, should select 150000
         val = _extract_numeric_value(text)
         assert val == 150000.0
-

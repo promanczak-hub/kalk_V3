@@ -59,6 +59,9 @@ class CalculatorInput(BaseModel):
     klasa_opony_string: str = Field(
         default="Medium", description="Klasa Opon np. 'WIELOSEZONOWE MEDIUM'"
     )
+    odkup_opon_enabled: bool = Field(
+        default=False, description="Włącz logikę obniżenia kosztów przez odkup opon (V1)"
+    )
     korekta_kosztu_opon: bool = Field(
         default=False, description="Czy stosować ręczną korektę"
     )

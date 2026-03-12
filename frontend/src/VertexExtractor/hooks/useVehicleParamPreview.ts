@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "../../../lib/api";
+﻿import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "../../lib/api";
 
 export function useVehicleParamPreview(
   classId: number | null | undefined,
@@ -64,3 +64,4 @@ export function useVehicleParamPreview(
 
   return { paramPreview, controlCenter };
 }
+

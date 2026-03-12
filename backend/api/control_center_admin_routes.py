@@ -207,6 +207,7 @@ async def delete_depreciation_rate(rate_id: int) -> Dict[str, str]:
 
 # --- Mileage Corrections (per engine × samar_class) ---
 
+
 @router.get("/mileage-corrections")
 async def get_mileage_corrections(
     samar_class_id: Optional[int] = None,
@@ -353,8 +354,14 @@ async def export_samar_service_costs() -> StreamingResponse:
         engines_resp = supabase.table("engines").select("id, name, category").execute()
 
         costs = cast(List[Dict[str, Any]], costs_resp.data or [])
-        classes = {c["id"]: c["name"] for c in cast(List[Dict[str, Any]], classes_resp.data or [])}
-        engines = {e["id"]: f"{e['name']} ({e['category']})" for e in cast(List[Dict[str, Any]], engines_resp.data or [])}
+        classes = {
+            c["id"]: c["name"]
+            for c in cast(List[Dict[str, Any]], classes_resp.data or [])
+        }
+        engines = {
+            e["id"]: f"{e['name']} ({e['category']})"
+            for e in cast(List[Dict[str, Any]], engines_resp.data or [])
+        }
 
         # Build records for DataFrame
         records = []
@@ -537,6 +544,7 @@ async def delete_service_base_cost(cost_id: int) -> Dict[str, str]:
 
 # ── Brand Corrections CRUD (ltr_admin_korekta_wr_markas) ──
 
+
 @router.get("/brand-corrections")
 async def get_brand_corrections_crud() -> list[dict[str, Any]]:
     try:
@@ -590,6 +598,7 @@ async def delete_brand_correction(item_id: int) -> Dict[str, str]:
 
 
 # ── Body Types Dictionary CRUD ──
+
 
 @router.get("/body-types")
 async def get_body_types() -> List[BodyType]:
@@ -674,6 +683,7 @@ async def delete_replacement_car_rate(item_id: str) -> Dict[str, str]:
 
 # ── Body Type WR Corrections CRUD (Sparse) ──
 
+
 @router.get("/body-corrections")
 async def get_body_corrections(
     samar_class_id: Optional[int] = None,
@@ -726,6 +736,7 @@ async def delete_body_correction(correction_id: int) -> Dict[str, str]:
 
 
 # ── Zabudowa Types Dictionary CRUD ──
+
 
 @router.get("/zabudowa-types")
 async def get_zabudowa_types() -> List[ZabudowaType]:
@@ -813,6 +824,7 @@ async def delete_zabudowa_correction(correction_id: int) -> Dict[str, str]:
 
 # ── Paint Types WR Correction CRUD ──
 
+
 @router.get("/paint-types")
 async def get_paint_types() -> List[PaintType]:
     try:
@@ -847,6 +859,7 @@ async def bulk_update_paint_types(
 
 
 # ── Vintage (Rocznik) Correction CRUD ──
+
 
 @router.get("/vintage-corrections")
 async def get_vintage_corrections() -> List[VintageCorrection]:

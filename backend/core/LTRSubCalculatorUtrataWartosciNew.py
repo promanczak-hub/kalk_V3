@@ -146,6 +146,53 @@ class LTRSubCalculatorUtrataWartosciNew:
         rv_calc = SamarRVCalculator(rv_input)
         result: RVOutput = rv_calc.calculate()
 
+        # Konwersja debug logów na wystandaryzowany ślad kalkulacyjny (trace)
+        d = result.debug
+        trace: list[dict[str, Any]] = []
+
+        trace.append({
+            "krok": "WR Krok 1: Wartość Bazowa (klasa + marka)",
+            "rownanie": f"CAPEX_NETTO * (WR_KLASA {d.get('krok1_wr_base_pct', 0)*100:.2f}% + KOR_MARKA {d.get('krok1_brand_correction', 0)*100:.2f}%)",
+            "wynik": d.get('krok1_wr_value', 0.0)
+        })
+
+        value_table = d.get('krok2_value_table', {})
+        trace.append({
+            "krok": "WR Krok 2: Deprecjacja kaskadowa (Tabela)",
+            "rownanie": f"Generowanie krzywej utraty wartości: {value_table}",
+            "wynik": value_table.get(d.get("krok3_years", 0), 0.0) if value_table else 0.0
+        })
+
+        trace.append({
+            "krok": "WR Krok 3: Wartość per lat + Opcje",
+            "rownanie": f"Baza ({d.get('krok3_years', 0)} lat) {d.get('krok3_rv_base', 0):.2f} + Opcje {d.get('krok3_rv_options', 0):.2f} ({d.get('krok3_options_rv_pct', 0)*100:.2f}%)",
+            "wynik": d.get('krok3_rv_total', 0.0)
+        })
+
+        trace.append({
+            "krok": "WR Krok 4: Korekta Przebiegu",
+            "rownanie": f"Nadprzebieg {d.get('krok4_nadprzebieg_tkm', 0)} tkm (Under: {d.get('krok4_under_rate', 0)*100:.2f}%, Over: {d.get('krok4_over_rate', 0)*100:.2f}%)",
+            "wynik": -d.get("krok4_korekta_przebieg", 0.0)
+        })
+
+        trace.append({
+            "krok": "WR Krok 5: Korekty Dodatkowe (Kolor, Nadwozie, Rocznik)",
+            "rownanie": f"Kolor {d.get('krok5_color', 0):.2f} + Nadwozie {d.get('krok5_body', 0):.2f} + Zabud {d.get('krok5_zabudowa', 0):.2f} + Rocznik x(1+ {d.get('krok5_vintage_pct', 0)*100:.2f}%)",
+            "wynik": d.get("krok5_rv_after", 0.0)
+        })
+
+        trace.append({
+            "krok": "WR Krok 6: Ostateczna Wartość Rezydualna",
+            "rownanie": f"WR_pre {d.get('krok5_rv_after', 0):.2f} + Korekta Ręczna {d.get('krok6_manual_correction', 0):.2f}",
+            "wynik": d.get("krok6_final_rv", 0.0)
+        })
+        
+        trace.append({
+            "krok": "WR: Utrata Wartości Netto",
+            "rownanie": f"MAX((CAPEX {base_net + options_net:.2f} - WR {d.get('krok6_final_rv', 0):.2f}), 0)",
+            "wynik": d.get("krok6_utrata", 0.0)
+        })
+
         return {
             "WR_Gross": result.wr_net * self.vat_rate,
             "WR": result.wr_net,
@@ -153,4 +200,5 @@ class LTRSubCalculatorUtrataWartosciNew:
             "UtrataWartosciBEZczynszu": result.utrata_wartosci_net,
             "WR_percent": result.wr_percent,
             "debug": result.debug,
+            "trace": trace,
         }

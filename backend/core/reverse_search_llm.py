@@ -234,5 +234,5 @@ class ExtractedReverseSearchFeatures(BaseModel):
             "Używaj WYŁĄCZNIE DOKŁADNYCH kluczy zdefiniowanych w sekcji 'KATEGORIE CECH (ONTOLOGIA FLOTOWA)' "
             "(np. 'adaptive_cruise_control', 'alloy_wheels_18', 'box_body_kontener'). "
             "Jeśli nie znaleziono żadnych cech, zwróć pustą listę."
-        )
+        ),
     )

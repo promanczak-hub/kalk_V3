@@ -93,15 +93,16 @@ Pipeline kalkulacyjny (12 kroków LTR: Opony → Koszty Dodatkowe → Samochód 
 - **Domyślne stałe** — `DEFAULT_AC = 0.015` zamiast prawdziwych stawek z bazy
 - **Kontynuacja mimo błędu** — uruchamianie kolejnych kroków gdy poprzedni zwrócił nieprawidłowe wyniki
 
-### ✅ WYMAGANE zachowanie:
+### ✅ WYMAGANE zachowanie (Zasada Głośnego Alarmu / Fail-Fast):
 
-- **Jawny błąd z komunikatem** — `raise ValueError("Brak stawki AC w tabeli ltr_admin_ubezpieczenia dla klasy {class_id}, rok {year}")` 
-- **Walidacja wejść na starcie** — sprawdź `samar_class_id > 0`, `base_price_net > 0`, `engine_id > 0` PRZED startem pipeline
-- **Readiness Check** — endpoint weryfikujący kompletność danych PRZED kalkulacją
-- **Logowanie** — `logger.error(...)` z kontekstem (klasa, marka, silnik) przed rzuceniem wyjątku
+- **Natychmiastowy i jawny błąd (Alertowanie)** — Jeśli system szuka wartości (np. mnożnika marży, kosztu serwisu, stawki AC) i nie znajduje jej w bazie lub konfiguracji, **musi natychmiast przerwać pracę i Cię o tym poinformować**. Rzuć precyzyjny wyjątek np. `raise ValueError("Brak stawki AC w tabeli ltr_admin_ubezpieczenia dla klasy {class_id}, rok {year}")`.
+- **Raportowanie Braków (Ściśle diagnostyczne)** — Każde zatrzymanie musi wskazywać dokładne koordynaty (czego szukano, kiedy, i dlaczego). Powinieneś wygenerować alert na tyle czytelny, by użytkownik wiedział bez szukania w kodzie, w jakiej tabeli Supabase/konfiguracji brakuje wpisu (np. "Kalkulacja zatrzymana w kroku WR: Brakuje matrycy wartości dla klasy 'Premium-Sport', rocznik 2025").
+- **Zasada Fail-Fast (Błąd na wczesnym etapie)** — Nie pozwól ułomnym danym płynąć przez system. Jeśli brakuje parametru na etapie 2 (Koszty Dodatkowe), system ma stanąć, a nie cicho próbować dociągnąć do etapu 12 (Budżet Marketingowy) i zwrócić bezsensowny wynik lub "dzielenie przez zero".
+- **Walidacja wejść na starcie / Readiness Check** — Sprawdź kluczowe parametry wejściowe (np. `samar_class_id > 0`, `base_price_net > 0`, `engine_id > 0`) zanim pipeline w ogóle ruszy. Endpoiny powinny wspierać weryfikację kompletności danych z wyprzedzeniem.
+- **Logowanie z Kontekstem** — Zawsze rób `logger.error(...)` z zebranym pełnym kontekstem żądania (klasa, marka, model, silnik) tuż przed rzuceniem alarmu wyjątkowego do frontendu.
 
 > [!CAUTION]
-> **Każda brakująca dana w procesie kalkulacyjnym MUSI skutkować czytelnym ostrzeżeniem użytkownika, a NIE cichym fałszywym wynikiem.** Lepiej odmówić kalkulacji niż zwrócić błędną stawkę.
+> **Każda brakująca dana w precyzyjnym procesie kalkulacyjnym MUSI skutkować czytelnym i NATYCHMIASTOWYM ostrzeżeniem, a NIE cichym przeliczeniem o fałszywych parametrach.** Zawsze lepiej bezzwłocznie odmówić wykonania obliczeń i wywalić błąd, niż narazić proces finansowy na skażenie domyślnym zerem.
 
 ---
 
@@ -151,3 +152,13 @@ Poniższe pliki przeszły pełen audyt V1↔V3 i są zatwierdzone przez użytkow
 | `frontend/src/TabelaOponCrud/TabelaOponCrudPanel.tsx` | 2026-03-09 | panel read-only, usunięto edycję/import/eksport, badge ZAMROŻONE                   |
 | `DB: samar_classes` (tabela danych)                   | 2026-03-10 | 33 klas, RLS=read-only, źródło prawdy dla kalkulatora                              |
 | `frontend/src/SamarMasterPanel.tsx`                   | 2026-03-09 | usunięto selektor klasy SAMAR, panel Master Table read-only, dodano ZAMROŻONE      |
+
+## 7. ŚLAD REWIZYJNY (CALCULATION TRACE / ARTEFAKT PRZELICZEŃ)
+
+Użytkownik ma analityczne podejście i musi mieć możliwość audytowania każdej kwoty wyplutej przez system. Proces kalkulacyjny jest wieloetapowy i złożony. W związku z tym:
+
+- **Pełna Transparentność Działań** — Każdy kalkulator/moduł matematyczny (tzw. "matrix") MUSI potrafić w trybie diagnostycznym rejestrować swoje kroki i zmienne składowe (np. mnożniki, kwoty bazowe i zastosowane operacje).
+- **Struktura Tranchy / Raportu** — Aplikacja architektonicznie przewiduje istnienie pola typu `calculation_trace` (zwykle jako dokument JSON lub w pełni wyrenderowany kod `ReportHtml`).
+- **Artefakt Logiki na KAŻDYM KROKU (Wymóg Kategoryczny)** — Zastrzegasz, że przy każdym wyliczeniu matematycznym na poziomie pojedynczego matrixa (np. Osobny widok/zmienna z pełnym JSON/HTML dla opon, dla ubezpieczenia, dla serwisu itd.) ma się wypluwać osobny artefakt tego przeliczenia. Oczekiwana jest precyzyjna granulacja, wyszczególniająca jakie dokładnie działania matematyczne oraz kroki powołały do życia otrzymaną dla tego węzła liczbę.
+- **Wymagania dla Nowych Logik:** Zmieniając stary plik z logiką powinieneś wdrożyć wewnątrz niego kolekcjoner zdarzeń (np. dopisywanie do lokalnej listy typu `self.trace.append("Wyliczenie opon = CENA * ILOSC...")`). Wynik tego śladu ma wracać na frontend lub być dostępny w formie pobieralnego artefaktu w panelu kontrolnym. 
+- **Złota reguła debugowania finansów:** Na każde wyliczenie końcowe w systemie MUSI dać się odpowiedzieć pytaniem: "Z jakiego dokładnie mnożenia lub dodawania wzięła się ta liczba?". Brak takiej możliwości = dług technologiczny.

@@ -1,9 +1,12 @@
 """Diagnostyka V3 vs V1 — Skoda Superb 24mc / 140k / rabat 24% / marza 15%"""
+
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 import core.LTRKalkulator as ltr_mod
+
 ltr_mod.get_vehicle_from_db.cache_clear()
 ltr_mod.get_samar_klasa_from_db.cache_clear()
 ltr_mod.get_insurance_rates_from_db.cache_clear()
@@ -16,9 +19,12 @@ from core.database import supabase
 print("=" * 80)
 print("KROK 0: Szukanie pojazdu Skoda Superb")
 print("=" * 80)
-res = supabase.table("vehicle_synthesis").select(
-    "id, brand, model, synthesis_data, zabudowa_apr_wr"
-).ilike("model", "%superb%").execute()
+res = (
+    supabase.table("vehicle_synthesis")
+    .select("id, brand, model, synthesis_data, zabudowa_apr_wr")
+    .ilike("model", "%superb%")
+    .execute()
+)
 
 if not res.data:
     print("BRAK SUPERBA W BAZIE!")
@@ -90,14 +96,19 @@ print(f"\n  km_per_year: {KM_PER_YEAR}")
 
 # ---- 2a. CAPEX ----
 from core.LTRSubCalculatorCenaZakupu import (
-    PurchasePriceCalculator, PurchasePriceInput, PurchasePriceOption,
+    PurchasePriceCalculator,
+    PurchasePriceInput,
+    PurchasePriceOption,
 )
 
 pp_input = PurchasePriceInput(
     base_price_net=CENA_CENNIKOWA,
     options=[
         PurchasePriceOption(
-            price_net=OPCJE_FABRYCZNE, name="Opcje", is_service=False, is_discountable=True
+            price_net=OPCJE_FABRYCZNE,
+            name="Opcje",
+            is_service=False,
+            is_discountable=True,
         )
     ],
     discount_pct=RABAT_PCT,
@@ -109,9 +120,9 @@ pp_input = PurchasePriceInput(
 pp_res = PurchasePriceCalculator(pp_input).calculate()
 capex = pp_res.total_capex
 
-print(f"\n{'='*80}")
+print(f"\n{'=' * 80}")
 print("KROK 2: SUB-KALKULATORY")
-print(f"{'='*80}")
+print(f"{'=' * 80}")
 print("\n  CAPEX:")
 print(f"    discounted_base: {pp_res.discounted_base:.2f}")
 print(f"    total_capex: {capex:.2f}")
@@ -152,11 +163,13 @@ print(f"\n  capex_for_financing: {capex_for_financing:.2f}")
 # ---- 2c. WR / UTRATA WARTOSCI ----
 from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
 
+
 class MockInput:
     korekta_wr = 0.0
     base_price_net = CENA_CENNIKOWA  # netto
     factory_options = []
     service_options = []
+
 
 rv_calc = LTRSubCalculatorUtrataWartosciNew(vehicle, MockInput())
 
@@ -216,6 +229,7 @@ print(f"    procent: {amort_res.amortyzacja_procent:.6f}")
 # ---- 2f. UBEZPIECZENIE ----
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 
+
 class MockSettings:
     vat_rate = VAT_RATE
     cost_registration = 233.50
@@ -228,6 +242,7 @@ class MockSettings:
     cost_grid_dismantling = 0.0
     normatywny_przebieg_mc = 1667
     budzet_marketingowy_ltr = 0.0
+
 
 settings = MockSettings()
 
@@ -263,12 +278,14 @@ print("    V1 sam.zast mc (z marza) = 70")
 # ---- 2h. KOSZTY DODATKOWE ----
 from core.LTRSubCalculatorKosztyDodatkowe import AdditionalCostsCalculator
 
+
 class MockInputAdd:
     add_gsm_subscription = True  # CzyGPS=v in V1
     add_hook_installation = True  # CzyHak=v in V1 snapshot = 80
     add_grid_dismantling = False
     add_sales_prep = True  # V1 always includes sales prep
     korekta_kosztu_przygotowania = 0.0
+
 
 add_res = AdditionalCostsCalculator(settings, MockInputAdd(), MONTHS).calculate_cost()
 additional_costs_base = float(add_res["monthly_additional_costs"])
@@ -353,17 +370,23 @@ print(f"    marza_mc: {stawka_result.marza_mc:.2f}")
 print(f"    marza_na_kontrakcie: {stawka_result.marza_na_kontrakcie:.2f}")
 
 print("\n  ROZKLAD (KosztPlusMarzaKorekta):")
-print(f"    Finansowy:     {stawka_result.koszt_finansowy.koszt_plus_marza_korekta:.2f}")
-print(f"    Ubezpieczenie: {stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta:.2f}")
+print(
+    f"    Finansowy:     {stawka_result.koszt_finansowy.koszt_plus_marza_korekta:.2f}"
+)
+print(
+    f"    Ubezpieczenie: {stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta:.2f}"
+)
 print(f"    Serwis:        {stawka_result.koszt_serwis.koszt_plus_marza_korekta:.2f}")
 print(f"    Opony:         {stawka_result.koszt_opony.koszt_plus_marza_korekta:.2f}")
-print(f"    Sam. zast.:    {stawka_result.koszt_samochod_zastepczy.koszt_plus_marza_korekta:.2f}")
+print(
+    f"    Sam. zast.:    {stawka_result.koszt_samochod_zastepczy.koszt_plus_marza_korekta:.2f}"
+)
 print(f"    Koszty dod.:   {stawka_result.koszt_admin.koszt_plus_marza_korekta:.2f}")
 
 # ---- 3. POROWNANIE ----
-print(f"\n{'='*80}")
+print(f"\n{'=' * 80}")
 print("POROWNANIE V1 vs V3 (24mc / 140k / rabat 24% / marza 15%)")
-print(f"{'='*80}")
+print(f"{'=' * 80}")
 
 v1 = {
     "Stawka laczna": 5210,
@@ -384,10 +407,14 @@ v3 = {
     "Stawka laczna": round(stawka_result.oferowana_stawka, 0),
     "Czynsz finansowy": round(stawka_result.czynsz_finansowy, 0),
     "Czynsz techniczny": round(stawka_result.czynsz_techniczny, 0),
-    "Ubezpieczenie": round(stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta, 0),
+    "Ubezpieczenie": round(
+        stawka_result.koszt_ubezpieczenie.koszt_plus_marza_korekta, 0
+    ),
     "Serwis": round(stawka_result.koszt_serwis.koszt_plus_marza_korekta, 0),
     "Opony": round(stawka_result.koszt_opony.koszt_plus_marza_korekta, 0),
-    "Sam. zastepczy": round(stawka_result.koszt_samochod_zastepczy.koszt_plus_marza_korekta, 0),
+    "Sam. zastepczy": round(
+        stawka_result.koszt_samochod_zastepczy.koszt_plus_marza_korekta, 0
+    ),
     "Koszty dodatkowe": round(stawka_result.koszt_admin.koszt_plus_marza_korekta, 0),
     "Koszt dzienny": round(kd_result.koszt_dzienny, 0),
     "Koszty ogolem": round(kd_result.koszty_ogolem, 0),
@@ -406,9 +433,9 @@ for key in v1:
     print(f"{key:<22} {v1v:>10.0f} {v3v:>10.0f} {d:>+10.0f} {p:>+7.1f}%{f}")
 
 # ---- 4. KOSZTY BAZOWE (bez marzy) ----
-print(f"\n{'='*80}")
+print(f"\n{'=' * 80}")
 print("KOSZTY BAZOWE (przed marza)")
-print(f"{'='*80}")
+print(f"{'=' * 80}")
 print(f"  Ubezpieczenie mc: {insurance_base:.2f}")
 print(f"  Serwis mc:        {service_base:.2f}")
 print(f"  Opony mc:         {tires_base:.2f}")

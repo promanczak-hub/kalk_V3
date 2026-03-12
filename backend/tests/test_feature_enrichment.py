@@ -18,21 +18,48 @@ from core.feature_enrichment import (
 
 
 SAMPLE_FEATURES: list[dict[str, Any]] = [
-    {"id": "uuid-1", "feature_key": "felga_aluminiowa", "display_name": "felga aluminiowa", "feature_type": "boolean"},
-    {"id": "uuid-2", "feature_key": "hak_holowniczy", "display_name": "Hak holowniczy/zaczep", "feature_type": "enum"},
-    {"id": "uuid-3", "feature_key": "klimatyzacja_automatyczna", "display_name": "Klimatyzacja automatyczna", "feature_type": "boolean"},
+    {
+        "id": "uuid-1",
+        "feature_key": "felga_aluminiowa",
+        "display_name": "felga aluminiowa",
+        "feature_type": "boolean",
+    },
+    {
+        "id": "uuid-2",
+        "feature_key": "hak_holowniczy",
+        "display_name": "Hak holowniczy/zaczep",
+        "feature_type": "enum",
+    },
+    {
+        "id": "uuid-3",
+        "feature_key": "klimatyzacja_automatyczna",
+        "display_name": "Klimatyzacja automatyczna",
+        "feature_type": "boolean",
+    },
 ]
 
 LLM_SPARE_WHEEL_RESPONSE = {
     "matches": [
-        {"item": "felga aluminiowa", "feature_key": "felga_aluminiowa", "confidence": 0.95},
-        {"item": "Koło zapasowe z felgą aluminiową", "feature_key": "", "confidence": 0.0},
+        {
+            "item": "felga aluminiowa",
+            "feature_key": "felga_aluminiowa",
+            "confidence": 0.95,
+        },
+        {
+            "item": "Koło zapasowe z felgą aluminiową",
+            "feature_key": "",
+            "confidence": 0.0,
+        },
     ]
 }
 
 LLM_HIGH_CONFIDENCE_RESPONSE = {
     "matches": [
-        {"item": "Klimatyzacja automatyczna", "feature_key": "klimatyzacja_automatyczna", "confidence": 0.92},
+        {
+            "item": "Klimatyzacja automatyczna",
+            "feature_key": "klimatyzacja_automatyczna",
+            "confidence": 0.92,
+        },
         {"item": "nieznana opcja xyz", "feature_key": "", "confidence": 0.1},
     ]
 }
@@ -85,7 +112,9 @@ def test_spare_wheel_not_matched_as_alloy_rim() -> None:
 def test_llm_match_fallback_on_error() -> None:
     """LLM error must return empty list, not raise an exception."""
     with patch("core.feature_enrichment.get_gemini_client") as mock_client:
-        mock_client.return_value.models.generate_content.side_effect = RuntimeError("quota exceeded")
+        mock_client.return_value.models.generate_content.side_effect = RuntimeError(
+            "quota exceeded"
+        )
         results = _llm_match_equipment(["felga aluminiowa"], SAMPLE_FEATURES)
 
     assert results == []
@@ -117,7 +146,11 @@ def test_enrich_vehicle_features_uses_llm_for_equipment(mocker: Any) -> None:
     mocker.patch(
         "core.feature_enrichment._llm_match_equipment",
         return_value=[
-            {"item": "felga aluminiowa", "feature_key": "felga_aluminiowa", "confidence": 0.95}
+            {
+                "item": "felga aluminiowa",
+                "feature_key": "felga_aluminiowa",
+                "confidence": 0.95,
+            }
         ],
     )
     mock_sb = mocker.patch("core.feature_enrichment.sb_client")

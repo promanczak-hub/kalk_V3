@@ -328,7 +328,7 @@ async def extract_images_from_pdf(req: PDFImageExtractionRequest):
                 image_bytes = base_image["image"]
                 ext = base_image.get("ext", "").lower()
 
-                # react-pdf obsługuje tylko formaty JPG i PNG, 
+                # react-pdf obsługuje tylko formaty JPG i PNG,
                 # więc ignorujemy wszystko inne (np. jpx, webp, tiff), aby uniknąć Błędu Renderingu PDF.
                 if ext not in ["png", "jpg", "jpeg"]:
                     continue

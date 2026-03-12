@@ -8,7 +8,10 @@ import {
   Search,
   RefreshCw,
   BookOpen,
+  ArrowRightCircle,
+  FileCode,
 } from "lucide-react";
+import { MarkdownViewerModal } from "./MarkdownViewerModal";
 
 /* ── Types ────────────────────────────────────────────────────── */
 
@@ -42,6 +45,7 @@ export function CatalogLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [markdownPreviewId, setMarkdownPreviewId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // ── Fetch documents ───────────────────────────────────────────
@@ -83,6 +87,24 @@ export function CatalogLibraryPage() {
       if (previewId === id) closePreview();
     } catch (err) {
       console.error("Delete failed:", err);
+    }
+  };
+
+  // ── Reprocess ──────────────────────────────────────────────────
+  const reprocessDocument = async (id: string) => {
+    if (!confirm("Czy na pewno chcesz przetworzyć ten dokument jako Ofertę (pojedyncze auta)? Zostanie on usunięty z tej biblioteki i trafi do głównej tabeli.")) return;
+    try {
+      const res = await apiFetch(`/api/document-library/${id}/reprocess`, { method: "POST" });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      alert("Dokument został przesłany do ponownego przetwarzania jako Oferta. Sprawdź główną tabelę!");
+      await fetchDocuments();
+      if (previewId === id) closePreview();
+    } catch (err) {
+      console.error("Reprocess failed:", err);
+      alert(`Wystąpił błąd podczas próby ponownego przetworzenia: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -215,16 +237,32 @@ export function CatalogLibraryPage() {
                   {/* Actions */}
                   <div className="flex flex-col items-center gap-2 pl-4 border-l border-slate-100">
                     <button
+                      onClick={() => reprocessDocument(doc.id)}
+                      className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors flex flex-col items-center"
+                      title="Przetwarzaj jako Ofertę"
+                    >
+                      <ArrowRightCircle className="w-5 h-5 mb-1" />
+                      <span className="text-[10px] font-medium text-center leading-tight">Jako<br/>Ofertę</span>
+                    </button>
+                    <button
+                      onClick={() => setMarkdownPreviewId(doc.id)}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex flex-col items-center"
+                      title="Podgląd MD"
+                    >
+                      <FileCode className="w-5 h-5 mb-1" />
+                      <span className="text-[10px] font-medium">Podgląd MD</span>
+                    </button>
+                    <button
                       onClick={() => openPreview(doc)}
                       className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex flex-col items-center"
                       title="Podgląd PDF"
                     >
                       <Eye className="w-5 h-5 mb-1" />
-                      <span className="text-[10px] font-medium">Podgląd</span>
+                      <span className="text-[10px] font-medium">Podgląd PDF</span>
                     </button>
                     <button
                       onClick={() => deleteDocument(doc.id)}
-                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex flex-col items-center mt-2"
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex flex-col items-center"
                       title="Usuń"
                     >
                       <Trash2 className="w-4 h-4 mb-1" />
@@ -283,6 +321,14 @@ export function CatalogLibraryPage() {
           </div>
         </div>
       )}
+
+      {/* ── Markdown Modal ──────────────────────────────────────── */}
+      <MarkdownViewerModal
+        isOpen={!!markdownPreviewId}
+        onClose={() => setMarkdownPreviewId(null)}
+        documentId={markdownPreviewId || ""}
+        source="library"
+      />
     </div>
   );
 }

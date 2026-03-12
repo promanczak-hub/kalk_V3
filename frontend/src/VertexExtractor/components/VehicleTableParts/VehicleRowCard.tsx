@@ -11,11 +11,10 @@ import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
-import { CatalogCrossRefPanel } from "../CatalogCrossRefPanel";
-
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { supabase } from "../../../lib/supabaseClient";
 import { apiFetch } from "../../../lib/api";
+import type { ControlCenterSettings } from "../../../hooks/useCalculator";
 
 // Custom Hooks
 import { useVehicleFinancing } from "../../hooks/useVehicleFinancing";
@@ -27,6 +26,8 @@ import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
 import { VehicleActionButtons } from "./VehicleActionButtons";
 import { VehicleManualOverrideModal } from "./VehicleManualOverrideModal";
 import { PDFViewerFrame } from "./PDFViewerFrame";
+import { MarkdownViewerModal } from "../MarkdownViewerModal";
+import { VehicleRowCalculations } from "./VehicleRowCalculations";
 
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
@@ -35,6 +36,7 @@ interface VehicleRowCardProps {
   isSelected?: boolean;
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
+  globalSettings?: ControlCenterSettings | null;
 }
 
 export function VehicleRowCard({
@@ -44,14 +46,18 @@ export function VehicleRowCard({
   isSelected = false,
   onToggleSelect,
   crossCardAlerts = [],
+  globalSettings,
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   // Subcomponent states
+  const [activeKalkulacjaId, setActiveKalkulacjaId] = useState<string | null>(null);
+  const [activeKalkulacjaNumer, setActiveKalkulacjaNumer] = useState<string | null>(null);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [overridePrompt, setOverridePrompt] = useState("");
   const [isOverriding, setIsOverriding] = useState(false);
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [isMarkdownOpen, setIsMarkdownOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
   const [brochureData, setBrochureData] = useState<any | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
@@ -104,7 +110,7 @@ export function VehicleRowCard({
     vehicleVintage, setVehicleVintage,
     isMetalic, setIsMetalic,
     isSavingSetup, handleSaveSetup
-  } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet);
+  } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet, globalSettings);
 
   // Hook 3: Readiness Check API
   const { readinessResult } = useVehicleReadiness(vehicle, mappedData, isMetalic);
@@ -613,7 +619,7 @@ export function VehicleRowCard({
   const PROCESSING_STAGES = [
     { key: "uploading", label: "Upload pliku do chmury" },
     { key: "detecting_vehicles", label: "Wykrywanie pojazdów w dokumencie" },
-    { key: "extracting_twin", label: "Bliźniak cyfrowy (Gemini Pro)" },
+    { key: "extracting_twin", label: "Bliźniak cyfrowy (Docling + Gemini 2.5 Pro)" },
     { key: "generating_summary", label: "Generowanie podsumowania" },
     { key: "matching_discounts", label: "Dopasowywanie rabatów" },
     { key: "mapping_data", label: "Mapowanie danych AI" },
@@ -1177,6 +1183,13 @@ export function VehicleRowCard({
                handleOpenSavedJson={handleOpenSavedJson}
                isViewerOpen={isViewerOpen}
                setIsViewerOpen={setIsViewerOpen}
+               isMarkdownOpen={isMarkdownOpen}
+               setIsMarkdownOpen={setIsMarkdownOpen}
+               onCalculationCreated={(id, numer) => {
+                 setActiveKalkulacjaId(id);
+                 setActiveKalkulacjaNumer(numer);
+                 if (!isExpanded) setIsExpanded(true);
+               }}
              />
 
               {isOverrideModalOpen && (
@@ -1194,6 +1207,18 @@ export function VehicleRowCard({
                 </div>
               )}
             </div>
+
+            {activeKalkulacjaId && activeKalkulacjaNumer && (
+              <VehicleRowCalculations
+                kalkulacjaId={activeKalkulacjaId}
+                kalkulacjaNumer={activeKalkulacjaNumer}
+                vehicleName={`${vehicle.brand || "?"} ${vehicle.model}`}
+                powertrain={mappedData?.fuel ? `${mappedData.fuel} ${mappedData.engine_class || ""}`.trim() : (vehicle.powertrain || "")}
+                offerNumber={vehicle.offer_number || ""}
+                configCode={vehicle.configuration_code || ""}
+                basePrice={catalogBasePriceNet}
+              />
+            )}
         </div>
       )}
 
@@ -1205,6 +1230,13 @@ export function VehicleRowCard({
             onClose={() => setIsBrochureModalOpen(false)} 
          />
       )}
+
+      <MarkdownViewerModal
+        isOpen={isMarkdownOpen}
+        onClose={() => setIsMarkdownOpen(false)}
+        documentId={vehicle.id}
+        source="synthesis"
+      />
     </div>
   );
 }

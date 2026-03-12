@@ -14,10 +14,8 @@ import {
   Chip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import CalculateIcon from '@mui/icons-material/Calculate';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 
@@ -72,18 +70,11 @@ export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProp
       shortcut: 'T1'
     },
     {
-      id: 'list',
-      name: 'Przejdź do: Lista Kalkulacji',
-      icon: <FormatListBulletedIcon color="primary" />,
-      action: () => dispatchTabStatus(1),
-      shortcut: 'T2'
-    },
-    {
       id: 'control',
       name: 'Przejdź do: Control Center',
       icon: <SettingsIcon color="primary" />,
-      action: () => dispatchTabStatus(3),
-      shortcut: 'T3'
+      action: () => dispatchTabStatus(1),
+      shortcut: 'T2'
     },
     {
       id: 'theme',
@@ -91,13 +82,6 @@ export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProp
       icon: mode === 'light' ? <DarkModeIcon color="primary" /> : <LightModeIcon color="primary" />,
       action: toggleTheme,
       shortcut: 'M'
-    },
-    {
-      id: 'generate',
-      name: 'Utwórz nową kalkulację (Wkrótce)',
-      icon: <CalculateIcon color="primary" />,
-      action: () => alert("Super, że próbujesz! Ta funkcja zostanie dodana wkrótce!"),
-      shortcut: 'N'
     }
   ];
 

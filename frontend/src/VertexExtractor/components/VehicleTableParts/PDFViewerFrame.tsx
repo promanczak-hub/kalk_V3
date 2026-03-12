@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { Loader2, AlertCircle } from "lucide-react";
+import { API_BASE_URL } from "../../../config/env";
 
 // Inicjalizacja workera PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -23,7 +24,10 @@ export function PDFViewerFrame({ url }: PDFViewerFrameProps) {
       setError(null);
 
       try {
-        const loadingTask = pdfjsLib.getDocument(url);
+        const safeUrl = url.startsWith("http")
+          ? `${API_BASE_URL || ""}/api/pdf-proxy?url=${encodeURIComponent(url)}`
+          : url;
+        const loadingTask = pdfjsLib.getDocument(safeUrl);
         const pdf = await loadingTask.promise;
 
         if (!isMounted) return;

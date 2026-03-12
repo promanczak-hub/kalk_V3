@@ -1,4 +1,5 @@
 """Check DB rates for samar_class_id=103 (Superb Combi)."""
+
 import sys
 import json
 
@@ -14,7 +15,9 @@ with open(OUT, "w", encoding="utf-8") as f:
     f.write("=" * 60 + "\n")
     r = (
         supabase.table("samar_service_costs")
-        .select("samar_class_id,engine_type_id,power_band,cost_aso_per_km,cost_non_aso_per_km")
+        .select(
+            "samar_class_id,engine_type_id,power_band,cost_aso_per_km,cost_non_aso_per_km"
+        )
         .eq("samar_class_id", 103)
         .execute()
     )
@@ -70,7 +73,9 @@ with open(OUT, "w", encoding="utf-8") as f:
     f.write("=" * 60 + "\n")
     r5 = (
         supabase.table("samar_service_costs")
-        .select("samar_class_id,engine_type_id,power_band,cost_aso_per_km,cost_non_aso_per_km")
+        .select(
+            "samar_class_id,engine_type_id,power_band,cost_aso_per_km,cost_non_aso_per_km"
+        )
         .execute()
     )
     for d in r5.data or []:

@@ -1,7 +1,11 @@
-import pandas as pd
+from core.database import supabase
 
-df = pd.read_csv(r"C:\Users\proma\Downloads\cennikopon.csv", sep=";")
-classes = df["KlasaOpon"].dropna().unique()
-with open("cennik_klasy.txt", "w", encoding="utf-8") as f:
-    for c in classes:
-        f.write(c.strip() + "\n")
+
+def main():
+    res = supabase.table("samar_classes").select("id, name").execute()
+    for row in res.data:
+        print(f"{row['id']}: {row['name']}")
+
+
+if __name__ == "__main__":
+    main()

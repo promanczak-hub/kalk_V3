@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Any
 
 
 @dataclass
@@ -40,6 +40,12 @@ class PurchasePriceResult:
     tires_capex_net: float = 0.0
     gsm_capex_net: float = 0.0
     transport_fee_net: float = 0.0
+    CenaZakupu: float = 0.0
+    CenaZakupuBezOpon: float = 0.0
+    CenaZakupuBezOponIOpcjiSerwisowych: float = 0.0
+    CenaZakupuBezOponIOpcjiSerwisowychIPakietu: float = 0.0
+    RabatKwotowo: float = 0.0
+    trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 class PurchasePriceCalculator:
@@ -47,11 +53,18 @@ class PurchasePriceCalculator:
         self.data = data
 
     def calculate(self) -> PurchasePriceResult:
+        trace: list[dict[str, Any]] = []
+        
         # 1. Discount Factor
         discount_factor = 1.0 - (self.data.discount_pct / 100.0)
 
         # 2. Base price after discount
         discounted_base = self.data.base_price_net * discount_factor
+        trace.append({
+            "krok": "Cena Zakupu: Cena Bazowa",
+            "rownanie": f"Baza {self.data.base_price_net:.2f} * (1 - Rabat {self.data.discount_pct:.2f}%)",
+            "wynik": discounted_base
+        })
 
         # 3. Factory options — discountable
         discountable_opts = sum(
@@ -59,6 +72,7 @@ class PurchasePriceCalculator:
             for opt in self.data.options
             if not opt.is_service and opt.is_discountable
         )
+        
         # 4. Factory options — non-discountable
         non_discountable_opts = sum(
             opt.price_net
@@ -70,6 +84,12 @@ class PurchasePriceCalculator:
         service_opts_total = sum(
             opt.price_net for opt in self.data.options if opt.is_service
         )
+        
+        trace.append({
+            "krok": "Cena Zakupu: Opcje i Wyposażenie",
+            "rownanie": f"Opcje Rabatowalne {discountable_opts:.2f} + Nierabatowalne {non_discountable_opts:.2f} + Serwisowe {service_opts_total:.2f}",
+            "wynik": discountable_opts + non_discountable_opts + service_opts_total
+        })
 
         # 6. Total CAPEX = discounted base + options + extras
         total_capex = (
@@ -82,6 +102,12 @@ class PurchasePriceCalculator:
             + self.data.tires_capex_net  # V1: 1 komplet opon netto
         )
 
+        trace.append({
+            "krok": "Cena Zakupu: Ekstrasy (Transport, Pakiet, Opony)",
+            "rownanie": f"Transport {self.data.transport_fee_net:.2f} + PakietS {self.data.pakiet_serwisowy_net:.2f} + 1-komplet Opon {self.data.tires_capex_net:.2f}",
+            "wynik": self.data.transport_fee_net + self.data.pakiet_serwisowy_net + self.data.tires_capex_net
+        })
+
         # 7. GSM capitalization (V1 L117-124: urządzenie + montaż)
         gsm_capex = 0.0
         if self.data.add_gsm_to_capex:
@@ -89,6 +115,17 @@ class PurchasePriceCalculator:
                 self.data.gsm_device_cost_net + self.data.gsm_installation_cost_net
             )
             total_capex += gsm_capex
+            trace.append({
+                "krok": "Cena Zakupu: Kapitalizacja GSM",
+                "rownanie": f"Urządzenie {self.data.gsm_device_cost_net:.2f} + Montaż {self.data.gsm_installation_cost_net:.2f}",
+                "wynik": gsm_capex
+            })
+
+        trace.append({
+            "krok": "Cena Zakupu: CAPEX Całkowity",
+            "rownanie": "Suma (BazaPoRabacie + OpcjeRabatowane + OpcjeNierab + OpcjeSerw + PakietS + Transport + Opony + GSM)",
+            "wynik": total_capex
+        })
 
         # 8. Discount metadata
         total_discount_amount = (self.data.base_price_net - discounted_base) + (
@@ -97,6 +134,10 @@ class PurchasePriceCalculator:
         total_options_capex = (
             discountable_opts + non_discountable_opts + service_opts_total
         )
+
+        cena_zakupu_bez_opon = total_capex - self.data.tires_capex_net
+        cena_zakupu_bez_opon_i_opcji_serw = cena_zakupu_bez_opon - service_opts_total
+        cena_zakupu_bez_opon_i_opcji_serw_i_pakietu = cena_zakupu_bez_opon_i_opcji_serw - self.data.pakiet_serwisowy_net
 
         return PurchasePriceResult(
             total_capex=total_capex,
@@ -110,4 +151,10 @@ class PurchasePriceCalculator:
             tires_capex_net=self.data.tires_capex_net,
             gsm_capex_net=gsm_capex,
             transport_fee_net=self.data.transport_fee_net,
+            CenaZakupu=total_capex,
+            CenaZakupuBezOpon=cena_zakupu_bez_opon,
+            CenaZakupuBezOponIOpcjiSerwisowych=cena_zakupu_bez_opon_i_opcji_serw,
+            CenaZakupuBezOponIOpcjiSerwisowychIPakietu=cena_zakupu_bez_opon_i_opcji_serw_i_pakietu,
+            RabatKwotowo=total_discount_amount,
+            trace=trace,
         )

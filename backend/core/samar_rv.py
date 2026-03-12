@@ -317,11 +317,14 @@ class RVOutput:
 
 
 @lru_cache(maxsize=128)
-def fetch_depreciation_rates_cached(samar_class_id: int, fuel_type_id: int) -> Dict[int, Dict[str, float]]:
+def fetch_depreciation_rates_cached(
+    samar_class_id: int, fuel_type_id: int
+) -> Dict[int, Dict[str, float]]:
     """Pobiera stawki deprecjacji lat 0-7 z samar_class_depreciation_rates."""
     result: Dict[int, Dict[str, float]] = {}
     try:
         from core.database import supabase
+
         res = (
             supabase.table("samar_class_depreciation_rates")
             .select("year, base_depreciation_percent, options_depreciation_percent")
@@ -342,12 +345,15 @@ def fetch_depreciation_rates_cached(samar_class_id: int, fuel_type_id: int) -> D
 
 
 @lru_cache(maxsize=128)
-def fetch_brand_correction_cached(samar_class_id: int, fuel_type_id: int, brand: str, model: str) -> float:
+def fetch_brand_correction_cached(
+    samar_class_id: int, fuel_type_id: int, brand: str, model: str
+) -> float:
     """Korekta za markę z ltr_admin_korekta_wr_markas z fallbackiem na model."""
     if not brand:
         return 0.0
     try:
         from core.database import supabase
+
         # 1. Exact match with model
         if model:
             res_exact = (
@@ -382,10 +388,13 @@ def fetch_brand_correction_cached(samar_class_id: int, fuel_type_id: int, brand:
 
 
 @lru_cache(maxsize=128)
-def fetch_mileage_corrections_cached(samar_class_id: int, fuel_type_id: int) -> tuple[float, float]:
+def fetch_mileage_corrections_cached(
+    samar_class_id: int, fuel_type_id: int
+) -> tuple[float, float]:
     """Stawki korekty przebiegu: (under_threshold, over_threshold)."""
     try:
         from core.database import supabase
+
         res = (
             supabase.table("samar_class_mileage_corrections")
             .select("under_threshold_percent, over_threshold_percent")
@@ -410,6 +419,7 @@ def fetch_class_config_cached(samar_class_id: int) -> Dict[str, Any]:
     """Konfiguracja klasy SAMAR (progi przebiegowe itp.)."""
     try:
         from core.database import supabase
+
         res = (
             supabase.table("samar_classes")
             .select("base_mileage_km, mileage_threshold_km, base_period_months")
@@ -426,6 +436,7 @@ def fetch_class_config_cached(samar_class_id: int) -> Dict[str, Any]:
         "mileage_threshold_km": 190000,
         "base_period_months": 48,
     }
+
 
 class SamarRVCalculator:
     """Kalkulator Wartości Rezydualnej oparty na tabelach SAMAR.
@@ -448,7 +459,9 @@ class SamarRVCalculator:
 
     def _fetch_depreciation_rates(self) -> Dict[int, Dict[str, float]]:
         """Pobiera stawki deprecjacji lat 0-7 z samar_class_depreciation_rates."""
-        return fetch_depreciation_rates_cached(self.data.samar_class_id, self.data.engine_id)
+        return fetch_depreciation_rates_cached(
+            self.data.samar_class_id, self.data.engine_id
+        )
 
     def _fetch_brand_correction(self) -> float:
         """Korekta za markę z ltr_admin_korekta_wr_markas z fallbackiem na model."""
@@ -458,11 +471,15 @@ class SamarRVCalculator:
             if hasattr(self.data, "model_name") and self.data.model_name
             else ""
         )
-        return fetch_brand_correction_cached(self.data.samar_class_id, self.data.engine_id, brand, model)
+        return fetch_brand_correction_cached(
+            self.data.samar_class_id, self.data.engine_id, brand, model
+        )
 
     def _fetch_mileage_corrections(self) -> tuple[float, float]:
         """Stawki korekty przebiegu: (under_threshold, over_threshold)."""
-        return fetch_mileage_corrections_cached(self.data.samar_class_id, self.data.engine_id)
+        return fetch_mileage_corrections_cached(
+            self.data.samar_class_id, self.data.engine_id
+        )
 
     def _fetch_class_config(self) -> Dict[str, Any]:
         """Konfiguracja klasy SAMAR (progi przebiegowe itp.)."""
@@ -470,26 +487,26 @@ class SamarRVCalculator:
 
     def fetch_color_correction(self) -> float:
         """Korekta za kolor z paint_types.wr_correction."""
-        return fetch_color_correction_cached(self.data.paint_type_id, self.data.is_metalic)
-
+        return fetch_color_correction_cached(
+            self.data.paint_type_id, self.data.is_metalic
+        )
 
     def fetch_body_correction(self) -> tuple[float, float]:
         """Korekta nadwozia z kaskadą fallbacków (sparse storage)."""
         return fetch_body_correction_cached(
-            self.data.samar_class_id, self.data.engine_id,
-            self.data.brand_name, self.data.body_type_id,
+            self.data.samar_class_id,
+            self.data.engine_id,
+            self.data.brand_name,
+            self.data.body_type_id,
         )
-
 
     def fetch_vintage_correction(self) -> float:
         """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
         return fetch_vintage_correction_cached(self.data.rocznik)
 
-
     def fetch_lo_param(self) -> float:
         """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
         return fetch_lo_param_cached()
-
 
     def calculate(self) -> RVOutput:
         """Oblicza RV wg algorytmu Excel JŁ (6 kroków)."""
@@ -683,11 +700,7 @@ class SamarRVCalculator:
 
         # Korekty addytywne (kolor, nadwozie, zabudowa, przebieg)
         rv_pre_vintage = (
-            rv_total
-            + color_value
-            + body_value
-            + zabudowa_value
-            - korekta_przebieg
+            rv_total + color_value + body_value + zabudowa_value - korekta_przebieg
         )
 
         # Korekta rocznika — MULTIPLIKATYWNA (NotebookLM §4)
@@ -733,15 +746,19 @@ class SamarRVCalculator:
             debug=debug,
         )
 
-
     # (ponieważ cached functions muszą być na poziomie modułu dla @lru_cache)
+
+
 @lru_cache(maxsize=128)
-def fetch_color_correction_cached(paint_type_id: Optional[int], is_metalic: bool) -> float:
+def fetch_color_correction_cached(
+    paint_type_id: Optional[int], is_metalic: bool
+) -> float:
     """Korekta za kolor z paint_types.wr_correction."""
     if not paint_type_id:
         return 0.0 if is_metalic else -0.01
     try:
         from core.database import supabase
+
         res = (
             supabase.table("paint_types")
             .select("wr_correction")
@@ -757,10 +774,12 @@ def fetch_color_correction_cached(paint_type_id: Optional[int], is_metalic: bool
 
 
 @lru_cache(maxsize=128)
-def fetch_body_correction_cached(samar_class_id: int, engine_id: int, brand_name: str, body_type_id: Optional[int]) -> tuple[float, float]:
+def fetch_body_correction_cached(
+    samar_class_id: int, engine_id: int, brand_name: str, body_type_id: Optional[int]
+) -> tuple[float, float]:
     """Korekta nadwozia z kaskadą fallbacków (sparse storage)."""
     brand = brand_name.strip().upper() if brand_name else ""
-    
+
     def _extract(rows: list[dict]) -> tuple[float, float]:
         row = rows[0]
         return (
@@ -770,6 +789,7 @@ def fetch_body_correction_cached(samar_class_id: int, engine_id: int, brand_name
 
     try:
         from core.database import supabase
+
         tbl = "body_type_wr_corrections"
         cols = "correction_percent, zabudowa_correction_percent"
 
@@ -831,6 +851,7 @@ def fetch_vintage_correction_cached(rocznik: str) -> float:
     db_key = vintage_map.get(rocznik, rocznik)
     try:
         from core.database import supabase
+
         res = (
             supabase.table("ltr_admin_korekta_wr_roczniks")
             .select("korekta_procent")
@@ -844,11 +865,13 @@ def fetch_vintage_correction_cached(rocznik: str) -> float:
         logger.warning("Błąd vintage correction: %s", exc)
     return 0.0
 
+
 @lru_cache(maxsize=1)
 def fetch_lo_param_cached() -> float:
     """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
     try:
         from core.database import supabase
+
         res = (
             supabase.table("control_center")
             .select("przewidywana_cena_sprzedazy_lo")
@@ -868,5 +891,3 @@ def fetch_lo_param_cached() -> float:
 # Monkey-patching: cached standalone functions powyżej,
 # metody instancji przypisane do klasy poniżej.
 # ═══════════════════════════════════════════════════════════════════
-
-

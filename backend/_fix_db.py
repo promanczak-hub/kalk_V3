@@ -5,9 +5,7 @@ import traceback
 
 def fix():
     try:
-        conn = psycopg2.connect(
-            os.environ.get("DATABASE_URL")
-        )
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
         cur = conn.cursor()
 
         # Check if table exists

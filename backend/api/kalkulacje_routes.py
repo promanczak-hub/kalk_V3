@@ -262,6 +262,7 @@ def generate_matrix_from_extracted_v3(vehicle_id: str, req: dict):
             add_grid_dismantling=req.get("add_grid_dismantling", False),
             add_registration=req.get("add_registration", True),
             add_sales_prep=req.get("add_sales_prep", True),
+            odkup_opon_enabled=req.get("odkup_opon_enabled", False),
         )
 
         # 3. Call Calculation Engine
@@ -342,6 +343,7 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
             add_grid_dismantling=req.get("add_grid_dismantling", False),
             add_registration=req.get("add_registration", True),
             add_sales_prep=req.get("add_sales_prep", True),
+            odkup_opon_enabled=req.get("odkup_opon_enabled", False),
         )
 
         # 3. Handle overrides and months for execution

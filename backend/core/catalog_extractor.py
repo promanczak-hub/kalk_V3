@@ -58,8 +58,10 @@ Dla KAŻDEGO wariantu wyciągnij:
 - price_net: cena netto PLN (jeśli podana)
 - price_gross: cena brutto PLN (jeśli podana)
 
+- price_gross: cena brutto PLN (jeśli podana)
+
 Jeśli informacja nie jest dostępna w dokumencie, wstaw null.
-Zwróć WSZYSTKIE warianty, nawet jeśli różnią się tylko silnikiem lub napędem.
+Zwróć WSZYSTKIE warianty, nawet jeśli różnią się tylko silnikiem lub napędem. Oczekujemy podejścia "Best-Effort": dokument może być materiałem promocyjnym, broszurą a nie pełnym cennikiem. Nawet jeśli masz tylko 1 wariant z ograniczonymi danymi technicznymi, spróbuj go wyekstrahować.
 
 WAŻNE:
 - NIE pomijaj wariantów
@@ -106,8 +108,8 @@ def _extract_pdf_catalog(
         max_output_tokens=65536,
         response_mime_type="application/json",
         system_instruction=(
-            "Jesteś precyzyjnym parserem katalogów pojazdów. "
-            "Wyciągasz strukturyzowane dane o wariantach. "
+            "Jesteś parserem dokumentów motoryzacyjnych (cenników, katalogów, broszur). "
+            "Wyciągasz strukturyzowane dane o wariantach, nawet fragmentowane. "
             "Odpowiadasz wyłącznie w formacie JSON."
         ),
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,

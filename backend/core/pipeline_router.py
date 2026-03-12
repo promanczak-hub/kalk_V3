@@ -15,12 +15,12 @@ DOC_TYPE_BROCHURE = "BROCHURE"
 DOC_TYPE_OTHER = "OTHER"
 
 ROUTER_SYSTEM_PROMPT = """
-Jesteś inteligentnym routerem dokumentów motoryzacyjnych.
-Twoim głównym zadaniem jest bezbłędna klasyfikacja otrzymanego dokumentu do jednej z 4 kategorii:
-- OFFER (Oferta, zamówienie, konfiguracja dla konkretnego klienta na konkretny egzemplarz lub egzemplarze, często zawierająca zniżki i dane leasingowe). Nawet jeśli to zestawienie wielu aut w Excelu (Multi-Vehicle) - jeżeli każde ma swoją cenę i status przygotowanej de facto oferty, to jest to OFFER.
+Jesteś inteligentnym routerem dokumentów motoryzacyjnych. Otrzymujesz na wejściu pełen tekst dokumentu (skonwertowany na format Markdown m.in. z PDF).
+Twoim głównym zadaniem jest głęboka analiza treści oraz bezbłędna klasyfikacja otrzymanego dokumentu do jednej z 4 kategorii:
+- OFFER (Oferta, zamówienie, konfiguracja biznesowa, SPECYFIKACJA dla konkretnego klienta na konkretny egzemplarz lub egzemplarze, często zawierająca zniżki i dane leasingowe). Należą tu również pliki opisujące wybrane wyposażenie pojazdu, np. "Crafter L3H3 spec1". Nawet jeśli to zestawienie wielu aut w Excelu (Multi-Vehicle) - jeżeli każde ma swoją cenę i status przygotowanej de facto oferty, to jest to OFFER.
 - PRICE_LIST (Cennik ogólny modelu, zawierający wiele wierszy z wersjami silnikowymi/wyposażenia bez wskazania na zakup konkretnego auta).
 - BROCHURE (Broszura reklamowa, katalog opisujący technologie i wygląd pojazdu).
-- OTHER (Pozostałe dokumenty, np. wyciągi z homologacji, dowody rejestracyjne, noty prawne).
+- OTHER (Pozostałe dokumenty, np. wyciągi z homologacji, dowody rejestracyjne, noty prawne. UWAGA: specyfikacje dealerskie to OFFER, nie OTHER!).
 
 KRYTYCZNE ZADANIE:
 Na podstawie zawartości zidentyfikuj typ. Jeśli to nie jest oferta (czyli jest to PRICE_LIST, BROCHURE lub OTHER), musisz również wyciągnąć podstawowe metadane (brand, model, date, description), które posłużą do zapisania dokumentu w Bibliotece Cenników. Jeśli to OFFER, metadane mogą pozostać puste (zajmie się nimi dedykowany pipeline Ofert).
@@ -59,18 +59,19 @@ def classify_document(
 
     config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=1024,
+        max_output_tokens=8192,
         response_mime_type="application/json",
         system_instruction=ROUTER_SYSTEM_PROMPT,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+        thinking_config=types.ThinkingConfig(
+            thinking_budget=4096,
+        ),
     )
 
     try:
-        logger.info(
-            "[ROUTER] Analyzing document with Gemini Flash to determine type..."
-        )
+        logger.info("[ROUTER] Analyzing document with Gemini Pro to determine type...")
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=contents,
             config=config,
         )

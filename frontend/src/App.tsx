@@ -7,9 +7,7 @@ import {
   Tab,
   Box,
 } from "@mui/material";
-import CalculatorPanel from "./CalculatorPanel";
 import ControlCenter from "./ControlCenter";
-import KalkulacjeList from "./KalkulacjeList";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
 import { ReverseSearchPage } from "./VertexExtractor/components/ReverseSearchPage";
@@ -92,37 +90,16 @@ function App() {
       },
     },
   }), [mode]);
-  const [currentTab, setCurrentTab] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('id') ? 2 : 0;
-  });
-
-  const [editingTitle, setEditingTitle] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('kalkulacja') || (params.get('id') ? `ID: ${params.get('id')}` : null);
-  });
-
-  // Remove useEffect for tab switching
-
+  const [currentTab, setCurrentTab] = useState(0);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
-    if (newValue === 1 || newValue === 0) {
-      window.history.replaceState({}, "", "/"); // Wyczyść URL jeśli wracasz do listy
-      setEditingTitle(null);
-    }
   };
 
   // Listen for global tab switch events
   useEffect(() => {
-    const handleSwitchTab = (event: CustomEvent<{ tabIndex: number; urlParams?: URLSearchParams }>) => {
+    const handleSwitchTab = (event: CustomEvent<{ tabIndex: number }>) => {
       setCurrentTab(event.detail.tabIndex);
-      if (event.detail.urlParams) {
-        window.history.pushState({}, "", `/?${event.detail.urlParams.toString()}`);
-        if (event.detail.tabIndex === 2) {
-          setEditingTitle(event.detail.urlParams.get('kalkulacja') || `ID: ${event.detail.urlParams.get('id')}`);
-        }
-      }
     };
 
     window.addEventListener('switchTab', handleSwitchTab as EventListener);
@@ -157,24 +134,16 @@ function App() {
             aria-label="Nawigacja"
           >
             <Tab value={0} label="Ekstrakcja Danych" />
-            <Tab value={1} label="Kalkulacje" />
-            <Tab 
-              value={2} 
-              label={editingTitle ? `Kalkulacja: ${editingTitle}` : "Edytor"} 
-              sx={{ display: editingTitle ? 'flex' : 'none' }} 
-            />
-            <Tab value={3} label="Control Center" />
-            <Tab value={4} label="Reverse Search" />
-            <Tab value={5} label="Biblioteka Cenników" />
+            <Tab value={1} label="Control Center" />
+            <Tab value={2} label="Reverse Search" />
+            <Tab value={3} label="Biblioteka Cenników" />
           </Tabs>
         </Box>
 
         {currentTab === 0 && <VertexExtractorPage />}
-        {currentTab === 1 && <KalkulacjeList />}
-        {currentTab === 2 && <CalculatorPanel />}
-        {currentTab === 3 && <ControlCenter />}
-        {currentTab === 4 && <ReverseSearchPage />}
-        {currentTab === 5 && <CatalogLibraryPage />}
+        {currentTab === 1 && <ControlCenter />}
+        {currentTab === 2 && <ReverseSearchPage />}
+        {currentTab === 3 && <CatalogLibraryPage />}
       </div>
     </ThemeProvider>
   );

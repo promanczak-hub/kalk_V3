@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "../../../lib/api";
-import type { FleetVehicleView } from "../../types";
+﻿import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "../../lib/api";
+import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
 
 export interface ReadinessCheck {
@@ -73,3 +73,5 @@ export function useVehicleReadiness(
 
   return { readinessResult, fetchReadiness };
 }
+
+

@@ -8,6 +8,8 @@ Wartości Początkowej (WP), Wartości Rezydualnej (WR) i okresu.
 from dataclasses import dataclass
 
 
+from typing import Any
+
 @dataclass
 class AmortyzacjaInput:
     """Dane wejściowe sub-kalkulatora amortyzacji."""
@@ -24,6 +26,7 @@ class AmortyzacjaResult:
     utrata_wartosci: float  # WP - WR
     kwota_amortyzacji_1_miesiac: float  # utrata / okres
     amortyzacja_procent: float  # kwota_1mc / WP (miesięczny %)
+    trace: list[dict[str, Any]]
 
 
 class AmortyzacjaCalculator:
@@ -44,19 +47,45 @@ class AmortyzacjaCalculator:
         wr = self.input.wr
         okres = self.input.okres
 
+        trace: list[dict[str, Any]] = []
+
         if okres <= 0 or wp <= 0:
+            trace.append({
+                "krok": "Amortyzacja (Błąd parametru)",
+                "rownanie": f"Okres ({okres}) <= 0 LUB WP ({wp:.2f}) <= 0",
+                "wynik": 0.0
+            })
             return AmortyzacjaResult(
                 utrata_wartosci=0.0,
                 kwota_amortyzacji_1_miesiac=0.0,
                 amortyzacja_procent=0.0,
+                trace=trace,
             )
 
         utrata_wartosci = wp - wr
+        trace.append({
+            "krok": "Amortyzacja: Utrata Wartości Liniowa",
+            "rownanie": f"CAPEX (WP) {wp:.2f} - Wartość Końcowa (WR) {wr:.2f}",
+            "wynik": utrata_wartosci
+        })
+
         kwota_1mc = utrata_wartosci / okres
+        trace.append({
+            "krok": "Amortyzacja: Kwota Miesięczna",
+            "rownanie": f"Utrata {utrata_wartosci:.2f} / Okres {okres} msc",
+            "wynik": kwota_1mc
+        })
+
         procent = kwota_1mc / wp
+        trace.append({
+            "krok": "Amortyzacja: % Miesięczny",
+            "rownanie": f"Kwota 1mc {kwota_1mc:.2f} / CAPEX (WP) {wp:.2f}",
+            "wynik": procent
+        })
 
         return AmortyzacjaResult(
             utrata_wartosci=utrata_wartosci,
             kwota_amortyzacji_1_miesiac=kwota_1mc,
             amortyzacja_procent=procent,
+            trace=trace,
         )

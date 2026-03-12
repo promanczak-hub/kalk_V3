@@ -1,4 +1,5 @@
 import os
+
 """
 Import tire prices from cennikopon (1).csv into koszty_opon table.
 

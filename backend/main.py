@@ -21,6 +21,7 @@ from api.admin_insurance_routes import router as admin_insurance_router
 from api.control_center_admin_routes import router as control_center_admin_router
 from api.calculator_core_routes import router as calculator_core_router
 from api.vehicle_features_crud_routes import router as vehicle_features_crud_router
+from api.pdf_parser_routes import router as pdf_parser_router
 from core.settings import FRONTEND_ORIGINS
 
 app = FastAPI(title="Kalkulator LTR V2 Engine", version="1.0.0")
@@ -43,12 +44,15 @@ app.include_router(admin_insurance_router, prefix="/api")
 app.include_router(control_center_admin_router, prefix="/api")
 app.include_router(calculator_core_router, prefix="/api")
 app.include_router(vehicle_features_crud_router, prefix="/api")
+app.include_router(pdf_parser_router, prefix="/api")
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":
     allow_origins = ["*"]
 else:
-    allow_origins = [origin.strip() for origin in frontend_origins_str.split(",") if origin.strip()]
+    allow_origins = [
+        origin.strip() for origin in frontend_origins_str.split(",") if origin.strip()
+    ]
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,5 +61,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-

@@ -5,7 +5,6 @@ import { ServiceOptionsManager } from "../../../components/Calculator/ServiceOpt
 import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
-import { CalculationReadinessBadge } from "./CalculationReadinessBadge";
 import { useMemo } from "react";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { parsePriceToNumber } from "./PriceDualFormat";
@@ -126,6 +125,7 @@ const TIRE_CLASS_OPTIONS = [
 
 const TIRE_COUNT_OPTIONS = [
   { value: "auto", label: "Auto (z przebiegu)" },
+  { value: "0", label: "Brak opon (0 kompletów)" },
   { value: "1", label: "1 komplet" },
   { value: "1.5", label: "1,5 kompletu" },
   { value: "2", label: "2 komplety" },
@@ -218,14 +218,6 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <Banknote className="w-4 h-4 mr-2 text-slate-400" />
             Analiza Finansowa
           </h4>
-          <CalculationReadinessBadge
-            catalogBasePriceNet={catalogBasePriceNet}
-            rimDiameter={rimDiameter}
-            vehicle={vehicle}
-            paramPreview={paramPreview}
-            includeServicing={includeServicing}
-            replacementCar={replacementCar}
-          />
         </div>
 
         <div className="p-5 space-y-5">
@@ -540,9 +532,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 <LinkedIndicator tableName="koszty_opon" isLinked={!!paramPreview?.tires?.found} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl (${paramPreview.tires.tire_class})` : undefined} />
               </label>
               <select
-                className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
+                className={cn(
+                  "w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-medium",
+                  tireCountMode === "0" ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "text-slate-700 cursor-pointer"
+                )}
                 value={tireClass}
                 onChange={(e) => setTireClass(e.target.value)}
+                disabled={tireCountMode === "0"}
               >
                 {TIRE_CLASS_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -571,7 +567,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   type="checkbox"
                   checked={tireCostCorrectionEnabled}
                   onChange={(e) => setTireCostCorrectionEnabled(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3"
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3 disabled:opacity-50"
+                  disabled={tireCountMode === "0"}
                 />
                 Korekta kosztu opon (brutto)
               </label>
@@ -580,11 +577,11 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 step="1"
                 className={cn(
                   "w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500",
-                  !tireCostCorrectionEnabled && "bg-slate-50 text-slate-400 cursor-not-allowed"
+                  (!tireCostCorrectionEnabled || tireCountMode === "0") && "bg-slate-50 text-slate-400 cursor-not-allowed"
                 )}
                 value={tireCostCorrection}
                 onChange={(e) => setTireCostCorrection(parseFloat(e.target.value) || 0)}
-                disabled={!tireCostCorrectionEnabled}
+                disabled={!tireCostCorrectionEnabled || tireCountMode === "0"}
                 placeholder="0"
               />
             </div>

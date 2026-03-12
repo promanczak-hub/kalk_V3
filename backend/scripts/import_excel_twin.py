@@ -7,7 +7,9 @@ from pathlib import Path
 
 # The Excel file path provided by user
 EXCEL_PATH = r"C:\Users\proma\Downloads\Skoda_Volkswagen_Audi_Cupra_2026_01_12 (1).xlsx"
-API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/calculator-excel-data"
+API_URL = (
+    os.environ.get("API_URL", "http://127.0.0.1:8000") + "/api/calculator-excel-data"
+)
 
 
 def clean_value(val):
