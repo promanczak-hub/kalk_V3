@@ -532,7 +532,8 @@ def reverse_search_vehicles(
     sorted_vehicle_hits = sorted(
         vehicle_feature_hits.items(), key=lambda x: x[1], reverse=True
     )
-    result_ids = {vid for vid, _ in sorted_vehicle_hits}
+    # Keep as a list to preserve order
+    result_ids_list = [vid for vid, _ in sorted_vehicle_hits]
 
     # ---------- PHASE 2: Price Calculation & Filtering ----------
     should_calc_price = any(
@@ -568,7 +569,7 @@ def reverse_search_vehicles(
         vehicles_data_resp = (
             sb.table("vehicle_synthesis")
             .select("id, brand, model, synthesis_data")
-            .in_("id", list(result_ids))
+            .in_("id", result_ids_list)
             .execute()
         )
 
@@ -639,20 +640,21 @@ def reverse_search_vehicles(
                 logging.warning(f"Error calculating PMT for vehicle {v['id']}: {e}")
                 continue
 
-        # Update result_ids to only matching
-        result_ids = {v["id"] for v in matching_phase2}
+        # Update result_ids to only matching, preserving the ordered list!
+        matching_phase2_ids = {v["id"] for v in matching_phase2}
+        result_ids_list = [vid for vid in result_ids_list if vid in matching_phase2_ids]
 
         # We also need to map PMT values to results
         pmt_map = {v["id"]: v["_pmt"] for v in matching_phase2}
 
         # Paginate the restricted set
-        vehicle_ids_list = list(result_ids)[
+        vehicle_ids_page = result_ids_list[
             request.offset : request.offset + request.limit
         ]
 
         results: list[FeatureSearchResultItem] = []
         for v in matching_phase2:
-            if v["id"] in vehicle_ids_list:
+            if v["id"] in vehicle_ids_page:
                 hits = vehicle_feature_hits.get(v["id"], 0)
                 score = (
                     hits / total_requested_features
@@ -672,14 +674,14 @@ def reverse_search_vehicles(
                 )
     else:
         # Fetch vehicle info from vehicle_synthesis without calculation
-        vehicle_ids_list = list(result_ids)[
+        vehicle_ids_page = result_ids_list[
             request.offset : request.offset + request.limit
         ]
 
         vehicles_resp = (
             sb.table("vehicle_synthesis")
             .select("id, brand, model")
-            .in_("id", vehicle_ids_list)
+            .in_("id", vehicle_ids_page)
             .execute()
         )
 
@@ -701,9 +703,44 @@ def reverse_search_vehicles(
                 )
             )
 
+    # Sort the final results to preserve the original hits ordering before returning
+    results.sort(key=lambda x: x.matched_features, reverse=True)
+
+    # ---------- PHASE 3: Calculate Facets ----------
+    facets: dict[str, int] = {}
+    if result_ids_list:
+        chunk_size = 150
+        for i in range(0, len(result_ids_list), chunk_size):
+            chunk = result_ids_list[i : i + chunk_size]
+            
+            facet_resp = (
+                sb.schema("reverse_search")
+                .table("vehicle_feature_state")
+                .select("feature_id, universal_features!inner(feature_key)")
+                .in_("source_vehicle_id", chunk)
+                .eq("resolved_value_bool", True)
+                .in_(
+                    "resolved_status",
+                    [
+                        "present_confirmed_primary",
+                        "present_confirmed_secondary",
+                        "present_inferred",
+                    ],
+                )
+                .execute()
+            )
+            
+            for r in facet_resp.data:
+                uf = r.get("universal_features")
+                if uf and isinstance(uf, dict):
+                    f_key = uf.get("feature_key")
+                    if f_key:
+                        facets[f_key] = facets.get(f_key, 0) + 1
+
     return FeatureSearchResponse(
         results=results,
-        total_count=len(result_ids),
+        total_count=len(result_ids_list),
+        facets=facets,
     )
 
 

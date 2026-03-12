@@ -249,6 +249,7 @@ class FeatureSearchResponse(BaseModel):
         default_factory=list,
     )
     total_count: int = 0
+    facets: dict[str, int] = Field(default_factory=dict)
 
 
 class FeatureCatalogResponse(BaseModel):

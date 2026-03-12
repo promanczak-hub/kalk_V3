@@ -102,6 +102,7 @@ export function ReverseSearchPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [facets, setFacets] = useState<Record<string, number>>({});
   const [hasSearched, setHasSearched] = useState(false);
   const [vehicleScope, setVehicleScope] = useState<"all" | "passenger" | "commercial">("all");
   const [bodyTypes, setBodyTypes] = useState<string[]>([]);
@@ -251,6 +252,7 @@ export function ReverseSearchPage() {
       const data = await res.json();
       setResults(data.results);
       setTotalCount(data.total_count);
+      setFacets(data.facets || {});
     } catch (err) {
       console.error("Search failed:", err);
     } finally {
@@ -278,6 +280,7 @@ export function ReverseSearchPage() {
     setPriceDepositPct(0);
     setResults([]);
     setTotalCount(0);
+    setFacets({});
     setHasSearched(false);
     setExtractionText("");
     setGlobalSearchQuery("");
@@ -324,11 +327,16 @@ export function ReverseSearchPage() {
           <label className={`flex items-start gap-2 px-3 py-2 rounded text-xs cursor-pointer transition-colors border ${isActive ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:bg-slate-50"}`}>
             <input 
               type="checkbox" 
-              className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 w-3.5 h-3.5"
+              className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 w-3.5 h-3.5 shrink-0"
               checked={!!activeFlt?.value_bool}
               onChange={(e) => setFeatureFilter(feat, "value_bool", e.target.checked ? true : undefined)}
             />
-            <span className={`font-medium ${isActive ? "text-indigo-700" : "text-slate-700"}`}>{feat.display_name}</span>
+            <span className={`font-medium flex-1 pt-0.5 ${isActive ? "text-indigo-700" : "text-slate-700"}`}>{feat.display_name}</span>
+            {(!isActive && Object.keys(facets).length > 0 && facets[feat.feature_key] !== undefined) && (
+              <span className="text-[10px] shrink-0 text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full font-medium self-start mt-0.5 border border-slate-200" title={`Dostępne w ${facets[feat.feature_key]} autach z obecnego wyniku`}>
+                {facets[feat.feature_key]}
+              </span>
+            )}
           </label>
         ) : feat.feature_type === "numeric" ? (
           <div className={`px-3 py-2 border rounded transition-colors ${isActive ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:bg-slate-50"}`}>
@@ -431,7 +439,7 @@ export function ReverseSearchPage() {
         )}
       </div>
     );
-  }, [activeFilters, setFeatureFilter]);
+  }, [activeFilters, setFeatureFilter, facets]);
 
   const curatedSharedFeatures = matchCuratedFeatures(CURATED_SHARED);
   const curatedPassengerFeatures = matchCuratedFeatures(CURATED_PASSENGER);
