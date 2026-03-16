@@ -74,16 +74,16 @@ CREATE POLICY "Allow authenticated delete" ON public.samar_class_base_rv FOR DEL
 """
 
 for raw_class_name, fuels in data.items():
-    # Attempt to translate bad json keys (with potentially broken encodings like MA??E)
-    # So we do a soft match since "MA??E" is a result of broken encoding in node script
+    # Attempt to translate bad json keys (with potentially broken encodings like MA?E)
+    # So we do a soft match since "MA?E" is a result of broken encoding in node script
     class_name = None
     for k, v in CLASS_NAME_TRANSLATION.items():
         # proste szukanie np. 'A MINI'
-        if k.split(" - ")[-1] in raw_class_name.replace("??", "Ł"):
+        if k.split(" - ")[-1] in raw_class_name.replace("?", "Ł"):
             class_name = v
             break
         # lub bezposrednio dopasowac
-        if k == raw_class_name.replace("??", "Ł"):
+        if k == raw_class_name.replace("?", "Ł"):
             class_name = v
             break
 

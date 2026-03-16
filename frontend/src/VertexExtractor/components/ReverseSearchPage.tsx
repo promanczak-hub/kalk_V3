@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { Search, Filter, X, Loader2, Car, ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import { API_BASE_URL } from "../../config/env";
 
@@ -125,7 +125,7 @@ export function ReverseSearchPage() {
   const [extractionText, setExtractionText] = useState("");
   const [extracting, setExtracting] = useState(false);
 
-  const baseUrl = API_BASE_URL || "";
+  const baseUrl = API_BASE_URL;
 
   // Fetch catalog
   useEffect(() => {
@@ -449,7 +449,7 @@ export function ReverseSearchPage() {
     return (
       <div className="flex items-center justify-center py-20 text-slate-400">
         <Loader2 className="w-6 h-6 animate-spin mr-3" />
-        <span>Ładowanie katalogu cech...</span>
+        <span>{"Ładowanie katalogu cech..."}</span>
       </div>
     );
   }
@@ -965,3 +965,4 @@ export function ReverseSearchPage() {
     </div>
   );
 }
+

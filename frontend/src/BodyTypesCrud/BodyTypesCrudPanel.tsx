@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -23,7 +23,7 @@ import {
 import { Edit, Trash2, Plus } from "lucide-react";
 import { API_BASE_URL } from "../config/env";
 
-const BASE_URL = API_BASE_URL || "";
+const BASE_URL = API_BASE_URL;
 
 const VEHICLE_CLASSES = ["Osobowy", "Dostawczy"] as const;
 
@@ -273,3 +273,4 @@ export default function BodyTypesCrudPanel() {
     </Box>
   );
 }
+

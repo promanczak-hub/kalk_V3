@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -28,7 +28,7 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import DownloadIcon from '@mui/icons-material/Download';
 import { API_BASE_URL } from "../config/env";
 
-const API_BASE = API_BASE_URL || "";
+const API_BASE = API_BASE_URL;
 
 interface VersionInfo {
   id: number;
@@ -158,7 +158,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
       const result = await resp.json();
       setSnackbar({
         open: true,
-        message: `💾 Snapshot v${result.version_num} utworzony`,
+        message: `đź’ľ Snapshot v${result.version_num} utworzony`,
         severity: 'success',
       });
       setSnapshotOpen(false);
@@ -329,7 +329,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
 
       {/* ── Version History Dialog ── */}
       <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>🕐 Historia wersji — {tableLabel}</DialogTitle>
+        <DialogTitle>Historia wersji {"—"} {tableLabel}</DialogTitle>
         <DialogContent dividers>
           {versionsLoading ? (
             <Box display="flex" justifyContent="center" p={3}><CircularProgress /></Box>
@@ -426,3 +426,4 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
     </>
   );
 }
+

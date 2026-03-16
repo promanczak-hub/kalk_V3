@@ -140,7 +140,7 @@ function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: s
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
       >
-        <option value="" disabled>Oś napędowa…</option>
+        <option value="" disabled>Oś napędowa...</option>
         {DRIVE_TYPE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
@@ -150,32 +150,63 @@ function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: s
 }
 
 const BODY_TYPE_OPTIONS = [
-  // Zostaną nadpisane kandydatami lub załadowane z bazy
-  "Hatchback", "Sedan", "Kombi", "SUV", "Crossover", "Pick-up", "Minivan",
-  "Van", "Furgon", "Kontener", "Skrzynia", "Autolaweta", "Izoterma", "Chłodnia"
-];
+  "Hatchback", "Sedan", "Kombi", "SUV", "Liftback", "Coupe", "Cabrio", "Minivan",
+  "Wieloosobowy", "Pickup", "Furgon", "Podwozie", "Kontener", "Skrzynia", "Autolaweta", "Izoterma", "Ch\u0142odnia"
+] as const;
+
+const BODY_TYPE_ALIAS_MAP: Record<string, string> = {
+  "SPORTSTOURER": "Kombi",
+  "SPORTS TOURER": "Kombi",
+  "TOURING": "Kombi",
+  "AVANT": "Kombi",
+  "ESTATE": "Kombi",
+  "WAGON": "Kombi",
+  "VARIANT": "Kombi",
+  "SPORTSWAGON": "Kombi",
+  "PANEL VAN": "Furgon",
+  "VAN": "Furgon",
+  "CARGO": "Furgon",
+  "PICK-UP": "Pickup",
+};
+
+function normalizeBodyTypeValue(value: string): string {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+  const upper = trimmed.toUpperCase();
+  return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
+}
 
 function BodyTypeTag({ current, candidates, onChange }: { current: string; candidates?: { klasa: string }[], onChange?: (v: string) => void }) {
   if (!onChange) {
-    return current ? <Tag>Nadwozie: {current}</Tag> : null;
+    const normalizedCurrent = normalizeBodyTypeValue(current || "");
+    return normalizedCurrent ? <Tag>Nadwozie: {normalizedCurrent}</Tag> : null;
   }
-  
-  const options = candidates?.length ? candidates.map(c => c.klasa) : BODY_TYPE_OPTIONS;
-  // Zapewnienie, że aktualna wartość istnieje w opcjach
-  if (current && !options.includes(current)) {
-    options.unshift(current);
-  }
+
+  const candidateValues = (candidates || [])
+    .map((c) => normalizeBodyTypeValue(c.klasa))
+    .filter(Boolean);
+
+  const whitelistedCandidates = Array.from(new Set(
+    candidateValues.filter((v) => BODY_TYPE_OPTIONS.includes(v as (typeof BODY_TYPE_OPTIONS)[number]))
+  ));
+
+  const options = whitelistedCandidates.length > 0
+    ? whitelistedCandidates
+    : [...BODY_TYPE_OPTIONS];
+
+  const normalizedCurrent = normalizeBodyTypeValue(current || "");
+  const selectedValue = options.includes(normalizedCurrent) ? normalizedCurrent : "";
 
   return (
     <span className="inline-flex items-center">
       <select
         className="text-xs border border-slate-200 bg-slate-50 rounded px-1.5 py-1 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
         style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
-        value={current || ""}
+        value={selectedValue}
         onClick={(e) => e.stopPropagation()}
-        onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
+        onChange={(e) => { e.stopPropagation(); onChange(normalizeBodyTypeValue(e.target.value)); }}
       >
-        <option value="" disabled>Typ nadwozia…</option>
+        <option value="" disabled>Typ nadwozia...</option>
         {options.map((optionValue) => (
           <option key={optionValue} value={optionValue}>{optionValue}</option>
         ))}
@@ -183,8 +214,6 @@ function BodyTypeTag({ current, candidates, onChange }: { current: string; candi
     </span>
   );
 }
-
-/** Subtle mid-dot separator between logical badge groups */
 function Separator() {
   return (
     <span
@@ -197,7 +226,7 @@ function Separator() {
   );
 }
 
-/** Readiness badge — shows SAMAR data availability with hover tooltip */
+/** Readiness badge - shows SAMAR data availability with hover tooltip */
 function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -243,7 +272,7 @@ function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["
           {result.checks.length > 0 && (
             <div className="space-y-1">
               {result.checks.map((check, i) => {
-                const icon = check.status === "ok" ? "🟢" : check.status === "warn" ? "🟡" : "🔴";
+                const icon = check.status === "ok" ? "OK" : check.status === "warn" ? "WARN" : "ERR";
                 return (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-slate-700">
@@ -278,7 +307,7 @@ function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["
                 </div>
               ) : (
                 <div className="text-xs text-red-600 font-medium p-1.5 bg-red-50 rounded border border-red-100">
-                  ⚠️ "{result.body_match.raw_input}" — brak dopasowania.
+                  Uwaga: "{result.body_match.raw_input}" - brak dopasowania.
                   Korekta WR za nadwozie = 0%
                 </div>
               )}
@@ -300,14 +329,14 @@ function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["
   );
 }
 
-/** Monospace VT323 tag for offer/config codes — click to copy */
+/** Monospace VT323 tag for offer/config codes - click to copy */
 function CodeTag({ children }: { children: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      const text = typeof children === "string" ? children : (e.currentTarget as HTMLElement).textContent ?? "";
+      const text = typeof children === "string" ? children : ((e.currentTarget as HTMLElement).textContent || "");
       navigator.clipboard.writeText(text).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
@@ -366,7 +395,7 @@ export function VehicleBaseInfo({
       className="p-4 sm:p-5 cursor-pointer select-none"
       onClick={onToggleExpand}
     >
-      {/* ── Row 1: Checkbox + Date + Vehicle Name + Price + Chevron ── */}
+      {/* Row 1: Checkbox + Date + Vehicle Name + Price + Chevron */}
       <div className="flex items-start gap-3">
         {/* Selection checkbox */}
         {onToggleSelect && (
@@ -396,7 +425,7 @@ export function VehicleBaseInfo({
           </span>
         </div>
 
-        {/* Vehicle Identity — grows to fill */}
+        {/* Vehicle Identity - grows to fill */}
         <div className="flex-grow min-w-0 overflow-hidden">
           <div className="flex items-baseline gap-2 flex-wrap">
             <h3 className="text-sm font-semibold text-slate-900 truncate">
@@ -469,7 +498,7 @@ export function VehicleBaseInfo({
         </button>
       </div>
 
-      {/* ── Row 2: Badges — fixed order with group separators ── */}
+      {/* Row 2: Badges - fixed order with group separators */}
       {(() => {
         /* Determine which groups have content for smart separator placement */
         const hasIdGroup = hasValue(vehicle.offer_number) || hasValue(vehicle.configuration_code);
@@ -480,7 +509,7 @@ export function VehicleBaseInfo({
 
         return (
           <div className="flex gap-2 mt-2 flex-wrap items-center ml-0 sm:ml-8">
-            {/* ① Identyfikacja: nr oferty, kod konfiguracji */}
+            {/* 1) Identyfikacja: nr oferty, kod konfiguracji */}
             {hasValue(vehicle.offer_number) && (
               <CodeTag>{vehicle.offer_number}</CodeTag>
             )}
@@ -488,10 +517,10 @@ export function VehicleBaseInfo({
               <CodeTag>{vehicle.configuration_code}</CodeTag>
             )}
 
-            {/* ·  separator  · */}
+            {/* · separator · */}
             {hasIdGroup && hasRabatGroup && <Separator />}
 
-            {/* ② Warunki: rabat */}
+            {/* 2) Warunki: rabat */}
             {vehicle.suggested_discount_pct != null && (
               <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
             )}
@@ -499,10 +528,10 @@ export function VehicleBaseInfo({
               <Tag>Brak rabatu</Tag>
             )}
 
-            {/* ·  separator  · */}
+            {/* · separator · */}
             {(hasIdGroup || hasRabatGroup) && hasClassGroup && <Separator />}
 
-            {/* ③ Klasyfikacja: SAMAR, silnik */}
+            {/* 3) Klasyfikacja: SAMAR, silnik */}
             {mappedData?.samar_category && onSamarCategoryChange ? (
               <SamarCategoryDropdown
                 currentCategory={mappedData.samar_category}
@@ -522,18 +551,19 @@ export function VehicleBaseInfo({
               <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
             ) : null}
 
-            {/* ·  separator  · */}
+            {/* · separator · */}
             {(hasIdGroup || hasRabatGroup || hasClassGroup) && hasServiceGroup && <Separator />}
 
-            {/* ④ Serwis: poziom, napęd, nadwozie */}
+            {/* 4) Serwis: poziom, napęd, nadwozie */}
             {powerBand && <Tag>Serwis: {powerBand}</Tag>}
             <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
             <BodyTypeTag current={bodyType} candidates={mappedData?.body_candidates} onChange={onBodyTypeChange} />
 
-            {/* ·  separator  · */}
+            {/* · separator · */}
             {(hasIdGroup || hasRabatGroup || hasClassGroup || hasServiceGroup) && hasStatusGroup && <Separator />}
 
-            {/* ⑤ Status: alerty */}
+            {/* 5) Status: alerty */}
+            {readinessResult && <ReadinessBadge result={readinessResult} />}
             {crossCardAlerts.length > 0 && (
               <button
                 type="button"
@@ -564,3 +594,5 @@ export function VehicleBaseInfo({
     </div>
   );
 }
+
+

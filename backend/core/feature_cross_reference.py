@@ -361,15 +361,32 @@ def _create_body_param_evidence(
     dims: dict[str, float] = {}
     for feat in match_result.features:
         key = feat.feature_key.lower()
-        if (
-            "cargo" in key or "ładunkow" in key or "ladunkow" in key
-        ) and feat.value_num is not None:
+        if feat.value_num is not None and (
+            "cargo" in key or "ładunkow" in key or "ladunkow" in key or "overall" in key or "calkowit" in key or "całkowit" in key
+        ):
             if "dlugosc" in key or "length" in key or "długość" in key:
-                dims["length_mm"] = feat.value_num
+                if "overall" in key:
+                    dims["overall_length_mm"] = feat.value_num
+                else:
+                    dims["length_mm"] = feat.value_num
             elif "szerokosc" in key or "width" in key or "szerokość" in key:
-                dims["width_mm"] = feat.value_num
+                if "overall" in key:
+                    dims["overall_width_mm"] = feat.value_num
+                else:
+                    dims["width_mm"] = feat.value_num
             elif "wysokosc" in key or "height" in key or "wysokość" in key:
-                dims["height_mm"] = feat.value_num
+                if "overall" in key:
+                    dims["overall_height_mm"] = feat.value_num
+                else:
+                    dims["height_mm"] = feat.value_num
+
+    # Fallback to overall dimensions if cargo dimensions are not available (e.g. passenger cars)
+    if "length_mm" not in dims and "overall_length_mm" in dims:
+        dims["length_mm"] = dims["overall_length_mm"]
+    if "width_mm" not in dims and "overall_width_mm" in dims:
+        dims["width_mm"] = dims["overall_width_mm"]
+    if "height_mm" not in dims and "overall_height_mm" in dims:
+        dims["height_mm"] = dims["overall_height_mm"]
 
     if not dims:
         return 0
@@ -384,6 +401,18 @@ def _create_body_param_evidence(
     sb = sb_client
 
     calc_features = {
+        "długość_całkowita": (
+            dims.get("overall_length_mm"),
+            "mm",
+        ),
+        "szerokość_całkowita": (
+            dims.get("overall_width_mm"),
+            "mm",
+        ),
+        "wysokość_całkowita": (
+            dims.get("overall_height_mm"),
+            "mm",
+        ),
         "m2": (
             params.area_m2,
             "m²",

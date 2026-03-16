@@ -4,52 +4,15 @@ import {
   Typography,
   Chip,
 } from "@mui/material";
-import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2 } from "lucide-react";
+import { Calculator, ChevronDown, ChevronUp, TrendingUp, Settings, RotateCcw, Loader2, FileCode2, X } from "lucide-react";
 import { API_BASE_URL } from "../../../config/env";
-import { MatrixFilterToolbar, type MatrixFilters } from "../../../CalculatorPanel/MatrixFilterToolbar";
+import { MatrixFilterToolbar, type MatrixFilters, type MileageMode } from "../../../CalculatorPanel/MatrixFilterToolbar";
 import { ReversePriceLookup } from "../../../CalculatorPanel/ReversePriceLookup";
 import { MatrixHeatmapView, MatrixViewToggle } from "../../../CalculatorPanel/MatrixHeatmapView";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface CostComponent {
-  base: number;
-  margin: number;
-  price: number;
-}
-
-interface CellBreakdown {
-  finance: CostComponent & {
-    monthly_pmt: number;
-    total_interest: number;
-    total_capital_repayment: number;
-    initial_deposit_net: number;
-  };
-  technical: {
-    service: CostComponent;
-    tires: CostComponent;
-    insurance: CostComponent;
-    replacement_car: CostComponent;
-    additional_costs: CostComponent;
-  };
-}
-
-interface MatrixCell {
-  months: number;
-  km_per_year: number;
-  total_km: number;
-  base_cost_net: number;
-  price_net: number;
-  rv_samar_net: number;
-  rv_lo_net: number;
-  utrata_wartosci_bez_czynszu_net: number;
-  breakdown: CellBreakdown;
-  status: string;
-  warnings?: {
-    service_fallback_used?: boolean;
-    replacement_car_missing?: boolean;
-  };
-}
+import type { MiniMatrixCell } from "./decision-center/decision-center.types";
 
 interface CellOverrides {
   pricing_margin_pct: number;
@@ -68,21 +31,100 @@ interface CellOverrides {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Payload = Record<string, any>;
 
+type NormalizedOption = {
+  name: string;
+  price_net: number;
+  price_gross: number;
+  no_discount: boolean;
+  include_in_wr: boolean;
+};
+
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
 function fmtPLN(val: number): string {
   return val.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function parsePriceToNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return 0;
+
+  const normalized = value
+    .replace(/\s+/g, "")
+    .replace(/[^\d,.-]/g, "")
+    .replace(",", ".");
+
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mapPaidOption(
+  row: Record<string, unknown>,
+  index: number,
+  defaultPriceDomain: string,
+): NormalizedOption | null {
+  const name = String(row.name || `Opcja ${index + 1}`);
+  const rawPrice = row.price;
+  const amount = parsePriceToNumber(rawPrice);
+  if (amount <= 0) return null;
+
+  const priceType = String(row.price_type || "").toLowerCase();
+  const rawPriceString = typeof rawPrice === "string" ? rawPrice.toLowerCase() : "";
+  const isBrutto =
+    priceType.includes("brutto") ||
+    rawPriceString.includes("brutto") ||
+    defaultPriceDomain === "brutto";
+
+  const priceNet = isBrutto ? amount / 1.23 : amount;
+  const priceGross = isBrutto ? amount : amount * 1.23;
+
+  return {
+    name,
+    price_net: Number(priceNet.toFixed(2)),
+    price_gross: Number(priceGross.toFixed(2)),
+    no_discount: Boolean(row.no_discount),
+    include_in_wr: Boolean(row.include_in_wr),
+  };
+}
+
+function isFactoryCategory(category: unknown): boolean {
+  const normalized = String(category || "").toLowerCase();
+  return !normalized || normalized.includes("fabryczna");
+}
+
+function extractOptionsFromPaidOptions(
+  paidOptions: unknown,
+  defaultPriceDomain?: string,
+): { factory: NormalizedOption[]; service: NormalizedOption[] } {
+  const rows = Array.isArray(paidOptions) ? paidOptions : [];
+  const normalizedDomain = String(defaultPriceDomain || "").toLowerCase();
+  const factory: NormalizedOption[] = [];
+  const service: NormalizedOption[] = [];
+
+  rows.forEach((rawRow, index) => {
+    const row = (rawRow ?? {}) as Record<string, unknown>;
+    const mapped = mapPaidOption(row, index, normalizedDomain);
+    if (!mapped) return;
+
+    if (isFactoryCategory(row.category)) {
+      factory.push({ ...mapped, include_in_wr: false });
+      return;
+    }
+
+    // Opcje serwisowe są zawsze nierabatowane; include_in_wr steruje WR.
+    service.push({ ...mapped, no_discount: false });
+  });
+
+  return { factory, service };
+}
+
 // ─── CostRow ─────────────────────────────────────────────────────────────────
 
-function CostRow({ label, component }: { label: string; component: CostComponent }) {
+function CostRow({ label, price }: { label: string; price: number }) {
   return (
     <tr className="border-b border-slate-100 last:border-0">
       <td className="py-1.5 text-xs text-slate-600 font-medium">{label}</td>
-      <td className="py-1.5 text-xs text-right text-slate-700 tabular-nums">{fmtPLN(component.base)}</td>
-      <td className="py-1.5 text-xs text-right text-slate-500 tabular-nums">{fmtPLN(component.margin)}</td>
-      <td className="py-1.5 text-xs text-right font-semibold text-slate-800 tabular-nums">{fmtPLN(component.price)}</td>
+      <td className="py-1.5 text-xs text-right font-semibold text-slate-800 tabular-nums">{fmtPLN(price)}</td>
     </tr>
   );
 }
@@ -150,19 +192,22 @@ function CellDetail({
   overrides,
   isModified,
   isRecalculating,
+  isFetchingTrace,
   onOverridesChange,
   onRecalculate,
   onReset,
+  onShowTrace,
 }: {
-  cell: MatrixCell;
+  cell: MiniMatrixCell;
   overrides: CellOverrides;
   isModified: boolean;
   isRecalculating: boolean;
+  isFetchingTrace?: boolean;
   onOverridesChange: (o: CellOverrides) => void;
   onRecalculate: () => void;
   onReset: () => void;
+  onShowTrace?: () => void;
 }) {
-  const bd = cell.breakdown;
   const [showExpert, setShowExpert] = useState(false);
 
   const update = (partial: Partial<CellOverrides>) => {
@@ -175,7 +220,7 @@ function CellDetail({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold text-slate-500 uppercase">
-            {cell.months} mc / {(cell.total_km / 1000).toFixed(0)}k km
+            {cell.Okres} mc / {(((cell.PrzebiegKontrakt ?? ((cell.Okres / 12) * cell.Przebieg)) / 1000)).toFixed(0)}k km
           </span>
           <Chip
             label={cell.status === "OK" ? "OK" : "⚠ Wysoki przebieg"}
@@ -196,7 +241,7 @@ function CellDetail({
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-400 uppercase">WR SAMAR netto</div>
-          <div className="text-xs font-bold text-emerald-700">{fmtPLN(cell.rv_samar_net)} PLN</div>
+          <div className="text-xs font-bold text-emerald-700">{fmtPLN(cell.WR)} PLN</div>
         </div>
       </div>
 
@@ -204,32 +249,28 @@ function CellDetail({
       <table className="w-full">
         <thead>
           <tr className="border-b-2 border-slate-200">
-            <th className="pb-1 text-xs text-left font-bold text-slate-400 uppercase w-[40%]">Składnik</th>
-            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[20%]">Baza netto</th>
-            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[20%]">Marża</th>
-            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[20%]">Cena netto</th>
+            <th className="pb-1 text-xs text-left font-bold text-slate-400 uppercase w-[60%]">Składnik</th>
+            <th className="pb-1 text-xs text-right font-bold text-slate-400 uppercase w-[40%]">Cena netto</th>
           </tr>
         </thead>
         <tbody>
-          <CostRow label="Finansowanie (PMT)" component={bd.finance} />
-          <CostRow label="Serwis" component={bd.technical.service} />
-          <CostRow label="Opony" component={bd.technical.tires} />
-          <CostRow label="Ubezpieczenie" component={bd.technical.insurance} />
-          <CostRow label="Samochód zastępczy" component={bd.technical.replacement_car} />
-          <CostRow label="Inne koszty" component={bd.technical.additional_costs} />
+          <CostRow label="Finansowanie (PMT)" price={cell.CzynszFinansowy} />
+          <CostRow label="Serwis" price={cell.Serwis} />
+          <CostRow label="Opony" price={cell.Opony} />
+          <CostRow label="Ubezpieczenie" price={cell.Ubezpieczenie} />
+          <CostRow label="Samochód zastępczy" price={cell.SamochodZastepczy} />
+          <CostRow label="Inne koszty" price={cell.Admin} />
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-slate-300">
             <td className="pt-2 text-xs font-bold text-slate-800">RAZEM (rata LTR)</td>
-            <td className="pt-2 text-xs text-right font-bold text-slate-700 tabular-nums">{fmtPLN(cell.base_cost_net)}</td>
-            <td></td>
-            <td className="pt-2 text-sm text-right font-bold text-blue-700 tabular-nums">{fmtPLN(cell.price_net)}</td>
+            <td className="pt-2 text-sm text-right font-bold text-blue-700 tabular-nums">{fmtPLN(cell.LacznaStawka)}</td>
           </tr>
         </tfoot>
       </table>
 
       {/* Expert Mode Toggle */}
-      <div className="mt-4 pt-3 border-t border-slate-200">
+      <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
         <button
           onClick={() => setShowExpert(!showExpert)}
           className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
@@ -241,6 +282,16 @@ function CellDetail({
           <Settings className="w-3.5 h-3.5" />
           {showExpert ? "Zamknij tryb ekspercki" : "⚙️ Tryb ekspercki"}
         </button>
+        {onShowTrace && (
+          <button
+            onClick={onShowTrace}
+            disabled={isFetchingTrace}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+          >
+            {isFetchingTrace ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCode2 className="w-3.5 h-3.5" />}
+            Ślad Przeliczeń (Trace)
+          </button>
+        )}
       </div>
 
       {/* Expert Panel */}
@@ -260,7 +311,7 @@ function CellDetail({
               />
               <ExpertNumber
                 label="Okres (mc)"
-                value={overrides.custom_months ?? cell.months}
+                value={overrides.custom_months ?? cell.Okres}
                 onChange={(v) => update({ custom_months: v > 0 ? v : null })}
                 step={6}
                 suffix="mc"
@@ -268,7 +319,7 @@ function CellDetail({
               />
               <ExpertNumber
                 label="Kilometry/rok"
-                value={overrides.custom_km_per_year ?? cell.km_per_year}
+                value={overrides.custom_km_per_year ?? cell.Przebieg}
                 onChange={(v) => update({ custom_km_per_year: v > 0 ? v : null })}
                 step={5000}
                 suffix="km"
@@ -366,7 +417,7 @@ function CellDetail({
             </div>
             <div className="text-right">
               <div className="text-[10px] text-slate-400 uppercase">Rata LTR netto</div>
-              <div className="text-lg font-bold text-blue-700 tabular-nums">{fmtPLN(cell.price_net)} PLN</div>
+              <div className="text-lg font-bold text-blue-700 tabular-nums">{fmtPLN(cell.LacznaStawka)} PLN</div>
             </div>
           </div>
         </div>
@@ -380,6 +431,7 @@ function CellDetail({
 export function VehicleRowCalculations({ 
   kalkulacjaId, 
   kalkulacjaNumer,
+  vehicleId,
   vehicleName = "",
   powertrain = "",
   offerNumber = "",
@@ -388,22 +440,26 @@ export function VehicleRowCalculations({
 }: { 
   kalkulacjaId: string; 
   kalkulacjaNumer: string;
+  vehicleId: string;
   vehicleName?: string;
   powertrain?: string;
   offerNumber?: string;
   configCode?: string;
   basePrice?: number;
 }) {
-  const [cells, setCells] = useState<MatrixCell[]>([]);
-  const [originalCells, setOriginalCells] = useState<MatrixCell[]>([]);
+  const [cells, setCells] = useState<MiniMatrixCell[]>([]);
+  const [originalCells, setOriginalCells] = useState<MiniMatrixCell[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedCell, setExpandedCell] = useState<string | null>(null);
   const [cellOverrides, setCellOverrides] = useState<Record<number, CellOverrides>>({});
   const [modifiedCells, setModifiedCells] = useState<Set<number>>(new Set());
   const [recalculating, setRecalculating] = useState<number | null>(null);
+  const [fetchingTraceCell, setFetchingTraceCell] = useState<number | null>(null);
+  const [traceData, setTraceData] = useState<{ krok: string; rownanie: string; wynik: unknown }[] | null>(null);
   const [marginRecalculating, setMarginRecalculating] = useState(false);
   const [matrixView, setMatrixView] = useState<"cards" | "heatmap">("heatmap");
+  const [mileageMode, setMileageMode] = useState<MileageMode>("contract");
 
   // Filter state
   const [filters, setFilters] = useState<MatrixFilters>({
@@ -411,6 +467,12 @@ export function VehicleRowCalculations({
     targetKmPerYear: null,
     globalMarginPct: 15.0,
   });
+
+  const mileageReferenceMonths = useMemo(() => {
+    const [from, to] = filters.monthsRange;
+    if (from === to && from > 0) return from;
+    return 48;
+  }, [filters.monthsRange]);
 
   // Store the base payload for per-cell recalculation
   const basePayloadRef = useRef<Payload | null>(null);
@@ -462,7 +524,7 @@ export function VehicleRowCalculations({
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = API_BASE_URL || "";
+      const baseUrl = API_BASE_URL;
 
       // 1. Fetch kalkulacja data (stan_json) from backend
       const kalkResp = await fetch(`${baseUrl}/api/kalkulacje/${kalkulacjaId}`);
@@ -480,24 +542,57 @@ export function VehicleRowCalculations({
       kmPerMonthRef.current = przebiegBazowy / okresBazowy;
 
       const rawBasePrice = String(cardSummary.base_price || cardSummary.total_price || "0");
-      const cleanBasePrice = rawBasePrice.replace(/\s+/g, "").replace(",", ".");
+      const cleanBasePrice = parseFloat(rawBasePrice.replace(/\s+/g, "").replace(",", ".")) || 0;
       
+      // Detekcja wariantu brutto
+      const priceDomain = cardSummary._price_domain || "unknown";
+      const isBrutto = rawBasePrice.toLowerCase().includes("brutto") || priceDomain === "brutto";
+      
+      const basePriceNet = isBrutto ? parseFloat((cleanBasePrice / 1.23).toFixed(2)) : cleanBasePrice;
+      const resolvedVehicleId = vehicleId || stanJson.vehicle_id || kalkData.vehicle_id;
+      if (!resolvedVehicleId) {
+        throw new Error("Brak vehicle_id w kalkulacji - nie mozna policzyc matrixu.");
+      }
+
+                  const persistedFactoryOptions = (stanJson.factory_options || []).map((o: { name: string; price_net: number; price_gross?: number; no_discount?: boolean; include_in_wr?: boolean }) => ({
+        name: o.name || "Opcja",
+        price_net: o.price_net || 0,
+        price_gross: o.price_gross || Number(((o.price_net || 0) * 1.23).toFixed(2)),
+        no_discount: Boolean(o.no_discount),
+        include_in_wr: false,
+      }));
+
+      const persistedServiceOptions = (stanJson.service_options || []).map((o: { name: string; price_net: number; price_gross?: number; no_discount?: boolean; include_in_wr?: boolean }) => ({
+        name: o.name || "Usluga",
+        price_net: o.price_net || 0,
+        price_gross: o.price_gross || Number(((o.price_net || 0) * 1.23).toFixed(2)),
+        no_discount: false,
+        include_in_wr: Boolean(o.include_in_wr),
+      }));
+
+      const fallbackFromPaid = extractOptionsFromPaidOptions(
+        cardSummary.paid_options,
+        String(cardSummary._price_domain || cardSummary.price_domain || "")
+      );
+
+      const normalizedFactoryOptions =
+        persistedFactoryOptions.length > 0
+          ? persistedFactoryOptions
+          : fallbackFromPaid.factory;
+
+      const normalizedServiceOptions =
+        persistedServiceOptions.length > 0
+          ? persistedServiceOptions
+          : fallbackFromPaid.service;
+
       // 2. Build CalculatorInput payload from stan_json
       const payload: Payload = {
         calculation_id: kalkulacjaId,
-        vehicle_id: stanJson.vehicle_id || kalkData.vehicle_id || cardSummary.model || "unknown",
-        base_price_net: parseFloat(cleanBasePrice) || 0,
+        vehicle_id: resolvedVehicleId,
+        base_price_net: basePriceNet,
         discount_pct: discount.active_discount_pct || 0,
-        factory_options: (stanJson.factory_options || []).map((o: { name: string; price_net: number; include_in_wr?: boolean }) => ({
-          name: o.name || "Opcja",
-          price_net: o.price_net || 0,
-          include_in_wr: false,
-        })),
-        service_options: (stanJson.service_options || []).map((o: { name: string; price_net: number; include_in_wr?: boolean }) => ({
-          name: o.name || "Usługa",
-          price_net: o.price_net || 0,
-          include_in_wr: o.include_in_wr || false,
-        })),
+        factory_options: normalizedFactoryOptions,
+        service_options: normalizedServiceOptions,
         okres_bazowy: okresBazowy,
         przebieg_bazowy: przebiegBazowy,
         wibor_pct: financialParams.wibor_pct || 5.0,
@@ -507,6 +602,16 @@ export function VehicleRowCalculations({
         replacement_car_enabled: toggles.replacement_car !== false,
         add_gsm_subscription: toggles.gps_required !== false,
         add_hook_installation: toggles.hook_installation === true,
+        add_grid_dismantling: toggles.grid_dismantling === true,
+        add_registration: toggles.add_registration !== false,
+        add_sales_prep: toggles.add_sales_prep !== false,
+        korekta_kosztu_przygotowania: Number(
+          financialParams.sales_prep_correction
+            ?? financialParams.korekta_kosztu_przygotowania
+            ?? stanJson.korekta_kosztu_przygotowania
+            ?? stanJson.KosztPrzygotowaniaDosprzedazyKorekta
+            ?? 0
+        ),
         z_oponami: toggles.z_oponami !== false,
         klasa_opony_string: stanJson.tire_params?.tire_class || "Medium",
         srednica_felgi: stanJson.tire_params?.rim_diameter || null,
@@ -514,13 +619,25 @@ export function VehicleRowCalculations({
         korekta_kosztu_opon: stanJson.tire_params?.tire_cost_correction_enabled !== false,
         koszt_opon_korekta: stanJson.tire_params?.tire_cost_correction || 0,
         service_cost_type: stanJson.service_cost_type || "ASO",
+        include_servicing: toggles.include_servicing !== false,
         vehicle_vintage: stanJson.vehicle_vintage || "current",
         is_metalic: stanJson.is_metalic === true,
         pricing_margin_pct: financialParams.pricing_margin_pct ?? 15.0,
         manual_wr_correction: 0,
-        pakiet_serwisowy: 0,
-        inne_koszty_serwisowania_netto: 0,
+        pakiet_serwisowy: Number(stanJson.pakiet_serwisowy ?? 0),
+        inne_koszty_serwisowania_netto: Number(
+          financialParams.other_service_costs ?? stanJson.inne_koszty_serwisowania_netto ?? 0
+        ),
+        matrix_km_mode: mileageMode,
+        matrix_contract_km_step: 10000,
         settings: { settings_version_id: null, overrides: null },
+        // Przekazanie mocy do kalkulatora backendu (żeby uniknąć 400 Error)
+        power_kw: Number(stanJson.power_kw ?? cardSummary.power_kw ?? (cardSummary.power_hp ? Number(cardSummary.power_hp) * 0.73549875 : 0)),
+        // Przekazanie parametrów identyfikacyjnych na wypadek braków w BD
+        body_type_name: stanJson.body_type_name ?? cardSummary.body_style ?? cardSummary.body_type ?? "",
+        zabudowa_type_id: stanJson.zabudowa_type_id ?? ((typeof cardSummary.zabudowa_type_id === "number") ? cardSummary.zabudowa_type_id : null),
+        samar_category: stanJson.samar_category ?? cardSummary.samar_category ?? "",
+        engine_name: stanJson.engine_category ?? cardSummary.engine_category ?? cardSummary.powertrain ?? "",
       };
 
       // Store base payload for per-cell recalculation
@@ -554,7 +671,7 @@ export function VehicleRowCalculations({
     } finally {
       setLoading(false);
     }
-  }, [kalkulacjaId]);
+  }, [kalkulacjaId, vehicleId, mileageMode]);
 
   useEffect(() => {
     fetchMatrix();
@@ -569,7 +686,7 @@ export function VehicleRowCalculations({
 
     setRecalculating(months);
     try {
-      const baseUrl = API_BASE_URL || "";
+      const baseUrl = API_BASE_URL;
 
       // Build modified payload: apply expert overrides.
       // If user specified custom months/km, use those; otherwise keep original cell's.
@@ -606,13 +723,13 @@ export function VehicleRowCalculations({
 
       if (!resp.ok) throw new Error("Błąd przeliczania komórki");
       const data = await resp.json();
-      const newCells: MatrixCell[] = data.cells || [];
+      const newCells: MiniMatrixCell[] = data.cells || [];
 
       // Find the cell matching our effective months
       const foundMonths = ov.custom_months ?? months;
-      const targetCell = newCells.find(c => c.months === foundMonths);
+      const targetCell = newCells.find(c => c.Okres === foundMonths);
       if (targetCell) {
-        setCells(prev => prev.map(c => c.months === months ? targetCell : c));
+        setCells(prev => prev.map(c => c.Okres === months ? targetCell : c));
         setModifiedCells(prev => new Set([...prev, months]));
       }
     } catch (err) {
@@ -622,10 +739,59 @@ export function VehicleRowCalculations({
     }
   }, [cellOverrides]);
 
+  const fetchTraceSingleCell = useCallback(async (months: number, kmYearOverride?: number) => {
+    if (!basePayloadRef.current) return;
+    const ov = cellOverrides[months] || buildDefaultOverrides(basePayloadRef.current);
+    
+    setFetchingTraceCell(months);
+    try {
+      const baseUrl = API_BASE_URL;
+
+      const effectiveMonths = ov.custom_months ?? months;
+      const effectiveKmYear = kmYearOverride ?? ov.custom_km_per_year;
+      let targetKm: number;
+      if (effectiveKmYear != null) {
+        targetKm = Math.round((effectiveKmYear / 12) * effectiveMonths);
+      } else {
+        targetKm = Math.round(kmPerMonthRef.current * effectiveMonths);
+      }
+
+      const modifiedPayload: Payload = {
+        ...basePayloadRef.current,
+        okres_bazowy: effectiveMonths,
+        przebieg_bazowy: targetKm,
+        pricing_margin_pct: ov.pricing_margin_pct,
+        klasa_opony_string: ov.klasa_opony_string,
+        liczba_kompletow_opon: ov.liczba_kompletow_opon,
+        z_oponami: ov.z_oponami,
+        manual_wr_correction: ov.manual_wr_correction,
+        pakiet_serwisowy: ov.pakiet_serwisowy,
+        inne_koszty_serwisowania_netto: ov.inne_koszty_serwisowania_netto,
+        service_cost_type: ov.service_cost_type,
+        replacement_car_enabled: ov.replacement_car_enabled,
+      };
+
+      const resp = await fetch(`${baseUrl}/api/calculate-trace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modifiedPayload),
+      });
+
+      if (!resp.ok) throw new Error("Błąd pobierania śladu");
+      const data = await resp.json();
+      setTraceData(data.calculation_trace || []);
+    } catch (err) {
+      console.error("Trace error:", err);
+      alert("Błąd pobierania śladu: " + err);
+    } finally {
+      setFetchingTraceCell(null);
+    }
+  }, [cellOverrides]);
+
   const resetCell = (months: number) => {
-    const original = originalCells.find(c => c.months === months);
+    const original = originalCells.find(c => c.Okres === months);
     if (original) {
-      setCells(prev => prev.map(c => c.months === months ? original : c));
+      setCells(prev => prev.map(c => c.Okres === months ? original : c));
     }
     setCellOverrides(prev => {
       const next = { ...prev };
@@ -648,20 +814,27 @@ export function VehicleRowCalculations({
   const filteredCells = useMemo(() => {
     return cells.filter((c) => {
       // Period filter
-      if (c.months < filters.monthsRange[0] || c.months > filters.monthsRange[1]) {
+      if (c.Okres < filters.monthsRange[0] || c.Okres > filters.monthsRange[1]) {
         return false;
       }
-      // Km/year filter with ±5% margin
-      if (filters.targetKmPerYear !== null) {
-        const lo = filters.targetKmPerYear * 0.95;
-        const hi = filters.targetKmPerYear * 1.05;
-        if (c.km_per_year < lo || c.km_per_year > hi) {
-          return false;
-        }
+
+      if (filters.targetKmPerYear === null) {
+        return true;
       }
-      return true;
+
+      if (mileageMode === "contract") {
+        const targetContractKm = (filters.targetKmPerYear / 12) * mileageReferenceMonths;
+        const lo = targetContractKm * 0.95;
+        const hi = targetContractKm * 1.05;
+        const contractKm = c.PrzebiegKontrakt ?? (c.Przebieg / 12) * c.Okres;
+        return contractKm >= lo && contractKm <= hi;
+      }
+
+      const lo = filters.targetKmPerYear * 0.95;
+      const hi = filters.targetKmPerYear * 1.05;
+      return c.Przebieg >= lo && c.Przebieg <= hi;
     });
-  }, [cells, filters.monthsRange, filters.targetKmPerYear]);
+  }, [cells, filters.monthsRange, filters.targetKmPerYear, mileageMode, mileageReferenceMonths]);
 
   // ─── Global margin recalculation ───────────────────────────────────
 
@@ -669,7 +842,7 @@ export function VehicleRowCalculations({
     if (!basePayloadRef.current) return;
     setMarginRecalculating(true);
     try {
-      const baseUrl = API_BASE_URL || "";
+      const baseUrl = API_BASE_URL;
       const modifiedPayload = {
         ...basePayloadRef.current,
         pricing_margin_pct: marginPct,
@@ -704,7 +877,7 @@ export function VehicleRowCalculations({
     if (!basePayloadRef.current) return;
     setMarginRecalculating(true); // Reuse this flag for the toolbar button loading state
     try {
-      const baseUrl = API_BASE_URL || "";
+      const baseUrl = API_BASE_URL;
       const targetKm = Math.round((kmPerYear / 12) * months);
       
       const modifiedPayload = {
@@ -814,190 +987,11 @@ export function VehicleRowCalculations({
       {/* Main content */}
       <Box sx={{ px: 0, width: "100%" }}>
         {loading && (
-          <>
-            {/* Animated Loading Overlay */}
-            <style>{`
-              @keyframes matrixFadeIn {
-                0% { opacity: 0; transform: scale(0.8) translateY(20px); }
-                60% { opacity: 1; transform: scale(1.05) translateY(-5px); }
-                100% { opacity: 1; transform: scale(1) translateY(0); }
-              }
-              @keyframes matrixPulse {
-                0%, 100% { opacity: 0.7; transform: scale(1); }
-                50% { opacity: 1; transform: scale(1.02); }
-              }
-              @keyframes matrixFloat {
-                0% { transform: translateY(0px); }
-                50% { transform: translateY(-8px); }
-                100% { transform: translateY(0px); }
-              }
-              @keyframes matrixSpin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-              @keyframes matrixDot {
-                0%, 20% { opacity: 0; }
-                40% { opacity: 1; }
-                60%, 100% { opacity: 0; }
-              }
-              @keyframes matrixGridLine {
-                0% { opacity: 0; transform: scaleX(0); }
-                50% { opacity: 0.3; transform: scaleX(1); }
-                100% { opacity: 0; transform: scaleX(0); }
-              }
-              @keyframes matrixParticle {
-                0% { opacity: 0; transform: translate(0, 0) scale(0); }
-                50% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(1); }
-                100% { opacity: 0; transform: translate(var(--tx2), var(--ty2)) scale(0); }
-              }
-              .matrix-loading-dot:nth-child(1) { animation-delay: 0s; }
-              .matrix-loading-dot:nth-child(2) { animation-delay: 0.3s; }
-              .matrix-loading-dot:nth-child(3) { animation-delay: 0.6s; }
-            `}</style>
-            <div
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 9999,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "rgba(15, 23, 42, 0.65)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-              }}
-            >
-              {/* Background grid effect */}
-              <div style={{
-                position: "absolute",
-                inset: 0,
-                backgroundImage: `
-                  linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px)
-                `,
-                backgroundSize: "40px 40px",
-                animation: "matrixPulse 3s ease-in-out infinite",
-              }} />
-
-              {/* Floating particles */}
-              {[...Array(6)].map((_, i) => (
-                <div key={i} style={{
-                  position: "absolute",
-                  width: "6px",
-                  height: "6px",
-                  borderRadius: "50%",
-                  background: `hsl(${210 + i * 25}, 80%, 65%)`,
-                  // @ts-expect-error CSS custom properties
-                  "--tx": `${(i % 2 === 0 ? 1 : -1) * (30 + i * 15)}px`,
-                  "--ty": `${(i % 3 === 0 ? -1 : 1) * (20 + i * 10)}px`,
-                  "--tx2": `${(i % 2 === 0 ? -1 : 1) * (50 + i * 10)}px`,
-                  "--ty2": `${(i % 3 === 0 ? 1 : -1) * (40 + i * 5)}px`,
-                  left: `${25 + i * 10}%`,
-                  top: `${35 + (i % 3) * 15}%`,
-                  animation: `matrixParticle ${2 + i * 0.4}s ease-in-out infinite`,
-                  animationDelay: `${i * 0.3}s`,
-                }} />
-              ))}
-
-              {/* Main card */}
-              <div style={{
-                position: "relative",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "24px",
-                padding: "48px 56px",
-                borderRadius: "24px",
-                background: "rgba(255, 255, 255, 0.08)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                boxShadow: "0 25px 80px -12px rgba(0, 0, 0, 0.4), 0 0 60px -15px rgba(59, 130, 246, 0.15)",
-                animation: "matrixFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-              }}>
-                {/* Animated ring */}
-                <div style={{
-                  position: "relative",
-                  width: "80px",
-                  height: "80px",
-                  animation: "matrixFloat 3s ease-in-out infinite",
-                }}>
-                  {/* Outer ring */}
-                  <svg
-                    viewBox="0 0 80 80"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      animation: "matrixSpin 2.5s linear infinite",
-                    }}
-                  >
-                    <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(59, 130, 246, 0.15)" strokeWidth="3" />
-                    <circle
-                      cx="40" cy="40" r="36" fill="none"
-                      stroke="url(#matrixGrad)" strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeDasharray="80 150"
-                    />
-                    <defs>
-                      <linearGradient id="matrixGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#3b82f6" />
-                        <stop offset="50%" stopColor="#8b5cf6" />
-                        <stop offset="100%" stopColor="#06b6d4" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  {/* Inner icon */}
-                  <div style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "32px",
-                  }}>
-                    🧮
-                  </div>
-                </div>
-
-                {/* Text */}
-                <div style={{ textAlign: "center" }}>
-                  <div style={{
-                    fontSize: "20px",
-                    fontWeight: 700,
-                    color: "rgba(255, 255, 255, 0.95)",
-                    letterSpacing: "-0.02em",
-                    marginBottom: "8px",
-                    animation: "matrixPulse 2.5s ease-in-out infinite",
-                  }}>
-                    Daj mi 20 sekund
-                  </div>
-                  <div style={{
-                    fontSize: "14px",
-                    color: "rgba(148, 163, 184, 0.9)",
-                    fontWeight: 500,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                  }}>
-                    Liczę Twoje matrixy
-                    <span className="matrix-loading-dot" style={{ animation: "matrixDot 1.2s ease-in-out infinite", fontSize: "18px" }}>.</span>
-                    <span className="matrix-loading-dot" style={{ animation: "matrixDot 1.2s ease-in-out infinite", fontSize: "18px" }}>.</span>
-                    <span className="matrix-loading-dot" style={{ animation: "matrixDot 1.2s ease-in-out infinite", fontSize: "18px" }}>.</span>
-                  </div>
-                </div>
-
-                {/* Subtle bottom tag */}
-                <div style={{
-                  fontSize: "11px",
-                  color: "rgba(100, 116, 139, 0.7)",
-                  fontWeight: 500,
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                }}>
-                  Obliczanie matrycy LTR
-                </div>
-              </div>
-            </div>
-          </>
+          <div className="flex flex-col items-center justify-center py-16 text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100">
+            <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-600" />
+            <h3 className="text-sm font-semibold text-slate-700">Trwa obliczanie matrycy LTR...</h3>
+            <p className="text-xs text-slate-400 mt-1">Proszę czekać, pobieram najnowsze stawki</p>
+          </div>
         )}
 
         {error && (
@@ -1028,6 +1022,9 @@ export function VehicleRowCalculations({
             <MatrixFilterToolbar
               defaultMarginPct={basePayloadRef.current?.pricing_margin_pct ?? 15.0}
               filters={filters}
+              mileageMode={mileageMode}
+              onMileageModeChange={setMileageMode}
+              referenceMonths={mileageReferenceMonths}
               onFiltersChange={setFilters}
               onMarginRecalculate={recalculateWithMargin}
               onExactRecalculate={handleExactRecalculate}
@@ -1057,14 +1054,19 @@ export function VehicleRowCalculations({
 
             {/* Matrix View: Heatmap or Cards */}
             {matrixView === "heatmap" ? (
-              <MatrixHeatmapView cells={filteredCells} />
+              <MatrixHeatmapView 
+                cells={filteredCells} 
+                mileageMode={mileageMode} 
+                onShowTrace={(cell) => fetchTraceSingleCell(cell.Okres, cell.Przebieg)}
+                isFetchingTrace={fetchingTraceCell !== null}
+              />
             ) : (
             /* Matrix Card Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {filteredCells.map((cell) => {
-                const cellKey = `${cell.months}-${cell.km_per_year}`;
+                const cellKey = `${cell.Okres}-${cell.Przebieg}`;
                 const isExpanded = expandedCell === cellKey;
-                const isMod = modifiedCells.has(cell.months);
+                const isMod = modifiedCells.has(cell.Okres);
 
                 return (
                   <div key={cellKey} className={isExpanded ? "sm:col-span-2 lg:col-span-3 xl:col-span-4" : ""}>
@@ -1085,18 +1087,20 @@ export function VehicleRowCalculations({
                         <div>
                           <div className="flex items-center gap-1.5">
                             <div className="text-xs font-bold text-slate-400 uppercase">
-                              {cell.months} miesięcy
+                              {cell.Okres} miesięcy
                             </div>
                             {isMod && <Settings className="w-3 h-3 text-blue-500" />}
                           </div>
                           <div className="text-xs text-slate-400">
-                            {(cell.total_km / 1000).toFixed(0)}k km ({cell.km_per_year.toLocaleString("pl-PL")} km/rok)
+                            {mileageMode === "contract"
+                              ? `${((cell.PrzebiegKontrakt ?? ((cell.Okres / 12) * cell.Przebieg)) / 1000).toFixed(0)}k km/kontrakt`
+                              : `${((cell.PrzebiegKontrakt ?? ((cell.Okres / 12) * cell.Przebieg)) / 1000).toFixed(0)}k km (${cell.Przebieg.toLocaleString("pl-PL")} km/rok)`}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="text-right">
                             <div className="text-sm font-bold text-blue-700 tabular-nums">
-                              {fmtPLN(cell.price_net)}
+                              {fmtPLN(cell.LacznaStawka)}
                             </div>
                             <div className="text-[9px] text-slate-400">PLN netto/mc</div>
                           </div>
@@ -1113,12 +1117,14 @@ export function VehicleRowCalculations({
                     {isExpanded && (
                       <CellDetail
                         cell={cell}
-                        overrides={getOverrides(cell.months)}
+                        overrides={getOverrides(cell.Okres)}
                         isModified={isMod}
-                        isRecalculating={recalculating === cell.months}
-                        onOverridesChange={(o) => handleOverridesChange(cell.months, o)}
-                        onRecalculate={() => recalculateSingleCell(cell.months)}
-                        onReset={() => resetCell(cell.months)}
+                        isRecalculating={recalculating === cell.Okres}
+                        isFetchingTrace={fetchingTraceCell === cell.Okres}
+                        onOverridesChange={(o) => handleOverridesChange(cell.Okres, o)}
+                        onRecalculate={() => recalculateSingleCell(cell.Okres)}
+                        onReset={() => resetCell(cell.Okres)}
+                        onShowTrace={() => fetchTraceSingleCell(cell.Okres)}
                       />
                     )}
                   </div>
@@ -1138,7 +1144,62 @@ export function VehicleRowCalculations({
             </Typography>
           </div>
         )}
+
+        {/* Trace Modal */}
+        {traceData && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <FileCode2 className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-slate-800 text-lg">Ślad Diagnostyczny (V3 Calculation Trace)</h3>
+                </div>
+                <button
+                  onClick={() => setTraceData(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+                {traceData.length > 0 ? (
+                  <div className="space-y-3">
+                    {traceData.map((t, idx) => (
+                      <div key={idx} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-start gap-4 mb-2">
+                          <div className="font-bold text-slate-700 text-sm">
+                            <span className="text-slate-400 font-mono text-xs mr-2">[{idx + 1}]</span>
+                            {t.krok}
+                          </div>
+                          <div className="font-mono text-sm font-bold text-blue-700 shrink-0 tabular-nums">
+                            {typeof t.wynik === 'number' ? fmtPLN(t.wynik) : String(t.wynik)}
+                          </div>
+                        </div>
+                        {t.rownanie && (
+                          <div className="text-xs text-slate-500 font-mono bg-slate-50 p-2 rounded border border-slate-100">
+                            {t.rownanie}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-slate-400">
+                    Brak śladu dla tej kalkulacji.
+                  </div>
+                )}
+              </div>
+              
+            </div>
+          </div>
+        )}
       </Box>
     </Box>
   );
 }
+
+
+
+
+

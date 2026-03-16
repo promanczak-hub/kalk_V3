@@ -30,6 +30,7 @@ class ControlCenterSettings(BaseModel):
     cost_gsm_subscription_monthly: float
     cost_gsm_device: float
     cost_gsm_installation: float
+    gsm_amortization_years: float = 4.0
     cost_hook_installation: float
     cost_grid_dismantling: float
     cost_registration: float
@@ -41,3 +42,4 @@ class ControlCenterSettings(BaseModel):
 
     # Współczynnik WR dla ceny sprzedaży LO: WRdlaLO = WR × (1 + lo_param)
     przewidywana_cena_sprzedazy_lo: float = 0.15
+    budzet_marketingowy_ltr: float = 0.0

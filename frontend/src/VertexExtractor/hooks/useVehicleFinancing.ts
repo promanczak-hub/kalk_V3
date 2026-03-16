@@ -12,7 +12,7 @@ export function useVehicleFinancing(
 ) {
   // Financial parameters
   const [wiborPct, setWiborPct] = useState<number>(globalSettings?.default_wibor ?? 5.85);
-  const [marginPct, setMarginPct] = useState<number>(globalSettings?.default_ltr_margin ?? 2.0);
+  const [marginPct, setMarginPct] = useState<number>(globalSettings?.bank_spread ?? 2.0);
   const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
   const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
   const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
@@ -27,6 +27,8 @@ export function useVehicleFinancing(
     const cs = (vehicle.synthesis_data as any)?.card_summary;
     return cs?.has_tow_hook === true;
   });
+  const [addSalesPrep, setAddSalesPrep] = useState(true);
+  const [salesPrepCorrection, setSalesPrepCorrection] = useState<number>(0);
 
   // Tire parameters
   const [tireClass, setTireClass] = useState<string>("Medium");
@@ -64,7 +66,7 @@ export function useVehicleFinancing(
     if (!setup) {
       if (globalSettings) {
         setWiborPct(globalSettings.default_wibor ?? 5.85);
-        setMarginPct(globalSettings.default_ltr_margin ?? 2.0);
+        setMarginPct(globalSettings.bank_spread ?? 2.0);
       }
       setIsMetalic(autoDetectMetalic());
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,6 +91,8 @@ export function useVehicleFinancing(
       if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);
       if (fp.initial_deposit_pct != null) setInitialDepositPct(fp.initial_deposit_pct);
       if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
+      if (fp.sales_prep_correction != null) setSalesPrepCorrection(fp.sales_prep_correction);
+      else if (fp.korekta_kosztu_przygotowania != null) setSalesPrepCorrection(fp.korekta_kosztu_przygotowania);
 
       if (fp.catalog_base_price_net != null && fp.catalog_base_price_net > 0) {
         setCatalogBasePriceNet(fp.catalog_base_price_net);
@@ -110,6 +114,7 @@ export function useVehicleFinancing(
       if (t.gps_required != null) setGpsRequired(t.gps_required);
       if (t.include_servicing != null) setIncludeServicing(t.include_servicing);
       if (t.hook_installation != null) setHookInstallation(t.hook_installation);
+      if (t.add_sales_prep != null) setAddSalesPrep(t.add_sales_prep);
     }
 
     if (setup.tire_params) {
@@ -137,7 +142,7 @@ export function useVehicleFinancing(
       const keywordDetected = autoDetectMetalic();
       const color = (vehicle.exterior_color || "").toLowerCase();
       const hasKeyword = [
-        "metalic", "metalik", "metallic", "metalizow", "perĹ‚owy",
+        "metalic", "metalik", "metallic", "metalizow", "perłowy",
         "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"
       ].some(kw => color.includes(kw)) ||
       ["solido", "uni ", "akrylow", "jednowarstwow"].some(kw => color.includes(kw));
@@ -163,6 +168,7 @@ export function useVehicleFinancing(
           depreciation_pct: null,
           initial_deposit_pct: initialDepositPct,
           other_service_costs: otherServiceCosts,
+          sales_prep_correction: salesPrepCorrection,
         },
         toggles: {
           express_pays_insurance: expressPaysInsurance,
@@ -170,6 +176,7 @@ export function useVehicleFinancing(
           gps_required: gpsRequired,
           include_servicing: includeServicing,
           hook_installation: hookInstallation,
+          add_sales_prep: addSalesPrep,
         },
         tire_params: {
           tire_class: tireClass,
@@ -214,6 +221,8 @@ export function useVehicleFinancing(
     gpsRequired, setGpsRequired,
     includeServicing, setIncludeServicing,
     hookInstallation, setHookInstallation,
+    addSalesPrep, setAddSalesPrep,
+    salesPrepCorrection, setSalesPrepCorrection,
     tireClass, setTireClass,
     tireCountMode, setTireCountMode,
     tireCostCorrectionEnabled, setTireCostCorrectionEnabled,

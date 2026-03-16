@@ -55,7 +55,7 @@ def get_samar_class_id(class_name: str) -> Optional[int]:
     import re
 
     # Usuwamy słowo KLASA i redukujemy spacje
-    c_name_norm = re.sub(r"\s+", " ", c_name).replace("KLASA ", "")
+    c_name_norm = re.sub(r"\s+", " ", c_name).replace("KLASA ", "").replace("SAMAR: ", "")
     search_norm = c_name_norm.replace("-", " ").replace("(SUV)", "").strip()
 
     for db_name, db_id in _SAMAR_CACHE.items():
@@ -409,9 +409,17 @@ def fetch_mileage_corrections_cached(
                 float(row.get("under_threshold_percent", 0.0)),
                 float(row.get("over_threshold_percent", 0.0)),
             )
+        raise ValueError(
+            f"Brak wpisu korekty przebiegu w `samar_class_mileage_corrections` "
+            f"dla klasy={samar_class_id}, paliwo={fuel_type_id}."
+        )
+    except ValueError:
+        raise
     except Exception as exc:
-        logger.warning("Błąd mileage corrections: %s", exc)
-    return (0.0, 0.0)
+        raise ValueError(
+            f"Blad odczytu `samar_class_mileage_corrections` dla klasy={samar_class_id}, "
+            f"paliwo={fuel_type_id}: {exc}"
+        ) from exc
 
 
 @lru_cache(maxsize=128)
@@ -431,11 +439,7 @@ def fetch_class_config_cached(samar_class_id: int) -> Dict[str, Any]:
             return cast(Dict[str, Any], res.data[0])
     except Exception as exc:
         logger.warning("Błąd class config: %s", exc)
-    return {
-        "base_mileage_km": 140000,
-        "mileage_threshold_km": 190000,
-        "base_period_months": 48,
-    }
+    return {}
 
 
 class SamarRVCalculator:
@@ -491,14 +495,15 @@ class SamarRVCalculator:
             self.data.paint_type_id, self.data.is_metalic
         )
 
-    def fetch_body_correction(self) -> tuple[float, float]:
-        """Korekta nadwozia z kaskadą fallbacków (sparse storage)."""
+    def fetch_body_correction(self) -> float:
+        """Korekta nadwozia (marka + nadwozie + silnik, bez klasy SAMAR)."""
         return fetch_body_correction_cached(
-            self.data.samar_class_id,
             self.data.engine_id,
             self.data.brand_name,
             self.data.body_type_id,
         )
+
+
 
     def fetch_vintage_correction(self) -> float:
         """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
@@ -514,233 +519,153 @@ class SamarRVCalculator:
 
         # ── Pobranie danych ──
         rates = self._fetch_depreciation_rates()
+        if not rates:
+            raise ValueError(
+                f"Brak stawek deprecjacji w tabeli `samar_class_depreciation_rates` "
+                f"dla klasy {self.data.samar_class_id} "
+                f"(marka: {self.data.brand_name}, model: {self.data.model_name}). "
+                f"Kalkulacja zatrzymana (Reguła Fail-Fast)."
+            )
+
         config = self._fetch_class_config()
-        base_mileage = float(config.get("base_mileage_km", 140000))
-        mileage_threshold = float(config.get("mileage_threshold_km", 190000))
+        if not config:
+            raise ValueError(
+                f"Brak konfiguracji klasy SAMAR (`samar_classes`) dla klasy {self.data.samar_class_id}."
+            )
+
+        base_mileage = float(config.get("base_mileage_km") or 0.0)
+        mileage_threshold = float(config.get("mileage_threshold_km") or 0.0)
+        if base_mileage <= 0 or mileage_threshold <= 0:
+            raise ValueError(
+                f"Nieprawidlowa konfiguracja przebiegu dla klasy {self.data.samar_class_id} "
+                f"(base_mileage_km={base_mileage}, mileage_threshold_km={mileage_threshold})."
+            )
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 1: WR bazy = cena_bazowa × (WR_klasa% + korekta_marka)
+        # V1 PARITY: Przeliczenia per se operowały na wartościach Netto.
+        # Cena Katalogowa "goła" (często z opcjami jako całość, wedle wejścia V1) 
+        # jest deprecjonowana przez tabele, ale Opcje starzały się OSOBNO ułamkowo.
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        base_netto = self.data.capex_base_net
+        options_netto = self.data.capex_options_net
 
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # KROK 1: WR bazy = cena_bazowa_netto × (WR_klasa% + korekta_marka)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         wr_base_pct = rates.get(0, {"base": 0.0})["base"]
         brand_correction = self._fetch_brand_correction()
         effective_pct = wr_base_pct + brand_correction
-
-        # BS = L × BT (Excel)
-        wr_value = self.data.capex_base_net * effective_pct
+        
+        wr_value_netto = base_netto * effective_pct
 
         debug["krok1_wr_base_pct"] = wr_base_pct
         debug["krok1_brand_correction"] = brand_correction
         debug["krok1_effective_pct"] = effective_pct
-        debug["krok1_wr_value"] = wr_value
+        debug["krok1_wr_value_netto"] = round(wr_value_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 2: Kaskadowa deprecjacja rok→rok (ZAWSZE 7 lat)
-        # Rok 0 = bazowy WR. Rok 4 (col F w Excelu) = 0 (punkt bazowy).
-        # Lata < 4 → aprecjacja (dodajemy).
-        # Lata > 4 → deprecjacja (odejmujemy).
+        # KROK 2: Kaskadowa deprecjacja bazy rok→rok (7 lat na sztywno, V1 Parity)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        value_table: Dict[int, float] = {4: wr_value_netto}
 
-        # Excel: BC=BS (rok 4→0), potem kaskadowo w obie strony
-        # Wg Excela: kolumna F(rok4)=0, kolumny B-E(rok0-3) = aprecjacja,
-        # kolumny G-I(rok5-7) = deprecjacja.
-        # Efektywna formuła: w przód od roku 0 (bazowego=rok4 w Excelu):
-        #   rok<4: wartość rośnie (1 + rate)
-        #   rok=4: baza (rate=0)
-        #   rok>4: wartość maleje (1 - rate)
-
-        # Budujemy tabelę wartości od roku bazowego (0 w DB = rok 4 w Excelu)
-        # APRECJACJA: od roku 0 wstecz do roku -3 (Excel: rok3 do rok1)
-        # → ale w naszej DB rate na rok 1 = aprecjacja z Excela rok 3
-        # → rate na rok 2 = aprecjacja z Excela rok 2
-        # → rate na rok 3 = aprecjacja z Excela rok 1
-
-        # Budujemy tak:
-        # year=0 (rok bazowy 48mc): wr_value (już obliczone)
-        # year=1 → Excel rok3: aprecjacja
-        #   value = prev * (1 + rates[1])
-        #   ALE to jest WSTECZ, więc: value_at_rok3 = wr_value * (1+rate_rok3_do_rok4)
-        # etc.
-
-        # W Excelu:
-        # AN (rok 0/bieżący) = AR × (1 + AL)  gdzie AL = rate rok 0→1
-        # AR (rok 1)          = AV × (1 + AP)  gdzie AP = rate rok 1→2
-        # AV (rok 2)          = AZ × (1 + AT)  gdzie AT = rate rok 2→3
-        # AZ (rok 3)          = BC × (1 + AX)  gdzie AX = rate rok 3→4
-        # BC (rok 4)          = BS = baza       (rate = 0)
-        # BG (rok 5)          = BS - BE × BS = BS × (1 - BE)
-        # BK (rok 6)          = BG - BI × BG = BG × (1 - BI)
-        # BO (rok 7)          = BK - BM × BK = BK × (1 - BM)
-
-        # Więc: od bazy (rok 4) w DÓŁ (roki 5+): multiplier = (1-rate)
-        #        od bazy (rok 4) w GÓRĘ (roki 3-): multiplier = (1+rate)
-        # Uwaga: Excel col I(rok7) i col H(rok6) i col G(rok5) to deprecjacje
-        #         Excel col E(rok3) i col D(rok2) i col C(rok1) i col B(rok0) to aprecjacje
-
-        # W DB: year=0 → bazowe WR% (z TAB.WR KLASA)
-        #        year=1..3 → stawki aprecjacji (odwrotność: rok4→rok1)
-        #        year=4 → 0 (punkt bazowy)
-        #        year=5..7 → stawki deprecjacji
-
-        # Aprecjacja (roki przed bazowym)
-        apreciated = wr_value
-        for yr in range(1, 4):  # rok 3, 2, 1 w Excelu
-            rate = rates.get(yr, {"base": 0.0})["base"]
-            apreciated = apreciated * (1.0 + rate)
-            # yr=1 → dane z DB rok 1 = aprecjacja Excel rok 3→4
-            # yr=2 → dane z DB rok 2 = aprecjacja Excel rok 2→3
-            # yr=3 → dane z DB rok 3 = aprecjacja Excel rok 1→2
-
-        # Teraz mamy wartość po pełnej aprecjacji (rok 0 Excel = rok bieżący)
-        # Deprecjacja (roki po bazowym)
-        depreciated = wr_value
-        for yr in range(5, 8):  # rok 5, 6, 7
-            rate = rates.get(yr, {"base": 0.0})["base"]
-            depreciated = depreciated * (1.0 - rate)
-
-        # Tabelka wartości per rok (0=bieżący, 7=najstarszy)
-        # Budujemy ją kaskadowo od bazy (rok 4)
-        value_table: Dict[int, float] = {4: wr_value}
-
-        # W górę (od bazy do bieżącego)
-        v = wr_value
+        # W górę (od bazy do bieżącego = Delta -)
+        v = wr_value_netto
         for yr in [3, 2, 1, 0]:
-            if yr == 0:
-                rate = rates.get(0, {"base": 0.0})["base"]
-                # Rok 0 w Excelu: col B → to powinno być rate aprecjacji
-                # ale w DB year=0 to bazowe WR% → nie do kaskady
-                # W Excelu kolumna B (rok 0) = 0.05 (5%), to INNA aprecjacja
-                # Musimy obsłużyć to specjalnie
-                v = v * (1.0 + rate)
-            else:
-                rate = rates.get(4 - yr, {"base": 0.0})["base"]
-                v = v * (1.0 + rate)
+            rate = rates.get(0, {"base": 0.0})["base"] if yr == 0 else rates.get(4 - yr, {"base": 0.0})["base"]
+            v = v * (1.0 + rate)
             value_table[yr] = v
 
         # W dół (od bazy do roku 7)
-        v = wr_value
+        v = wr_value_netto
         for yr in [5, 6, 7]:
             rate = rates.get(yr, {"base": 0.0})["base"]
             v = v * (1.0 - rate)
             value_table[yr] = v
 
-        debug["krok2_value_table"] = {
-            k: round(v, 2) for k, v in sorted(value_table.items())
-        }
+        debug["krok2_value_table_netto"] = {k: round(val, 2) for k, val in sorted(value_table.items())}
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 3: Wybierz wartość per delta_lat + RV opcji
+        # KROK 3: Wybór WR bazy + Ręczne ułamkowe WR doposażenia
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
         years = self.data.months // 12
         years = max(0, min(years, self.LICZBA_LAT))
+        rv_base_netto = value_table.get(years, wr_value_netto)
 
-        # Potrzebujemy: AB (delta_lat) z Excela = ile lat trwa leasing
-        # W Excelu AB = rok_konca - rok_startu
-        # U nas: years = months // 12
-
-        rv_base = value_table.get(years, wr_value)
-
-        # RV opcji: z tabeli options (year w DB = delta_lat w Excelu)
-        options_rv_pct = rates.get(years, {"options": 0.0})["options"]
-        rv_options = self.data.capex_options_net * options_rv_pct
-
-        rv_total = rv_base + rv_options
+        # V1 PARITY (Kluczowe z DH/Excel): Opcje ignorowały tabele.
+        # Zestarzenie opcji to sztywny wzór: Suma Opcji Netto / (1.0 + Okres_Trwania_Lata)
+        divisor = 1.0 + years
+        rv_options_netto = options_netto / divisor if divisor > 0 else options_netto
+        
+        rv_total_netto = rv_base_netto + rv_options_netto
 
         debug["krok3_years"] = years
-        debug["krok3_rv_base"] = round(rv_base, 2)
-        debug["krok3_options_rv_pct"] = options_rv_pct
-        debug["krok3_rv_options"] = round(rv_options, 2)
-        debug["krok3_rv_total"] = round(rv_total, 2)
+        debug["krok3_rv_base_netto"] = round(rv_base_netto, 2)
+        debug["krok3_rv_options_netto"] = round(rv_options_netto, 2)
+        debug["krok3_rv_total_netto"] = round(rv_total_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 4: Korekta przebiegu
-        # Excel: nadprzebieg w tyś km, 2 pasma: do50 i ponad50
-        # W naszej DB: progi base_mileage i mileage_threshold
+        # KROK 4: Korekta przebiegu (V1 PARITY - sztywne 140k twardy start)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        nadprzebieg_km = self.data.total_km - base_mileage
-        nadprzebieg_tkm = nadprzebieg_km / 1000.0  # tyś km
-
-        # Excel: AD = nadprzebieg do progu (max 50 tyś km nad bazą)
-        #   AF = nadprzebieg ponad próg
-        threshold_delta_tkm = (mileage_threshold - base_mileage) / 1000.0  # 50
-        nadprzebieg_do_progu = min(max(nadprzebieg_tkm, 0), threshold_delta_tkm)
-        nadprzebieg_ponad_prog = max(nadprzebieg_tkm - threshold_delta_tkm, 0)
-
         under_rate, over_rate = self._fetch_mileage_corrections()
-        unit_10tkm = 10.0  # per 10 tyś km
+        
+        przebieg_ponizej_190 = max(min(self.data.total_km, 190000) - 140000, 0)
+        paczki_under = przebieg_ponizej_190 / 10000.0
+        
+        przebieg_powyzej_190 = max(self.data.total_km - 190000, 0)
+        paczki_over = przebieg_powyzej_190 / 10000.0
 
-        # Excel: AK = AG × BR × (AD/10) + AH × BR × (AF/10)
-        korekta_przebieg = under_rate * rv_total * (
-            nadprzebieg_do_progu / unit_10tkm
-        ) + over_rate * rv_total * (nadprzebieg_ponad_prog / unit_10tkm)
+        # Excel podchodził do korekty używając całkowitej zsumowanej wartości WROkres
+        korekta_przebieg_netto = (under_rate * rv_total_netto * paczki_under) + (over_rate * rv_total_netto * paczki_over)
 
-        debug["krok4_nadprzebieg_tkm"] = round(nadprzebieg_tkm, 1)
-        debug["krok4_do_progu"] = round(nadprzebieg_do_progu, 1)
-        debug["krok4_ponad_prog"] = round(nadprzebieg_ponad_prog, 1)
+        debug["krok4_paczki_under"] = round(paczki_under, 2)
+        debug["krok4_paczki_over"] = round(paczki_over, 2)
         debug["krok4_under_rate"] = under_rate
         debug["krok4_over_rate"] = over_rate
-        debug["krok4_korekta_przebieg"] = round(korekta_przebieg, 2)
+        debug["krok4_korekta_przebieg_netto"] = round(korekta_przebieg_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 5: Korekty dodatkowe (kolor, nadwozie, rocznik)
-        # NotebookLM: rocznik = MULTIPLIKATYWNA, reszta = addytywna
+        # KROK 5: Korekty dodatkowe (kolor, nadwozie)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
         color_correction_pct = self.fetch_color_correction()
-        color_value = color_correction_pct * self.data.capex_base_net
+        color_value_netto = color_correction_pct * base_netto
 
-        body_correction_pct, zabudowa_correction_pct = self.fetch_body_correction()
-        capex_total = self.data.capex_base_net + self.data.capex_options_net
-        body_value = body_correction_pct * capex_total
-        zabudowa_value = 0.0
-        if self.data.zabudowa_apr_wr:
-            zabudowa_value = zabudowa_correction_pct * capex_total
+        body_correction_pct = self.fetch_body_correction()
+        capex_total_netto = base_netto + options_netto
+        body_value_netto = body_correction_pct * capex_total_netto
 
-        # Korekty addytywne (kolor, nadwozie, zabudowa, przebieg)
-        rv_pre_vintage = (
-            rv_total + color_value + body_value + zabudowa_value - korekta_przebieg
+        rv_netto_pre_manual = (
+            rv_total_netto + color_value_netto + body_value_netto - korekta_przebieg_netto
         )
 
-        # Korekta rocznika — MULTIPLIKATYWNA (NotebookLM §4)
-        # WR × (1 + vintage%) zamiast vintage% × cena_bazowa
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # KROK 6: Korekta ręczna przed rocznikiem (V1 PARITY)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        manual_correction_netto = self.data.manual_wr_correction
+        rv_z_reczna_netto = rv_netto_pre_manual + manual_correction_netto
+
+        # Mnożnik za rocznik zawsze na samym końcu
         vintage_correction_pct = self.fetch_vintage_correction()
-        rv_after_corrections = rv_pre_vintage * (1.0 + vintage_correction_pct)
-
-        debug["krok5_color"] = round(color_value, 2)
-        debug["krok5_body"] = round(body_value, 2)
-        debug["krok5_zabudowa"] = round(zabudowa_value, 2)
-        debug["krok5_vintage_pct"] = vintage_correction_pct
-        debug["krok5_rv_pre_vintage"] = round(rv_pre_vintage, 2)
-        debug["krok5_rv_after"] = round(rv_after_corrections, 2)
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 6: Korekta ręczna + wynik
-        # Excel: BX = BV + BW (ręczna)
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        final_rv = rv_after_corrections + self.data.manual_wr_correction
+        final_rv_netto = rv_z_reczna_netto * (1.0 + vintage_correction_pct)
+        
+        debug["krok5_color_netto"] = round(color_value_netto, 2)
+        debug["krok5_body_netto"] = round(body_value_netto, 2)
+        debug["krok6_manual_correction_netto"] = manual_correction_netto
+        debug["krok6_vintage_pct"] = vintage_correction_pct
+        debug["krok6_final_rv_netto"] = round(final_rv_netto, 2)
 
         # WRdlaLO
         lo_param = self.fetch_lo_param()
-        wr_lo = final_rv * (1.0 + lo_param)
+        wr_lo_netto = final_rv_netto * (1.0 + lo_param)
 
-        # Utrata wartości = max(CAPEX - WR, 0)
-        utrata = max(capex_total - final_rv, 0.0)
+        utrata = max(capex_total_netto - final_rv_netto, 0.0)
+        wr_pct = final_rv_netto / capex_total_netto if capex_total_netto > 0 else 0.0
 
-        # % retencji
-        wr_pct = final_rv / capex_total if capex_total > 0 else 0.0
-
-        debug["krok6_manual_correction"] = self.data.manual_wr_correction
-        debug["krok6_final_rv"] = round(final_rv, 2)
-        debug["krok6_wr_lo"] = round(wr_lo, 2)
         debug["krok6_utrata"] = round(utrata, 2)
         debug["krok6_wr_pct"] = round(wr_pct, 4)
 
         return RVOutput(
-            wr_net=final_rv,
-            wr_lo_net=wr_lo,
+            wr_net=final_rv_netto,
+            wr_lo_net=wr_lo_netto,
             utrata_wartosci_net=utrata,
             wr_percent=wr_pct,
             debug=debug,
@@ -755,7 +680,7 @@ def fetch_color_correction_cached(
 ) -> float:
     """Korekta za kolor z paint_types.wr_correction."""
     if not paint_type_id:
-        return 0.0 if is_metalic else -0.01
+        return 0.0
     try:
         from core.database import supabase
 
@@ -770,35 +695,31 @@ def fetch_color_correction_cached(
             return float(res.data[0].get("wr_correction") or 0.0)
     except Exception as exc:
         logger.warning("Błąd color correction: %s", exc)
-    return 0.0 if is_metalic else -0.01
+    return 0.0
 
 
 @lru_cache(maxsize=128)
 def fetch_body_correction_cached(
-    samar_class_id: int, engine_id: int, brand_name: str, body_type_id: Optional[int]
-) -> tuple[float, float]:
-    """Korekta nadwozia z kaskadą fallbacków (sparse storage)."""
+    engine_id: int, brand_name: str, body_type_id: Optional[int]
+) -> float:
+    """Korekta nadwozia z kaskada fallbackow (marka + nadwozie + silnik)."""
     brand = brand_name.strip().upper() if brand_name else ""
 
-    def _extract(rows: list[dict]) -> tuple[float, float]:
+    def _extract(rows: list[dict]) -> float:
         row = rows[0]
-        return (
-            float(row.get("correction_percent", 0.0)),
-            float(row.get("zabudowa_correction_percent", 0.0)),
-        )
+        return float(row.get("correction_percent", 0.0))
 
     try:
         from core.database import supabase
 
         tbl = "body_type_wr_corrections"
-        cols = "correction_percent, zabudowa_correction_percent"
+        cols = "correction_percent"
 
-        # 1. EXACT: klasa + marka + nadwozie + silnik
-        if body_type_id and engine_id:
+        # 1. EXACT: marka + nadwozie + silnik
+        if body_type_id and engine_id and brand:
             res = (
                 supabase.table(tbl)
                 .select(cols)
-                .eq("samar_class_id", samar_class_id)
                 .eq("brand_name", brand)
                 .eq("body_type_id", body_type_id)
                 .eq("engine_type_id", engine_id)
@@ -808,12 +729,11 @@ def fetch_body_correction_cached(
             if res.data:
                 return _extract(res.data)
 
-        # 2. NO-ENGINE: klasa + marka + nadwozie (engine IS NULL)
-        if body_type_id:
+        # 2. NO-ENGINE: marka + nadwozie (engine IS NULL)
+        if body_type_id and brand:
             res = (
                 supabase.table(tbl)
                 .select(cols)
-                .eq("samar_class_id", samar_class_id)
                 .eq("brand_name", brand)
                 .eq("body_type_id", body_type_id)
                 .is_("engine_type_id", "null")
@@ -823,12 +743,11 @@ def fetch_body_correction_cached(
             if res.data:
                 return _extract(res.data)
 
-        # 3. NO-BODY: klasa + marka (body IS NULL, engine IS NULL)
+        # 3. NO-BODY: marka (body IS NULL, engine IS NULL)
         if brand:
             res = (
                 supabase.table(tbl)
                 .select(cols)
-                .eq("samar_class_id", samar_class_id)
                 .eq("brand_name", brand)
                 .is_("body_type_id", "null")
                 .is_("engine_type_id", "null")
@@ -839,9 +758,9 @@ def fetch_body_correction_cached(
                 return _extract(res.data)
 
     except Exception as exc:
-        logger.warning("Błąd body correction cascade: %s", exc)
+        logger.warning("Blad body correction cascade: %s", exc)
 
-    return (0.0, 0.0)
+    return 0.0
 
 
 @lru_cache(maxsize=128)

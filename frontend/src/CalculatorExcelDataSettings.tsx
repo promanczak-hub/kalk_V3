@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -38,7 +38,7 @@ export default function CalculatorExcelDataSettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL || ""}/api/calculator-excel-data`);
+      const res = await axios.get(`${API_BASE_URL}/api/calculator-excel-data`);
       setData(res.data);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Nieznany błąd";
@@ -108,3 +108,4 @@ export default function CalculatorExcelDataSettings() {
     </Box>
   );
 }
+

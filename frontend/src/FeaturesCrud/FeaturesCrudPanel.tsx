@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Paper,
@@ -34,7 +34,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
 import { API_BASE_URL } from "../config/env";
 
-const API = API_BASE_URL || "";
+const API = API_BASE_URL;
 
 interface Category {
   id: number;
@@ -214,7 +214,7 @@ export default function FeaturesCrudPanel() {
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
         <Tabs value={tab} onChange={(_e, v) => setTab(v)}>
           <Tab label={`📂 Kategorie (${categories.length})`} />
-          <Tab label={`🏷️ Cechy (${features.length})`} />
+          <Tab label={`đźŹ·ď¸Ź Cechy (${features.length})`} />
         </Tabs>
       </Box>
 
@@ -439,3 +439,4 @@ export default function FeaturesCrudPanel() {
     </Box>
   );
 }
+

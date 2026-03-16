@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Accordion,
   AccordionSummary,
@@ -59,11 +59,11 @@ export default function VehicleDataSection({
 
   useEffect(() => {
     axios
-      .get<EngineOption[]>(`${API_BASE_URL || ""}/api/engines`)
+      .get<EngineOption[]>(`${API_BASE_URL}/api/engines`)
       .then((res) => setEngines(res.data))
       .catch((err) => console.error("Failed to load engines:", err));
 
-    fetch(`${API_BASE_URL || ""}/api/body-types`)
+    fetch(`${API_BASE_URL}/api/body-types`)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setBodyTypes(data); })
       .catch((err) => console.error("Failed to load body types:", err));
@@ -145,7 +145,7 @@ export default function VehicleDataSection({
                     : bodyTypes;
 
                   if (filtered.length === 0 && bodyTypes.length === 0) {
-                    return <MenuItem disabled>Ładowanie...</MenuItem>;
+                    return <MenuItem disabled>{"Ładowanie..."}</MenuItem>;
                   }
 
                   if (filtered.length === 0) {
@@ -219,7 +219,7 @@ export default function VehicleDataSection({
                     )),
                   ])
                 ) : (
-                  <MenuItem disabled>Ładowanie...</MenuItem>
+                  <MenuItem disabled>{"Ładowanie..."}</MenuItem>
                 )}
               </Select>
             </FormControl>
@@ -371,4 +371,5 @@ export default function VehicleDataSection({
     </Accordion>
   );
 }
+
 

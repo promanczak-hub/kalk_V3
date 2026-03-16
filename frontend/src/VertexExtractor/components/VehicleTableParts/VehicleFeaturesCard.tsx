@@ -22,6 +22,7 @@ interface CategoryGroup {
 
 interface VehicleFeaturesCardProps {
   vehicleId: string;
+  vehicleTypeHint?: string | null;
 }
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -42,12 +43,51 @@ function getStatusIcon(status: string): string {
   return "?";
 }
 
-export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
+const CARGO_CATEGORY_HINTS = [
+  "ładunk",
+  "ladunk",
+  "cargo",
+  "zabudow",
+  "załad",
+  "zalad",
+  "furgon",
+  "chłod",
+  "chlod",
+  "izoter",
+  "winda",
+  "tachograf",
+];
+
+function normalizePolish(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ą/g, "a")
+    .replace(/ć/g, "c")
+    .replace(/ę/g, "e")
+    .replace(/ł/g, "l")
+    .replace(/ń/g, "n")
+    .replace(/ó/g, "o")
+    .replace(/ś/g, "s")
+    .replace(/ź/g, "z")
+    .replace(/ż/g, "z");
+}
+
+function isPassengerVehicleType(vehicleTypeHint?: string | null): boolean {
+  const normalized = normalizePolish(String(vehicleTypeHint || ""));
+  return normalized.includes("osob") || normalized.includes("passenger");
+}
+
+function isCargoCategory(categoryName: string): boolean {
+  const normalized = normalizePolish(categoryName || "");
+  return CARGO_CATEGORY_HINTS.some((hint) => normalized.includes(hint));
+}
+
+export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeaturesCardProps) {
   const [categories, setCategories] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
 
   const fetchFeatures = async () => {
@@ -69,13 +109,15 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
         }))
         .filter((g) => g.features.length > 0)
         .sort((a, b) => b.presentCount - a.presentCount);
+      const filteredGrouped = isPassengerVehicleType(vehicleTypeHint)
+        ? grouped.filter((group) => !isCargoCategory(group.name))
+        : grouped;
 
-      setCategories(grouped);
+      setCategories(filteredGrouped);
       const autoExpand = new Set(
-        grouped.filter((g) => g.presentCount > 0).map((g) => g.name)
+        filteredGrouped.filter((g) => g.presentCount > 0).map((g) => g.name)
       );
       setExpandedCats(autoExpand);
-      setHasLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd pobierania cech");
     } finally {
@@ -84,11 +126,12 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
   };
 
   useEffect(() => {
-    // Zresetuj stan, gdy zmieni się vehicleId
+    // Auto-load cech po zmianie vehicleId
     setCategories([]);
-    setHasLoaded(false);
     setError(null);
-  }, [vehicleId]);
+    fetchFeatures();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId, vehicleTypeHint]);
 
   const toggleCategory = (name: string) => {
     setExpandedCats((prev) => {
@@ -107,20 +150,34 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
 
   return (
     <div className="border border-slate-200 rounded bg-white">
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+      {/* Header — klikalny toggle zwijania */}
+      <div
+        className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center cursor-pointer select-none hover:bg-slate-100 transition-colors"
+        onClick={() => setIsPanelCollapsed((prev) => !prev)}
+      >
         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+          {isPanelCollapsed ? (
+            <ChevronRight className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" />
+          )}
           <Package className="w-3.5 h-3.5" />
           Cechy użytkowe pojazdu
         </h4>
         <div className="flex items-center gap-3">
+          {loading && (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+          )}
           {!loading && totalFeatures > 0 && (
             <span className="text-xs text-slate-400">
               {totalPresent} / {totalFeatures} potwierdzonych
             </span>
           )}
           <button
-            onClick={() => setShowCrudPanel(prev => !prev)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowCrudPanel(prev => !prev);
+            }}
             className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors"
             style={{
               background: showCrudPanel ? '#3b82f6' : 'white',
@@ -135,120 +192,113 @@ export function VehicleFeaturesCard({ vehicleId }: VehicleFeaturesCardProps) {
         </div>
       </div>
 
-      {/* CRUD Panel (full editing mode) */}
-      {showCrudPanel && (
-        <div className="p-2">
-          <VehicleFeaturesCrud
-            vehicleId={vehicleId}
-            onClose={() => setShowCrudPanel(false)}
-          />
-        </div>
-      )}
+      {/* Collapsible content */}
+      {!isPanelCollapsed && (
+        <>
+          {/* CRUD Panel (full editing mode) */}
+          {showCrudPanel && (
+            <div className="p-2">
+              <VehicleFeaturesCrud
+                vehicleId={vehicleId}
+                onClose={() => setShowCrudPanel(false)}
+              />
+            </div>
+          )}
 
-      {/* Content (read-only chips view) */}
-      {!showCrudPanel && (
-      <div className="p-5">
-        {!hasLoaded && !loading && !error && (
-          <div className="flex flex-col items-center justify-center py-6 text-slate-500">
-            <span className="text-sm mb-3">Cechy nie zostały jeszcze wczytane.</span>
-            <button
-              onClick={fetchFeatures}
-              className="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
-            >
-              Wczytaj cechy użytkowe
-            </button>
-          </div>
-        )}
+          {/* Content (read-only chips view) */}
+          {!showCrudPanel && (
+            <div className="p-5">
+              {loading && (
+                <div className="flex items-center justify-center py-8 text-slate-400">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  <span className="text-sm">Ładowanie cech...</span>
+                </div>
+              )}
 
-        {loading && (
-          <div className="flex items-center justify-center py-8 text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            <span className="text-sm">Ładowanie cech...</span>
-          </div>
-        )}
+              {error && (
+                <div className="text-sm text-red-500 py-4 text-center">
+                  {error}
+                </div>
+              )}
 
-        {error && (
-          <div className="text-sm text-red-500 py-4 text-center">
-            {error}
-          </div>
-        )}
+              {!loading && !error && categories.length === 0 && (
+                <div className="text-sm text-slate-400 py-6 text-center">
+                  Brak danych o cechach użytkowych dla tego pojazdu.
+                </div>
+              )}
 
-        {hasLoaded && !loading && !error && categories.length === 0 && (
-          <div className="text-sm text-slate-400 py-6 text-center">
-            Brak danych o cechach użytkowych dla tego pojazdu.
-          </div>
-        )}
-
-        {hasLoaded && !loading && !error && categories.length > 0 && (
-          <div className="space-y-2">
-            {categories.map((cat) => (
-              <div key={cat.name} className="border border-slate-100 rounded-lg overflow-hidden">
-                {/* Category header */}
-                <button
-                  onClick={() => toggleCategory(cat.name)}
-                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    {expandedCats.has(cat.name) ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    )}
-                    <span className="text-sm font-medium text-slate-700">{cat.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {cat.presentCount > 0 && (
-                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                        {cat.presentCount}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-slate-400">
-                      {cat.features.length} cech
-                    </span>
-                  </div>
-                </button>
-
-                {/* Features chips */}
-                {expandedCats.has(cat.name) && (
-                  <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5">
-                    {cat.features
-                      .sort((a, b) => {
-                        // Present features first
-                        const aPresent = a.resolved_status?.startsWith("present") ? 0 : 1;
-                        const bPresent = b.resolved_status?.startsWith("present") ? 0 : 1;
-                        return aPresent - bPresent;
-                      })
-                      .map((f) => {
-                        const style = STATUS_STYLES[f.resolved_status] || DEFAULT_STYLE;
-                        const icon = getStatusIcon(f.resolved_status);
-                        return (
-                          <span
-                            key={f.feature_key}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${style.bg} ${style.text} ${style.border}`}
-                            title={`${f.display_name} — ${f.resolved_status}${f.resolved_value_text ? `: ${f.resolved_value_text}` : ""}${f.confidence_score ? ` (${Math.round(f.confidence_score * 100)}%)` : ""}`}
-                          >
-                            <span className="text-[10px]">{icon}</span>
-                            {f.display_name}
-                            {f.resolved_value_text && (
-                              <span className="opacity-60 ml-0.5">
-                                {f.resolved_value_text}
-                              </span>
-                            )}
-                            {f.resolved_value_num !== null && (
-                              <span className="opacity-60 ml-0.5">
-                                {f.resolved_value_num}
-                              </span>
-                            )}
+              {!loading && !error && categories.length > 0 && (
+                <div className="space-y-2">
+                  {categories.map((cat) => (
+                    <div key={cat.name} className="border border-slate-100 rounded-lg overflow-hidden">
+                      {/* Category header */}
+                      <button
+                        onClick={() => toggleCategory(cat.name)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          {expandedCats.has(cat.name) ? (
+                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                          )}
+                          <span className="text-sm font-medium text-slate-700">{cat.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {cat.presentCount > 0 && (
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                              {cat.presentCount}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400">
+                            {cat.features.length} cech
                           </span>
-                        );
-                      })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                        </div>
+                      </button>
+
+                      {/* Features chips */}
+                      {expandedCats.has(cat.name) && (
+                        <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5">
+                          {cat.features
+                            .sort((a, b) => {
+                              // Present features first
+                              const aPresent = a.resolved_status?.startsWith("present") ? 0 : 1;
+                              const bPresent = b.resolved_status?.startsWith("present") ? 0 : 1;
+                              return aPresent - bPresent;
+                            })
+                            .map((f) => {
+                              const style = STATUS_STYLES[f.resolved_status] || DEFAULT_STYLE;
+                              const icon = getStatusIcon(f.resolved_status);
+                              return (
+                                <span
+                                  key={f.feature_key}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${style.bg} ${style.text} ${style.border}`}
+                                  title={`${f.display_name} — ${f.resolved_status}${f.resolved_value_text ? `: ${f.resolved_value_text}` : ""}${f.confidence_score ? ` (${Math.round(f.confidence_score * 100)}%)` : ""}`}
+                                >
+                                  <span className="text-[10px]">{icon}</span>
+                                  {f.display_name}
+                                  {f.resolved_value_text && (
+                                    <span className="opacity-60 ml-0.5">
+                                      {f.resolved_value_text}
+                                    </span>
+                                  )}
+                                  {f.resolved_value_num !== null && (
+                                    <span className="opacity-60 ml-0.5">
+                                      {f.resolved_value_num}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

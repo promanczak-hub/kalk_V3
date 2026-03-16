@@ -1,4 +1,4 @@
-import type { MarginTier, MiniMatrixCell } from "./decision-center.types";
+﻿import type { MarginTier, MiniMatrixCell } from "./decision-center.types";
 
 // ── Margin Tier System (min. yellow = 8%) ────────────────────────────────────
 
@@ -95,13 +95,18 @@ export function fmtKm(km: number): string {
 export function findBestCell(cells: MiniMatrixCell[]): MiniMatrixCell | null {
   if (cells.length === 0) return null;
   // Best = highest margin % among viable (positive) options
-  const viable = cells.filter((c) => c.marza_na_kontrakcie_pct > 0);
+  const viable = cells.filter((c) => c.MarzaNaKontrakcieProcent > 0);
   if (viable.length === 0) return cells[0];
 
   // Score: weighted balance of margin quality and price attractiveness
   return viable.reduce((best, c) => {
-    const bestScore = best.marza_na_kontrakcie_pct * 0.6 + (1 / best.price_net) * 10000 * 0.4;
-    const cScore = c.marza_na_kontrakcie_pct * 0.6 + (1 / c.price_net) * 10000 * 0.4;
+    const bestPrice = best.CenaZakupu > 0 ? best.CenaZakupu : 1;
+    const currPrice = c.CenaZakupu > 0 ? c.CenaZakupu : 1;
+    const bestScore = best.MarzaNaKontrakcieProcent * 0.6 + (1 / bestPrice) * 10000 * 0.4;
+    const cScore = c.MarzaNaKontrakcieProcent * 0.6 + (1 / currPrice) * 10000 * 0.4;
     return cScore > bestScore ? c : best;
   });
 }
+
+
+

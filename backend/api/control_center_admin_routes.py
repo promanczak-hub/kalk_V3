@@ -20,7 +20,6 @@ from api.schemas.control_center import (
     BodyType,
     BodyCorrection,
     ZabudowaType,
-    ZabudowaCorrection,
     PaintType,
     VintageCorrection,
 )
@@ -769,54 +768,6 @@ async def upsert_zabudowa_type(item: ZabudowaType) -> ZabudowaType:
 async def delete_zabudowa_type(type_id: int) -> Dict[str, str]:
     try:
         supabase.table("zabudowa_types").delete().eq("id", type_id).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/zabudowa-corrections")
-async def get_zabudowa_corrections(
-    zabudowa_type_id: Optional[int] = None,
-    samar_class_id: Optional[int] = None,
-) -> List[ZabudowaCorrection]:
-    try:
-        q = supabase.table("zabudowa_wr_corrections").select("*").order("id")
-        if zabudowa_type_id is not None:
-            q = q.eq("zabudowa_type_id", zabudowa_type_id)
-        if samar_class_id is not None:
-            q = q.eq("samar_class_id", samar_class_id)
-        response = q.execute()
-        response_data = cast(Any, response.data) if response.data else []
-        return [ZabudowaCorrection(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/zabudowa-corrections")
-async def upsert_zabudowa_correction(
-    item: ZabudowaCorrection,
-) -> ZabudowaCorrection:
-    try:
-        data = item.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("zabudowa_wr_corrections").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=500, detail="Nie udało się zapisać korekty zabudowy"
-            )
-        response_data = cast(Any, response.data[0])
-        return ZabudowaCorrection(**response_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/zabudowa-corrections/{correction_id}")
-async def delete_zabudowa_correction(correction_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("zabudowa_wr_corrections").delete().eq(
-            "id", correction_id
-        ).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

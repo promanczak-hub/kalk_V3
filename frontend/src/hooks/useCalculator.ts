@@ -8,6 +8,7 @@ export interface ControlCenterSettings {
   default_ltr_margin: number;
   default_depreciation_pct?: number;
   vat_rate?: number;
+  bank_spread?: number;
 }
 
 const INITIAL_DATA: V1DataOption = {
@@ -116,14 +117,14 @@ export function useCalculator() {
   const fetchSettings = async () => {
     try {
       const resp = await axios.get<ControlCenterSettings>(
-        `${API_BASE_URL || ""}/api/control-center`,
+        `${API_BASE_URL}/api/control-center`,
       );
       if (resp.data) {
         setData((prev) => ({
           ...prev,
           StawkaVat: (resp.data.vat_rate || 23) / 100,
           WiborProcent: (resp.data.default_wibor || 4.82) / 100,
-          MarzaFinansowaProcent: (resp.data.default_ltr_margin || 1.35) / 100,
+          MarzaFinansowaProcent: (resp.data.bank_spread || 2.0) / 100,
 
         }));
       }
@@ -135,7 +136,7 @@ export function useCalculator() {
   const loadKalkulacja = async (id: string) => {
     try {
       const resp = await axios.get(
-        `${API_BASE_URL || ""}/api/kalkulacje/${id}`,
+        `${API_BASE_URL}/api/kalkulacje/${id}`,
       );
       if (resp.data && resp.data.stan_json) {
         applyParsedOffer(resp.data.stan_json, resp.data.numer_kalkulacji);
@@ -308,25 +309,49 @@ export function useCalculator() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAddExtractedServiceOption = (extracted: any) => {
+    const extractedList = Array.isArray(extracted?.service_options)
+      ? extracted.service_options
+      : Array.isArray(extracted)
+        ? extracted
+        : extracted
+          ? [extracted]
+          : [];
+
+    if (extractedList.length === 0) return;
+
     setData((prev) => {
-      const nextId =
+      const vat = prev.StawkaVat || 0.23;
+      let nextId =
         prev.OpcjeSerwisowe.length > 0
           ? Math.max(...prev.OpcjeSerwisowe.map((o) => o.Id)) + 1
           : 1;
-      const vat = prev.StawkaVat || 0.23;
-      return {
-        ...prev,
-        OpcjeSerwisowe: [
-          ...prev.OpcjeSerwisowe,
-          {
+
+      const mapped = extractedList
+        .filter(
+          (item: any) =>
+            item &&
+            typeof item.name === "string" &&
+            Number.isFinite(Number(item.net_price))
+        )
+        .map((item: any) => {
+          const net = Number(item.net_price) || 0;
+          const row = {
             Id: nextId,
-            Nazwa: extracted.name,
-            CenaNetto: extracted.net_price,
-            Cena: extracted.net_price * (1 + vat),
+            Nazwa: item.name,
+            CenaNetto: net,
+            Cena: net * (1 + vat),
             isNierabatowany: false,
             WR: false,
-          },
-        ],
+          };
+          nextId += 1;
+          return row;
+        });
+
+      if (mapped.length === 0) return prev;
+
+      return {
+        ...prev,
+        OpcjeSerwisowe: [...prev.OpcjeSerwisowe, ...mapped],
       };
     });
   };
@@ -507,7 +532,7 @@ export function useCalculator() {
 
     if (classificationBrand || classificationModel) {
       axios
-        .post(`${API_BASE_URL || ""}/api/parse-offer/samar-category`, {
+        .post(`${API_BASE_URL}/api/parse-offer/samar-category`, {
           brand: classificationBrand,
           model: classificationModel,
           body_style: classificationBody || "",
@@ -531,7 +556,7 @@ export function useCalculator() {
     if (!parserText.trim()) return;
     setIsParsing(true);
     try {
-      const resp = await axios.post(`${API_BASE_URL || ""}/api/parse-offer`, {
+      const resp = await axios.post(`${API_BASE_URL}/api/parse-offer`, {
         raw_text: parserText,
       });
       applyParsedOffer(resp.data);
@@ -578,3 +603,4 @@ export function useCalculator() {
     handleChangeTypRabatu,
   };
 }
+

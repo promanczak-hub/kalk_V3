@@ -1,9 +1,7 @@
-import asyncio
 import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from core.database import supabase
 from core.feature_enrichment import _load_feature_catalog, _llm_match_utility_features
 import json
 

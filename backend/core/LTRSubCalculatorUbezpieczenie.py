@@ -26,12 +26,21 @@ class InsuranceCalculator:
         trace: list[dict[str, Any]] = []
         total_cost_period = 0.0
 
-        average_damage_value_base = getattr(
-            self.settings, "ins_avg_damage_value", 1500.0
+        average_damage_value_base = float(
+            getattr(self.settings, "ins_avg_damage_value", 0.0) or 0.0
         )
-        average_damage_mileage = getattr(
-            self.settings, "ins_avg_damage_mileage", 30000.0
+        average_damage_mileage = float(
+            getattr(self.settings, "ins_avg_damage_mileage", 0.0) or 0.0
         )
+
+        if average_damage_value_base <= 0:
+            raise ValueError(
+                "Brak poprawnego parametru `ins_avg_damage_value` w Control Center."
+            )
+        if average_damage_mileage <= 0:
+            raise ValueError(
+                "Brak poprawnego parametru `ins_avg_damage_mileage` w Control Center."
+            )
 
         if not self.damage_coefficients:
             raise ValueError("Brak współczynników szkodowych (Pusta tabela ltr_admin_wspolczynniki_szkodowe dla tej klasy pojazdu). Kalkulacja przerwana.")

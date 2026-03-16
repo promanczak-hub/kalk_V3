@@ -1,30 +1,15 @@
 import { useMemo, useState } from "react";
-import { Star, Grid3X3, List } from "lucide-react";
+import { Star, Grid3X3, List, FileCode2, Loader2 } from "lucide-react";
+import type { MiniMatrixCell } from "../VertexExtractor/components/VehicleTableParts/decision-center/decision-center.types";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
 
-interface MatrixCell {
-  months: number;
-  km_per_year: number;
-  total_km: number;
-  base_cost_net: number;
-  price_net: number;
-  status: string;
-  breakdown: {
-    finance: { base: number; margin: number; price: number };
-    technical: {
-      service: { base: number; margin: number; price: number };
-      tires: { base: number; margin: number; price: number };
-      insurance: { base: number; margin: number; price: number };
-      replacement_car: { base: number; margin: number; price: number };
-      additional_costs: { base: number; margin: number; price: number };
-    };
-  };
-}
-
 interface MatrixHeatmapViewProps {
-  cells: MatrixCell[];
-  onCellClick?: (cell: MatrixCell) => void;
+  cells: MiniMatrixCell[];
+  mileageMode?: "annual" | "contract";
+  onCellClick?: (cell: MiniMatrixCell) => void;
+  onShowTrace?: (cell: MiniMatrixCell) => void;
+  isFetchingTrace?: boolean;
 }
 
 /* ── Margin Tier System ─────────────────────────────────────────────── */
@@ -65,7 +50,77 @@ function getMarginTier(pct: number): MarginTier {
 }
 
 function fmtPLN(v: number): string {
+  return v.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+const VAT_MULTIPLIER = 1.23;
+
+function fmtPLN2(v: number): string {
   return v.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+interface V1SummaryRow {
+  label: string;
+  kind: "money" | "percent" | "plain";
+  net: number | string;
+  gross?: number | string;
+  emphasize?: boolean;
+}
+
+function buildV1SummaryRows(cell: MiniMatrixCell): V1SummaryRow[] {
+  const wrPctBase =
+    cell.CenaZakupuBezOponIOpcjiSerwisowych > 0
+      ? (cell.WR / cell.CenaZakupuBezOponIOpcjiSerwisowych) * 100
+      : 0;
+
+  return [
+    { label: "Stawka laczna", kind: "money", net: cell.LacznaStawka, emphasize: true },
+    { label: "Czynsz finansowy", kind: "money", net: cell.CzynszFinansowy },
+    { label: "Czynsz techniczny", kind: "money", net: cell.CzynszTechniczny },
+    { label: "Ubezpieczenie", kind: "money", net: cell.Ubezpieczenie },
+    { label: "Serwis", kind: "money", net: cell.Serwis },
+    { label: "Opony", kind: "money", net: cell.Opony },
+    { label: "Samochod zastepczy", kind: "money", net: cell.SamochodZastepczy },
+    { label: "Koszty dodatkowe (admin.: rej, sprzedaz, GSM)", kind: "money", net: cell.Admin },
+    { label: "Ilosc opon na kontrakt", kind: "plain", net: Number(cell.IloscOpon || 0).toFixed(2) },
+    { label: "Cena zakupu (BUDZET)", kind: "money", net: cell.CenaZakupu, emphasize: true },
+    { label: "Cena jednego kompletu opon", kind: "money", net: cell.Cena1KompletOpon },
+    { label: "Cena zakupu bez opon", kind: "money", net: cell.CenaZakupuBezOpon },
+    { label: "Cena zakupu opcji fabrycznych", kind: "money", net: cell.CenaZakupuBezOponIOpcjiSerwisowych },
+    {
+      label: "Cena zakupu opcji fabrycznych bez p. serwisowego",
+      kind: "money",
+      net: cell.CenaZakupuBezOponIOpcjiSerwisowychIPakietu,
+    },
+    { label: "WR", kind: "money", net: cell.WR, emphasize: true },
+    { label: "WR % (od ceny zakupu z opcjami fabrycznymi)", kind: "percent", net: wrPctBase },
+    { label: "WR dla LO", kind: "money", net: cell.WRdlaLO },
+    { label: "Koszt dzienny", kind: "money", net: cell.KosztDzienny, emphasize: true },
+    { label: "Przychod", kind: "money", net: cell.Przychod },
+    { label: "Koszty ogolem", kind: "money", net: cell.KosztyOgolem },
+    { label: "Marza na kontrakcie", kind: "money", net: cell.MarzaNaKontrakcie, emphasize: true },
+  ];
+}
+
+function renderV1CellValue(
+  row: V1SummaryRow,
+  mode: "net" | "gross",
+): string {
+  if (row.kind === "plain") {
+    return mode === "net" ? String(row.net) : "-";
+  }
+
+  if (row.kind === "percent") {
+    if (mode === "gross") return "-";
+    const val = typeof row.net === "number" ? row.net : parseFloat(String(row.net));
+    return `${Number.isFinite(val) ? val.toFixed(2) : "0.00"}%`;
+  }
+
+  const numericNet =
+    typeof row.net === "number" ? row.net : parseFloat(String(row.net).replace(",", "."));
+  const netVal = Number.isFinite(numericNet) ? numericNet : 0;
+  const out = mode === "gross" ? netVal * VAT_MULTIPLIER : netVal;
+  return `${fmtPLN2(out)} PLN`;
 }
 
 /* ── Legend tiers ──────────────────────────────────────────────────── */
@@ -81,38 +136,49 @@ const LEGEND_TIERS = [
 
 /* ── Main Component ────────────────────────────────────────────────── */
 
-export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps) {
+export function MatrixHeatmapView({ cells, mileageMode = "annual", onCellClick, onShowTrace, isFetchingTrace }: MatrixHeatmapViewProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  const getContractKm = (c: MiniMatrixCell): number => c.PrzebiegKontrakt ?? Math.round((c.Okres / 12) * c.Przebieg);
 
   // Build axes from actual cell data
   const { months, kmValues, cellMap, bestKey } = useMemo(() => {
     const monthsSet = new Set<number>();
     const kmSet = new Set<number>();
-    const map = new Map<string, MatrixCell>();
+    const map = new Map<string, MiniMatrixCell>();
+
+
+    const axisKmForCell = (c: MiniMatrixCell): number => {
+      if (mileageMode === "contract") {
+        return getContractKm(c);
+      }
+      return c.Przebieg;
+    };
 
     for (const c of cells) {
-      monthsSet.add(c.months);
-      kmSet.add(c.km_per_year);
-      map.set(`${c.months}_${c.km_per_year}`, c);
+      const axisKm = axisKmForCell(c);
+      monthsSet.add(c.Okres);
+      kmSet.add(axisKm);
+      map.set(`${c.Okres}_${axisKm}`, c);
     }
 
     const sortedMonths = [...monthsSet].sort((a, b) => a - b);
     const sortedKm = [...kmSet].sort((a, b) => a - b);
 
     // Find best cell (highest margin)
-    let best: MatrixCell | null = null;
+    let best: MiniMatrixCell | null = null;
     let bestMargin = -Infinity;
     for (const c of cells) {
-      const m = c.base_cost_net > 0 ? ((c.price_net - c.base_cost_net) / c.price_net) * 100 : 0;
+      const m = c.KosztyLaczneMC > 0 ? ((c.LacznaStawka - c.KosztyLaczneMC) / c.LacznaStawka) * 100 : 0;
       if (m > bestMargin) {
         bestMargin = m;
         best = c;
       }
     }
-    const bk = best ? `${best.months}_${best.km_per_year}` : null;
+    const bk = best ? `${best.Okres}_${axisKmForCell(best)}` : null;
 
     return { months: sortedMonths, kmValues: sortedKm, cellMap: map, bestKey: bk };
-  }, [cells]);
+  }, [cells, mileageMode]);
 
   if (cells.length === 0) {
     return (
@@ -132,7 +198,7 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
               {/* Corner cell */}
               <th className="py-2.5 px-3 text-left w-24">
                 <div className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">
-                  Okres ↓ / km →
+                  Okres / km
                 </div>
               </th>
               {kmValues.map((km) => (
@@ -140,7 +206,7 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
                   <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
                     {(km / 1000).toFixed(0)}k
                   </div>
-                  <div className="text-[8px] text-slate-300 font-medium">km/rok</div>
+                  <div className="text-[8px] text-slate-300 font-medium">{mileageMode === "contract" ? "km/kontrakt" : "km/rok"}</div>
                 </th>
               ))}
             </tr>
@@ -171,13 +237,17 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
                     );
                   }
 
-                  const marginPct = cell.base_cost_net > 0
-                    ? ((cell.price_net - cell.base_cost_net) / cell.price_net) * 100
+                  const marginPct = cell.KosztyLaczneMC > 0
+                    ? ((cell.LacznaStawka - cell.KosztyLaczneMC) / cell.LacznaStawka) * 100
                     : 0;
                   const tier = getMarginTier(marginPct);
                   const isSelected = selectedKey === key;
                   const isBest = bestKey === key;
-                  const totalKmK = (cell.total_km / 1000).toFixed(0);
+                  const totalKmK = (getContractKm(cell) / 1000).toFixed(0);
+                  const annualKmK = (cell.Przebieg / 1000).toFixed(0);
+                  const kmCaption = mileageMode === "contract"
+                    ? `${totalKmK}k km/kontrakt`
+                    : `${annualKmK}k km/rok`;
 
                   return (
                     <td key={km} className="text-center p-2 border-b border-slate-100">
@@ -210,12 +280,12 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
 
                         {/* Price */}
                         <div className="text-[13px] font-bold tabular-nums leading-tight text-slate-800">
-                          {fmtPLN(cell.price_net)}
+                          {fmtPLN(cell.LacznaStawka)}
                         </div>
 
                         {/* Total km */}
                         <div className="text-[9px] text-slate-500 mt-1">
-                          {totalKmK}k km
+                          {kmCaption}
                         </div>
 
                         {/* Margin badge */}
@@ -256,10 +326,11 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
       {selectedKey && (() => {
         const cell = cellMap.get(selectedKey);
         if (!cell) return null;
-        const marginPct = cell.base_cost_net > 0
-          ? ((cell.price_net - cell.base_cost_net) / cell.price_net) * 100
+        const marginPct = cell.KosztyLaczneMC > 0
+          ? ((cell.LacznaStawka - cell.KosztyLaczneMC) / cell.LacznaStawka) * 100
           : 0;
         const tier = getMarginTier(marginPct);
+        const v1Rows = buildV1SummaryRows(cell);
 
         return (
           <div
@@ -271,42 +342,83 @@ export function MatrixHeatmapView({ cells, onCellClick }: MatrixHeatmapViewProps
                 <span
                   className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${tier.badgeBg} ${tier.badgeText}`}
                 >
-                  {cell.months} mc / {(cell.km_per_year / 1000).toFixed(0)}k km/rok
+                  {mileageMode === "contract" ? `${cell.Okres} mc / ${(getContractKm(cell) / 1000).toFixed(0)}k km/kontrakt` : `${cell.Okres} mc / ${(cell.Przebieg / 1000).toFixed(0)}k km/rok`}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  ({(cell.total_km / 1000).toFixed(0)}k km łącznie)
+                  {mileageMode === "contract"
+                    ? `${(cell.Przebieg / 1000).toFixed(0)}k km/rok`
+                    : `${(getContractKm(cell) / 1000).toFixed(0)}k km lacznie`}
                 </span>
               </div>
-              <button
-                onClick={() => setSelectedKey(null)}
-                className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                ✕ Zamknij
-              </button>
+              <div className="flex items-center gap-4">
+                {onShowTrace && (
+                  <button
+                    onClick={() => onShowTrace(cell)}
+                    disabled={isFetchingTrace}
+                    className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    {isFetchingTrace ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileCode2 className="w-3 h-3" />}
+                    Ślad Przeliczeń
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedKey(null)}
+                  className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  ✕ Zamknij
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <DetailItem label="Rata netto/mc" value={`${fmtPLN(cell.price_net)} PLN`} highlight />
-              <DetailItem label="Koszt bazowy" value={`${fmtPLN(cell.base_cost_net)} PLN`} />
+              <DetailItem label="Rata netto/mc" value={`${fmtPLN(cell.LacznaStawka)} PLN`} highlight />
+              <DetailItem label="Koszt bazowy" value={`${fmtPLN(cell.KosztyLaczneMC)} PLN`} />
               <DetailItem label="Marża %"
                 value={`${marginPct.toFixed(1)}%`}
                 color={tier.heatColor}
               />
               <DetailItem label="Marża PLN/mc"
-                value={`${fmtPLN(cell.price_net - cell.base_cost_net)} PLN`}
+                value={`${fmtPLN(cell.LacznaStawka - cell.KosztyLaczneMC)} PLN`}
               />
             </div>
 
             {/* Breakdown */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 pt-3 border-t border-slate-200/60">
-              <BreakdownItem label="Finanse" value={cell.breakdown.finance.price} />
-              <BreakdownItem label="Serwis" value={cell.breakdown.technical.service.price} />
-              <BreakdownItem label="Opony" value={cell.breakdown.technical.tires.price} />
-              <BreakdownItem label="Ubezp." value={cell.breakdown.technical.insurance.price} />
-              <BreakdownItem label="Inne" value={
-                cell.breakdown.technical.replacement_car.price +
-                cell.breakdown.technical.additional_costs.price
-              } />
+              <BreakdownItem label="Finanse" value={cell.CzynszFinansowy} />
+              <BreakdownItem label="Serwis" value={cell.Serwis} />
+              <BreakdownItem label="Opony" value={cell.Opony} />
+              <BreakdownItem label="Ubezp." value={cell.Ubezpieczenie} />
+              <BreakdownItem label="Inne" value={cell.SamochodZastepczy + cell.Admin} />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-200/70">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Podsumowanie V1 (netto/brutto)
+              </div>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-[11px] border border-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="text-left px-2 py-1.5 font-bold text-slate-500 uppercase tracking-wider">Pozycja</th>
+                      <th className="text-right px-2 py-1.5 font-bold text-slate-500 uppercase tracking-wider">Netto</th>
+                      <th className="text-right px-2 py-1.5 font-bold text-slate-500 uppercase tracking-wider">Brutto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {v1Rows.map((row) => (
+                      <tr key={row.label} className="border-t border-slate-100">
+                        <td className={`px-2 py-1.5 ${row.emphasize ? "font-bold text-slate-800" : "text-slate-600"}`}>{row.label}</td>
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
+                          {renderV1CellValue(row, "net")}
+                        </td>
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
+                          {renderV1CellValue(row, "gross")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         );

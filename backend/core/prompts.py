@@ -270,23 +270,34 @@ Wypisz pełną strukture pasującą do wgranego schematu.
 """
 
 SERVICE_OPTION_DIGITAL_TWIN_PROMPT = """
-Jesteś Inżynierem Pojazdów Użytkowych (Homologacji) pracującym nad integracją Opcji Serwisowych i Zabudów.
-Otrzymujesz dokument (najczęściej PDF lub skan) opisujący dodatkową opcję serwisową, wycenę zabudowy, akcesoria (jak dywaniki, hak) lub inną modyfikację pojazdu dokonywaną u dealera.
-Twoim zadaniem jest stworzenie `ServiceOptionDigitalTwin` - cyfrowej reprezentacji tej opcji.
+You are a vehicle homologation analyst extracting service options and body build-ups from dealer documents.
 
-KRYTYCZNE WSKAZÓWKI:
-1. `name`: Wymyśl sensowną, zwięzłą nazwę opisującą tę opcję (np. "Zabudowa Izotermiczna Carrier", "Hak holowniczy", "Pakiet Serwisowy 3 lata").
-2. `net_price`: Odnajdź sumaryczną kwotę całkowitą tej opcji w dokumencie. MUSISZ przeliczyć ją na wartość numeryczną NETTO (bez VAT) w PLN. Jeśli na ofercie jest tylko brutto, podziel przez 1.23. Odpowiadaj wyłącznie liczbą float.
-3. `description_or_components`: Przepisz wszystkie ważne elementy składowe zabudowy, akcesoria lub obostrzenia jako listę stringów, aby doradca wiedział co składa się na ten pakiet.
+Return JSON in this exact top-level shape compatible with `ServiceOptionExtractionResult`:
+{
+  "service_options": [
+    {
+      "name": "...",
+      "net_price": 0.0,
+      "description_or_components": ["..."],
+      "effects": {
+        "override_samar_class": "..." | null,
+        "override_homologation": "..." | null,
+        "adds_weight_kg": 0.0 | null,
+        "is_financial_only": true | false
+      }
+    }
+  ]
+}
 
-NAJWAŻNIEJSZE -> SEKCJA `effects` (VehicleModificationEffects):
-Jako inżynier musisz ocenić, czy ta opcja ingeruje w homologację i fizyczne parametry pojazdu.
-- `is_financial_only`: Ustaw na 'true' JEŚLI opcja to Opony, Dywaniki, Ubezpieczenie, Przedłużona Gwarancja, Folia ochronna, Pakiet Przeglądów itd. Jeśli opcja MODYFIKUJE NADWOZIE (np. Kontener, Izoterma, Dokładka HDS, Skrzynia, Plandeka) to ustaw 'false'.
-- `override_samar_class`: JEŚLI opcja to modyfikacja nadwozia, narzuć jej odpowiednią, nową klasę SAMAR, np: "Izoterma", "Kontener", "Skrzyniowy", "Autobus", "Chłodnia". Jeśli opcja nie zmienia bryły pojazdu bazowego, zostaw null.
-- `override_homologation`: JEŚLI dokument wprost pisze o homologacji innej niż standardowa po zmiankach (np. zmiana na N1, N2, N3), podaj ją. Inaczej null.
-- `adds_weight_kg`: JEŚLI dokument zawiera informację o dodatkowej masie ramy/zabudowy/agregatu (np. "Masa zabudowy: 250kg"), podaj tę wartość jako float. Pozwoli to systemowi ostrzec doradcę o spadku ładowności.
-
-WYJŚCIE MUSI BYĆ CZYSTYM, WALIDUJĄCYM SIĘ JSON-EM ZGODNYM ZE SCHEMATEM Pydantic `ServiceOptionDigitalTwin`.
+Critical rules:
+1. Extract ALL paid options found in the document, not only one item.
+2. If both accessories (e.g. floor mats) and a body modification (e.g. container build-up) are present, include both as separate entries.
+3. Do not merge unrelated options into one record.
+4. For body modifications (kontener, izoterma, chlodnia, skrzynia, plandeka, HDS, zabudowa) set `is_financial_only=false` and fill `override_samar_class`.
+5. For pure financial/accessory options (mats, hook, insurance, warranty, inspections) set `is_financial_only=true`.
+6. `net_price` must be a numeric NET value in PLN. If only gross exists, divide by 1.23.
+7. `description_or_components` should contain key components from the document.
+8. Output valid JSON only, no markdown.
 """
 
 MULTI_VEHICLE_DETECTION_PROMPT = """

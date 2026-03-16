@@ -1,3 +1,5 @@
+import json
+from html import escape
 from typing import Any, Dict, List
 from core.LTRKalkulator import (
     LTRKalkulator,
@@ -72,31 +74,15 @@ class PipelineDebugger(LTRKalkulator):
                     "months": months,
                     "total_km": total_km,
                     "z_oponami": self.tires_calc.z_oponami,
-                    "klasa_opony_string": self.input_data.klasa_opony_string,
-                    "srednica_felgi": self.tires_calc.srednica_felgi,
+                    "klasa_opony_string": getattr(self.input_data, "klasa_opony_string", ""),
+                    "srednica_felgi": getattr(self.tires_calc, "srednica_felgi", 0),
                 },
                 "outputs": {
-                    "tires_base": tires_base,
-                    "tires_capex": tires_capex,
-                    "tires_total": tires_total,
-                    "monthly_hardware": tires_res["monthly_hardware"],
-                    "monthly_storage": tires_res["monthly_storage"],
-                    "monthly_swaps": tires_res["monthly_swaps"],
+                    "OponyNetto": float(tires_res.get("OponyNetto", 0.0)),
+                    "Koszt1KplOpon": float(tires_res.get("Koszt1KplOpon", 0.0)),
+                    "IloscOpon": float(tires_res.get("IloscOpon", 0.0)),
                 },
-                "metadata": {
-                    "tires_base": {
-                        "source": "LTRSubCalculatorOpony.py -> calculate_cost()",
-                        "formula": "Suma: sprzęt (opony/felgi) + raty za przechowywanie + raty za wymiany (uzależnione od 'Z Oponami' oraz średnicy felgi)",
-                    },
-                    "tires_capex": {
-                        "source": "LTRSubCalculatorOpony.py -> calculate_cost()",
-                        "formula": "Jednorazowy koszt początkowego kompletu opon zimowych (wliczony w CAPEX tylko jeśli okres >= 24 msc lub przebieg >= 45k km)",
-                    },
-                    "tires_total": {
-                        "source": "PipelineDebugger.py",
-                        "formula": "tires_base * months",
-                    },
-                },
+                "trace": tires_res.get("trace", [])
             }
         )
 
@@ -134,6 +120,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "additional_costs_base * months",
                     },
                 },
+                "trace": add_calc_res.get("trace", []),
             }
         )
 
@@ -170,6 +157,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "rc_base * months",
                     },
                 },
+                "trace": rc_res.get("trace", []),
             }
         )
 
@@ -226,6 +214,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "service_base * months",
                     },
                 },
+                "trace": service_from_new_dict.get("trace", getattr(service_calc, "trace", [])),
             }
         )
 
@@ -248,48 +237,48 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "Cena Pojazdu Netto (po rabacie) + Opcje Fabryczne + Opcje Serwisowe + Opony CAPEX",
                     }
                 },
+                "trace": [
+                    f"Początkowy bazowy CAPEX (bez zniżek) = {base_price_net_full}",
+                    f"Wyliczony vehicle_capex = {vehicle_capex}",
+                    f"Opcje capex = {options_capex}",
+                    f"Tires capex = {tires_capex}",
+                    f"Suma Capex for Financing = {capex_for_financing}",
+                ],
             }
         )
 
         # KROK 6: Utrata Wartości (WR)
         rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
         base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
-        base_wr_options += sum(
-            opt.price_net
-            for opt in self.input_data.service_options
-            if getattr(opt, "include_in_wr", False)
-        )
+        
+        # W V1 Utrata Wartości (Amortyzacja) liczona jest WYŁĄCZNIE od ceny pojazdu i opcji fabrycznych (bez opon i bez opcji serwisowych)
+        discount_pct = getattr(self.input_data, "discount_pct", 0) / 100.0
+        discounted_factory_options = base_wr_options * (1 - discount_pct)
+        wp_amortyzacja = vehicle_capex + discounted_factory_options
+        
         vat_rate = getattr(self.settings, "vat_rate", 1.23)
         if vat_rate > 10.0:
             vat_rate = 1.0 + (vat_rate / 100.0)
 
-        # V1 parity: WR depreciation curve uses full catalogue prices
-        # (no discount) to simulate market-rate value loss.
-        # base_wr_options already uses pre-discount option prices (line 251).
         rv_res = rv_calc.calculate_values(
             months=months,
             total_km=total_km,
             base_vehicle_capex_gross=base_price_net_full * vat_rate,
-            options_capex_gross=(base_wr_options + tires_capex) * vat_rate,
+            options_capex_gross=base_wr_options * vat_rate,
         )
 
         orig_vr_samar = float(rv_res["WR"])
-        orig_utrata_z_czynszem = float(
-            rv_res.get(
-                "UtrataWartosciZCzynszemInicjalnym", capex_for_financing - orig_vr_samar
-            )
-        )
-        orig_utrata_bez_czynszu = float(rv_res["UtrataWartosciBEZczynszu"])
+        orig_utrata_bez_czynszu = wp_amortyzacja - orig_vr_samar
+        orig_utrata_z_czynszem = orig_utrata_bez_czynszu  # Legacy V1 parity, no initial rent reduction for technical utrata yet
 
         vr_samar = float(overrides.get("step_6_wr", orig_vr_samar))
 
-        # Jeśli WR nadpisano ale reszty utraty nie, przelicz ponownie by wzory się zgadzały:
         if "step_6_wr" in overrides:
             utrata_z_czynszem = overrides.get(
-                "step_6_utrata_z_czynszem", capex_for_financing - vr_samar
+                "step_6_utrata_z_czynszem", wp_amortyzacja - vr_samar
             )
             utrata_bez_czynszu = overrides.get(
-                "step_6_utrata_bez_czynszu", capex_for_financing - vr_samar
+                "step_6_utrata_bez_czynszu", wp_amortyzacja - vr_samar
             )
         else:
             utrata_z_czynszem = overrides.get(
@@ -307,28 +296,21 @@ class PipelineDebugger(LTRKalkulator):
                     "months": months,
                     "total_km": total_km,
                     "base_vehicle_capex_gross": base_price_net_full * vat_rate,
-                    "options_capex_gross": (base_wr_options + tires_capex) * vat_rate,
+                    "options_capex_gross": base_wr_options * vat_rate,
+                    "wp_amortyzacja": wp_amortyzacja,
                 },
                 "outputs": {
                     "vr_samar": vr_samar,
                     "utrata_z_czynszem": utrata_z_czynszem,
                     "utrata_bez_czynszu": utrata_bez_czynszu,
-                    "rv_lo_net": rv_res["WRdlaLO"],
                 },
                 "metadata": {
-                    "vr_samar": {
-                        "source": "LTRSubCalculatorUtrataWartosciNew.py -> calculate_values()",
-                        "formula": "Wyliczenie tabelaryczne rezydualnej wg cennika SAMAR (z uwzględnieniem przebiegu i wieku po X miesiącach)",
-                    },
                     "utrata_z_czynszem": {
-                        "source": "LTRSubCalculatorUtrataWartosciNew.py lub PipelineDebugger.py",
-                        "formula": "CAPEX łączny (z oponami itp.) mniejszy o Szacowaną Wartość Końcową (vr_samar)",
-                    },
-                    "utrata_bez_czynszu": {
                         "source": "PipelineDebugger.py",
-                        "formula": "Tożsame z utrata_z_czynszem; legacy placeholder",
+                        "formula": "WP_Amortyzacji (Auto+OpcjeF) - Wartość Końcowa (WR)",
                     },
                 },
+                "trace": rv_res.get("trace", []),
             }
         )
 
@@ -339,7 +321,10 @@ class PipelineDebugger(LTRKalkulator):
             )
         else:
             amort_input = AmortyzacjaInput(
-                wp=capex_for_financing, wr=vr_samar, okres=months
+                wp_finansowanie=capex_for_financing,
+                wp_amortyzacja=wp_amortyzacja,
+                wr=vr_samar,
+                okres=months,
             )
             amort_result = AmortyzacjaCalculator(amort_input).calculate()
             orig_procent_amortyzacji_miesiecznie = amort_result.amortyzacja_procent
@@ -366,6 +351,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "Różnica % między Wartością Początkową (CAPEX) a Wartością Końcową (WR) podzielona przez Okres",
                     }
                 },
+                "trace": getattr(amort_result, "trace", getattr(AmortyzacjaCalculator, "trace", [])) if 'amort_result' in locals() else [f"Amortyzacja pobrana sztywno z input_data: {orig_procent_amortyzacji_miesiecznie}%"],
             }
         )
 
@@ -408,6 +394,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "insurance_base * months",
                     },
                 },
+                "trace": insurance_res.get("trace", getattr(ins_calc, "trace", [])),
             }
         )
 
@@ -469,6 +456,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "CzynszBrutto / VAT (kwotowy) lub WP × % (procentowy)",
                     },
                 },
+                "trace": getattr(finance_res, "trace", getattr(finance_calc, "trace", [])),
             }
         )
 
@@ -516,6 +504,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "Matematyczna suma wszystkich wydatków ponoszonych w trakcie okresu (przed narzutem marży docelowej)",
                     },
                 },
+                "trace": getattr(kd_result, "trace", []),
             }
         )
 
@@ -565,6 +554,7 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "oferowana_stawka - koszt_mc",
                     },
                 },
+                "trace": getattr(stawka_result, "trace", []),
             }
         )
 
@@ -596,7 +586,109 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "(Oczekiwana wartość WR - WR_SAMAR) / VAT",
                     }
                 },
+                "trace": getattr(bm_result, "trace", []),
             }
         )
 
         return steps
+
+    @staticmethod
+    def render_steps_html(
+        steps: List[Dict[str, Any]],
+        months: int,
+        vehicle_id: str = "",
+    ) -> str:
+        """Renderuje kartę HTML z krokami pipeline w formacie porównawczym, z obsługą wejść, precyzyjnych logów (trace) i metadanych."""
+
+        def _fmt_value(value: Any) -> str:
+            from decimal import Decimal
+            if isinstance(value, (float, Decimal)):
+                return f"{value:,.4f}".replace(",", " ")
+            if isinstance(value, int):
+                return f"{value:,}".replace(",", " ")
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, ensure_ascii=False)
+            return str(value)
+
+        section_html_parts: List[str] = []
+        for step in steps:
+            outputs = step.get("outputs") or {}
+            inputs = step.get("inputs") or {}
+            metadata = step.get("metadata") or {}
+            trace = step.get("trace") or []
+
+            output_rows = "".join(
+                f"<tr><td>{escape(str(k))}</td><td class='val'>{escape(_fmt_value(v))}</td></tr>"
+                for k, v in outputs.items()
+            )
+            input_rows = "".join(
+                f"<tr><td>{escape(str(k))}</td><td class='val'>{escape(_fmt_value(v))}</td></tr>"
+                for k, v in inputs.items()
+            )
+            metadata_rows = "".join(
+                f"<tr><td>{escape(str(k))}</td><td class='val'>{escape(_fmt_value(v))}</td></tr>"
+                for k, v in metadata.items()
+            )
+
+            trace_html = ""
+            if trace:
+                trace_items = "".join(f"<li>{escape(str(t))}</li>" for t in trace)
+                trace_html = f"<div class='trace-box'><h4>Ślad rewizyjny (Trace)</h4><ul class='trace-list'>{trace_items}</ul></div>"
+
+            section_html_parts.append(
+                f"<section class='sec'>"
+                f"<h3>Krok {escape(str(step.get('step', '?')))}: {escape(str(step.get('name', '')))}</h3>"
+                f"<div class='columns'>"
+                f"  <div class='col main-col'>"
+                f"    <h4>Wyniki (Outputs)</h4>"
+                f"    <table>"
+                f"      <thead><tr><th>Parametr</th><th>Wartość</th></tr></thead>"
+                f"      <tbody>{output_rows}</tbody>"
+                f"    </table>"
+                f"  </div>"
+                f"  <div class='col side-col'>"
+                f"    <details><summary>Wejścia (Inputs)</summary>"
+                f"      <table><tbody>{input_rows}</tbody></table>"
+                f"    </details>"
+                f"    <details><summary>Zasady (Metadata)</summary>"
+                f"      <table><tbody>{metadata_rows}</tbody></table>"
+                f"    </details>"
+                f"  </div>"
+                f"</div>"
+                f"{trace_html}"
+                f"</section>"
+            )
+
+        title = "Pipeline Debugger - Pełny Ślad Rewizyjny (Calculation Trace)"
+        sub = f"Pojazd: {vehicle_id} | Okres: {months} mc"
+
+        return (
+            "<!doctype html><html><head><meta charset='utf-8'/>"
+            "<style>"
+            "body{font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;background:#f1f5f9;color:#0f172a;margin:20px;}"
+            "h1{font-size:20px;margin:0 0 4px 0;color:#1e293b;}"
+            "p.meta{margin:0 0 20px 0;color:#475569;font-size:13px;}"
+            "section.sec{margin:0 0 16px 0;padding:16px;border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;box-shadow: 0 1px 3px rgba(0,0,0,0.05);}"
+            "h3{margin:0 0 12px 0;font-size:16px;color:#0f172a;border-bottom: 2px solid #e2e8f0;padding-bottom: 6px;}"
+            "h4{margin:0 0 8px 0;font-size:13px;color:#334155;}"
+            ".columns{display:flex;gap:16px;margin-bottom:12px;}"
+            ".col{flex:1;}"
+            ".main-col{flex:1.5;}"
+            ".side-col{flex:1;}"
+            "details{margin-bottom:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;}"
+            "summary{font-weight:600;font-size:13px;cursor:pointer;color:#3b82f6;}"
+            "summary:hover{color:#2563eb;}"
+            "table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;margin-top:6px;}"
+            "th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left;vertical-align:top;}"
+            "th{background:#f8fafc;color:#475569;font-weight:600;}"
+            "td.val{text-align:right;font-weight:600;white-space:nowrap;color:#0f172a;}"
+            ".trace-box{margin-top:12px;padding:10px;background:#1e293b;border-radius:6px;color:#f8fafc;font-family:Consolas,monospace;font-size:12px;}"
+            ".trace-box h4{color:#94a3b8;margin:0 0 6px 0;text-transform:uppercase;font-size:11px;}"
+            ".trace-list{margin:0;padding-left:16px;}"
+            ".trace-list li{margin-bottom:4px;}"
+            "</style></head><body>"
+            f"<h1>{escape(title)}</h1>"
+            f"<p class='meta'>{escape(sub)}</p>"
+            + "".join(section_html_parts)
+            + "</body></html>"
+        )

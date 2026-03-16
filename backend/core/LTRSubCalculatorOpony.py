@@ -40,10 +40,11 @@ class LTRSubCalculatorOpony:
         if self.z_oponami:
             if not self.srednica_felgi:
                 raise ValueError("srednica_felgi jest wymagana gdy z_oponami=True")
-            # Fetch global parameters from LTRAdminParametry_czak
-            self.storage_cost_per_year = self._fetch_global_param("OponyPrzechowywane")
-            self.swap_cost = self._fetch_global_param("OponyPrzekladki")
-            self.vat_rate = self._fetch_global_param("VAT")
+            # Configurations (tyre thresholds + koszty serwisu opon z Control Center)
+            self.thresholds = self._fetch_tire_configurations()
+            self.storage_cost_per_year = self._read_required_config("cost_tyre_storage")
+            self.swap_cost = self._read_required_config("cost_tyre_swap")
+            self.vat_rate = 1.23
 
             # Use 1.23 as fallback multiplier if DB returns flat percent like 23
             if self.vat_rate > 1.0 and self.vat_rate < 2.0:
@@ -53,8 +54,6 @@ class LTRSubCalculatorOpony:
             else:
                 self.vat_rate = 1.23
 
-            # Configurations
-            self.thresholds = self._fetch_tire_configurations()
 
             # Hardware cost base from DB (price per set / komplet)
             self.tire_set_price_base = self._fetch_tire_cost()
@@ -113,11 +112,33 @@ class LTRSubCalculatorOpony:
             if res.data:
                 for item in res.data:
                     row = cast(Dict[str, Any], item)
-                    defaults[str(row["config_key"])] = float(row["config_value"])
+                    key = str(row.get("config_key", "")).strip()
+                    if not key:
+                        continue
+                    raw_val = row.get("config_value")
+                    try:
+                        defaults[key] = float(str(raw_val).replace(",", "."))
+                    except (TypeError, ValueError):
+                        logger.warning(
+                            "Pomijam nieprawidlowy config tyre_configurations: %s=%s",
+                            key,
+                            raw_val,
+                        )
         except Exception as e:
             logger.error(f"Error fetching tyre_configurations: {e}")
 
         return defaults
+
+
+    def _read_required_config(self, key: str) -> float:
+        """Zwraca wymagany parametr z tyre_configurations (bez hardcode fallbacku)."""
+        value = self.thresholds.get(key)
+        if value is None:
+            raise ValueError(
+                f"Brak parametru '{key}' w tabeli tyre_configurations. "
+                "Uzupelnij dane w Control Center > Tabela Opon."
+            )
+        return float(value)
 
     def _get_tire_column_name(self) -> str:
         """Zwraca nazwę kolumny w tabeli koszty_opon.
@@ -247,19 +268,13 @@ class LTRSubCalculatorOpony:
             if total_km < base_limit:
                 return self.tire_set_price
             else:
-                result = self.tire_set_price
-                result += ((total_km - base_limit) / base_limit) * self.tire_set_price
-                return result
+                return self.tire_set_price + ((total_km - base_limit) / base_limit) * self.tire_set_price
         else:
             base_limit = t.get("season_threshold_1", 120000)
-            # Dzielnik proporcji w V1 to nadal 60000 dla sezonowych:
-            # (Przebieg - 120 000) / 60 000
             if total_km < base_limit:
                 return self.tire_set_price
             else:
-                result = self.tire_set_price
-                result += ((total_km - base_limit) / 60000.0) * self.tire_set_price
-                return result
+                return self.tire_set_price + ((total_km - base_limit) / 60000.0) * self.tire_set_price
 
     def calculate_cost(self, months: int, total_km: int) -> Dict[str, Any]:
         """Kalkuluje techniczne koszty opon dla danego wariantu.
@@ -349,6 +364,8 @@ class LTRSubCalculatorOpony:
             "wynik": capex_initial
         })
 
+        # Zgodnie z anomalią V1 - sprzęt wrzucony do CAPEX NIE był pomniejszany
+        # w kosztach technicznych (czynszu). Zostało to odtworzone dla parity.
         remaining_hw_cost = total_hw_cost
 
         odkup_kwota = self._fetch_odkup_opon_cost()

@@ -14,7 +14,8 @@ from typing import Any
 class AmortyzacjaInput:
     """Dane wejściowe sub-kalkulatora amortyzacji."""
 
-    wp: float  # Wartość Początkowa netto (Cena zakupu)
+    wp_finansowanie: float  # CAPEX pełny do finansowania (np. z oponami)
+    wp_amortyzacja: float  # CAPEX pomniejszony używany do samej utraty wartości (pojazd + opcje fabr)
     wr: float  # Wartość Rezydualna netto
     okres: int  # Liczba miesięcy kontraktu
 
@@ -43,16 +44,17 @@ class AmortyzacjaCalculator:
         self.input = input_data
 
     def calculate(self) -> AmortyzacjaResult:
-        wp = self.input.wp
+        wp_finansowanie = self.input.wp_finansowanie
+        wp_amortyzacja = self.input.wp_amortyzacja
         wr = self.input.wr
         okres = self.input.okres
 
         trace: list[dict[str, Any]] = []
 
-        if okres <= 0 or wp <= 0:
+        if okres <= 0 or wp_amortyzacja <= 0:
             trace.append({
                 "krok": "Amortyzacja (Błąd parametru)",
-                "rownanie": f"Okres ({okres}) <= 0 LUB WP ({wp:.2f}) <= 0",
+                "rownanie": f"Okres ({okres}) <= 0 LUB WP Amortyzacji ({wp_amortyzacja:.2f}) <= 0",
                 "wynik": 0.0
             })
             return AmortyzacjaResult(
@@ -62,10 +64,10 @@ class AmortyzacjaCalculator:
                 trace=trace,
             )
 
-        utrata_wartosci = wp - wr
+        utrata_wartosci = wp_amortyzacja - wr
         trace.append({
             "krok": "Amortyzacja: Utrata Wartości Liniowa",
-            "rownanie": f"CAPEX (WP) {wp:.2f} - Wartość Końcowa (WR) {wr:.2f}",
+            "rownanie": f"WP_Amortyzacji {wp_amortyzacja:.2f} - Wartość Końcowa (WR) {wr:.2f}",
             "wynik": utrata_wartosci
         })
 
@@ -76,10 +78,10 @@ class AmortyzacjaCalculator:
             "wynik": kwota_1mc
         })
 
-        procent = kwota_1mc / wp
+        procent = kwota_1mc / wp_finansowanie
         trace.append({
-            "krok": "Amortyzacja: % Miesięczny",
-            "rownanie": f"Kwota 1mc {kwota_1mc:.2f} / CAPEX (WP) {wp:.2f}",
+            "krok": "Amortyzacja: % Miesięczny dla Ubezpieczenia (Stosunek Liniowy)",
+            "rownanie": f"Kwota 1mc {kwota_1mc:.2f} / WP_Finansowania {wp_finansowanie:.2f}. Wymóg dla symulacji V1 (ubezpieczenie liczone od pełnego capexu).",
             "wynik": procent
         })
 

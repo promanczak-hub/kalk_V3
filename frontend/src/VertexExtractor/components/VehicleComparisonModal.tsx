@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { X, Loader2, GitCompareArrows } from "lucide-react";
 import type { FleetVehicleView } from "../types";
 import { API_BASE_URL } from "../../config/env";
@@ -22,7 +22,7 @@ export function VehicleComparisonModal({
 
     try {
       const baseUrl =
-        API_BASE_URL || "";
+        API_BASE_URL;
       const response = await fetch(`${baseUrl}/api/compare-vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -217,3 +217,4 @@ function renderMarkdownToHtml(md: string): string {
 
   return result.join("\n");
 }
+

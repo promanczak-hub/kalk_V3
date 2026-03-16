@@ -6,6 +6,7 @@ import TabelaOponCrudPanel from "./TabelaOponCrud/TabelaOponCrudPanel";
 import GlobalSettingsPanel from "./GlobalSettingsPanel";
 import SamarMasterPanel from "./SamarMasterPanel";
 import ExcelDraftsPanel from "./ExcelDrafts/ExcelDraftsPanel";
+import TransportFeesPanel from "./TransportFeesCrud/TransportFeesPanel";
 
 export default function ControlCenter() {
   const [activeTab, setActiveTab] = useState(0);
@@ -19,6 +20,7 @@ export default function ControlCenter() {
           <Tab label="Tabela rabaty" />
           <Tab label="Tabele Napędy" />
           <Tab label="Tabela Opon" />
+          <Tab label="Opłaty Transportowe" />
           <Tab label="📝 Modele Wyceny (Draft)" sx={{ fontWeight: 700, color: "secondary.main" }} />
         </Tabs>
       </Box>
@@ -28,7 +30,8 @@ export default function ControlCenter() {
       {activeTab === 2 && <RabatyCrudPanel />}
       {activeTab === 3 && <EnginesCrudPanel />}
       {activeTab === 4 && <TabelaOponCrudPanel />}
-      {activeTab === 5 && <ExcelDraftsPanel />}
+      {activeTab === 5 && <TransportFeesPanel />}
+      {activeTab === 6 && <ExcelDraftsPanel />}
     </Box>
   );
 }

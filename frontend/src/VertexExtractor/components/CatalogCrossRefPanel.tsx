@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config/env";
 import {
   Loader2,
@@ -13,7 +13,7 @@ import {
   ExternalLink
 } from "lucide-react";
 
-const API = API_BASE_URL || "";
+const API = API_BASE_URL;
 
 interface CatalogItem {
   id: string;
@@ -65,6 +65,9 @@ export function CatalogCrossRefPanel({
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [modalSelectedIds, setModalSelectedIds] = useState<Set<string>>(new Set());
 
+  // Pre-fetched suggestions cache
+  const [prefetchedSuggestions, setPrefetchedSuggestions] = useState<CatalogItem[] | null>(null);
+
   // Fetch catalogs matching this vehicle's brand/model
   const fetchCatalogs = useCallback(async () => {
     setLoading(true);
@@ -94,7 +97,27 @@ export function CatalogCrossRefPanel({
     setHasLoaded(false);
     setResult(null);
     setError(null);
+    setPrefetchedSuggestions(null);
   }, [vehicleId, vehicleBrand, vehicleModel]);
+
+  // Pre-fetch suggestions in the background on mount
+  useEffect(() => {
+    let cancelled = false;
+    const prefetch = async () => {
+      try {
+        const res = await fetch(`${API}/api/catalogs/suggest?vehicle_id=${vehicleId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setPrefetchedSuggestions(data.catalogs || []);
+        }
+      } catch (err) {
+        console.error("Prefetch suggest error:", err);
+      }
+    };
+    prefetch();
+    return () => { cancelled = true; };
+  }, [vehicleId]);
 
   const toggleCatalog = (id: string) => {
     setSelectedIds((prev) => {
@@ -186,18 +209,27 @@ export function CatalogCrossRefPanel({
     }
   };
 
-  // Open Suggest Modal and fetch /api/catalogs/suggest
+  // Open Suggest Modal — use pre-fetched data if available
   const handleOpenSuggestModal = async () => {
     setShowSuggestModal(true);
+    setModalSelectedIds(new Set());
+
+    // If pre-fetched data is ready, use it instantly
+    if (prefetchedSuggestions !== null) {
+      setSuggestedCatalogs(prefetchedSuggestions);
+      setSuggestLoading(false);
+      return;
+    }
+
+    // Otherwise fetch now (fallback)
     setSuggestLoading(true);
     try {
       const res = await fetch(`${API}/api/catalogs/suggest?vehicle_id=${vehicleId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSuggestedCatalogs(data.catalogs || []);
-      // Pre-select already selected ones OR currently shown catalogs?
-      // Let's keep modalSelectedIds empty so user can pick NEW ones to add.
-      setModalSelectedIds(new Set());
+      const catalogs = data.catalogs || [];
+      setSuggestedCatalogs(catalogs);
+      setPrefetchedSuggestions(catalogs);
     } catch (err) {
       console.error("Suggest fetch error:", err);
     } finally {
@@ -251,7 +283,7 @@ export function CatalogCrossRefPanel({
             className="text-[10px] px-2.5 py-1 bg-sky-50 text-sky-700 border border-sky-200 rounded hover:bg-sky-100 transition-colors disabled:opacity-50 flex items-center gap-1"
             title="Enrichment z konfiguracji (card_summary)"
           >
-            📋 Z konfiguracji
+            đź“‹ Z konfiguracji
           </button>
           <button
             onClick={handleOpenSuggestModal}
@@ -293,7 +325,7 @@ export function CatalogCrossRefPanel({
         {loading && (
           <div className="flex items-center justify-center py-4 text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            <span className="text-xs">Ładowanie katalogów...</span>
+            <span className="text-xs">{"Ładowanie katalogów..."}</span>
           </div>
         )}
 
@@ -547,3 +579,4 @@ export function CatalogCrossRefPanel({
     </div>
   );
 }
+

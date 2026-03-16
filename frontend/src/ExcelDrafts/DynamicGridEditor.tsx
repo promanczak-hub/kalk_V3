@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Snackbar,
@@ -47,21 +47,21 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
   const fetchSheet = useCallback(async () => {
     setLoading(true);
     try {
-      const classesRes = await fetch(`${API_BASE_URL || ""}/api/samar-classes`);
+      const classesRes = await fetch(`${API_BASE_URL}/api/samar-classes`);
       let classNames: string[] = [];
       if (classesRes.ok) {
         const classData = await classesRes.json();
         classNames = classData.map((c: any) => c.name);
       }
       
-      const bodyTypesRes = await fetch(`${API_BASE_URL || ""}/api/body-types`);
+      const bodyTypesRes = await fetch(`${API_BASE_URL}/api/body-types`);
       let bodyTypeNames: string[] = [];
       if (bodyTypesRes.ok) {
         const bodyTypes = await bodyTypesRes.json();
         bodyTypeNames = bodyTypes.map((b: any) => `${b.vehicle_class} - ${b.name}`);
       }
 
-      const res = await fetch(`${API_BASE_URL || ""}/api/excel-drafts/${encodeURIComponent(sheetName)}`);
+      const res = await fetch(`${API_BASE_URL}/api/excel-drafts/${encodeURIComponent(sheetName)}`);
       if (!res.ok) {
         throw new Error("Failed to fetch sheet");
       }
@@ -148,3 +148,4 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
     </Box>
   );
 }
+

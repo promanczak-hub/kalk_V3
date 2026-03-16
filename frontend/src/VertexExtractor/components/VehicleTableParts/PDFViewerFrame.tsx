@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { Loader2, AlertCircle } from "lucide-react";
 import { API_BASE_URL } from "../../../config/env";
@@ -25,7 +25,7 @@ export function PDFViewerFrame({ url }: PDFViewerFrameProps) {
 
       try {
         const safeUrl = url.startsWith("http")
-          ? `${API_BASE_URL || ""}/api/pdf-proxy?url=${encodeURIComponent(url)}`
+          ? `${API_BASE_URL}/api/pdf-proxy?url=${encodeURIComponent(url)}`
           : url;
         const loadingTask = pdfjsLib.getDocument(safeUrl);
         const pdf = await loadingTask.promise;
@@ -83,7 +83,7 @@ export function PDFViewerFrame({ url }: PDFViewerFrameProps) {
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-2" />
-          <span className="text-sm text-slate-600 font-medium">Ładowanie dokumentu...</span>
+          <span className="text-sm text-slate-600 font-medium">{"Ładowanie dokumentu..."}</span>
         </div>
       )}
       
@@ -107,3 +107,4 @@ export function PDFViewerFrame({ url }: PDFViewerFrameProps) {
     </div>
   );
 }
+

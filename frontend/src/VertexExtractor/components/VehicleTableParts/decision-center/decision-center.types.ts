@@ -3,6 +3,7 @@
 export interface MiniMatrixCell {
   Okres: number;
   Przebieg: number;
+  PrzebiegKontrakt?: number;
   LacznaStawka: number;
   CzynszFinansowy: number;
   CzynszTechniczny: number;
@@ -47,6 +48,10 @@ export interface MiniMatrixCell {
   KorektaWRMaks: number;
   ReportHtml: string;
   status: string;
+  warnings?: {
+    service_fallback_used?: boolean;
+    replacement_car_missing?: boolean;
+  };
 }
 
 export interface MarginTier {

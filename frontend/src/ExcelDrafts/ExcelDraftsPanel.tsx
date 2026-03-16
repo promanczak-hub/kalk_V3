@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Box, Tabs, Tab, CircularProgress, Typography } from "@mui/material";
 import DynamicGridEditor from "./DynamicGridEditor";
 import { API_BASE_URL } from "../config/env";
+import PaintTypesCrudPanel from "../PaintTypesCrud/PaintTypesCrudPanel";
 
 export default function ExcelDraftsPanel() {
   const [activeTab, setActiveTab] = useState(0);
@@ -11,7 +12,7 @@ export default function ExcelDraftsPanel() {
   useEffect(() => {
     const fetchSheets = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL || ""}/api/excel-drafts`);
+        const res = await fetch(`${API_BASE_URL}/api/excel-drafts`);
         if (res.ok) {
           const data = await res.json();
           setSheets(data);
@@ -41,6 +42,8 @@ export default function ExcelDraftsPanel() {
     );
   }
 
+  const currentSheetName = sheets[activeTab]?.sheet_name;
+
   return (
     <Box sx={{ width: "100%", typography: "body1" }}>
       <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
@@ -57,8 +60,13 @@ export default function ExcelDraftsPanel() {
       </Box>
 
       <Box sx={{ mt: 2 }}>
-        <DynamicGridEditor sheetName={sheets[activeTab].sheet_name} />
+        {currentSheetName === "KOLOR" ? (
+          <PaintTypesCrudPanel />
+        ) : (
+          <DynamicGridEditor sheetName={currentSheetName} />
+        )}
       </Box>
     </Box>
   );
 }
+

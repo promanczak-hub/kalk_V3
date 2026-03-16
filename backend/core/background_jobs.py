@@ -373,11 +373,12 @@ def process_and_save_document_bg(
 
                 cat_doc_id = str(uuid.uuid4())
 
+                db_doc_type = "price_list" if doc_type == "PRICE_LIST" else "catalog"
                 mds_payload = {
                     "id": cat_doc_id,
                     "brand": doc_meta.get("brand", "") or "Unknown",
                     "model_family": doc_meta.get("model", "") or "Unknown",
-                    "document_type": doc_type,
+                    "document_type": db_doc_type,
                     "display_name": file_name,
                     "is_active": True,
                     "file_type": ext,

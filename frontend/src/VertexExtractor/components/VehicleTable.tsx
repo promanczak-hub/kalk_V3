@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Database, Info, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { FleetVehicleView } from "../types";
@@ -88,7 +88,7 @@ export function VehicleTable({
 
     try {
       const baseUrl =
-        API_BASE_URL || "";
+        API_BASE_URL;
       const response = await fetch(
         `${baseUrl}/api/delete-vehicles-batch`,
         {
@@ -277,3 +277,4 @@ export function VehicleTable({
     </div>
   );
 }
+

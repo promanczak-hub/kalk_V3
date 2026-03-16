@@ -435,6 +435,13 @@ class ServiceOptionDigitalTwin(BaseModel):
     )
 
 
+class ServiceOptionExtractionResult(BaseModel):
+    service_options: list[ServiceOptionDigitalTwin] = Field(
+        default_factory=list,
+        description="Lista wszystkich opcji serwisowych i zabudów wykrytych w dokumencie.",
+    )
+
+
 # --- V3 BROCHURE EXTRACTOR SCHEMA ---
 
 

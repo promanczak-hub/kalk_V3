@@ -12,6 +12,7 @@ def test_calculate_matrix_sanity():
         okres_bazowy=48,
         przebieg_bazowy=80000,  # 20k/year
         service_cost_type="ASO",
+        replacement_car_enabled=False,
     )
     from types import SimpleNamespace
 
@@ -27,6 +28,7 @@ def test_calculate_matrix_sanity():
         ins_avg_damage_mileage=30000.0,
         car_daily_cost=30.4,
         cost_marketing_monthly=100.0,
+        normatywny_przebieg_mc=1667,
     )
 
     with (
@@ -54,7 +56,10 @@ def test_calculate_matrix_sanity():
                 for i in range(1, 8)
             ],
         ),
-        patch("core.LTRKalkulator.get_damage_coefficients_from_db", return_value={}),
+        patch(
+            "core.LTRKalkulator.get_damage_coefficients_from_db",
+            return_value={"WspSredniPrzebieg": 1.0, "WspWartoscSzkody": 1.0},
+        ),
         patch("core.LTRKalkulator.get_replacement_car_rate_from_db", return_value={}),
         patch(
             "core.LTRSubCalculatorSerwisNew.get_service_rate_from_db",
@@ -76,14 +81,18 @@ def test_calculate_matrix_sanity():
         ),
         patch(
             "core.samar_rv.SamarRVCalculator._fetch_class_config",
-            return_value={"name": "mock"},
+            return_value={
+                "base_mileage_km": 140000,
+                "mileage_threshold_km": 190000,
+                "base_period_months": 48,
+            },
         ),
         patch(
             "core.samar_rv.SamarRVCalculator.fetch_color_correction", return_value=0.0
         ),
         patch(
             "core.samar_rv.SamarRVCalculator.fetch_body_correction",
-            return_value=(0.0, 0.0),
+            return_value=0.0,
         ),
         patch(
             "core.samar_rv.SamarRVCalculator.fetch_vintage_correction", return_value=0.0
@@ -110,10 +119,10 @@ def test_calculate_matrix_sanity():
     # Ensure our specific 48m/20k pair was injected
     found_custom = False
     for cell in cells:
-        assert "months" in cell
-        assert "km_per_year" in cell
-        assert "price_net" in cell
-        if cell["months"] == 48 and cell["km_per_year"] == 20000:
+        assert "Okres" in cell
+        assert "Przebieg" in cell
+        assert "LacznaStawka" in cell
+        if cell["Okres"] == 48 and cell["Przebieg"] == 20000:
             found_custom = True
 
     assert found_custom, (

@@ -28,6 +28,7 @@ import { VehicleManualOverrideModal } from "./VehicleManualOverrideModal";
 import { PDFViewerFrame } from "./PDFViewerFrame";
 import { MarkdownViewerModal } from "../MarkdownViewerModal";
 import { VehicleRowCalculations } from "./VehicleRowCalculations";
+import { CatalogCrossRefPanel } from "../CatalogCrossRefPanel";
 
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
@@ -470,7 +471,9 @@ export function VehicleRowCard({
   };
   const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
     ?.card_summary?.drive_type as string | undefined;
-  const detectedDriveType = rawDriveType ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType) : "";
+  const detectedDriveType = rawDriveType
+    ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
+    : "";
   const driveType = mappedData?.drive_type || detectedDriveType;
 
   const handleSamarCategoryChange = async (newCategory: string) => {
@@ -559,12 +562,27 @@ export function VehicleRowCard({
   };
 
   const handleBodyTypeChange = async (newBodyType: string) => {
+    const rawCandidate = (newBodyType || "").trim();
+    if (!rawCandidate) return;
+
     try {
+      let canonicalBodyType = rawCandidate;
+
+      const matchResp = await apiFetch(`/api/match-body-type?body_style_raw=${encodeURIComponent(rawCandidate)}`);
+      if (matchResp.ok) {
+        const match = await matchResp.json();
+        if (match?.matched_name) {
+          canonicalBodyType = match.matched_name;
+        } else {
+          console.warn("Body type not found in dictionary, keeping manual value:", rawCandidate);
+        }
+      }
+
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
       if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      updatedJson.mapped_ai_data.body_type = newBodyType;
+      updatedJson.mapped_ai_data.body_type = canonicalBodyType;
 
       const { error } = await supabase
         .from("vehicle_synthesis")
@@ -575,11 +593,11 @@ export function VehicleRowCard({
 
       setLocalMappedData((prev) => ({
         ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
-        body_type: newBodyType,
+        body_type: canonicalBodyType,
       }));
     } catch (err) {
       console.error("Error updating body type", err);
-      alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
+      alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany błąd"));
     }
   };
 
@@ -673,57 +691,93 @@ export function VehicleRowCard({
     }
   };
 
+  const inferBodyworkFromOption = (
+  name: string,
+  effects?: ModificationEffect | null,
+  components?: string[]
+): { bodyType: string; zabudowaTypeName: string; samarOverride: string } | null => {
+  const joinedComponents = Array.isArray(components) ? components.join(" ") : "";
+  const combined = `${name || ""} ${joinedComponents} ${effects?.override_samar_class || ""} ${effects?.override_homologation || ""}`.toLowerCase();
+  if (combined.includes("kontener")) return { bodyType: "Kontener", zabudowaTypeName: "Kontener", samarOverride: "Kontener" };
+  if (combined.includes("izoterma")) return { bodyType: "Izoterma", zabudowaTypeName: "Izoterma", samarOverride: "Izoterma" };
+  if (combined.includes("chłodnia") || combined.includes("chlodnia")) return { bodyType: "Chłodnia", zabudowaTypeName: "Chłodnia", samarOverride: "Chłodnia" };
+  if (combined.includes("skrzyn")) return { bodyType: "Skrzynia", zabudowaTypeName: "Skrzynia", samarOverride: "Skrzyniowy" };
+  if (combined.includes("plandek")) return { bodyType: "Skrzynia", zabudowaTypeName: "Plandeka", samarOverride: "Skrzyniowy" };
+  if (combined.includes("autolawet") || combined.includes("laweta")) return { bodyType: "Autolaweta", zabudowaTypeName: "Autolaweta", samarOverride: "Autolaweta" };
+  return null;
+};
+
   const handleServiceOptionExtracted = async (extractedOption: ExtractedServiceOption) => {
     try {
+      const inferredBodywork = inferBodyworkFromOption(extractedOption.name, extractedOption.effects, extractedOption.description_or_components);
+      const mergedEffects: ModificationEffect | undefined = inferredBodywork
+        ? {
+            ...(extractedOption.effects || {}),
+            override_samar_class: extractedOption.effects?.override_samar_class || inferredBodywork.samarOverride,
+            is_financial_only: extractedOption.effects?.is_financial_only ?? false,
+          }
+        : (extractedOption.effects || undefined);
+
       const newOption = {
         id: crypto.randomUUID(),
         name: extractedOption.name,
         category: "Opcja Serwisowa",
-        price_net: extractedOption.net_price,
-        effects: extractedOption.effects || undefined
+        price_net: Number(extractedOption.net_price) || 0,
+        effects: mergedEffects,
       };
 
-      setCustomServiceOptions(prev => [...prev, newOption]);
+      setCustomServiceOptions((prev) => [...prev, newOption]);
 
-      if (extractedOption.effects) {
-        const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-        const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-        if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-        if (extractedOption.effects.override_samar_class) {
-           updatedJson.mapped_ai_data.samar_category = extractedOption.effects.override_samar_class;
-        }
-        if (extractedOption.effects.override_homologation) {
-           updatedJson.mapped_ai_data.vehicle_type = extractedOption.effects.override_homologation;
-        }
+      const shouldPersistVehicleShape = Boolean(
+        mergedEffects?.override_samar_class ||
+        mergedEffects?.override_homologation ||
+        inferredBodywork
+      );
+
+      if (!shouldPersistVehicleShape) return;
+
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      if (!updatedJson.card_summary) updatedJson.card_summary = {};
+
+      if (mergedEffects?.override_samar_class) {
+        updatedJson.mapped_ai_data.samar_category = mergedEffects.override_samar_class;
+      }
+      if (mergedEffects?.override_homologation) {
+        updatedJson.mapped_ai_data.vehicle_type = mergedEffects.override_homologation;
       }
 
-      if (extractedOption.effects && (extractedOption.effects.override_samar_class || extractedOption.effects.override_homologation)) {
-        const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-        const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-
-        if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-        if (extractedOption.effects.override_samar_class) {
-           updatedJson.mapped_ai_data.samar_category = extractedOption.effects.override_samar_class;
-        }
-        if (extractedOption.effects.override_homologation) {
-           updatedJson.mapped_ai_data.vehicle_type = extractedOption.effects.override_homologation;
-        }
-
-        const { error } = await supabase
-          .from("vehicle_synthesis")
-          .update({ synthesis_data: updatedJson })
-          .eq("id", vehicle.id);
-
-        if (error) throw error;
-        onRefresh();
+      if (inferredBodywork) {
+        updatedJson.mapped_ai_data.body_type = inferredBodywork.bodyType;
+        updatedJson.card_summary.body_style = inferredBodywork.bodyType;
+        updatedJson.zabudowa_type_name = inferredBodywork.zabudowaTypeName;
+        updatedJson.card_summary.zabudowa_type_name = inferredBodywork.zabudowaTypeName;
+        updatedJson.zabudowa_apr_wr = true;
       }
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson, zabudowa_apr_wr: true })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+      onRefresh();
     } catch (err) {
       console.error("Error saving extracted service option", err);
-      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
+      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
     }
   };
 
-  const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">("offer");
+  const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
+    const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+    const offerPct = Number(cs?.offer_discount_pct ?? 0);
+    const suggestedPct = Number(vehicle.suggested_discount_pct ?? 0);
+
+    if (Number.isFinite(offerPct) && offerPct > 0) return "offer";
+    if (Number.isFinite(suggestedPct) && suggestedPct > 0) return "suggested";
+    return "offer";
+  });
   const [customDiscountPctRaw, setCustomDiscountPctRaw] = useState<string | number>("");
 
   const customDiscountPct = Number(customDiscountPctRaw) || 0;
@@ -732,6 +786,18 @@ export function VehicleRowCard({
 
   // AI-extracted raw string for comparison display
   const aiExtractedBasePrice = vehicle.base_price || null;
+  const AI_PRICE_ALERT_THRESHOLD_PLN = 10;
+  const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
+  const aiBasePriceNet = aiExtractedBasePrice?.toLowerCase().includes("netto")
+    ? aiBasePriceRaw
+    : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
+  const aiBasePriceDeltaPln = Math.abs(catalogBasePriceNet - aiBasePriceNet);
+  const requireManualPriceReview = Boolean(
+    aiExtractedBasePrice && aiBasePriceNet > 0 && aiBasePriceDeltaPln > AI_PRICE_ALERT_THRESHOLD_PLN
+  );
+  const calculationBlockReason = requireManualPriceReview
+    ? `Różnica ceny bazowej względem AI wynosi ${aiBasePriceDeltaPln.toFixed(2)} PLN (limit ${AI_PRICE_ALERT_THRESHOLD_PLN} PLN). Zweryfikuj ręcznie i skoryguj cenę.`
+    : null;
 
   // Detect source price domain (netto vs brutto) from AI-extracted string
   const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
@@ -1030,7 +1096,10 @@ export function VehicleRowCard({
               handleAddManualFactoryOption={handleAddManualFactoryOption}
               activeDiscountPct={activeDiscountPct}
             />
-            <VehicleFeaturesCard vehicleId={vehicle.id} />
+            <VehicleFeaturesCard
+              vehicleId={vehicle.id}
+              vehicleTypeHint={localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class}
+            />
             <CatalogCrossRefPanel
               vehicleId={vehicle.id}
               vehicleBrand={vehicle.brand || undefined}
@@ -1046,6 +1115,9 @@ export function VehicleRowCard({
              catalogBasePriceNet={catalogBasePriceNet}
              setCatalogBasePriceNet={setCatalogBasePriceNet}
              aiExtractedBasePrice={aiExtractedBasePrice}
+             aiPriceAlertThresholdPln={AI_PRICE_ALERT_THRESHOLD_PLN}
+             requireManualPriceReview={requireManualPriceReview}
+             priceDeltaFromAiPln={aiBasePriceDeltaPln}
              discountableOptionsTotal={discountableOptionsTotal}
              nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
              serviceOptionsTotal={customServiceOptionsPriceTotal}
@@ -1185,6 +1257,7 @@ export function VehicleRowCard({
                setIsViewerOpen={setIsViewerOpen}
                isMarkdownOpen={isMarkdownOpen}
                setIsMarkdownOpen={setIsMarkdownOpen}
+                calculationBlockReason={calculationBlockReason}
                onCalculationCreated={(id, numer) => {
                  setActiveKalkulacjaId(id);
                  setActiveKalkulacjaNumer(numer);
@@ -1212,6 +1285,7 @@ export function VehicleRowCard({
               <VehicleRowCalculations
                 kalkulacjaId={activeKalkulacjaId}
                 kalkulacjaNumer={activeKalkulacjaNumer}
+                vehicleId={vehicle.id}
                 vehicleName={`${vehicle.brand || "?"} ${vehicle.model}`}
                 powertrain={mappedData?.fuel ? `${mappedData.fuel} ${mappedData.engine_class || ""}`.trim() : (vehicle.powertrain || "")}
                 offerNumber={vehicle.offer_number || ""}
@@ -1240,3 +1314,6 @@ export function VehicleRowCard({
     </div>
   );
 }
+
+
+

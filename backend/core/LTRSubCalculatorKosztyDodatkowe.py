@@ -21,7 +21,7 @@ class AdditionalCostsCalculator:
             total += abonament + urzadzenie + montaz
             trace.append({
                 "krok": "K.Dodatkowe: GPS/GSM",
-                "rownanie": f"Abonament: {self.settings.cost_gsm_subscription_monthly:.2f} * {self.months} + Urządzenie {self.settings.cost_gsm_device:.2f}/6*(lat) + Montaż {montaz:.2f}",
+                "rownanie": f"Abonament: {self.settings.cost_gsm_subscription_monthly:.2f} * {self.months} + Urządzenie {self.settings.cost_gsm_device:.2f}/6.0(lat) + Montaż {montaz:.2f}",
                 "wynik": abonament + urzadzenie + montaz
             })
 
@@ -43,15 +43,16 @@ class AdditionalCostsCalculator:
                 "wynik": self.settings.cost_grid_dismantling
             })
 
-        # Rejestracja / Karta (Zawsze doliczana w LTR, brak ukrytego checkboxa)
-        total += self.settings.cost_registration
-        trace.append({
-            "krok": "K.Dodatkowe: Rejestracja",
-            "rownanie": f"Zawsze doliczana rejestracja z bazy: {self.settings.cost_registration:.2f}",
-            "wynik": self.settings.cost_registration
-        })
+        # Rejestracja / Karta (ON/OFF z payloadu, domyslnie ON)
+        if not hasattr(self.input_data, "add_registration") or self.input_data.add_registration:
+            total += self.settings.cost_registration
+            trace.append({
+                "krok": "K.Dodatkowe: Rejestracja",
+                "rownanie": f"Kwota z bazy: {self.settings.cost_registration:.2f}",
+                "wynik": self.settings.cost_registration
+            })
 
-        # Przygotowanie do Sprzedaży: stały koszt 1040 PLN netto + opcjonalna korekta
+        # Przygotowanie do Sprzedaży: stały koszt netto z Control Center + opcjonalna korekta
         if (
             hasattr(self.input_data, "add_sales_prep")
             and self.input_data.add_sales_prep

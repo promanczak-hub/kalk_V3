@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -17,7 +17,7 @@ import {
 import { Save as SaveIcon } from "@mui/icons-material";
 import { API_BASE_URL } from "../config/env";
 
-const BASE_URL = API_BASE_URL || "";
+const BASE_URL = API_BASE_URL;
 
 interface BaseRVRate {
   id?: number;
@@ -154,3 +154,4 @@ export default function BaseRVCrudPanel({
     </Box>
   );
 }
+

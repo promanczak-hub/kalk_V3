@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { SlidersHorizontal, RotateCcw, Gauge, Route, Percent } from "lucide-react";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -9,9 +9,14 @@ export interface MatrixFilters {
   globalMarginPct: number;
 }
 
+export type MileageMode = "annual" | "contract";
+
 interface MatrixFilterToolbarProps {
   defaultMarginPct: number;
   filters: MatrixFilters;
+  mileageMode: MileageMode;
+  onMileageModeChange: (mode: MileageMode) => void;
+  referenceMonths: number;
   onFiltersChange: (f: MatrixFilters) => void;
   onMarginRecalculate: (marginPct: number) => void;
   onExactRecalculate: (months: number, kmPerYear: number, marginPct: number) => void;
@@ -221,6 +226,9 @@ function SingleSlider({
 export function MatrixFilterToolbar({
   defaultMarginPct,
   filters,
+  mileageMode,
+  onMileageModeChange,
+  referenceMonths,
   onFiltersChange,
   onMarginRecalculate,
   onExactRecalculate,
@@ -233,6 +241,32 @@ export function MatrixFilterToolbar({
   const [exactMonths, setExactMonths] = useState<string>("48");
   const [exactKm, setExactKm] = useState<string>("40000");
   const [exactMargin, setExactMargin] = useState<string>(defaultMarginPct.toFixed(2));
+
+  const safeReferenceMonths = referenceMonths > 0 ? referenceMonths : 48;
+  const prevMileageModeRef = useRef<MileageMode>(mileageMode);
+
+  useEffect(() => {
+    if (prevMileageModeRef.current === mileageMode) return;
+
+    const m = Math.max(parseInt(exactMonths, 10) || 48, 1);
+    const currentKm = parseInt(exactKm, 10);
+    if (!isNaN(currentKm) && currentKm > 0) {
+      const convertedKm = mileageMode === "contract"
+        ? Math.round((currentKm / 12) * m)
+        : Math.round((currentKm / m) * 12);
+      setExactKm(String(convertedKm));
+    }
+
+    prevMileageModeRef.current = mileageMode;
+  }, [mileageMode, exactMonths, exactKm]);
+
+  const sliderMin = mileageMode === "contract"
+    ? Math.round((KM_MIN / 12) * safeReferenceMonths)
+    : KM_MIN;
+  const sliderMax = mileageMode === "contract"
+    ? Math.round((KM_MAX / 12) * safeReferenceMonths)
+    : KM_MAX;
+  const sliderStep = mileageMode === "contract" ? 10_000 : KM_STEP;
 
   const update = (partial: Partial<MatrixFilters>) => {
     onFiltersChange({ ...filters, ...partial });
@@ -270,19 +304,38 @@ export function MatrixFilterToolbar({
 
   const handleExactRecalculateClick = () => {
     const m = parseInt(exactMonths, 10);
-    const k = parseInt(exactKm, 10);
+    const inputKm = parseInt(exactKm, 10);
     const mar = parseFloat(exactMargin);
-    if (!isNaN(m) && !isNaN(k) && !isNaN(mar)) {
-      onExactRecalculate(m, k, mar);
-    }
+    if (isNaN(m) || isNaN(inputKm) || isNaN(mar) || m <= 0) return;
+
+    const kmPerYear = mileageMode === "contract"
+      ? Math.round((inputKm / m) * 12)
+      : inputKm;
+
+    onExactRecalculate(m, kmPerYear, mar);
   };
 
-  // Km range display
+  const sliderValue = filters.targetKmPerYear !== null
+    ? (mileageMode === "contract"
+      ? Math.round((filters.targetKmPerYear / 12) * safeReferenceMonths)
+      : filters.targetKmPerYear)
+    : (mileageMode === "contract"
+      ? Math.round((60_000 / 12) * safeReferenceMonths)
+      : 60_000);
+
   const kmLow = filters.targetKmPerYear
-    ? Math.round(filters.targetKmPerYear * (1 - KM_MARGIN_PCT))
+    ? Math.round(
+      (mileageMode === "contract"
+        ? (filters.targetKmPerYear / 12) * safeReferenceMonths
+        : filters.targetKmPerYear) * (1 - KM_MARGIN_PCT)
+    )
     : null;
   const kmHigh = filters.targetKmPerYear
-    ? Math.round(filters.targetKmPerYear * (1 + KM_MARGIN_PCT))
+    ? Math.round(
+      (mileageMode === "contract"
+        ? (filters.targetKmPerYear / 12) * safeReferenceMonths
+        : filters.targetKmPerYear) * (1 + KM_MARGIN_PCT)
+    )
     : null;
 
   const isFiltered =
@@ -329,7 +382,7 @@ export function MatrixFilterToolbar({
               Okres
             </span>
             <span className="ml-auto text-[10px] font-bold text-blue-700 tabular-nums">
-              {filters.monthsRange[0]}–{filters.monthsRange[1]} mc
+              {filters.monthsRange[0]}-{filters.monthsRange[1]} mc
             </span>
           </div>
           <DualRangeSlider
@@ -343,51 +396,72 @@ export function MatrixFilterToolbar({
           />
         </div>
 
-        {/* 2. Km/year slider with ±5% margin */}
+        {/* 2. Mileage slider with +/-5% margin */}
         <div className="px-5 py-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-2">
             <div className="flex items-center gap-1.5">
               <Route className="w-3.5 h-3.5 text-emerald-500" />
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Przebieg roczny
+                {mileageMode === "contract" ? "Przebieg kontraktowy" : "Przebieg roczny"}
               </span>
             </div>
-            <button
-              onClick={handleKmToggle}
-              className={`text-[9px] font-bold px-2.5 py-0.5 rounded-full transition-all ${
-                kmActive
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-              }`}
-            >
-              {kmActive ? "Aktywny ✓" : "Włącz"}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-md border border-slate-200 overflow-hidden bg-white">
+                <button
+                  type="button"
+                  onClick={() => onMileageModeChange("annual")}
+                  className={`px-2 py-0.5 text-[9px] font-bold uppercase ${mileageMode === "annual" ? "bg-emerald-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Roczny
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onMileageModeChange("contract")}
+                  className={`px-2 py-0.5 text-[9px] font-bold uppercase ${mileageMode === "contract" ? "bg-emerald-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Kontrakt
+                </button>
+              </div>
+              <button
+                onClick={handleKmToggle}
+                className={`text-[9px] font-bold px-2.5 py-0.5 rounded-full transition-all ${
+                  kmActive
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                }`}
+              >
+                {kmActive ? "Aktywny" : "Wlacz"}
+              </button>
+            </div>
           </div>
 
           {kmActive && filters.targetKmPerYear !== null ? (
             <>
               <SingleSlider
-                min={KM_MIN}
-                max={KM_MAX}
-                step={KM_STEP}
-                value={filters.targetKmPerYear}
-                onChange={(v) => update({ targetKmPerYear: v })}
-                formatValue={(v) => `${fmtKm(v)} km/rok`}
+                min={sliderMin}
+                max={sliderMax}
+                step={sliderStep}
+                value={sliderValue}
+                onChange={(v) => update({ targetKmPerYear: mileageMode === "contract" ? Math.round((v / safeReferenceMonths) * 12) : v })}
+                formatValue={(v) => `${fmtKm(v)} ${mileageMode === "contract" ? "km/kontrakt" : "km/rok"}`}
                 fillColor="from-emerald-400 to-emerald-600"
                 thumbColor="border-emerald-600"
               />
               <div className="text-center mt-1">
                 <span className="text-[9px] text-slate-400 font-medium">
-                  Margines ±5%:{" "}
+                  Margines +/-5%:{" "}
                   <span className="font-bold text-emerald-600">
-                    {fmtKm(kmLow!)} – {fmtKm(kmHigh!)} km/rok
+                    {fmtKm(kmLow!)} - {fmtKm(kmHigh!)} {mileageMode === "contract" ? "km/kontrakt" : "km/rok"}
                   </span>
                 </span>
+                {mileageMode === "contract" && (
+                  <div className="text-[9px] text-slate-400 mt-0.5">dla {safeReferenceMonths} mc</div>
+                )}
               </div>
             </>
           ) : (
             <div className="flex items-center justify-center h-16 text-[10px] text-slate-300 font-medium">
-              Filtr wyłączony — pokazuj wszystkie przebiegi
+              Filtr wylaczony - pokazuj wszystkie przebiegi
             </div>
           )}
         </div>
@@ -504,16 +578,18 @@ export function MatrixFilterToolbar({
               />
             </div>
             <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1 shadow-sm">
-              <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactKm">Przebieg (km/rok):</label>
+              <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactKm">
+                {mileageMode === "contract" ? "Przebieg (km/kontrakt):" : "Przebieg (km/rok):"}
+              </label>
               <input
                 id="exactKm"
                 type="number"
-                min="10000"
-                max="200000"
-                step="1000"
+                min={mileageMode === "contract" ? 10000 : 10000}
+                max={mileageMode === "contract" ? 600000 : 200000}
+                step={mileageMode === "contract" ? 10000 : 1000}
                 value={exactKm}
                 onChange={(e) => setExactKm(e.target.value)}
-                className="w-16 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
+                className="w-20 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
               />
             </div>
             <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1 shadow-sm">

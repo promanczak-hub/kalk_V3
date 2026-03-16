@@ -11,7 +11,9 @@ import {
   CircularProgress,
   Alert,
   Typography,
-  Chip
+  Chip,
+  Button,
+  TextField
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import { supabase } from '../VertexExtractor/lib/supabaseClient';
@@ -42,6 +44,9 @@ interface ThresholdField {
   fallback: number;
 }
 
+const TYRE_SERVICE_COST_KEYS = ['cost_tyre_swap', 'cost_tyre_storage'] as const;
+type TyreServiceCostKey = (typeof TYRE_SERVICE_COST_KEYS)[number];
+
 // ---------------------------------------------------------------------------
 // Threshold field definitions (driven by data, not hardcoded logic)
 // ---------------------------------------------------------------------------
@@ -62,12 +67,14 @@ const SEASONAL_FIELDS: ThresholdField[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Thresholds sub-component (READ-ONLY)
+// Thresholds sub-component
 // ---------------------------------------------------------------------------
 
 function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) {
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
   const [loadingThresholds, setLoadingThresholds] = useState(true);
+  const [savingServiceCosts, setSavingServiceCosts] = useState(false);
+  const [serviceCostsSaved, setServiceCostsSaved] = useState(false);
 
   const fetchThresholds = useCallback(async () => {
     setLoadingThresholds(true);
@@ -81,12 +88,18 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
       }
       const map: Record<string, number> = {};
       for (const row of data ?? []) {
-        map[row.config_key] = parseFloat(row.config_value);
+        const key = String(row.config_key ?? '').trim();
+        if (!key) continue;
+        const value = parseFloat(String(row.config_value ?? '0').replace(',', '.'));
+        map[key] = Number.isFinite(value) ? value : 0;
       }
-      // Apply fallbacks for any missing keys
+      // Apply fallbacks for any missing threshold keys
       for (const f of [...ALL_SEASON_FIELDS, ...SEASONAL_FIELDS]) {
         if (!(f.key in map)) map[f.key] = f.fallback;
       }
+      // Service costs should exist in DB, but keep numeric safety in UI
+      if (!('cost_tyre_swap' in map)) map.cost_tyre_swap = 0;
+      if (!('cost_tyre_storage' in map)) map.cost_tyre_storage = 0;
       setThresholds({ ...map });
     } catch (e) {
       onError(String(e));
@@ -98,6 +111,37 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
   useEffect(() => {
     fetchThresholds();
   }, [fetchThresholds]);
+
+  const handleServiceCostChange = (key: TyreServiceCostKey, rawValue: string) => {
+    const parsed = parseFloat(rawValue.replace(',', '.'));
+    const next = Number.isFinite(parsed) ? parsed : 0;
+    setThresholds((prev) => ({ ...prev, [key]: next }));
+    setServiceCostsSaved(false);
+  };
+
+  const saveServiceCosts = async () => {
+    try {
+      setSavingServiceCosts(true);
+      setServiceCostsSaved(false);
+      const payload = TYRE_SERVICE_COST_KEYS.map((key) => ({
+        config_key: key,
+        config_value: String(thresholds[key] ?? 0),
+      }));
+      const { error } = await supabase
+        .from('tyre_configurations')
+        .upsert(payload, { onConflict: 'config_key' });
+      if (error) {
+        onError(error.message);
+        return;
+      }
+      setServiceCostsSaved(true);
+      setTimeout(() => setServiceCostsSaved(false), 2500);
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      setSavingServiceCosts(false);
+    }
+  };
 
   if (loadingThresholds) {
     return (
@@ -129,31 +173,55 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
         <Typography variant="h6" sx={{ fontSize: '1rem' }}>
           📏 Progi przebiegowe opon
         </Typography>
-        <Chip icon={<LockIcon />} label="ZAMROŻONE" size="small" color="default" variant="outlined" />
+        <Chip icon={<LockIcon />} label="Progi: zamrożone" size="small" color="default" variant="outlined" />
       </Box>
       <Box display="flex" flexDirection="column" gap={2}>
         {renderGroup('🛞 Opony wielosezonowe', ALL_SEASON_FIELDS)}
         {renderGroup('❄️ Opony sezonowe (letnie/zimowe)', SEASONAL_FIELDS)}
       </Box>
 
-      {/* Koszty serwisu opon — z tyre_configurations */}
+      {/* Koszty serwisu opon — editable CRUD */}
       <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
-          🔧 Koszty serwisu opon (netto)
-        </Typography>
-        <Box display="grid" gridTemplateColumns="repeat(2, 1fr)" gap={2}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: 'grey.100', borderRadius: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>Przekładka (za komplet):</Typography>
-            <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>
-              {(thresholds['cost_tyre_swap'] ?? 0).toLocaleString('pl-PL')} PLN
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+            🔧 Koszty serwisu opon (netto)
+          </Typography>
+          <Chip label="EDYTOWALNE" size="small" color="success" variant="outlined" />
+        </Box>
+
+        <Box display="grid" gridTemplateColumns="repeat(2, minmax(220px, 1fr))" gap={2}>
+          <TextField
+            type="number"
+            size="small"
+            label="Przekładka (za komplet)"
+            value={thresholds.cost_tyre_swap ?? 0}
+            onChange={(e) => handleServiceCostChange('cost_tyre_swap', e.target.value)}
+            inputProps={{ step: '0.01', min: '0' }}
+          />
+          <TextField
+            type="number"
+            size="small"
+            label="Przechowywanie (za sezon)"
+            value={thresholds.cost_tyre_storage ?? 0}
+            onChange={(e) => handleServiceCostChange('cost_tyre_storage', e.target.value)}
+            inputProps={{ step: '0.01', min: '0' }}
+          />
+        </Box>
+
+        <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1.5} mt={2}>
+          {serviceCostsSaved && (
+            <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+              Zapisano
             </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: 'grey.100', borderRadius: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>Przechowywanie (za sezon):</Typography>
-            <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>
-              {(thresholds['cost_tyre_storage'] ?? 0).toLocaleString('pl-PL')} PLN
-            </Typography>
-          </Box>
+          )}
+          <Button
+            variant="contained"
+            size="small"
+            onClick={saveServiceCosts}
+            disabled={savingServiceCosts}
+          >
+            {savingServiceCosts ? 'Zapisywanie...' : 'Zapisz koszty opon'}
+          </Button>
         </Box>
       </Paper>
 
@@ -165,7 +233,7 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
 }
 
 // ---------------------------------------------------------------------------
-// Main panel (READ-ONLY — frozen 2026-03-09)
+// Main panel
 // ---------------------------------------------------------------------------
 
 export default function TabelaOponCrudPanel() {
@@ -207,13 +275,11 @@ export default function TabelaOponCrudPanel() {
     <Box sx={{ mt: 2 }}>
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* Thresholds section (read-only) */}
       <TyreThresholdsSection onError={(msg) => setError(msg)} />
 
-      {/* Frozen tire costs table */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6">Tabela Kosztów Opon (PLN Netto)</Typography>
-        <Chip icon={<LockIcon />} label="ZAMROŻONE — Read Only" size="small" color="warning" variant="outlined" />
+        <Chip icon={<LockIcon />} label="Cennik opon — Read Only" size="small" color="warning" variant="outlined" />
       </Box>
 
       <TableContainer component={Paper} sx={{ maxHeight: 650 }}>

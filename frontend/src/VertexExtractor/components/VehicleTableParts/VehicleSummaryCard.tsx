@@ -82,6 +82,7 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
   const startEditing = () => {
+    const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
     setEditValues({
       "Marka": val(vehicle.brand),
       "Model": val(vehicle.model),
@@ -90,6 +91,8 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
       "Kategoria": val(vehicle.vehicle_class ?? vehicle.document_category),
       "Napęd": val(vehicle.powertrain),
       "Paliwo": val(vehicle.fuel),
+      "Moc silnika (KM)": val(cardSummary?.power_hp?.toString()),
+      "Moc silnika (kW)": val(cardSummary?.power_kw?.toString()),
       "Skrzynia biegów": val(vehicle.transmission),
       "Koła": vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY,
       "Emisja WLTP": val(vehicle.emissions),
@@ -124,6 +127,9 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     collectIfChanged("Kategoria", val(vehicle.vehicle_class ?? vehicle.document_category), "vehicle_class");
     collectIfChanged("Napęd", val(vehicle.powertrain), "powertrain");
     collectIfChanged("Paliwo", val(vehicle.fuel), "fuel");
+    const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+    collectIfChanged("Moc silnika (KM)", val(cardSummary?.power_hp?.toString()), "power_hp");
+    collectIfChanged("Moc silnika (kW)", val(cardSummary?.power_kw?.toString()), "power_kw");
     collectIfChanged("Skrzynia biegów", val(vehicle.transmission), "transmission");
     
     const currentWheels = vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY;
@@ -148,7 +154,25 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
   };
 
   const handleEditChange = (label: string, newVal: string) => {
-    setEditValues(prev => ({ ...prev, [label]: newVal }));
+    setEditValues(prev => {
+      const next = { ...prev, [label]: newVal };
+      if (label === "Moc silnika (KM)") {
+        const km = parseFloat(newVal);
+        if (!isNaN(km)) {
+          next["Moc silnika (kW)"] = Math.round(km * 0.73549875).toString();
+        } else if (newVal === "") {
+          next["Moc silnika (kW)"] = "";
+        }
+      } else if (label === "Moc silnika (kW)") {
+        const kw = parseFloat(newVal);
+        if (!isNaN(kw)) {
+          next["Moc silnika (KM)"] = Math.round(kw * 1.35962162).toString();
+        } else if (newVal === "") {
+          next["Moc silnika (KM)"] = "";
+        }
+      }
+      return next;
+    });
   };
 
   const renderRows = (config: {label: string, value: string}[]) => {
@@ -172,10 +196,14 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     { label: "Kategoria", value: val(vehicle.vehicle_class ?? vehicle.document_category) },
   ];
 
+  const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+
   const techRows = [
     { label: "Napęd", value: val(vehicle.powertrain) },
     { label: "Oś napędowa", value: extractDriveType(vehicle) },
     { label: "Paliwo", value: val(vehicle.fuel) },
+    { label: "Moc silnika (KM)", value: val(cardSummary?.power_hp?.toString()) },
+    { label: "Moc silnika (kW)", value: val(cardSummary?.power_kw?.toString()) },
     { label: "Skrzynia biegów", value: val(vehicle.transmission) },
     { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
     { label: "Emisja WLTP", value: val(vehicle.emissions) },

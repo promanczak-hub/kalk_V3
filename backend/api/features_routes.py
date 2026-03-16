@@ -141,7 +141,6 @@ def get_vehicle_feature_state(
     auto-enrich from vehicle_synthesis.card_summary.
     """
     sb = supabase
-
     resp = (
         sb.schema("reverse_search")
         .table("vehicle_features_summary_view")
@@ -149,30 +148,6 @@ def get_vehicle_feature_state(
         .eq("source_vehicle_id", vehicle_id)
         .execute()
     )
-
-    # ── Lazy enrichment: auto-populate on first access ──
-    if not resp.data:
-        logger.info("No feature state for %s — running lazy enrichment", vehicle_id)
-        synth_resp = (
-            sb.table("vehicle_synthesis")
-            .select("id, synthesis_data")
-            .eq("id", vehicle_id)
-            .limit(1)
-            .execute()
-        )
-        if synth_resp.data:
-            synthesis = synth_resp.data[0].get("synthesis_data")
-            if isinstance(synthesis, dict):
-                enrich_vehicle_features(vehicle_id, synthesis)
-                # Re-query after enrichment
-                resp = (
-                    sb.schema("reverse_search")
-                    .table("vehicle_features_summary_view")
-                    .select("*")
-                    .eq("source_vehicle_id", vehicle_id)
-                    .execute()
-                )
-
     # Group by category
     by_category: dict[str, list[dict]] = {}
     for row in resp.data:

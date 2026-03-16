@@ -22,6 +22,9 @@ interface VehicleFinancialOptionsProps {
   catalogBasePriceNet: number;
   setCatalogBasePriceNet: (val: number) => void;
   aiExtractedBasePrice: string | null;
+  aiPriceAlertThresholdPln?: number;
+  requireManualPriceReview?: boolean;
+  priceDeltaFromAiPln?: number;
   // Discount state
   discountMode: "offer" | "suggested" | "custom";
   setDiscountMode: (mode: "offer" | "suggested" | "custom") => void;
@@ -147,6 +150,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const {
     vehicle, activeFinalPrice,
     catalogBasePriceNet, setCatalogBasePriceNet, aiExtractedBasePrice,
+    aiPriceAlertThresholdPln, requireManualPriceReview, priceDeltaFromAiPln,
     discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
     isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
     discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
@@ -207,7 +211,11 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const aiBasePriceNetto = aiExtractedBasePrice?.toLowerCase().includes("netto")
     ? aiBasePriceRaw
     : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
-  const basePriceWasEdited = Math.abs(catalogBasePriceNet - aiBasePriceNetto) > 10;
+  const aiPriceThreshold = aiPriceAlertThresholdPln ?? 10;
+  const basePriceDeltaPln = Math.abs(catalogBasePriceNet - aiBasePriceNetto);
+  const basePriceWasEdited = basePriceDeltaPln > aiPriceThreshold;
+  const requiresManualPriceReview = requireManualPriceReview ?? basePriceWasEdited;
+  const effectivePriceDeltaPln = priceDeltaFromAiPln ?? basePriceDeltaPln;
 
   return (
     <>
@@ -221,7 +229,16 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Rabat selector — compact inline */}
+          {requiresManualPriceReview && aiExtractedBasePrice && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800">
+              <div className="font-semibold">{"Rozbie\u017Cno\u015B\u0107 ceny bazowej > "}{aiPriceThreshold} PLN.</div>
+              <div className="mt-1">
+                {"AI (netto): "}<b>{fmtPLN(aiBasePriceNetto)}</b>{" vs obecnie: "}<b>{fmtPLN(catalogBasePriceNet)}</b>{" (\u0394 "}{fmtPLN(effectivePriceDeltaPln)}{"). Wymagana r\u0119czna weryfikacja przed kalkulacj\u0105."}
+              </div>
+            </div>
+          )}
+
+          {/* Rabat selector - compact inline */}
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Rabat:</span>

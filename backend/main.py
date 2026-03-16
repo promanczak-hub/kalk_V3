@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.samar_rv_routes import router as samar_rv_router
 from api.parser_routes import router as parser_router
 from api.kalkulacje_routes import router as kalkulacje_router
-from api.budget_finder_routes import router as budget_finder_router
 from api.calculator_excel_data_routes import router as calculator_excel_data_router
 from api.extract_routes import router as extract_router
 from api.homologation_routes import router as homologation_router
@@ -29,7 +28,6 @@ app.include_router(samar_rv_router)
 app.include_router(parser_router, prefix="/api")
 app.include_router(extract_router, prefix="/api")
 app.include_router(kalkulacje_router, prefix="/api")
-app.include_router(budget_finder_router, prefix="/api")  # type: ignore
 app.include_router(calculator_excel_data_router, prefix="/api")
 app.include_router(homologation_router, prefix="/api")
 app.include_router(param_preview_router, prefix="/api")
@@ -61,3 +59,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -15,11 +15,13 @@ interface DebugStep {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   outputs: Record<string, any>;
   metadata?: Record<string, {source: string, formula: string}>;
+  trace?: string[];
 }
 
 interface DebuggerState {
   status: "idle" | "loading" | "success" | "error";
   steps: DebugStep[];
+  reportHtml: string;
   error?: string;
 }
 
@@ -86,11 +88,12 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [aiChats, setAiChats] = useState<Record<number, AiChatState>>({});
   const [months, setMonths] = useState<number>(48);
-  const [viewMode, setViewMode] = useState<"pipeline" | "diagnostyka">("pipeline");
+  const [viewMode, setViewMode] = useState<"pipeline" | "diagnostyka" | "html">("pipeline");
   
   const [state, setState] = useState<DebuggerState>({
     status: "idle",
-    steps: []
+    steps: [],
+    reportHtml: ""
   });
 
   const fetchPipeline = async () => {
@@ -172,6 +175,12 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         okres_bazowy: vehicle.okres_bazowy || 48,
         przebieg_bazowy: vehicle.przebieg_bazowy || 140000,
         replacement_car_enabled: toggles.replacement_car ?? vehicle.replacement_car_enabled ?? true,
+        add_gsm_subscription: toggles.gps_required ?? true,
+        add_hook_installation: toggles.hook_installation ?? false,
+        add_grid_dismantling: toggles.grid_dismantling ?? false,
+        add_registration: toggles.add_registration ?? true,
+        add_sales_prep: toggles.add_sales_prep ?? true,
+        korekta_kosztu_przygotowania: finParams.sales_prep_correction ?? finParams.korekta_kosztu_przygotowania ?? 0.0,
         pakiet_serwisowy: vehicle.pakiet_serwisowy || 0.0,
         inne_koszty_serwisowania_netto: finParams.other_service_costs ?? vehicle.inne_koszty_serwisowania_netto ?? 0.0,
         is_metalic: calcSetup.is_metalic ?? cs.is_metalic_paint ?? true,
@@ -182,7 +191,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         months
       };
 
-      const res = await fetch(`${API_BASE_URL || ""}/api/kalkulacje/debug-pipeline/${vehicle.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/kalkulacje/debug-pipeline/${vehicle.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -194,10 +203,10 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
       }
       
       const data = await res.json();
-      setState({ status: "success", steps: data.steps });
+      setState({ status: "success", steps: data.steps || [], reportHtml: data.report_html || "" });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
-      setState({ status: "error", steps: [], error: e.message });
+      setState({ status: "error", steps: [], reportHtml: "", error: e.message });
     }
   };
 
@@ -260,7 +269,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         query: chat.query
       };
 
-      const res = await fetch(`${API_BASE_URL || ""}/api/kalkulacje/debug-pipeline/${vehicle.id}/ask-ai`, {
+      const res = await fetch(`${API_BASE_URL}/api/kalkulacje/debug-pipeline/${vehicle.id}/ask-ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -310,6 +319,12 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                   viewMode === "diagnostyka" ? "bg-white text-amber-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 }`}
               >Diagnostyka V1</button>
+              <button
+                onClick={() => setViewMode("html")}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "html" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >HTML</button>
             </div>
             <span className="text-sm text-slate-500 font-mono">{vehicle.id}</span>
           </div>
@@ -358,7 +373,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
             /* ============ DIAGNOSTYKA V1 — FLAT REPORT ============ */
             <div className="flex-1 bg-white overflow-y-auto p-6">
               {state.status === "loading" && state.steps.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">Ładowanie diagnostyki...</div>
+                <div className="p-8 text-center text-slate-400">{"Ładowanie diagnostyki..."}</div>
               ) : state.status === "error" ? (
                 <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-md">
                   <strong>Błąd wyliczeń:</strong> {state.error}
@@ -367,7 +382,7 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                 <div className="max-w-3xl mx-auto space-y-6 font-mono text-[13px]">
                   <div className="text-center text-xs text-slate-400 mb-2 font-sans">Diagnostyka przeliczenie — {months} msc</div>
 
-                  {/* GŁÓWNE PARAMETRY */}
+                  {/* GLOWNE PARAMETRY */}
                   <V1Section title={`GŁÓWNE PARAMETRY (${vehicle.id?.slice(0,8)})`} rows={[
                     ["Marka", vehicle.brand || "-"],
                     ["Model", vehicle.model || "-"],
@@ -451,13 +466,29 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                 </div>
               )}
             </div>
+          ) : viewMode === "html" ? (
+            <div className="flex-1 bg-white overflow-hidden">
+              {state.status === "error" ? (
+                <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-md m-6">
+                  <strong>Błąd wyliczeń:</strong> {state.error}
+                </div>
+              ) : state.reportHtml ? (
+                <iframe
+                  title="Raport kroków kalkulacji"
+                  className="w-full h-full border-0"
+                  srcDoc={state.reportHtml}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400">Brak raportu HTML dla tego przeliczenia.</div>
+              )}
+            </div>
           ) : (
             /* ============ PIPELINE MODE (original) ============ */
             <>
           {/* SIDEBAR - STEPS */}
           <div className="w-64 bg-slate-50 border-r border-slate-200 overflow-y-auto shrink-0 py-4">
              {state.status === "loading" && state.steps.length === 0 ? (
-               <div className="p-4 text-center text-slate-400 text-sm">Ładowanie...</div>
+               <div className="p-4 text-center text-slate-400 text-sm">{"Ładowanie..."}</div>
              ) : (
                 <div className="space-y-1 px-3">
                   {state.steps.map((s) => (
@@ -542,6 +573,20 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                         </table>
                       </div>
                     </div>
+                    
+                    {currentStepData.trace && currentStepData.trace.length > 0 && (
+                      <div className="mt-8">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 border-b pb-1">Ślad Rewizyjny (Trace)</h4>
+                        <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 text-[11px] font-mono text-emerald-400 overflow-x-auto shadow-inner space-y-1.5 leading-relaxed">
+                          {currentStepData.trace.map((item: string, idx: number) => (
+                            <div key={idx} className="flex items-start">
+                               <span className="text-slate-600 mr-2 select-none mt-0.5">›</span>
+                               <span className="break-words whitespace-pre-wrap">{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* RIGHT COLUMN: Overrides */}
@@ -667,3 +712,4 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
     </div>
   );
 }
+

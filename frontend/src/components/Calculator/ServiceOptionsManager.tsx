@@ -15,8 +15,65 @@ export interface ExtractedServiceOption {
   } | null;
 }
 
+export interface ExtractedServiceOptionBatch {
+  service_options: ExtractedServiceOption[];
+}
+
+type ExtractedServiceOptionResponse =
+  | ExtractedServiceOption
+  | ExtractedServiceOptionBatch;
+
 interface ServiceOptionsManagerProps {
   onOptionExtracted: (option: ExtractedServiceOption) => void;
+}
+
+function isExtractedServiceOptionBatch(
+  data: ExtractedServiceOptionResponse
+): data is ExtractedServiceOptionBatch {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "service_options" in data &&
+    Array.isArray((data as ExtractedServiceOptionBatch).service_options)
+  );
+}
+
+function isExtractedServiceOption(
+  data: ExtractedServiceOptionResponse
+): data is ExtractedServiceOption {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "name" in data &&
+    typeof (data as ExtractedServiceOption).name === "string"
+  );
+}
+
+function parseNetPrice(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return 0;
+  const cleaned = value.replace(/\s+/g, "").replace(/PLN|zł|zl/gi, "").replace(",", ".");
+  const numeric = cleaned.match(/-?\d+(?:\.\d+)?/);
+  return numeric ? Number(numeric[0]) : 0;
+}
+
+function normalizeExtractedOptions(
+  data: ExtractedServiceOptionResponse | null | undefined
+): ExtractedServiceOption[] {
+  if (!data) return [];
+
+  const rows = isExtractedServiceOptionBatch(data)
+    ? data.service_options
+    : isExtractedServiceOption(data)
+      ? [data]
+      : [];
+
+  return rows
+    .filter((item): item is ExtractedServiceOption => !!item && typeof item.name === "string")
+    .map((item) => ({
+      ...item,
+      net_price: parseNetPrice((item as { net_price?: unknown }).net_price),
+    }));
 }
 
 export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
@@ -37,8 +94,8 @@ export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
     formData.append("file", file);
 
     try {
-      const response = await axios.post<ExtractedServiceOption>(
-        `${API_BASE_URL || ""}/api/extract/service-option`,
+      const response = await axios.post<ExtractedServiceOptionResponse>(
+        `${API_BASE_URL}/api/extract/service-option`,
         formData,
         {
           headers: {
@@ -47,8 +104,12 @@ export const ServiceOptionsManager: React.FC<ServiceOptionsManagerProps> = ({
         }
       );
 
-      if (response.data) {
-        onOptionExtracted(response.data);
+      const options = normalizeExtractedOptions(response.data);
+
+      if (options.length === 0) {
+        setErrorMsg("Nie znaleziono opcji serwisowych w dokumencie.");
+      } else {
+        options.forEach(onOptionExtracted);
       }
     } catch (error: unknown) {
       console.error("Error extracting service option:", error);

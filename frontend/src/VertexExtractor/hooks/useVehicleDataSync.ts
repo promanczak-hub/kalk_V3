@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { apiFetch } from "../../lib/api";
 import type { FleetVehicleView } from "../types";
@@ -23,12 +23,29 @@ export function useVehicleDataSync(
       const cardSummaryKeys = new Set([
         "trim_level", "body_style", "vehicle_class", "powertrain",
         "fuel", "transmission", "wheels", "emissions", "exterior_color",
-        "configuration_code", "number_of_seats",
+        "configuration_code", "number_of_seats", "power_hp", "power_kw"
       ]);
 
       const columnUpdates: Record<string, unknown> = {};
 
-      for (const [key, value] of Object.entries(fields)) {
+      const normalizedFields: Record<string, string> = { ...fields };
+      const rawBodyStyle = (normalizedFields.body_style || "").trim();
+      if (rawBodyStyle) {
+        try {
+          const resp = await apiFetch(`/api/match-body-type?body_style_raw=${encodeURIComponent(rawBodyStyle)}`);
+          if (resp.ok) {
+            const match = await resp.json();
+            if (match?.matched_name) {
+              normalizedFields.body_style = match.matched_name;
+            } else {
+              console.warn("Body type not found in dictionary, keeping manual value:", rawBodyStyle);
+            }
+          }
+        } catch (matchErr) {
+          console.warn("Body type normalization failed, keeping manual value:", matchErr);
+        }
+      }
+      for (const [key, value] of Object.entries(normalizedFields)) {
         if (cardSummaryKeys.has(key)) {
           updatedJson.card_summary[key] = value;
         }
@@ -51,7 +68,7 @@ export function useVehicleDataSync(
       onRefresh();
     } catch (err) {
       console.error("Error saving vehicle fields", err);
-      alert("BĹ‚Ä…d zapisu: " + (err instanceof Error ? err.message : "Nieznany bĹ‚Ä…d"));
+      alert("Błąd zapisu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
     } finally {
       setIsSavingFields(false);
     }
@@ -70,7 +87,7 @@ export function useVehicleDataSync(
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`BĹ‚Ä…d klasyfikacji HTTP ${response.status}: ${errText}`);
+        throw new Error(`Błąd klasyfikacji HTTP ${response.status}: ${errText}`);
       }
       
       const data = await response.json();
@@ -90,7 +107,7 @@ export function useVehicleDataSync(
       onRefresh();
     } catch (err) {
       console.error("Remap classification error details:", err);
-      alert("BĹ‚Ä…d przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));
+      alert("Błąd przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));
     } finally {
       setIsRemappingClassification(false);
     }

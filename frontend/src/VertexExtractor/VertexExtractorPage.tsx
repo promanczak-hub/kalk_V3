@@ -1,4 +1,4 @@
-import { useVehicles } from "./hooks/useVehicles";
+﻿import { useVehicles } from "./hooks/useVehicles";
 import { useDocumentProcessing } from "./hooks/useDocumentProcessing";
 
 import { UploadZone } from "./components/UploadZone";
@@ -28,7 +28,7 @@ export default function VertexExtractorPage() {
     const fetchSettings = async () => {
       try {
         const resp = await axios.get<ControlCenterSettings>(
-          `${API_BASE_URL || ""}/api/control-center`,
+          `${API_BASE_URL}/api/control-center`,
         );
         if (resp.data) {
           setGlobalSettings(resp.data);
@@ -86,3 +86,4 @@ export default function VertexExtractorPage() {
     </div>
   );
 }
+

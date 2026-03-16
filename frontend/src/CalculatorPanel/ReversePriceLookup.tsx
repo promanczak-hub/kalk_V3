@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Search, TrendingUp, Loader2, Info } from "lucide-react";
 import { API_BASE_URL } from "../config/env";
 
@@ -88,7 +88,7 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
     setResult(null);
 
     try {
-      const baseUrl = API_BASE_URL || "";
+      const baseUrl = API_BASE_URL;
 
       // Send a request with margin = 0% to get pure base_cost_net
       const zeroMarginPayload = {
@@ -115,7 +115,7 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
       const targetCell = cells.reduce(
         (closest: Record<string, number> | null, c: Record<string, number>) => {
           if (!closest) return c;
-          return Math.abs(c.months - mc) < Math.abs(closest.months - mc) ? c : closest;
+          return Math.abs(c.Okres - mc) < Math.abs(closest.Okres - mc) ? c : closest;
         },
         null,
       );
@@ -124,7 +124,7 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
         throw new Error("Brak wyników kalkulacji.");
       }
 
-      const baseCostNet = targetCell.base_cost_net;
+      const baseCostNet = targetCell.KosztyLaczneMC;
 
       // Calculate implied margin range:
       // price = base / (1 - m) → m = 1 - base/price
@@ -389,3 +389,4 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
     </div>
   );
 }
+

@@ -35,7 +35,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core.database import supabase
 from core.models import ControlCenterSettings
 
-
 # ── Stałe diagnostyczne ──
 MONTHS = 48
 PRZEBIEG_BAZOWY = 140_000
@@ -72,14 +71,30 @@ def load_vehicles(vehicle_id: str | None = None) -> List[Dict[str, Any]]:
 
 
 def build_mock_input(vehicle: Dict[str, Any], settings: ControlCenterSettings) -> Any:
-    """Buduje CalculatorInput z domyślnymi wartościami."""
-    # Import tutaj żeby sys.path działał
+    """Buduje CalculatorInput z domyślnymi/realnymi wartościami z synthesis_data."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from main import CalculatorInput
+    from api.schemas.calculator import CalculatorInput
+
+    sd = vehicle.get("synthesis_data", {}) or {}
+    card_summary = sd.get("card_summary", {})
+
+    # Extract base_price_net safely, falling back to 100000.0 if not found/invalid
+    bp_raw = card_summary.get("net_price")
+    try:
+        base_price_net = float(bp_raw)
+    except (TypeError, ValueError):
+        base_price_net = 100_000.0
+
+    # Avoid adding "0" Rim Size
+    rim_size_raw = card_summary.get("rim_size")
+    try:
+        rim_size = int(rim_size_raw)
+    except (TypeError, ValueError):
+        rim_size = 17
 
     return CalculatorInput(
         vehicle_id=str(vehicle.get("id", "")),
-        base_price_net=float(vehicle.get("base_price_net", 100_000)),
+        base_price_net=base_price_net,
         discount_pct=0.0,
         factory_options=[],
         service_options=[],
@@ -89,8 +104,8 @@ def build_mock_input(vehicle: Dict[str, Any], settings: ControlCenterSettings) -
         wibor_pct=5.0,
         margin_pct=2.0,
         z_oponami=True,
-        klasa_opony_string="Medium",
-        srednica_felgi=int(vehicle.get("rim_size", 17) or 17),
+        klasa_opony_string="Premium",
+        srednica_felgi=rim_size if rim_size > 0 else 17,
         replacement_car_enabled=True,
     )
 
@@ -104,13 +119,21 @@ def diagnose_vehicle(
     settings: ControlCenterSettings,
 ) -> Dict[str, str]:
     """Uruchamia 12 sub-kalkulatorów dla jednego pojazdu. Zwraca raport."""
+    from core.LTRKalkulator import get_vehicle_from_db
+
     vid = vehicle.get("id", "?")
-    brand = vehicle.get("brand", "?")
-    model = vehicle.get("model", "?")
-    klasa_id = str(vehicle.get("klasa_wr_id", "") or "")
+
+    # Przeładuj/Parsuj przez get_vehicle_from_db
+    v_db = get_vehicle_from_db(vid) if vid != "?" else {}
+
+    brand = v_db.get("brand", vehicle.get("brand", "?"))
+    model = v_db.get("model", vehicle.get("model", "?"))
+    klasa_id = str(v_db.get("samar_class_id", 0))
+    engine_type_id = int(v_db.get("engine_type_id", 1))
+    power_kw = float(v_db.get("power_kw", 100))
 
     print(f"\n{SEP}")
-    print(f"  POJAZD: {brand} {model}  (id={vid}, klasa_wr={klasa_id})")
+    print(f"  POJAZD: {brand} {model}  (id={vid}, samar_class={klasa_id})")
     print(f"  Wariant: {MONTHS}mc / {TOTAL_KM:,} km")
     print(SEP)
 
@@ -142,8 +165,8 @@ def diagnose_vehicle(
 
         tires_calc = LTRSubCalculatorOpony(
             z_oponami=True,
-            klasa_opony_string="Medium",
-            srednica_felgi=int(vehicle.get("rim_size", 17) or 17),
+            klasa_opony_string="Premium",
+            srednica_felgi=calc_input.srednica_felgi,
         )
         tires_res = tires_calc.calculate_cost(months=MONTHS, total_km=TOTAL_KM)
         tires_total = (
@@ -210,14 +233,15 @@ def diagnose_vehicle(
             z_serwisem=True,
             opcja_serwisowa="ASO",
             normatywny_przebieg_mc=getattr(settings, "normatywny_przebieg_mc", 1667),
-            samar_class_id=int(vehicle.get("klasa_wr_id", 0) or 0),
-            engine_type_id=int(vehicle.get("engine_type_id", 1) or 1),
-            power_kw=float(vehicle.get("power_kw", 100) or 100),
+            samar_class_id=int(klasa_id) if klasa_id.isdigit() else 0,
+            engine_type_id=engine_type_id,
+            power_kw=power_kw,
             przebieg=TOTAL_KM,
             okres=MONTHS,
         )
         service_calc = ServiceCalculator(service_input)
-        service_base = service_calc.calculate()
+        service_res = service_calc.calculate()
+        service_base = service_res["monthly_service"]
         service_total = service_base * MONTHS
         msg = f"mc={service_base:.2f}, total={service_total:.2f}"
         print(f"  {OK}  {step_header(4, 'Srw', 'Serwis')} → {msg}")
@@ -234,13 +258,13 @@ def diagnose_vehicle(
             PurchasePriceInput,
         )
 
-        gsm_cost = settings.cost_gsm_device + settings.cost_gsm_installation
         pp_input = PurchasePriceInput(
-            base_price_net=float(vehicle.get("base_price_net", 100_000)),
+            base_price_net=calc_input.base_price_net,
             options=[],
             discount_pct=0.0,
-            add_gsm_device=True,
-            gsm_hardware_cost=gsm_cost,
+            add_gsm_to_capex=True,
+            gsm_device_cost_net=settings.cost_gsm_device,
+            gsm_installation_cost_net=settings.cost_gsm_installation,
         )
         pp_calc = PurchasePriceCalculator(pp_input)
         pp_res = pp_calc.calculate()
@@ -270,7 +294,7 @@ def diagnose_vehicle(
         if vat_rate > 10.0:
             vat_rate = 1.0 + (vat_rate / 100.0)
 
-        rv_calc = LTRSubCalculatorUtrataWartosciNew(vehicle, calc_input)
+        rv_calc = LTRSubCalculatorUtrataWartosciNew(v_db, calc_input)
         rv_res = rv_calc.calculate_values(
             months=MONTHS,
             total_km=TOTAL_KM,

@@ -23,8 +23,11 @@ def _mock_supabase() -> MagicMock:
     mock = MagicMock()
     # _fetch_global_param → pusty wynik → fallback
     mock.table.return_value.select.return_value.ilike.return_value.limit.return_value.execute.return_value.data = []
-    # _fetch_tire_configurations → pusty wynik → defaults
-    mock.table.return_value.select.return_value.execute.return_value.data = []
+    # _fetch_tire_configurations → minimalny zestaw (bez hardcode fallbacku)
+    mock.table.return_value.select.return_value.execute.return_value.data = [
+        {"config_key": "cost_tyre_swap", "config_value": "120"},
+        {"config_key": "cost_tyre_storage", "config_value": "216"},
+    ]
     # _fetch_tire_cost → zwraca generyczny słownik by uniknąć ValueError (brak fallbacków)
     mock.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
         {

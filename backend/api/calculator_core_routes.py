@@ -24,6 +24,37 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
 
         engine = LTRKalkulator(input_data=data, settings=settings)
         matrix_cells = engine.build_matrix()
+        
+        # --- HOT-PATCH: WYPLUCIE KALKULATORA DO TERMINALA ---
+        
+        print("\n\n" + "="*60)
+        print(" 🔍 TRYB DEBUGOWANIA: NOWE PRZELICZENIE (TRACE)")
+        print("="*60)
+        
+        try:
+            # Wyszukujemy elementy (Opony i Utrata Wartości) w strukturze cells
+            for cell in matrix_cells:
+                if isinstance(cell, dict) and cell.get("code") == "OPONY":
+                    opony_trace = cell.get("details", {}).get("trace", [])
+                    print("\n[🚜 OPONY] - ŚLAD REWIZYJNY:")
+                    for idx, t in enumerate(opony_trace):
+                        print(f"  [{idx+1}] {t.get('krok')}")
+                        print(f"      = {t.get('wynik')} PLN")
+                
+                if isinstance(cell, dict) and cell.get("code") == "WR":
+                    wr_trace = cell.get("details", {}).get("trace", [])
+                    print("\n[📉 UTRATA WARTOŚCI] - ŚLAD REWIZYJNY:")
+                    for idx, t in enumerate(wr_trace):
+                        print(f"  [{idx+1}] {t.get('krok')}")
+                        print(f"      (Obliczenia: {t.get('rownanie')})")
+                        print(f"      = {t.get('wynik')} PLN")
+                        
+        except Exception as deb_err:
+            print(f"Błąd debuggera trace'ów: {deb_err}")
+            
+        print("="*60 + "\n\n")
+        # ----------------------------------------------------
+
         return {
             "status": "success",
             "message": "Matrix calculation completed successfully",
@@ -34,6 +65,58 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logging.error(f"Internal error in calculate-matrix: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/calculate-trace")
+async def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
+    """Przelicza matrycę i zwraca pełen obiekt ze śladem diagnostycznym."""
+    try:
+        from core.LTRKalkulator import LTRKalkulator
+
+        response = supabase.table("control_center").select("*").eq("id", 1).execute()
+        if not response.data:
+            raise HTTPException(
+                status_code=404, detail="Control center settings not found"
+            )
+        response_data = cast(Any, response.data[0])
+        settings = ControlCenterSettings(**response_data)
+
+        engine = LTRKalkulator(input_data=data, settings=settings)
+        matrix_cells = engine.build_matrix()
+
+        req_months = int(getattr(data, "okres_bazowy", 48) or 48)
+        req_total_km = int(getattr(data, "przebieg_bazowy", 140000) or 140000)
+
+        trace_data = []
+        for cell in matrix_cells:
+            # Tolerujemy drobne odchylenia zaokrągleń w przebiegach, ew. bierzemy sam Okres jako fallback
+            if cell.get("Okres") == req_months and cell.get("PrzebiegKontrakt") == req_total_km:
+                trace_data = cell.get("calculation_trace", [])
+                break
+        
+        # Fallback jeśli nie było dokładnego matchu na PrzebiegKontrakt
+        if not trace_data:
+            for cell in matrix_cells:
+                if cell.get("Okres") == req_months:
+                    trace_data = cell.get("calculation_trace", [])
+                    break
+        
+        # Ultimate fallback (np. pierwsza dodana komórka z gridu)
+        if not trace_data and matrix_cells:
+            trace_data = matrix_cells[-1].get("calculation_trace", [])
+
+        return {
+            "status": "success",
+            "message": "Trace generated successfully",
+            "cells": matrix_cells,
+            "calculation_trace": trace_data,
+        }
+    except ValueError as ve:
+        logging.warning(f"Validation error in calculate-trace: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logging.error(f"Internal error in calculate-trace: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

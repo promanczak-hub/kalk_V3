@@ -100,11 +100,42 @@ class CalculatorInput(BaseModel):
     add_grid_dismantling: bool = Field(default=False, description="Wymontowanie Kraty")
     add_registration: bool = Field(default=True, description="Rejestracja")
     add_sales_prep: bool = Field(default=True, description="Przygotowanie do sprzedaży")
+    korekta_kosztu_przygotowania: float = Field(
+        default=0.0, description="Ręczna korekta kosztu przygotowania do sprzedaży (netto)"
+    )
 
     # Nowe pola V1→V3
     service_cost_type: str = Field(
         default="ASO",
-        description="Rodzaj kosztów serwisowych: 'ASO' lub 'nonASO'",
+        description="Rodzaj kosztow serwisowych: 'ASO' lub 'nonASO'",
+    )
+    include_servicing: bool = Field(
+        default=True,
+        description="Czy uwzgledniac serwisowanie (V1: CzyUwzgledniaSerwisowanie)",
+    )
+    samar_category: Optional[str] = Field(
+        default=None, description="Nazwa klasy SAMAR z dropdownu/UI (opcjonalnie)"
+    )
+    engine_name: Optional[str] = Field(
+        default=None, description="Nazwa silnika z dropdownu/UI (opcjonalnie)"
+    )
+    body_type_name: Optional[str] = Field(
+        default=None, description="Nazwa nadwozia z dropdownu/UI (opcjonalnie)"
+    )
+    drive_type: Optional[str] = Field(
+        default=None, description="Typ napedu z dropdownu/UI (opcjonalnie)"
+    )
+    paint_type_name: Optional[str] = Field(
+        default=None, description="Nazwa typu lakieru z dropdownu/UI (opcjonalnie)"
+    )
+    zabudowa_type_id: Optional[int] = Field(
+        default=None, description="ID typu zabudowy z Control Center (opcjonalnie - legacy, mapowane jako body_type_id)"
+    )
+    power_kw: Optional[float] = Field(
+        default=None, description="Moc silnika (kW) przesyłana wprost z UI"
+    )
+    power_hp: Optional[float] = Field(
+        default=None, description="Moc silnika (KM) przesyłana wprost z UI"
     )
     pakiet_serwisowy: float = Field(
         default=0.0,
@@ -123,5 +154,17 @@ class CalculatorInput(BaseModel):
     )
     is_metalic: bool = Field(
         default=False,
-        description="Czy lakier metalik/perłowy (wpływa na korektę WR)",
+        description="Czy lakier metalik/perlowy (wplywa na korekte WR)",
     )
+
+    matrix_km_mode: str = Field(
+        default="annual",
+        description="Tryb osi przebiegu matrycy: annual albo contract",
+    )
+    matrix_contract_km_step: int = Field(
+        default=10000,
+        description="Krok siatki przebiegu dla trybu contract (km/kontrakt)",
+    )
+
+
+

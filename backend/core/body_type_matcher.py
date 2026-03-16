@@ -1,15 +1,8 @@
-"""Fuzzy matching: body_style (AI-extracted) → body_types table.
+"""Fuzzy matching helper for body style normalization.
 
-Multi-level matching with confidence score:
-  1. Exact match → 100 %
-  2. Substring / contains → 90 %
-  3. Alias map (Touring→Kombi, Panel Van→Furgon…) → 85 %
-  4. No match → score 0, result None
-
-Returns BodyTypeMatch dataclass consumed by:
-  - GET /api/match-body-type  (informational badge)
-  - readiness-check            (body_type_id resolution)
-  - body_type_wr_corrections   (WR cascade lookup)
+Resolves free-text body names into canonical body_types rows used by calculation
+pipeline, while allowing selected user-facing aliases (e.g. "Kontener") to remain
+visible in UI.
 """
 
 from __future__ import annotations
@@ -22,10 +15,8 @@ from core.database import supabase
 
 logger = logging.getLogger(__name__)
 
-# ── Alias map ────────────────────────────────────────────────────────
-# Maps common AI-extracted body names to canonical body_types.name.
-# Keys MUST be UPPER-CASED.
-
+# Maps common variants to canonical body_types.name.
+# Keys must be upper-cased.
 BODY_ALIAS_MAP: dict[str, str] = {
     "TOURING": "Kombi",
     "AVANT": "Kombi",
@@ -43,8 +34,6 @@ BODY_ALIAS_MAP: dict[str, str] = {
     "X-LINE": "SUV",
     "PANEL VAN": "Furgon",
     "CARGO": "Furgon",
-    "CHŁODNIA": "Furgon",
-    "SKRZYNIOWY": "Podwozie",
     "CHASSIS": "Podwozie",
     "DOSTAWCZY": "Furgon",
     "LIMOUSINE": "Sedan",
@@ -69,20 +58,23 @@ BODY_ALIAS_MAP: dict[str, str] = {
     "CREW CAB": "Pickup",
 }
 
+# For those aliases we keep the original label in UI, but still resolve to
+# canonical ID for pipeline internals.
+PRESERVE_RAW_ALIAS_KEYS: set[str] = set()
+
 
 @dataclass
 class BodyTypeMatch:
-    """Result of fuzzy matching body_style → body_types."""
+    """Result of fuzzy matching body_style -> body_types."""
 
     matched_body_type_id: Optional[int]
     matched_name: Optional[str]
-    vehicle_class: Optional[str]  # "Osobowy" / "Dostawczy"
-    score: int  # 0-100
-    match_method: str  # "exact" | "substring" | "alias" | "none"
+    vehicle_class: Optional[str]
+    score: int
+    match_method: str  # exact | substring | alias | alias-preserve | none
     raw_input: str
 
 
-# ── Cache ────────────────────────────────────────────────────────────
 _BODY_TYPES_CACHE: list[dict] | None = None
 
 
@@ -107,10 +99,7 @@ def invalidate_cache() -> None:
 
 
 def match_body_type(raw_body_style: str) -> BodyTypeMatch:
-    """Match raw body_style string to a body_types row.
-
-    Returns BodyTypeMatch with score and method.
-    """
+    """Match raw body_style string to a body_types row."""
     if not raw_body_style or not raw_body_style.strip():
         return BodyTypeMatch(
             matched_body_type_id=None,
@@ -124,7 +113,7 @@ def match_body_type(raw_body_style: str) -> BodyTypeMatch:
     body_types = _load_body_types()
     normalized = raw_body_style.strip().upper()
 
-    # 1. Exact match (case-insensitive)
+    # 1) Exact match
     for bt in body_types:
         if bt["name"].strip().upper() == normalized:
             return BodyTypeMatch(
@@ -136,7 +125,7 @@ def match_body_type(raw_body_style: str) -> BodyTypeMatch:
                 raw_input=raw_body_style,
             )
 
-    # 2. Substring / contains match
+    # 2) Substring / contains
     for bt in body_types:
         bt_upper = bt["name"].strip().upper()
         if bt_upper in normalized or normalized in bt_upper:
@@ -149,28 +138,38 @@ def match_body_type(raw_body_style: str) -> BodyTypeMatch:
                 raw_input=raw_body_style,
             )
 
-    # 3. Alias map
+    # 3) Alias map
+    canonical: Optional[str] = None
+    preserve_raw_alias = False
+
     canonical = BODY_ALIAS_MAP.get(normalized)
+    if canonical:
+        preserve_raw_alias = normalized in PRESERVE_RAW_ALIAS_KEYS
+
     if not canonical:
-        # Try partial alias match
         for alias_key, alias_val in BODY_ALIAS_MAP.items():
             if alias_key in normalized or normalized in alias_key:
                 canonical = alias_val
+                preserve_raw_alias = alias_key in PRESERVE_RAW_ALIAS_KEYS
                 break
 
     if canonical:
         for bt in body_types:
             if bt["name"].strip().upper() == canonical.upper():
+                matched_name = (
+                    raw_body_style.strip() if preserve_raw_alias else bt["name"]
+                )
+                method = "alias-preserve" if preserve_raw_alias else "alias"
                 return BodyTypeMatch(
                     matched_body_type_id=bt["id"],
-                    matched_name=bt["name"],
+                    matched_name=matched_name,
                     vehicle_class=bt["vehicle_class"],
                     score=85,
-                    match_method="alias",
+                    match_method=method,
                     raw_input=raw_body_style,
                 )
 
-    # 4. No match
+    # 4) No match
     return BodyTypeMatch(
         matched_body_type_id=None,
         matched_name=None,
@@ -179,3 +178,6 @@ def match_body_type(raw_body_style: str) -> BodyTypeMatch:
         match_method="none",
         raw_input=raw_body_style,
     )
+
+
+

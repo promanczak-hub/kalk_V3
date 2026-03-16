@@ -84,7 +84,7 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
     try:
         res = supabase.table("ltr_kalkulacje").insert(data).execute()
         if not res.data:
-            raise HTTPException(status_code=500, detail="Błąd przy zapisie do bazy.")
+            raise HTTPException(status_code=500, detail="BĹ‚Ä…d przy zapisie do bazy.")
         return res.data[0]
     except Exception as e:
         print(f"Db Error: {e}")
@@ -127,6 +127,24 @@ def get_kalkulacje():
         return [_extract_list_fields(r) for r in res.data]
     except Exception as e:
         logger.exception("GET /kalkulacje failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/vehicle/{vehicle_id}", response_model=List[KalkulacjaListItem])
+def get_kalkulacje_by_vehicle(vehicle_id: str):
+    """Fetch calculations strictly associated with a given vehicle ID from vertex."""
+    try:
+        # We query the JSONB field stan_json->>'vehicle_id'
+        res = (
+            supabase.table("ltr_kalkulacje")
+            .select("*")
+            .eq("stan_json->>vehicle_id", vehicle_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return [_extract_list_fields(r) for r in res.data]
+    except Exception as e:
+        logger.exception("GET /kalkulacje/vehicle/%s failed", vehicle_id)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -177,7 +195,7 @@ def duplicate_kalkulacja(kalk_id: str):
 
         insert_res = supabase.table("ltr_kalkulacje").insert(new_data).execute()
         if not insert_res.data:
-            raise HTTPException(status_code=500, detail="Błąd duplikacji")
+            raise HTTPException(status_code=500, detail="BĹ‚Ä…d duplikacji")
         return insert_res.data[0]
     except Exception as e:
         logger.exception("DUPLICATE /kalkulacje/%s failed", kalk_id)
@@ -190,7 +208,7 @@ def update_kalkulacja_status(kalk_id: str, req: StatusUpdateRequest):
     if req.status not in VALID_STATUSES:
         raise HTTPException(
             status_code=400,
-            detail=f"Nieprawidłowy status '{req.status}'. "
+            detail=f"NieprawidĹ‚owy status '{req.status}'. "
             f"Dozwolone: {', '.join(VALID_STATUSES)}",
         )
     try:
@@ -208,71 +226,7 @@ def update_kalkulacja_status(kalk_id: str, req: StatusUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/extract-matrix-v3/{vehicle_id}")
-def generate_matrix_from_extracted_v3(vehicle_id: str, req: dict):
-    from api.schemas.calculator import CalculatorInput, VehicleOptions
-    from core.LTRKalkulator import LTRKalkulator
 
-    try:
-        # Reconstruct Input manually since frontend sends partial/simplified data
-        cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not cc_res.data:
-            raise HTTPException(status_code=500, detail="Brak ustawień CC")
-        from typing import cast, Any, Dict
-        from core.models import ControlCenterSettings
-
-        response_data = cast(Dict[str, Any], cc_res.data[0])
-        settings = ControlCenterSettings(**response_data)
-
-        # 1. Map options
-        factory_opts = []
-        for o in req.get("factory_options", []):
-            factory_opts.append(
-                VehicleOptions(
-                    name=o["name"],
-                    price_net=o["price_net"],
-                    price_gross=round(o["price_net"] * 1.23, 2),
-                )
-            )
-        service_opts = []
-        for o in req.get("service_options", []):
-            service_opts.append(
-                VehicleOptions(
-                    name=o["name"],
-                    price_net=o["price_net"],
-                    price_gross=round(o["price_net"] * 1.23, 2),
-                )
-            )
-
-        # 2. Map Payload
-        calc_input = CalculatorInput(
-            vehicle_id=vehicle_id,
-            base_price_net=req.get("base_price_net", 0.0),
-            discount_pct=req.get("discount_pct", 0.0),
-            factory_options=factory_opts,
-            service_options=service_opts,
-            wibor_pct=req.get("wibor_pct", 5.85),
-            margin_pct=req.get("margin_pct", 2.0),
-            pricing_margin_pct=req.get("pricing_margin_pct", 15.0),
-            depreciation_pct=req.get("depreciation_pct"),
-            initial_deposit_pct=req.get("initial_deposit_pct", 0.0),
-            # Flagi kosztów dodatkowych (globalne kwoty z CC, tu ON/OFF per kalkulacja)
-            add_gsm_subscription=req.get("add_gsm_subscription", True),
-            add_hook_installation=req.get("add_hook_installation", False),
-            add_grid_dismantling=req.get("add_grid_dismantling", False),
-            add_registration=req.get("add_registration", True),
-            add_sales_prep=req.get("add_sales_prep", True),
-            odkup_opon_enabled=req.get("odkup_opon_enabled", False),
-        )
-
-        # 3. Call Calculation Engine
-        engine = LTRKalkulator(input_data=calc_input, settings=settings)
-        matrix = engine.build_matrix()
-
-        return {"status": "success", "vehicle_id": vehicle_id, "matrix": matrix}
-    except Exception as e:
-        print(f"Matrix Engine Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/debug-pipeline/{vehicle_id}")
@@ -286,7 +240,7 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
         # Reconstruct Control Center Settings
         cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not cc_res.data:
-            raise HTTPException(status_code=500, detail="Brak ustawień CC")
+            raise HTTPException(status_code=500, detail="Brak ustawieĹ„ CC")
 
         response_data = cast(Dict[str, Any], cc_res.data[0])
         settings = ControlCenterSettings(**response_data)
@@ -337,12 +291,13 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
             inne_koszty_serwisowania_netto=req.get(
                 "inne_koszty_serwisowania_netto", 0.0
             ),
-            # Flagi kosztów dodatkowych (globalne kwoty z CC, tu ON/OFF per kalkulacja)
+            # Flagi kosztĂłw dodatkowych (globalne kwoty z CC, tu ON/OFF per kalkulacja)
             add_gsm_subscription=req.get("add_gsm_subscription", True),
             add_hook_installation=req.get("add_hook_installation", False),
             add_grid_dismantling=req.get("add_grid_dismantling", False),
             add_registration=req.get("add_registration", True),
             add_sales_prep=req.get("add_sales_prep", True),
+            korekta_kosztu_przygotowania=req.get("korekta_kosztu_przygotowania", 0.0),
             odkup_opon_enabled=req.get("odkup_opon_enabled", False),
         )
 
@@ -353,12 +308,18 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
         # 4. Call Debugger Engine
         debugger = PipelineDebugger(input_data=calc_input, settings=settings)
         steps = debugger.calculate_steps(months=months, overrides=overrides)
+        report_html = debugger.render_steps_html(
+            steps=steps,
+            months=months,
+            vehicle_id=vehicle_id,
+        )
 
         return {
             "status": "success",
             "vehicle_id": vehicle_id,
             "months": months,
             "steps": steps,
+            "report_html": report_html,
         }
     except Exception as e:
         print(f"Debugger Engine Error: {e}")
@@ -378,22 +339,22 @@ def ask_ai_about_step(vehicle_id: str, req: AskAiRequest):
         client = get_gemini_client()
 
         prompt = f"""
-Jesteś inżynierem-asystentem w systemie kalkulatora leasingowego. Użytkownik przegląda krok "{req.step_name}" w dziale Pipeline Debugger i zadał pytanie.
+JesteĹ› inĹĽynierem-asystentem w systemie kalkulatora leasingowego. UĹĽytkownik przeglÄ…da krok "{req.step_name}" w dziale Pipeline Debugger i zadaĹ‚ pytanie.
 Oto kontekst tego kroku:
-WEJŚCIA (Inputs):
+WEJĹšCIA (Inputs):
 {json.dumps(req.inputs, indent=2, ensure_ascii=False)}
 
-WYJŚCIA (Outputs):
+WYJĹšCIA (Outputs):
 {json.dumps(req.outputs, indent=2, ensure_ascii=False)}
 
-METADANE (Wzory i Źródła):
+METADANE (Wzory i ĹąrĂłdĹ‚a):
 {json.dumps(req.metadata or {}, indent=2, ensure_ascii=False)}
 
-Pytanie użytkownika:
+Pytanie uĹĽytkownika:
 {req.query}
 
-Odpowiedz krótko i merytorycznie w języku polskim. Wyjaśnij dlaczego dany krok wyliczył taką wartość (np. zero, lub daną stawkę). Wskazuj na konkretne Wejścia (Inputs) lub Metadane (np. brak ustawień w bazie).
-Bądź techniczny, przyjazny i konkretnie diagnozuj wynik. Używaj formatowania Markdown by wypunktować kluczowe powody.
+Odpowiedz krĂłtko i merytorycznie w jÄ™zyku polskim. WyjaĹ›nij dlaczego dany krok wyliczyĹ‚ takÄ… wartoĹ›Ä‡ (np. zero, lub danÄ… stawkÄ™). Wskazuj na konkretne WejĹ›cia (Inputs) lub Metadane (np. brak ustawieĹ„ w bazie).
+BÄ…dĹş techniczny, przyjazny i konkretnie diagnozuj wynik. UĹĽywaj formatowania Markdown by wypunktowaÄ‡ kluczowe powody.
 """
         response = client.models.generate_content(
             model="gemini-2.5-flash",
@@ -410,3 +371,4 @@ Bądź techniczny, przyjazny i konkretnie diagnozuj wynik. Używaj formatowania 
 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+

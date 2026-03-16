@@ -55,10 +55,10 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
 
-  // Group by category
+  // Group by category, making it case-insensitive uppercase
   const grouped = classes.reduce(
     (acc, cls) => {
-      const cat = cls.category || "INNE";
+      const cat = (cls.category || "INNE").toUpperCase();
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(cls);
       return acc;
@@ -67,12 +67,12 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
   );
 
   const categoryOrder = [
-    "Podstawowa",
-    "Sportowo-rekreacyjne",
-    "Terenowo-rekreacyjne (SUV)",
-    "Vany",
-    "Kombivany",
-    "Minibusy",
+    "PODSTAWOWA",
+    "SPORTOWO-REKREACYJNE",
+    "TERENOWO-REKREACYJNE (SUV)",
+    "VANY",
+    "KOMBIVANY",
+    "MINIBUSY",
     "LEKKIE DOSTAWCZE",
     "PICK-UP",
     "ŚREDNIE DOSTAWCZE",
@@ -111,7 +111,10 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
       {categoryOrder.map((cat) => {
         const items = grouped[cat];
         if (!items) return null;
-        const catColor = CATEGORY_COLORS[cat] || "#757575";
+        
+        // Obliczamy oryginalną nazwę by zachować kolory
+        const originalCat = classes.find(c => (c.category || "INNE").toUpperCase() === cat)?.category || cat;
+        const catColor = CATEGORY_COLORS[originalCat] || CATEGORY_COLORS[cat] || "#757575";
 
         return (
           <Paper
@@ -237,13 +240,23 @@ export default function SamarMasterPanel() {
 
   useEffect(() => {
     apiFetch(`/api/samar-classes`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Błąd HTTP: ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        console.log("Otrzymane klasy SAMAR:", data);
+        if (Array.isArray(data)) {
           setClasses(data);
+        } else {
+          console.error("Oczekiwano tablicy, otrzymano:", data);
         }
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error("Błąd pobierania klas SAMAR:", err);
+      });
   }, []);
 
 
