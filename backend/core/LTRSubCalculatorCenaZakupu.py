@@ -20,7 +20,9 @@ class PurchasePriceInput:
     # GSM — urządzenie + montaż wchodzi do CAPEX (V1 L117-124)
     add_gsm_to_capex: bool = False
     gsm_device_cost_net: float = 0.0  # CenaUrzadzeniaGSM = 469
-    gsm_installation_cost_net: float = 0.0  # MontazUrzadzeniaGSM = 150
+    gsm_installation_cost_net: float = 0.0  # MontazUrzadzeniaGSM + Demontaz (210)
+    gsm_subscription_monthly_net: float = 0.0 # Abonament GSM
+    months: int = 1 # Do przemnozenia abonamentu jesli kapitalizowany
     # Opłata transportowa — per kalkulacja, default 0 (V1: per marka)
     transport_fee_net: float = 0.0
     # Pakiet serwisowy
@@ -44,6 +46,7 @@ class PurchasePriceResult:
     CenaZakupuBezOpon: float = 0.0
     CenaZakupuBezOponIOpcjiSerwisowych: float = 0.0
     CenaZakupuBezOponIOpcjiSerwisowychIPakietu: float = 0.0
+    CenaKatalogowaNetto: float = 0.0
     RabatKwotowo: float = 0.0
     trace: list[dict[str, Any]] = field(default_factory=list)
 
@@ -112,7 +115,8 @@ class PurchasePriceCalculator:
         gsm_capex = 0.0
         if self.data.add_gsm_to_capex:
             gsm_capex = (
-                self.data.gsm_device_cost_net + self.data.gsm_installation_cost_net
+                self.data.gsm_device_cost_net 
+                + self.data.gsm_installation_cost_net
             )
             total_capex += gsm_capex
             trace.append({
@@ -136,8 +140,9 @@ class PurchasePriceCalculator:
         )
 
         cena_zakupu_bez_opon = total_capex - self.data.tires_capex_net
-        cena_zakupu_bez_opon_i_opcji_serw = cena_zakupu_bez_opon - service_opts_total
+        cena_zakupu_bez_opon_i_opcji_serw = cena_zakupu_bez_opon - service_opts_total - gsm_capex
         cena_zakupu_bez_opon_i_opcji_serw_i_pakietu = cena_zakupu_bez_opon_i_opcji_serw - self.data.pakiet_serwisowy_net
+        cena_katalogowa_netto = self.data.base_price_net + discountable_opts + non_discountable_opts
 
         return PurchasePriceResult(
             total_capex=total_capex,
@@ -155,6 +160,7 @@ class PurchasePriceCalculator:
             CenaZakupuBezOpon=cena_zakupu_bez_opon,
             CenaZakupuBezOponIOpcjiSerwisowych=cena_zakupu_bez_opon_i_opcji_serw,
             CenaZakupuBezOponIOpcjiSerwisowychIPakietu=cena_zakupu_bez_opon_i_opcji_serw_i_pakietu,
+            CenaKatalogowaNetto=cena_katalogowa_netto,
             RabatKwotowo=total_discount_amount,
             trace=trace,
         )

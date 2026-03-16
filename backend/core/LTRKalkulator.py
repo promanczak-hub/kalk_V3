@@ -701,7 +701,7 @@ class LTRKalkulator:
             options=options,
             discount_pct=self.input_data.discount_pct,
             tires_capex_net=tires_capex,
-            add_gsm_to_capex=False,
+            add_gsm_to_capex=True,  # Changed to True based on user feedback (V1 Parity)
             gsm_device_cost_net=float(getattr(self.settings, "cost_gsm_device", 469.0)),
             gsm_installation_cost_net=float(
                 getattr(self.settings, "cost_gsm_installation", 150.0)
@@ -1130,6 +1130,7 @@ class LTRKalkulator:
                 "CenaZakupuBezOpon": capex_res.CenaZakupuBezOpon,
                 "CenaZakupuBezOponIOpcjiSerwisowych": capex_res.CenaZakupuBezOponIOpcjiSerwisowych,
                 "CenaZakupuBezOponIOpcjiSerwisowychIPakietu": capex_res.CenaZakupuBezOponIOpcjiSerwisowychIPakietu,
+                "CenaKatalogowaNetto": capex_res.CenaKatalogowaNetto,
                 "RabatKwotowo": capex_res.RabatKwotowo,
 
                 # 3. Utrata WartoĹ›ci

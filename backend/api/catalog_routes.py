@@ -132,10 +132,12 @@ async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
         "model": card_summary.get("model") or synthesis.get("model", ""),
         "body_style": card_summary.get("body_style", ""),
         "powertrain": card_summary.get("powertrain", ""),
+        "power_hp": card_summary.get("power_hp"),
         "drive_type": card_summary.get("drive_type", ""),
         "transmission": card_summary.get("transmission", ""),
         "vehicle_class": card_summary.get("vehicle_class", ""),
         "trim_level": card_summary.get("trim_level", ""),
+        "base_price": card_summary.get("base_price") or synthesis.get("pricing", {}).get("base_price"),
     }
 
     # 2. Fetch all ready textual catalogs
@@ -143,7 +145,7 @@ async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
         _rs()
         .table("model_document_sources")
         .select(
-            "id, brand, model_family, document_type, display_name, version_tag, file_type, extraction_status, variant_count"
+            "id, brand, model_family, document_type, display_name, version_tag, file_type, extraction_status, variant_count, extracted_data"
         )
         .eq("extraction_status", "ready")
         .order("uploaded_at", desc=True)

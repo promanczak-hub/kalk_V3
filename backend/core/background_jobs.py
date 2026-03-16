@@ -193,10 +193,47 @@ def _finalize_vehicle(
         "id", vehicle_id
     ).execute()
 
-    # ── 3. Wzbogacanie cech (Feature Enrichment) ──
+    # ── 3. Wzbogacanie cech (Feature Enrichment) i 100% dopasowanie katalogu ──
     from core.feature_enrichment import enrich_vehicle_features
+    from core.feature_cross_reference import rank_catalogs_for_vehicle, cross_reference_vehicle
 
-    print(f"[BG TASK] Uruchamiam wzbogacanie cech dla {vehicle_id}...")
+    print("[BG TASK] Szukam 100% dopasowanego katalogu dla auto-enrichmentu...")
+    try:
+        card_summary = parsed_data.get("card_summary", {})
+        vehicle_spec = {
+            "brand": card_summary.get("brand") or parsed_data.get("brand", ""),
+            "model": card_summary.get("model") or parsed_data.get("model", ""),
+            "body_style": card_summary.get("body_style", ""),
+            "powertrain": card_summary.get("powertrain", ""),
+            "power_hp": card_summary.get("power_hp"),
+            "drive_type": card_summary.get("drive_type", ""),
+            "transmission": card_summary.get("transmission", ""),
+            "vehicle_class": card_summary.get("vehicle_class", ""),
+            "trim_level": card_summary.get("trim_level", ""),
+            "base_price": card_summary.get("base_price") or parsed_data.get("pricing", {}).get("base_price"),
+        }
+
+        if vehicle_spec.get("brand"):
+            c_resp = supabase.schema("reverse_search").table("model_document_sources").select(
+                "id, brand, model_family, document_type, display_name, version_tag, file_type, extraction_status, variant_count, extracted_data"
+            ).eq("extraction_status", "ready").ilike("brand", f"%{vehicle_spec['brand']}%").execute()
+            
+            from typing import cast, Any
+            catalogs = cast(list[dict[str, Any]], c_resp.data) if c_resp.data else []
+            if catalogs:
+                ranked = rank_catalogs_for_vehicle(vehicle_spec, catalogs)
+                if ranked and ranked[0].get("_ranking", {}).get("score", 0.0) == 1.0:
+                    best_cat_id = ranked[0]["id"]
+                    print(f"[BG TASK] Znaleziono 100% dopasowanie - katalog ID: {best_cat_id}. Uruchamiam auto-cross-reference.")
+                    cr_result = cross_reference_vehicle(vehicle_id, [best_cat_id])
+                    print(f"[BG TASK] Wynik auto-cross-reference: {cr_result.get('status')}")
+                else:
+                    best_score = ranked[0].get('_ranking', {}).get('score') if ranked else 'N/A'
+                    print(f"[BG TASK] Brak 100% dopasowania katalogu (najlepszy score: {best_score}).")
+    except Exception as cr_err:
+        print(f"[BG TASK] Błąd przy próbie auto-cross-reference: {cr_err}")
+
+    print(f"[BG TASK] Uruchamiam standardowe wzbogacanie cech dla {vehicle_id}...")
     try:
         enrich_result = enrich_vehicle_features(vehicle_id, parsed_data)
         print(

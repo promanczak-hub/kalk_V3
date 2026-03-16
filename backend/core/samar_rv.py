@@ -591,10 +591,13 @@ class SamarRVCalculator:
         years = max(0, min(years, self.LICZBA_LAT))
         rv_base_netto = value_table.get(years, wr_value_netto)
 
-        # V1 PARITY (Kluczowe z DH/Excel): Opcje ignorowały tabele.
-        # Zestarzenie opcji to sztywny wzór: Suma Opcji Netto / (1.0 + Okres_Trwania_Lata)
-        divisor = 1.0 + years
-        rv_options_netto = options_netto / divisor if divisor > 0 else options_netto
+        # V1 PARITY: Opcje starzeją się zgodnie z tabelą (options_depreciation_percent)
+        options_rate = rates.get(years, {"options": 0.0})["options"]
+        if options_rate > 0.0:
+            rv_options_netto = options_netto * options_rate
+        else:
+            divisor = 1.0 + years
+            rv_options_netto = options_netto / divisor if divisor > 0 else options_netto
         
         rv_total_netto = rv_base_netto + rv_options_netto
 

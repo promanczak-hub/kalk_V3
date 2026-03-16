@@ -66,6 +66,13 @@ class LTRSubCalculatorOpony:
             else:
                 self.tire_set_price = self.tire_set_price_base
 
+            # Cache values to prevent N+1 queries during matrix generation
+            self.budget_tire_cost = self._fetch_budget_tire_cost()
+            self.odkup_opon_cost = self._fetch_odkup_opon_cost()
+        else:
+            self.budget_tire_cost = 0.0
+            self.odkup_opon_cost = 0.0
+
     def _fetch_global_param(self, param_name: str) -> float:
         """Pobiera parametry globalne (np. koszt przekładki/przechowywania) z bazy."""
         try:
@@ -313,7 +320,7 @@ class LTRSubCalculatorOpony:
                 "OponyNetto": 0.0,
                 "Koszt1KplOpon": self.tire_set_price,
                 "IloscOpon": 0.0,
-                "Cena1KompletOpon": self._fetch_budget_tire_cost(),
+                "Cena1KompletOpon": self.budget_tire_cost,
                 "KwotaOdkupuOpon": 0.0,
                 "capex_initial_set": 0.0,
                 "monthly_storage": 0.0,
@@ -368,7 +375,7 @@ class LTRSubCalculatorOpony:
         # w kosztach technicznych (czynszu). Zostało to odtworzone dla parity.
         remaining_hw_cost = total_hw_cost
 
-        odkup_kwota = self._fetch_odkup_opon_cost()
+        odkup_kwota = self.odkup_opon_cost
         if odkup_kwota > 0:
             trace.append({
                 "krok": "Odkup Opon (Polisa na Resztę)",
@@ -391,7 +398,7 @@ class LTRSubCalculatorOpony:
             "OponyNetto": wynik_netto,
             "Koszt1KplOpon": self.tire_set_price,
             "IloscOpon": sets_needed,
-            "Cena1KompletOpon": self._fetch_budget_tire_cost(),
+            "Cena1KompletOpon": self.budget_tire_cost,
             "KwotaOdkupuOpon": odkup_kwota,
             "capex_initial_set": capex_initial,
             "monthly_storage": storage_total / months,

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { FleetVehicleView } from "../../types";
-import { PipelineDebugger } from "../PipelineDebugger";
 import { Pencil, X, Loader2, RefreshCw, Save } from "lucide-react";
 
 interface VehicleSummaryCardProps {
@@ -77,7 +76,6 @@ function Row({ label, value, isEditing, editValue, onEditChange }: RowProps) {
 }
 
 export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapClassification, isRemapping }: VehicleSummaryCardProps) {
-  const [showDebugger, setShowDebugger] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
@@ -278,15 +276,6 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
                   Przelicz klasyfikację
                 </button>
               )}
-              <button
-                onClick={() => setShowDebugger(true)}
-                className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md font-medium transition-colors flex items-center shadow-sm border border-indigo-100"
-              >
-                <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                Debugger Pipeline
-              </button>
             </>
           )}
         </div>
@@ -330,12 +319,6 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
         </div>
       </div>
 
-      {showDebugger && (
-        <PipelineDebugger
-          vehicle={vehicle}
-          onClose={() => setShowDebugger(false)}
-        />
-      )}
     </div>
   );
 }

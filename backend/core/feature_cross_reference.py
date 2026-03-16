@@ -146,6 +146,54 @@ ZASADY:
 - Zwracaj w features tylko cechy realnie pasujące do wybranego wariantu.
 """
 
+def find_exact_variant_match(
+    vehicle_spec: dict[str, Any], catalog_variants: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Find a 100% deterministic match based on price and name."""
+    base_price = vehicle_spec.get("base_price")
+    try:
+        base_price_float = float(base_price) if base_price is not None else 0.0
+    except (ValueError, TypeError):
+        base_price_float = 0.0
+
+    trim_level = str(vehicle_spec.get("trim_level") or "").strip().lower()
+    power_hp = vehicle_spec.get("power_hp")
+    
+    if base_price_float <= 0:
+        return None
+
+    best_match = None
+    for variant in catalog_variants:
+        v_price_net = variant.get("price_net")
+        v_price_gross = variant.get("price_gross")
+        
+        try:
+            p_net = float(v_price_net) if v_price_net is not None else 0.0
+            p_gross = float(v_price_gross) if v_price_gross is not None else 0.0
+        except (ValueError, TypeError):
+            continue
+            
+        is_price_match = False
+        if p_net > 0 and abs(p_net - base_price_float) < 1.0:
+            is_price_match = True
+        elif p_gross > 0 and abs(p_gross - base_price_float) < 1.0:
+            is_price_match = True
+            
+        if is_price_match:
+            variant_name = str(variant.get("variant_name") or "").strip().lower()
+            # If we have a price match, check if trim level or power matches to be absolutely sure
+            is_trim_match = trim_level and trim_level in variant_name
+            is_power_match = power_hp and str(power_hp) in variant_name
+            
+            if is_trim_match or is_power_match:
+                return variant # Perfect match with name or power
+            
+            # Keep as fallback if no better name match is found
+            if not best_match:
+                best_match = variant
+                
+    return best_match
+
 
 def _match_variant_with_llm(
     vehicle_spec: dict[str, Any],
@@ -268,6 +316,18 @@ def rank_catalogs_for_vehicle(
         score_map = {r.catalog_id: r for r in ranking_result.rankings}
 
         for cat in catalogs:
+            # Check for exact price match first
+            extracted = cat.get("extracted_data") or {}
+            variants = extracted.get("variants", [])
+            exact_variant = find_exact_variant_match(vehicle_spec, variants)
+            
+            if exact_variant:
+                cat["_ranking"] = {
+                    "score": 1.0,
+                    "reasoning": f"Znaleziono idealne dopasowanie 100% wariantu ({exact_variant.get('variant_name')}) na podstawie zgodności ceny (co do 1 PLN).",
+                }
+                continue
+
             rank_data = score_map.get(cat["id"])
             if rank_data:
                 cat["_ranking"] = {
@@ -600,6 +660,7 @@ def cross_reference_vehicle(
         "transmission": card_summary.get("transmission", ""),
         "vehicle_class": card_summary.get("vehicle_class", ""),
         "trim_level": card_summary.get("trim_level", ""),
+        "base_price": card_summary.get("base_price") or synthesis.get("pricing", {}).get("base_price"),
     }
 
     # 2. Load catalog variants
@@ -639,8 +700,17 @@ def cross_reference_vehicle(
     feature_keys = _load_feature_keys()
     feature_id_map = _load_feature_id_map()
 
-    # 4. LLM variant matching
-    match_result = _match_variant_with_llm(vehicle_spec, all_variants, feature_keys)
+    # 4. LLM variant matching (or exact match bypass)
+    exact_variant = find_exact_variant_match(vehicle_spec, all_variants)
+    
+    if exact_variant:
+        logger.info("Found EXACT 100%% deterministic match by price: %s", exact_variant.get("variant_name"))
+        match_result = _match_variant_with_llm(vehicle_spec, [exact_variant], feature_keys)
+        if match_result:
+            match_result.confidence = 1.0
+            match_result.reasoning = "Katalog został dopasowany w 100% ze względu na perfekcyjną zgodność Ceny Bazowej (oraz ew. nazwy/mocy silnika)."
+    else:
+        match_result = _match_variant_with_llm(vehicle_spec, all_variants, feature_keys)
 
     if not match_result or match_result.confidence < 0.65:
         reason = match_result.reasoning if match_result else "Brak odpowiedzi LLM"

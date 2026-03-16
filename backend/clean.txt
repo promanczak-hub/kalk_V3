@@ -1,0 +1,379 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\kalk_v3
+configfile: pyproject.toml
+plugins: anyio-4.12.1, Faker-40.8.0, asyncio-1.3.0, mock-3.15.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests\test_pipeline_debugger.py 
+--- MATRIX ---
+{'Admin': 13.0,
+ 'AmortyzacjaProcent': 1.5,
+ 'Cena1KompletOpon': 3412.0,
+ 'CenaZakupu': 94800.0,
+ 'CenaZakupuBezOpon': 94800.0,
+ 'CenaZakupuBezOponIOpcjiSerwisowych': 91800.0,
+ 'CenaZakupuBezOponIOpcjiSerwisowychIPakietu': 91800.0,
+ 'CzynszFinansowy': 3243.0,
+ 'CzynszInicjalnyNetto': 0.0,
+ 'CzynszInicjalnyProcent': 0.0,
+ 'CzynszTechniczny': 360.0,
+ 'IloscOpon': 1.0,
+ 'KorektaAdministracyjnaKwotowo': 0.0,
+ 'KorektaWRMaks': 98400000.0,
+ 'KorektaZaPrzebiegKwotowo': 0.0,
+ 'Koszt': [{'KosztPlusMarza': 3243.0,
+            'KosztPlusMarzaKorekta': 3243.0,
+            'KwotaMarzy': 486.0,
+            'KwotaMarzyKorekta': 486.0,
+            'RozkladMarzy': 0.9002003046425735,
+            'RozkladMarzyKorekta': 0.9002003046425735},
+           {'KosztPlusMarza': 59.0,
+            'KosztPlusMarzaKorekta': 59.0,
+            'KwotaMarzy': 9.0,
+            'KwotaMarzyKorekta': 9.0,
+            'RozkladMarzy': 0.01632794989650641,
+            'RozkladMarzyKorekta': 0.01632794989650641},
+           {'KosztPlusMarza': 0.0,
+            'KosztPlusMarzaKorekta': 0.0,
+            'KwotaMarzy': 0.0,
+            'KwotaMarzyKorekta': 0.0,
+            'RozkladMarzy': 0.0,
+            'RozkladMarzyKorekta': 0.0},
+           {'KosztPlusMarza': 264.0,
+            'KosztPlusMarzaKorekta': 264.0,
+            'KwotaMarzy': 40.0,
+            'KwotaMarzyKorekta': 40.0,
+            'RozkladMarzy': 0.07331249503531377,
+            'RozkladMarzyKorekta': 0.07331249503531377},
+           {'KosztPlusMarza': 24.0,
+            'KosztPlusMarzaKorekta': 24.0,
+            'KwotaMarzy': 4.0,
+            'KwotaMarzyKorekta': 4.0,
+            'RozkladMarzy': 0.006531179958602563,
+            'RozkladMarzyKorekta': 0.006531179958602563},
+           {'KosztPlusMarza': 13.0,
+            'KosztPlusMarzaKorekta': 13.0,
+            'KwotaMarzy': 2.0,
+            'KwotaMarzyKorekta': 2.0,
+            'RozkladMarzy': 0.0036280704670037236,
+            'RozkladMarzyKorekta': 0.0036280704670037236}],
+ 'KosztDzienny': 100.73,
+ 'KosztFinansowyLacznie': 66159.0,
+ 'KosztFinansowyMiesiecznie': 2757.0,
+ 'KosztyDodatkowe': 267.0,
+ 'KosztyLaczneMC': 3062.233796460767,
+ 'KosztyOgolem': 73494.0,
+ 'KosztySerwisowe': 5388.0,
+ 'LacznaStawka': 3603.0,
+ 'LacznieKosztySerwisowe': 5388.0,
+ 'LacznieSamochodZastepczy': 0.0,
+ 'LacznieUbezpieczenie': 1200.0,
+ 'LacznyKosztCzesciOdsetkowejRaty': 11159.0,
+ 'LacznyKosztOpon': 480.0,
+ 'MarzaMiesiac': 540.0,
+ 'MarzaNaKontrakcie': 12969.0,
+ 'MarzaNaKontrakcieProcent': 0.15000000000000008,
+ 'Okres': 24,
+ 'Opony': 24.0,
+ 'PodstawaMarzy': 3062.233796460767,
+ 'Przebieg': 60000,
+ 'PrzebiegKontrakt': 120000,
+ 'Przychod': 86463.0,
+ 'RabatKwotowo': 10200.0,
+ 'ReportHtml': '<!doctype html><html><head><meta '
+               "charset='utf-8'/><style>body{font-family:Segoe "
+               'UI,Arial,sans-serif;background:#fff;color:#0f172a;margin:16px;}h3{margin:0 '
+               '0 10px '
+               '0;font-size:16px;}table{border-collapse:collapse;width:100%;font-size:12px;}td{border:1px '
+               'solid #cbd5e1;padding:6px '
+               '8px;vertical-align:top;}td.val{text-align:right;font-weight:600;white-space:nowrap;}</style></head><body><h3>Karta '
+               'kalkulacji (V3)</h3><table><tr><td>Okres (mc)</td><td '
+               "class='val'>24,00</td></tr><tr><td>Przebieg (km/rok)</td><td "
+               "class='val'>60 000,00</td></tr><tr><td>Stawka laczna</td><td "
+               "class='val'>3 603,00</td></tr><tr><td>Czynsz finansowy</td><td "
+               "class='val'>3 243,00</td></tr><tr><td>Czynsz "
+               'techniczny</td><td '
+               "class='val'>360,00</td></tr><tr><td>WR</td><td class='val'>40 "
+               "000,00</td></tr><tr><td>Utrata wartosci</td><td class='val'>55 "
+               "000,00</td></tr><tr><td>Cena zakupu</td><td class='val'>94 "
+               '800,00</td></tr><tr><td>Koszty dodatkowe</td><td '
+               "class='val'>267,00</td></tr><tr><td>Ubezpieczenie</td><td "
+               "class='val'>1 200,00</td></tr><tr><td>Serwis</td><td "
+               "class='val'>5 388,00</td></tr><tr><td>Opony</td><td "
+               "class='val'>480,00</td></tr><tr><td>Samochod zastepczy</td><td "
+               "class='val'>0,00</td></tr><tr><td>Marza miesiac</td><td "
+               "class='val'>540,00</td></tr><tr><td>Marza na "
+               "kontrakcie</td><td class='val'>12 "
+               '969,00</td></tr><tr><td>Koszt dzienny</td><td '
+               "class='val'>100,73</td></tr></table></body></html>",
+ 'SamochodZastepczy': 0.0,
+ 'Serwis': 264.0,
+ 'SumaOdsetekBezCzynszuInicjalnego': 11159.0,
+ 'Ubezpieczenie': 59.0,
+ 'UtrataWartosci': 55000.0,
+ 'WR': 40000.0,
+ 'WRdlaLO': 41000.0,
+ 'calculation_trace': [{'krok': 'Cena Zakupu: Cena Bazowa',
+                        'rownanie': 'Baza 100000.00 * (1 - Rabat 10.00%)',
+                        'wynik': 90000.0},
+                       {'krok': 'Cena Zakupu: Opcje i Wyposa┐enie',
+                        'rownanie': 'Opcje Rabatowalne 2000.00 + '
+                                    'Nierabatowalne 0.00 + Serwisowe 3000.00',
+                        'wynik': 5000.0},
+                       {'krok': 'Cena Zakupu: Ekstrasy (Transport, Pakiet, '
+                                'Opony)',
+                        'rownanie': 'Transport 0.00 + PakietS 0.00 + 1-komplet '
+                                    'Opon 0.00',
+                        'wynik': 0.0},
+                       {'krok': 'Cena Zakupu: CAPEX Ca│kowity',
+                        'rownanie': 'Suma (BazaPoRabacie + OpcjeRabatowane + '
+                                    'OpcjeNierab + OpcjeSerw + PakietS + '
+                                    'Transport + Opony + GSM)',
+                        'wynik': 94800.0},
+                       {'krok': 'Zu┐ycie Opon (Sprzŕt)',
+                        'rownanie': 'Cena 1 kpl: 3412.00 PLN. Wymagane kpl: '
+                                    '1.00 (zale┐ne od przebiegu: 120000 km)',
+                        'wynik': 3412.0},
+                       {'krok': 'Opony Sezonowe: Przek│adki',
+                        'rownanie': 'Z│o┐onoťŠ: 120.00 PLN * 2.00 lat * 2 '
+                                    'sezony',
+                        'wynik': 480.0},
+                       {'krok': 'Opony Sezonowe: Przechowywanie',
+                        'rownanie': 'Koszt z bazy: 0.00 PLN * 2.00 lat * 2 '
+                                    'sezony',
+                        'wynik': 0.0},
+                       {'krok': 'Opony: Preshift do CAPEX (Initial Set)',
+                        'rownanie': 'Dodanie kwoty do raty finansowej '
+                                    '(leasingowej): 3412.00 PLN',
+                        'wynik': 3412.0},
+                       {'krok': 'Koszty Techniczne Opon (SUMA)',
+                        'rownanie': '0.00 (Hardware) + 480.00 (Przek│adki) + '
+                                    '0.00 (Hotel) - 0.00 (Odkup)',
+                        'wynik': 480.0},
+                       {'krok': 'Serwis: Efektywny przebieg (km-ˇwka)',
+                        'rownanie': 'MAX( 120000 km, (Normatywny 4000 * 24 = '
+                                    '96000) )',
+                        'wynik': 120000},
+                       {'krok': 'Serwis: Wynik przed korekt╣',
+                        'rownanie': '120000.00 km * Stawka Baza 0.04490 PLN/km',
+                        'wynik': 5388.0},
+                       {'krok': 'Serwis: Miesiŕczna rata (km-ˇwka)',
+                        'rownanie': '5388.00 PLN / 24 msc',
+                        'wynik': 224.5},
+                       {'krok': 'Serwis: Razem Miesiŕcznie',
+                        'rownanie': '224.50 (Baza) + 0.00 (Koszty Dodatkowe)',
+                        'wynik': 224.5},
+                       {'krok': 'Auto Zastŕpcze (Wy│╣czone)',
+                        'rownanie': 'enabled = False',
+                        'wynik': 0.0},
+                       {'krok': 'K.Dodatkowe: GPS/GSM',
+                        'rownanie': 'Abonament: 0.00 * 24 + Urz╣dzenie '
+                                    '500.00/6*(lat) + Monta┐ 100.00',
+                        'wynik': 266.66666666666663},
+                       {'krok': 'K.Dodatkowe: Rejestracja',
+                        'rownanie': 'Kwota z bazy: 0.00',
+                        'wynik': 0.0},
+                       {'krok': 'K.Dodatkowe: Przygotowanie do Sprzeda┐y',
+                        'rownanie': 'Sta│a: 0.00 + Korekta: 0.00',
+                        'wynik': 0.0},
+                       {'krok': 'Finanse: Czynsz Inicjalny Netto',
+                        'rownanie': 'Tryb: Kwotowo | Kwota Brut: 0.00 / VAT '
+                                    '1.23 LUB % z CAPEX (0.00% * 98212.00)',
+                        'wynik': 0.0},
+                       {'krok': 'Finanse: Oprocentowanie Zsumowane',
+                        'rownanie': 'WIBOR 5.8500% + Mar┐a 2.0000%',
+                        'wynik': 7.85},
+                       {'krok': 'Finanse (Z Czynszem): Kredyt i PMT',
+                        'rownanie': 'Kredyt: CAPEX 98212.00 - Czynsz 0.00 | '
+                                    'Wykup: 40000.00 | PMT -> Suma Odsetek = '
+                                    '11158.97',
+                        'wynik': 2890.4571297941006},
+                       {'krok': 'Finanse (BEZ Czynszu): Kredyt i PMT',
+                        'rownanie': 'Kredyt: CAPEX 98212.00 | Wykup: 40000.00 '
+                                    '| PMT -> Suma Odsetek = 11158.97',
+                        'wynik': 2890.4571297941006},
+                       {'krok': 'Koszty: Suma Finansowych',
+                        'rownanie': 'Suma Odsetek (11158.97) + Utrata Wartoťci '
+                                    '(55000.00)',
+                        'wynik': 66158.9711150584},
+                       {'krok': 'Koszty: Suma Technicznych',
+                        'rownanie': 'Zast. (0.00) + Dodat. (266.64) + Ubezp. '
+                                    '(1200.00) + Opony (480.00) + Serwis '
+                                    '(5388.00)',
+                        'wynik': 7334.639999999999},
+                       {'krok': 'Koszty Ogˇ│em (na ca│y okres)',
+                        'rownanie': 'Finansowe (66158.97) + Techniczne '
+                                    '(7334.64)',
+                        'wynik': 73493.6111150584},
+                       {'krok': 'Koszt Miesiŕczny',
+                        'rownanie': 'Koszty Ogˇ│em (73493.61) / Okres (24)',
+                        'wynik': 3062.233796460767},
+                       {'krok': 'Koszt Dzienny',
+                        'rownanie': 'Koszt Miesiŕczny (3062.23) / Wsp. Dni w '
+                                    'Msc (30.4)',
+                        'wynik': 100.73137488357786},
+                       {'krok': 'Symulacja: Koszt Miesiŕczny (0% wp│aty '
+                                'w│asnej)',
+                        'rownanie': '(Utrata (50000.00) + OdsetkiSym '
+                                    '(11158.97) + Techniczne (7334.64)) / '
+                                    'Okres (24)',
+                        'wynik': 2853.900463127433},
+                       {'krok': 'Stawka: Kalkulacja Mar┐y (Mar┐-up)',
+                        'rownanie': 'Podstawa 3062.23 [Koszt MC (z czynszem)] '
+                                    '* (1 / (1 - 15.00%)) - Podstawa',
+                        'wynik': 540.3941993754297},
+                       {'krok': 'Stawka (Podzia│): Koszt finansowy',
+                        'rownanie': 'Koszt Mc 2756.62 + Mar┐a 486.46 '
+                                    '(Alokacja: 90.02%)',
+                        'wynik': 3243.086819365608},
+                       {'krok': 'Stawka (Podzia│): Ubezpieczenie',
+                        'rownanie': 'Koszt Mc 50.00 + Mar┐a 8.82 (Alokacja: '
+                                    '1.63%)',
+                        'wynik': 58.82352941176471},
+                       {'krok': 'Stawka (Podzia│): Samochˇd zastŕpczy',
+                        'rownanie': 'Koszt Mc 0.00 + Mar┐a 0.00 (Alokacja: '
+                                    '0.00%)',
+                        'wynik': 0.0},
+                       {'krok': 'Stawka (Podzia│): Serwis',
+                        'rownanie': 'Koszt Mc 224.50 + Mar┐a 39.62 (Alokacja: '
+                                    '7.33%)',
+                        'wynik': 264.11764705882354},
+                       {'krok': 'Stawka (Podzia│): Opony',
+                        'rownanie': 'Koszt Mc 20.00 + Mar┐a 3.53 (Alokacja: '
+                                    '0.65%)',
+                        'wynik': 23.529411764705884},
+                       {'krok': 'Stawka (Podzia│): Serwis admin rej',
+                        'rownanie': 'Koszt Mc 11.11 + Mar┐a 1.96 (Alokacja: '
+                                    '0.36%)',
+                        'wynik': 13.070588235294117},
+                       {'krok': 'Stawka: Oferowana Stawka Miesiŕczna',
+                        'rownanie': 'Czynsz Finansowy 3243.09 + Czynsz '
+                                    'Techniczny 359.54',
+                        'wynik': 3602.627995836196},
+                       {'krok': 'Bud┐et Marketingowy',
+                        'rownanie': 'WR Netto (40000.00) * VAT (1.23) * '
+                                    'Bud┐et% (200000.00%)',
+                        'wynik': 98400000.0}],
+ 'status': 'OK',
+ 'warnings': {'replacement_car_missing': False, 'service_fallback_used': False}}
+
+--- STEPS ---
+Opony {'OponyNetto': 2097.333333333333, 'Koszt1KplOpon': 3412.0, 'IloscOpon': 2.0}
+Koszty Dodatkowe {'additional_costs_base': 9.03, 'additional_costs_total': 433.43999999999994}
+Samochˇd Zastŕpczy {'rc_base': 0.0, 'rc_total': 0.0}
+Serwis {'service_base': 179.60000000000002, 'service_total': 8620.800000000001}
+Cena Zakupu (CAPEX) {'capex_for_financing': 98212.0}
+Utrata Wartoťci (WR) {'vr_samar': 40000.0, 'utrata_z_czynszem': 55000.0, 'utrata_bez_czynszu': 50000.0, 'rv_lo_net': 41000.0}
+Amortyzacja {'procent_amortyzacji_miesiecznie': 1.5}
+Ubezpieczenie {'insurance_base': 100.0, 'insurance_total': 4800.0}
+Finanse (PMT) {'koszt_finansowy': 22365.433924221994, 'suma_odsetek_bez_czynszu': 22365.433924221994, 'czynsz_inicjalny': 0.0, 'monthly_pmt_z_czynszem': 1678.696540087958, 'monthly_pmt_bez_czynszu': 1678.696540087958, 'wykup_kwota': 40000.0, 'czynsz_procent': 0.0}
+Koszt Dzienny {'koszt_mc': 1944.1043178657358, 'koszt_mc_bez_czynszu': 1839.9376511990693, 'koszt_dzienny': 63.950799929793945, 'koszty_ogolem': 93317.00725755532}
+Stawka {'oferowana_stawka': 2287.1815504302776, 'marza_mc': 343.0772325645419, 'marza_na_kontrakcie': 16467.70716309801, 'czynsz_finansowy': 1896.2116157897547, 'czynsz_techniczny': 390.9699346405229}
+Bud┐et Marketingowy {'korekta_wr_maks': 98400000.0}
+F
+
+================================== FAILURES ===================================
+___________ test_pipeline_debugger_no_overrides_matches_kalkulator ____________
+
+mock_input_data = CalculatorInput(calculation_id=None, vehicle_id='mock-123', base_price_net=100000.0, discount_pct=10.0, factory_option...sowania_netto=0.0, vehicle_vintage='current', is_metalic=False, matrix_km_mode='annual', matrix_contract_km_step=10000)
+mock_settings = ControlCenterSettings(default_wibor=5.85, default_ltr_margin=2.0, vat_rate=23.0, bank_spread=0.0, samar_segment_b_adju..., cost_transport=0.0, normatywny_przebieg_mc=4000, przewidywana_cena_sprzedazy_lo=0.15, budzet_marketingowy_ltr=2000.0)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000011AC19A91F0>
+
+    def test_pipeline_debugger_no_overrides_matches_kalkulator(
+        mock_input_data, mock_settings, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "core.LTRKalkulator.get_vehicle_from_db",
+            lambda *a, **kw: {
+                "id": "mock-123",
+                "samar_class_id": "1",
+                "engine_type_id": 1,
+                "power_kw": 100,
+            },
+        )
+        monkeypatch.setattr(
+            "core.LTRKalkulator.get_samar_klasa_from_db", lambda *a, **kw: {"id": "1"}
+        )
+        monkeypatch.setattr(
+            "core.LTRKalkulator.get_insurance_rates_from_db", lambda *a, **kw: []
+        )
+        monkeypatch.setattr(
+            "core.LTRKalkulator.get_replacement_car_rate_from_db",
+            lambda *a, **kw: {"average_days_per_year": 15.0, "daily_rate_net": 100.0},
+        )
+        monkeypatch.setattr(
+            "core.LTRKalkulator.get_damage_coefficients_from_db", lambda *a, **kw: {}
+        )
+    
+        # Bypass broken InsuranceCalculator completely
+        class DummyInsuranceCalc:
+            def __init__(self, *a, **kw):
+                pass
+    
+            def calculate_cost(self, *a, **kw):
+                return {"monthly_insurance": 100, "total_insurance": 1200}
+    
+        monkeypatch.setattr("core.LTRKalkulator.InsuranceCalculator", DummyInsuranceCalc)
+        monkeypatch.setattr("core.PipelineDebugger.InsuranceCalculator", DummyInsuranceCalc)
+    
+        # Expected standard calculation
+        standard_calc = LTRKalkulator(input_data=mock_input_data, settings=mock_settings)
+    
+        # Needs WR mock for new calculations
+        monkeypatch.setattr(
+            "core.LTRSubCalculatorUtrataWartosciNew.LTRSubCalculatorUtrataWartosciNew.calculate_values",
+            lambda *a, **kw: {
+                "WR": 40000.0,
+                "WRdlaLO": 41000.0,
+                "UtrataWartosciBEZczynszu": 50000.0,
+                "UtrataWartosciZCzynszemInicjalnym": 55000.0,
+            },
+        )
+    
+        matrix = standard_calc.build_matrix()
+        base_month = matrix[7]  # 48 months (6,12,18,24,30,36,42,48 -> index 7)
+    
+        # Debugger calculation
+        debugger = PipelineDebugger(input_data=mock_input_data, settings=mock_settings)
+        steps = debugger.calculate_steps(months=48, overrides={})
+    
+        assert len(steps) == 12
+        # Verify Step 11 matches base_cost_net and Step 12 matches price_net
+        # Note: Stawka is step 11, Budzet is step 12
+        stawka_step = steps[10]
+    
+        print("\n--- MATRIX ---")
+        import pprint
+    
+        pprint.pprint(base_month)
+        print("\n--- STEPS ---")
+        for s in steps:
+            print(s["name"], s["outputs"])
+    
+        assert stawka_step["name"] == "Stawka"
+        assert "outputs" in stawka_step
+>       assert (
+            round(stawka_step["outputs"]["oferowana_stawka"], 2) == round(base_month["CzynszTechniczny"] + base_month["CzynszFinansowy"], 2)
+        )
+E       assert 2287.18 == 3603.0
+E        +  where 2287.18 = round(2287.1815504302776, 2)
+E        +  and   3603.0 = round((360.0 + 3243.0), 2)
+
+tests\test_pipeline_debugger.py:162: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  root:LTRKalkulator.py:178 Nie udalo sie zaladowac zabudowa_types: {'message': "Could not find the table 'public.zabudowa_types' in the schema cache", 'code': 'PGRST205', 'hint': "Perhaps you meant the table 'public.body_types'", 'details': None}
+============================== warnings summary ===============================
+backend/tests/test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+  C:\Users\proma\AppData\Local\pypoetry\Cache\virtualenvs\kalk-backend-5ssiAVxl-py3.12\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'timeout' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+backend/tests/test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+  C:\Users\proma\AppData\Local\pypoetry\Cache\virtualenvs\kalk-backend-5ssiAVxl-py3.12\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'verify' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests\test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+======================== 1 failed, 2 warnings in 7.15s ========================

@@ -15,8 +15,8 @@ def test_purchase_price_base_no_options():
         base_price_net=100000.0,
         options=[],
         discount_pct=0.0,
-        add_gsm_device=False,
-        gsm_hardware_cost=0.0,
+        add_gsm_to_capex=False,
+        gsm_device_cost_net=0.0,
     )
     calc = PurchasePriceCalculator(input_data)
     result = calc.calculate()
@@ -37,8 +37,8 @@ def test_purchase_price_with_discount_and_options():
         base_price_net=100000.0,
         options=options,
         discount_pct=10.0,
-        add_gsm_device=False,
-        gsm_hardware_cost=0.0,
+        add_gsm_to_capex=False,
+        gsm_device_cost_net=0.0,
     )
     calc = PurchasePriceCalculator(input_data)
     result = calc.calculate()
@@ -66,8 +66,8 @@ def test_purchase_price_with_non_discountable_options():
         base_price_net=100000.0,
         options=options,
         discount_pct=10.0,
-        add_gsm_device=False,
-        gsm_hardware_cost=0.0,
+        add_gsm_to_capex=False,
+        gsm_device_cost_net=0.0,
     )
     calc = PurchasePriceCalculator(input_data)
     result = calc.calculate()
@@ -100,8 +100,8 @@ def test_purchase_price_service_options_included_no_discount():
         base_price_net=100000.0,
         options=options,
         discount_pct=10.0,
-        add_gsm_device=False,
-        gsm_hardware_cost=0.0,
+        add_gsm_to_capex=False,
+        gsm_device_cost_net=0.0,
     )
     calc = PurchasePriceCalculator(input_data)
     result = calc.calculate()
@@ -120,8 +120,9 @@ def test_purchase_price_with_gsm_device():
         base_price_net=100000.0,
         options=[],
         discount_pct=10.0,
-        add_gsm_device=True,
-        gsm_hardware_cost=469.0 + 150.0,  # Device + Install
+        add_gsm_to_capex=True,
+        gsm_device_cost_net=469.0,
+        gsm_installation_cost_net=150.0,
     )
     calc = PurchasePriceCalculator(input_data)
     result = calc.calculate()
@@ -140,8 +141,8 @@ def test_purchase_price_with_pakiet_serwisowy():
         base_price_net=100000.0,
         options=[],
         discount_pct=10.0,
-        add_gsm_device=False,
-        gsm_hardware_cost=0.0,
+        add_gsm_to_capex=False,
+        gsm_device_cost_net=0.0,
         pakiet_serwisowy_net=3000.0,
     )
     calc = PurchasePriceCalculator(input_data)
@@ -175,8 +176,9 @@ def test_purchase_price_full_scenario():
         base_price_net=100000.0,
         options=options,
         discount_pct=10.0,
-        add_gsm_device=True,
-        gsm_hardware_cost=619.0,
+        add_gsm_to_capex=True,
+        gsm_device_cost_net=469.0,
+        gsm_installation_cost_net=150.0,
         pakiet_serwisowy_net=2400.0,
     )
     calc = PurchasePriceCalculator(input_data)

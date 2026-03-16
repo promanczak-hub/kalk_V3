@@ -139,8 +139,9 @@ Poniższe pliki przeszły pełen audyt V1↔V3 i są zatwierdzone przez użytkow
 | `backend/core/LTRSubCalculatorOpony.py`               | 2026-03-05 | ×4 usunięto (DB = cena za komplet), fallbacki → ValueError                         |
 | `backend/core/LTRSubCalculatorKosztyDodatkowe.py`     | 2026-03-05 | korekta przygotowania dodana, cost_sales_prep=1040, TODO mock czynszu              |
 | `backend/core/LTRSubCalculatorSamochodZastepczy.py`   | 2026-03-05 | logika identyczna V1=V3, stawki potwierdzone                                       |
-| `backend/core/samar_rv.py`                            | 2026-03-05 | 6-krokowy algorytm WR, 4-level cascade body correction, 7-lat compound deprecjacja |
-| `backend/core/LTRSubCalculatorUtrataWartosciNew.py`   | 2026-03-05 | wrapper SAMAR→LTR, konwersja brutto/netto, resolver class/engine ID                |
+| `backend/core/samar_rv.py`                            | 2026-03-16 | 6-krokowy algorytm WR, 4-level cascade body correction, 7-lat compound deprecjacja, opcje z bazy |
+| `backend/core/LTRKalkulator.py`                       | 2026-03-16 | ZAMROŻONY, potwierdzona logika matrixa WR, capex i V1 parity                       |
+| `backend/core/LTRSubCalculatorUtrataWartosciNew.py`   | 2026-03-16 | wrapper SAMAR→LTR, konwersja brutto/netto, resolver class/engine ID (ZAMROŻONE)    |
 | `backend/core/LTRSubCalculatorSerwisNew.py`           | 2026-03-05 | stawka km SAMAR, floor=1667 km/mc (20k/yr), korekta%, power_band                   |
 | `backend/core/LTRSubCalculatorCenaZakupu.py`          | 2026-03-05 | netto-based CAPEX, transport+opony+GSM+pakiet, rabat discountable/non-disc         |
 | `backend/core/LTRSubCalculatorAmortyzacja.py`         | 2026-03-05 | logika identyczna V1=V3, guard okres≤0                                             |

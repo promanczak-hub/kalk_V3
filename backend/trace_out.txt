@@ -1,0 +1,230 @@
+
+========================================
+KROK 1: Opony
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  OponyNetto = 4252.5
+  Koszt1KplOpon = 2355.0
+  IloscOpon = 2.0
+
+-- ŚLAD (TRACE) --
+  [Zużycie Opon (Sprzęt)]: 3532.5
+      ( Cena 1 kpl: 2355.00 PLN. Wymagane kpl: 2.00 (zależne od przebiegu: 150000 km) )
+  [Opony Sezonowe: Przekładki]: 720.0
+      ( Złożoność: 120.00 PLN * 3.00 lat * 2 sezony )
+  [Opony Sezonowe: Przechowywanie]: 0.0
+      ( Koszt z bazy: 0.00 PLN * 3.00 lat * 2 sezony )
+  [Opony: Preshift do CAPEX (Initial Set)]: 2355.0
+      ( Dodanie kwoty do raty finansowej (leasingowej): 2355.00 PLN )
+  [Koszty Techniczne Opon (SUMA)]: 4252.5
+      ( 3532.50 (Hardware) + 720.00 (Przekładki) + 0.00 (Hotel) - 0.00 (Odkup) )
+
+========================================
+KROK 2: Koszty Dodatkowe
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  additional_costs_base = 41.89
+  additional_costs_total = 1508.04
+
+-- ŚLAD (TRACE) --
+  [K.Dodatkowe: GPS/GSM]: 474.5
+      ( Abonament: 2.50 * 36 + Urządzenie 469.00/6.0(lat) + Montaż 150.00 )
+  [K.Dodatkowe: Rejestracja]: 233.5
+      ( Kwota z bazy: 233.50 )
+  [K.Dodatkowe: Przygotowanie do Sprzedaży]: 800.0
+      ( Stała: 800.00 + Korekta: 0.00 )
+
+========================================
+KROK 3: Samochód Zastępczy
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  rc_base = 37.92
+  rc_total = 1365.1200000000001
+
+-- ŚLAD (TRACE) --
+  [Auto Zastępcze: Ilość Dni]: 19.5
+      ( Średnia roczna z bazy: 6.50 dni * 3.00 lat )
+  [Auto Zastępcze: Łączny Koszt]: 1365.0
+      ( Łącznie 19.50 dni * Stawka Netto 70.00 PLN )
+
+========================================
+KROK 4: Serwis
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  service_base = 320.8333333333333
+  service_total = 11550.0
+
+-- ŚLAD (TRACE) --
+  [Serwis: Efektywny przebieg (km-ówka)]: 150000
+      ( MAX( 150000 km, (Normatywny 2916 * 36 = 104976) ) )
+  [Serwis: Wynik przed korektą]: 11550.0
+      ( 150000.00 km * Stawka Baza 0.07700 PLN/km )
+  [Serwis: Miesięczna rata (km-ówka)]: 320.8333333333333
+      ( 11550.00 PLN / 36 msc )
+  [Serwis: Razem Miesięcznie]: 320.8333333333333
+      ( 320.83 (Baza) + 0.00 (Koszty Dodatkowe) )
+
+========================================
+KROK 5: Cena Zakupu (CAPEX)
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  capex_for_financing = 109694.4218
+
+-- ŚLAD (TRACE) --
+  Początkowy bazowy CAPEX (bez zniżek) = 135406.5
+  Wyliczony vehicle_capex = 98846.745
+  Opcje capex = 8492.676800000001
+  Tires capex = 2355.0
+  Suma Capex for Financing = 109694.4218
+
+========================================
+KROK 6: Utrata Wartości (WR)
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  vr_samar = 58054.30424893501
+  utrata_z_czynszem = 48418.867551064985
+  utrata_bez_czynszu = 48418.867551064985
+
+-- ŚLAD (TRACE) --
+  [WR Krok 1: Wartość Bazowa (klasa + marka)]: 52808.535
+      ( CAPEX_NETTO * (WR_KLASA 39.00% + KOR_MARKA 0.00%) )
+  [WR Krok 2: Deprecjacja kaskadowa (Tabela)]: 55448.96
+      ( Generowanie krzywej utraty wartości: {0: 96681.7, 1: 69555.18, 2: 62102.84, 3: 55448.96, 4: 52808.54, 5: 52808.54, 6: 49111.94, 7: 45674.1} )
+  [WR Krok 3: Wartość per lat + Opcje]: 58896.52
+      ( Baza (3 lat) 55448.96 + Opcje 3447.56 (33.00%) )
+  [WR Krok 4: Korekta Przebiegu]: -842.22
+      ( Nadprzebieg 10.0 tkm (Under: 1.43%, Over: 3.00%) )
+  [WR Krok 5: Korekty Dodatkowe (Kolor, Nadwozie, Rocznik)]: 58054.3
+      ( Kolor 0.00 + Nadwozie 0.00 + Zabud 0.00 + Rocznik x(1+ 0.00%) )
+  [WR Krok 6: Ostateczna Wartość Rezydualna]: 58054.3
+      ( WR_pre 58054.30 + Korekta Ręczna 0.00 )
+  [WR: Utrata Wartości Netto]: 87799.36
+      ( MAX((CAPEX 145853.66 - WR 58054.30), 0) )
+
+========================================
+KROK 7: Amortyzacja
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  procent_amortyzacji_miesiecznie = 0.012261047745320615
+
+-- ŚLAD (TRACE) --
+  [Amortyzacja: Utrata Wartości Liniowa]: 48418.867551064985
+      ( WP_Amortyzacji 106473.17 - Wartość Końcowa (WR) 58054.30 )
+  [Amortyzacja: Kwota Miesięczna]: 1344.9685430851384
+      ( Utrata 48418.87 / Okres 36 msc )
+  [Amortyzacja: % Miesięczny dla Ubezpieczenia (Stosunek Liniowy)]: 0.012261047745320615
+      ( Kwota 1mc 1344.97 / WP_Finansowania 109694.42. Wymóg dla symulacji V1 (ubezpieczenie liczone od pełnego capexu). )
+
+========================================
+KROK 8: Ubezpieczenie
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  insurance_base = 374.68319444444444
+  insurance_total = 13488.595
+
+-- ŚLAD (TRACE) --
+  [Ubezpieczenie: Szacowana Szkoda Całkowita]: 4850.625
+      ( Baza 2587.00 * (150000km / 80000.0km * Współ.Przebiegu 1.0000 * Współ.Wartości 1.0000) )
+  [Ubezpieczenie (Rok 1)]: 4738.295
+      ( DepSkala 1.0000 -> AC 1645.42 + OC 1476.00 (Składka prorata 3121.42) + Szkoda prorata 1616.88 )
+  [Ubezpieczenie (Rok 2)]: 4496.195
+      ( DepSkala 0.8529 -> AC 1403.32 + OC 1476.00 (Składka prorata 2879.32) + Szkoda prorata 1616.88 )
+  [Ubezpieczenie (Rok 3)]: 4254.105
+      ( DepSkala 0.7057 -> AC 1161.23 + OC 1476.00 (Składka prorata 2637.23) + Szkoda prorata 1616.88 )
+  [Ubezpieczenie: Razem za cały okres]: 13488.595
+      ( Suma z loopa rat dla 36 miesięcy )
+
+========================================
+KROK 9: Finanse (PMT)
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  koszt_finansowy = 15442.906944283459
+  suma_odsetek_bez_czynszu = 15442.906944283459
+  czynsz_inicjalny = 0.0
+  monthly_pmt_z_czynszem = 1863.4173470929939
+  monthly_pmt_bez_czynszu = 1863.4173470929939
+  wykup_kwota = 58054.30424893501
+  czynsz_procent = 0.0
+
+-- ŚLAD (TRACE) --
+  [Finanse: Czynsz Inicjalny Netto]: 0.0
+      ( Tryb: Kwotowo | Kwota Brut: 0.00 / VAT 1.23 LUB % z CAPEX (0.00% * 109694.42) )
+  [Finanse: Oprocentowanie Zsumowane]: 6.03
+      ( WIBOR 3.8300% + Marża 2.2000% )
+  [Finanse (Z Czynszem): Kredyt i PMT]: 1863.4173470929939
+      ( Kredyt: CAPEX 109694.42 - Czynsz 0.00 | Wykup: 58054.30 | PMT -> Suma Odsetek = 15442.91 )
+  [Finanse (BEZ Czynszu): Kredyt i PMT]: 1863.4173470929939
+      ( Kredyt: CAPEX 109694.42 | Wykup: 58054.30 | PMT -> Suma Odsetek = 15442.91 )
+
+========================================
+KROK 10: Koszt Dzienny
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  koszt_mc = 2667.3897082041235
+  koszt_mc_bez_czynszu = 2667.3897082041235
+  koszt_dzienny = 87.74308250671459
+  koszty_ogolem = 96026.02949534844
+
+-- ŚLAD (TRACE) --
+  [Koszty: Suma Finansowych]: 63861.77449534844
+      ( Suma Odsetek (15442.91) + Utrata Wartości (48418.87) )
+  [Koszty: Suma Technicznych]: 32164.254999999997
+      ( Zast. (1365.12) + Dodat. (1508.04) + Ubezp. (13488.59) + Opony (4252.50) + Serwis (11550.00) )
+  [Koszty Ogółem (na cały okres)]: 96026.02949534844
+      ( Finansowe (63861.77) + Techniczne (32164.25) )
+  [Koszt Miesięczny]: 2667.3897082041235
+      ( Koszty Ogółem (96026.03) / Okres (36) )
+  [Koszt Dzienny]: 87.74308250671459
+      ( Koszt Miesięczny (2667.39) / Wsp. Dni w Msc (30.4) )
+  [Symulacja: Koszt Miesięczny (0% wpłaty własnej)]: 2667.3897082041235
+      ( (Utrata (48418.87) + OdsetkiSym (15442.91) + Techniczne (32164.25)) / Okres (36) )
+
+========================================
+KROK 11: Stawka
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  oferowana_stawka = 3138.1055390636748
+  marza_mc = 470.71583085955126
+  marza_na_kontrakcie = 16945.769910943847
+  czynsz_finansowy = 2086.9860946192302
+  czynsz_techniczny = 1051.1194444444445
+
+-- ŚLAD (TRACE) --
+  [Stawka: Kalkulacja Marży (Marż-up)]: 470.71583085955126
+      ( Podstawa 2667.39 [Koszt MC (z czynszem)] * (1 / (1 - 15.00%)) - Podstawa )
+  [Stawka (Podział): Koszt finansowy]: 2086.9860946192302
+      ( Koszt Mc 1773.94 + Marża 313.05 (Alokacja: 66.50%) )
+  [Stawka (Podział): Ubezpieczenie]: 440.80375816993467
+      ( Koszt Mc 374.68 + Marża 66.12 (Alokacja: 14.05%) )
+  [Stawka (Podział): Samochód zastępczy]: 44.61176470588236
+      ( Koszt Mc 37.92 + Marża 6.69 (Alokacja: 1.42%) )
+  [Stawka (Podział): Serwis]: 377.45098039215685
+      ( Koszt Mc 320.83 + Marża 56.62 (Alokacja: 12.03%) )
+  [Stawka (Podział): Opony]: 138.97058823529412
+      ( Koszt Mc 118.12 + Marża 20.85 (Alokacja: 4.43%) )
+  [Stawka (Podział): Serwis admin rej]: 49.28235294117647
+      ( Koszt Mc 41.89 + Marża 7.39 (Alokacja: 1.57%) )
+  [Stawka: Oferowana Stawka Miesięczna]: 3138.1055390636748
+      ( Czynsz Finansowy 2086.99 + Czynsz Techniczny 1051.12 )
+
+========================================
+KROK 12: Budżet Marketingowy
+========================================
+
+-- WYNIKI (OUTPUTS) --
+  korekta_wr_maks = 0.0
+
+-- ŚLAD (TRACE) --
+  [Budżet Marketingowy]: 0.0
+      ( WR Netto (58054.30) * VAT (1.23) * Budżet% (0.00%) )

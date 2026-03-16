@@ -69,8 +69,8 @@ interface V1SummaryRow {
 
 function buildV1SummaryRows(cell: MiniMatrixCell): V1SummaryRow[] {
   const wrPctBase =
-    cell.CenaZakupuBezOponIOpcjiSerwisowych > 0
-      ? (cell.WR / cell.CenaZakupuBezOponIOpcjiSerwisowych) * 100
+    cell.CenaKatalogowaNetto > 0
+      ? (cell.WR / cell.CenaKatalogowaNetto) * 100
       : 0;
 
   return [

@@ -24,6 +24,7 @@ export interface MiniMatrixCell {
   CenaZakupuBezOpon: number;
   CenaZakupuBezOponIOpcjiSerwisowych: number;
   CenaZakupuBezOponIOpcjiSerwisowychIPakietu: number;
+  CenaKatalogowaNetto: number;
   RabatKwotowo: number;
   WR: number;
   WRdlaLO: number;
