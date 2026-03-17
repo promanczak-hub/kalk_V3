@@ -17,14 +17,15 @@ import { MarkdownViewerModal } from "./MarkdownViewerModal";
 
 interface DocumentLibraryItem {
   id: string;
-  created_at: string;
-  file_name: string;
-  document_url: string;
+  uploaded_at: string;
+  original_filename: string;
+  file_type: string;
   document_type: string;
   brand: string | null;
-  model: string | null;
-  valid_from: string | null;
-  description: string | null;
+  model_family: string | null;
+  version_tag: string | null;
+  extraction_status: string;
+  variant_count: number;
 }
 
 /* ── Constants ────────────────────────────────────────────────── */
@@ -52,10 +53,10 @@ export function CatalogLibraryPage() {
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/document-library`);
+      const res = await apiFetch(`/api/catalogs`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setDocuments(data.documents || []);
+      setDocuments(data.catalogs || []);
     } catch (err) {
       console.error("Failed to fetch documents:", err);
     } finally {
@@ -70,7 +71,7 @@ export function CatalogLibraryPage() {
   // ── Preview ───────────────────────────────────────────────────
   const openPreview = (doc: DocumentLibraryItem) => {
     setPreviewId(doc.id);
-    setPdfUrl(doc.document_url);
+    setPdfUrl(`http://localhost:8000/api/catalogs/${doc.id}/file`);
   };
 
   const closePreview = () => {
@@ -82,7 +83,7 @@ export function CatalogLibraryPage() {
   const deleteDocument = async (id: string) => {
     if (!confirm("Czy na pewno usunąć ten dokument z biblioteki?")) return;
     try {
-      await apiFetch(`/api/document-library/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/catalogs/${id}`, { method: "DELETE" });
       await fetchDocuments();
       if (previewId === id) closePreview();
     } catch (err) {
@@ -92,9 +93,9 @@ export function CatalogLibraryPage() {
 
   // ── Reprocess ──────────────────────────────────────────────────
   const reprocessDocument = async (id: string) => {
-    if (!confirm("Czy na pewno chcesz przetworzyć ten dokument jako Ofertę (pojedyncze auta)? Zostanie on usunięty z tej biblioteki i trafi do głównej tabeli.")) return;
+    if (!confirm("Czy na pewno chcesz przetworzyć ten dokument jako Ofertę (pojedyncze auta)? Zostanie on usunięty z tej biblioteki i trafi do głównej tabeli uwzględniając twarde wypisane ceny i wyposażenie unikalne.")) return;
     try {
-      const res = await apiFetch(`/api/document-library/${id}/reprocess`, { method: "POST" });
+      const res = await apiFetch(`/api/catalogs/${id}/reprocess`, { method: "POST" });
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(`HTTP ${res.status}: ${errText}`);
@@ -114,9 +115,9 @@ export function CatalogLibraryPage() {
     const q = searchQuery.toLowerCase();
     return (
       (d.brand && d.brand.toLowerCase().includes(q)) ||
-      (d.model && d.model.toLowerCase().includes(q)) ||
-      (d.file_name && d.file_name.toLowerCase().includes(q)) ||
-      (d.description && d.description.toLowerCase().includes(q))
+      (d.model_family && d.model_family.toLowerCase().includes(q)) ||
+      (d.original_filename && d.original_filename.toLowerCase().includes(q)) ||
+      (d.version_tag && d.version_tag.toLowerCase().includes(q))
     );
   });
 
@@ -205,30 +206,39 @@ export function CatalogLibraryPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 border-b border-slate-100 pb-2">
                       <span className="text-sm font-semibold text-slate-700 truncate">
-                        {doc.brand} {doc.model}
+                        {doc.brand} {doc.model_family}
                       </span>
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${docType.color}`}
                       >
                         {docType.label}
                       </span>
-                      {doc.valid_from && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-                          Ważny od: {doc.valid_from}
+                      {doc.extraction_status && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          doc.extraction_status === 'ready' ? 'bg-emerald-100 text-emerald-700' :
+                          doc.extraction_status === 'extracting' ? 'bg-amber-100 text-amber-700 animate-pulse' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>
+                          Ekstrakcja: {doc.extraction_status}
+                        </span>
+                      )}
+                      {doc.variant_count > 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">
+                          Warianty: {doc.variant_count}
                         </span>
                       )}
                       <span className="ml-auto text-xs text-slate-400">
-                        Dodano: {new Date(doc.created_at).toLocaleDateString("pl-PL")}
+                        Dodano: {new Date(doc.uploaded_at).toLocaleDateString("pl-PL")}
                       </span>
                     </div>
 
                     <div className="flex flex-col gap-1 text-[11px] text-slate-500">
                       <span className="font-medium text-slate-600 truncate">
-                        Plik: {doc.file_name}
+                        Plik: {doc.original_filename}
                       </span>
-                      {doc.description && (
+                      {doc.version_tag && (
                         <p className="text-slate-500 leading-relaxed mt-1 bg-slate-50 p-2 rounded border border-slate-100">
-                          <strong className="text-slate-600">Opis:</strong> {doc.description}
+                          <strong className="text-slate-600">Tag wersji:</strong> {doc.version_tag}
                         </p>
                       )}
                     </div>
@@ -327,7 +337,7 @@ export function CatalogLibraryPage() {
         isOpen={!!markdownPreviewId}
         onClose={() => setMarkdownPreviewId(null)}
         documentId={markdownPreviewId || ""}
-        source="library"
+        source="catalog"
       />
     </div>
   );

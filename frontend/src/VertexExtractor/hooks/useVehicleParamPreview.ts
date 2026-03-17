@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
 
 export function useVehicleParamPreview(
@@ -12,27 +12,8 @@ export function useVehicleParamPreview(
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [paramPreview, setParamPreview] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [controlCenter, setControlCenter] = useState<any>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const fetchCC = async () => {
-      try {
-        const res = await apiFetch(`/api/control-center`);
-        if (res.ok && mounted) {
-          const data = await res.json();
-          setControlCenter(data);
-        }
-      } catch {
-        // silently fail
-      }
-    };
-    fetchCC();
-    return () => { mounted = false; };
-  }, []);
-
-  const fetchParamPreview = useCallback(async () => {
+  const fetchParamPreview = useCallback(async (signal?: AbortSignal) => {
     if (!classId || !engineId) {
       setParamPreview(null);
       return;
@@ -49,19 +30,25 @@ export function useVehicleParamPreview(
       });
       if (rimDiameter) params.set("rim_diameter", String(rimDiameter));
       
-      const res = await apiFetch(`/api/param-preview?${params}`);
+      const res = await apiFetch(`/api/param-preview?${params}`, { signal });
       if (res.ok) {
         setParamPreview(await res.json());
       }
-    } catch {
-      // silently fail
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        // silently fail
+      }
     }
   }, [classId, engineId, serviceCostType, tireClass, rimDiameter, vehicleVintage, isMetalic]);
 
   useEffect(() => {
-    fetchParamPreview();
+    const controller = new AbortController();
+    fetchParamPreview(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [fetchParamPreview]);
 
-  return { paramPreview, controlCenter };
+  return { paramPreview, controlCenter: null };
 }
 

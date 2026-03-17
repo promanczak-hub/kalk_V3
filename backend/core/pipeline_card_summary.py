@@ -469,18 +469,14 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
                 price_calc = _deep_get(
                     digital_twin, "financial_summary.price_calculation"
                 )
-                if price_calc:
+                if price_calc and (
+                    "netto" not in extracted.lower()
+                    and "brutto" not in extracted.lower()
+                ):
                     calc_str = json.dumps(price_calc, ensure_ascii=False).lower()
                     if "netto" in calc_str:
-                        if (
-                            "netto" not in extracted.lower()
-                            and "brutto" not in extracted.lower()
-                        ):
-                            extracted = f"{extracted} brutto"
-                    elif (
-                        "brutto" not in extracted.lower()
-                        and "netto" not in extracted.lower()
-                    ):
+                        extracted = f"{extracted} netto"
+                    elif "brutto" in calc_str:
                         extracted = f"{extracted} brutto"
                 card_summary[field] = extracted
                 print(f"[BACKFILL] {field}: '{extracted}' z digital_twin")

@@ -10,7 +10,7 @@ import logging
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, BackgroundTasks
 from pydantic import BaseModel
 
 from core.database import supabase as sb_client
@@ -255,6 +255,24 @@ async def upload_catalog(
     return {"status": "uploaded", "catalog": resp.data[0] if resp.data else row}
 
 
+# ── MARKDOWN PREVIEW ────────────────────────────────────────────
+
+
+@router.get("/{catalog_id}/markdown")
+async def get_catalog_markdown(catalog_id: str) -> dict[str, Any]:
+    """Fetch the raw docling markdown for a catalog document."""
+    resp = (
+        _rs()
+        .table("model_document_sources")
+        .select("document_markdown")
+        .eq("id", catalog_id)
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(404, "Catalog not found")
+    return {"markdown": resp.data[0].get("document_markdown") or ""}
+
+
 # ── FILE DOWNLOAD / PREVIEW ─────────────────────────────────────
 
 
@@ -390,6 +408,72 @@ async def trigger_extraction(catalog_id: str) -> dict[str, Any]:
 
     return {"status": "extraction_started", "catalog_id": catalog_id}
 
+
+# ── REPROCESS AS OFFER ──────────────────────────────────────────
+
+@router.post("/{catalog_id}/reprocess")
+async def reprocess_catalog_as_offer(
+    catalog_id: str, background_tasks: BackgroundTasks
+) -> dict[str, Any]:
+    """Reprocess a catalog document as an OFFER."""
+    resp = (
+        _rs()
+        .table("model_document_sources")
+        .select("storage_path, original_filename, file_type")
+        .eq("id", catalog_id)
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(404, "Catalog not found")
+        
+    row = resp.data[0]
+    storage_path = row["storage_path"]
+    filename = row.get("original_filename") or f"document.{row['file_type']}"
+
+    try:
+        file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(storage_path)
+    except Exception as exc:
+        raise HTTPException(500, f"File download failed: {exc}") from exc
+        
+    import hashlib
+    md5_hash = hashlib.md5(file_bytes).hexdigest()
+
+    content_type_map = {
+        "pdf": "application/pdf",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "csv": "text/csv",
+    }
+    mime_type = content_type_map.get(row["file_type"], "application/octet-stream")
+
+    from core.background_jobs import process_and_save_document_bg
+    
+    # We create a new synthesis row for the file upload (like the regular upload does)
+    new_id = str(uuid.uuid4())
+    sb_client.table("vehicle_synthesis").insert({
+        "id": new_id,
+        "verification_status": "processing",
+        "file_hash": md5_hash
+    }).execute()
+
+    background_tasks.add_task(
+        process_and_save_document_bg,
+        file_id=new_id,
+        file_bytes=file_bytes,
+        file_name=filename,
+        mime_type=mime_type,
+        md5_hash=md5_hash,
+        force_doc_type="OFFER",  # Force processing as OFFER
+    )
+
+    # Optional: Delete the original from model_document_sources
+    # Delete from DB (cascade deletes vehicle_catalog_matches)
+    _rs().table("model_document_sources").delete().eq("id", catalog_id).execute()
+    try:
+        sb_client.storage.from_(_STORAGE_BUCKET).remove([storage_path])
+    except Exception as exc:
+        logger.warning("Storage delete failed (continuing): %s", exc)
+
+    return {"status": "processing", "vehicle_id": new_id, "message": "Rozpoczęto przetwarzanie jako Oferta."}
 
 # ── ACTIVATE / DEACTIVATE ───────────────────────────────────────
 

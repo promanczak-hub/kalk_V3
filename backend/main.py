@@ -1,5 +1,21 @@
-from fastapi import FastAPI
+import platform
+# Monkeypatch platform WMI queries to prevent freezing on Windows during imports (supabase, torch, etc.)
+from collections import namedtuple
+_UnameResult = namedtuple("uname_result", ["system", "node", "release", "version", "machine", "processor"])
+_fake_uname = _UnameResult("Windows", "localhost", "10", "10.0", "AMD64", "AMD64")
+platform.uname = lambda: _fake_uname
+platform.system = lambda: "Windows"
+platform.machine = lambda: "AMD64"
+platform.version = lambda: "10.0"
+platform.release = lambda: "10"
+platform.platform = lambda *a, **kw: "Windows-10-10.0.19041-SP0"
+platform.win32_ver = lambda *a, **kw: ("10", "10.0.19041", "SP0", "Multiprocessor Free")
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# ── Structured logging (must be first import to configure root logger) ──
+import core.logger  # noqa: F401 — side-effect: configures structlog
 
 from api.samar_rv_routes import router as samar_rv_router
 from api.parser_routes import router as parser_router
@@ -21,9 +37,22 @@ from api.control_center_admin_routes import router as control_center_admin_route
 from api.calculator_core_routes import router as calculator_core_router
 from api.vehicle_features_crud_routes import router as vehicle_features_crud_router
 from api.pdf_parser_routes import router as pdf_parser_router
+from api.scoring_search_routes import router as scoring_search_router
+from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
-app = FastAPI(title="Kalkulator LTR V2 Engine", version="1.0.0")
+app = FastAPI(
+    title="Kalkulator LTR V3 Engine",
+    version="3.0.0",
+    dependencies=[Depends(get_current_user)],
+)
+
+
+@app.get("/health", tags=["System"])
+async def health_check() -> dict[str, str]:
+    """Public health check — exempt from auth."""
+    return {"status": "ok", "version": "3.0.0"}
+
 app.include_router(samar_rv_router)
 app.include_router(parser_router, prefix="/api")
 app.include_router(extract_router, prefix="/api")
@@ -43,6 +72,7 @@ app.include_router(control_center_admin_router, prefix="/api")
 app.include_router(calculator_core_router, prefix="/api")
 app.include_router(vehicle_features_crud_router, prefix="/api")
 app.include_router(pdf_parser_router, prefix="/api")
+app.include_router(scoring_search_router, prefix="/api")
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

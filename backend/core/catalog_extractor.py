@@ -58,8 +58,6 @@ Dla KAŻDEGO wariantu wyciągnij:
 - price_net: cena netto PLN (jeśli podana)
 - price_gross: cena brutto PLN (jeśli podana)
 
-- price_gross: cena brutto PLN (jeśli podana)
-
 Jeśli informacja nie jest dostępna w dokumencie, wstaw null.
 Zwróć WSZYSTKIE warianty, nawet jeśli różnią się tylko silnikiem lub napędem. Oczekujemy podejścia "Best-Effort": dokument może być materiałem promocyjnym, broszurą a nie pełnym cennikiem. Nawet jeśli masz tylko 1 wariant z ograniczonymi danymi technicznymi, spróbuj go wyekstrahować.
 
@@ -234,6 +232,46 @@ def _build_variant_name(row: dict[str, Any]) -> str:
     return " ".join(parts) if parts else str(list(row.values())[:3])
 
 
+def _extract_pricelist_hybrid(
+    file_bytes: bytes,
+    markdown_content: str,
+    catalog_meta: dict[str, Any],
+) -> dict[str, Any]:
+    """Extract variants using the hybrid PricingAgent for Price Lists."""
+    logger.info("Extracting price list via PricingAgent (Hybrid): %s", catalog_meta.get("display_name", "unknown"))
+    
+    from core.pdf_pipeline.agents import PricingAgent
+    agent = PricingAgent()
+    
+    parsed = agent.extract_data(markdown_content, file_bytes)
+    
+    variants = []
+    for engine in parsed.engines:
+        for trim in engine.prices_by_trim:
+            if trim.price_netto or trim.price_brutto:
+                variants.append({
+                    "variant_name": f"{engine.engine_name} {trim.trim_name}".strip(),
+                    "body_type": None,
+                    "engine_power_hp": engine.power_hp,
+                    "fuel_type": engine.fuel_type,
+                    "price_net": trim.price_netto,
+                    "price_gross": trim.price_brutto,
+                    "transmission": engine.transmission,
+                    "standard_equipment": [],
+                })
+                
+    logger.info("Mapped PricingAgent output to %d flat variants", len(variants))
+    
+    return {
+        "extracted_data": {
+            "brand": parsed.brand or catalog_meta.get("brand", ""),
+            "model_family": parsed.model or catalog_meta.get("model_family", ""),
+            "year": parsed.model_year,
+            "variants": variants
+        },
+        "variant_count": len(variants)
+    }
+
 # ── Main entry point ─────────────────────────────────────────────
 
 
@@ -253,11 +291,17 @@ def extract_catalog_variants(
     """
     storage_path = catalog["storage_path"]
     file_type = catalog["file_type"]
+    document_type = catalog.get("document_type")
 
     # Download file from storage
     file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(storage_path)
 
     if file_type == "pdf":
+        if document_type == "price_list":
+            markdown_content = catalog.get("document_markdown", "")
+            if not markdown_content:
+                logger.warning("No markdown found for hybrid processing, passing empty string")
+            return _extract_pricelist_hybrid(file_bytes, markdown_content or "", catalog)
         return _extract_pdf_catalog(file_bytes, catalog)
     if file_type in ("xlsx", "csv"):
         return _extract_xlsx_catalog(file_bytes, catalog)

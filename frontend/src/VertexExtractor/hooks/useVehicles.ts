@@ -12,25 +12,54 @@ export function useVehicles() {
     vehicleId: string;
     field: string;
   } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchMatchingIds, setSearchMatchingIds] = useState<string[] | null>(null);
 
-  const fetchSavedVehicles = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setIsLoadingSaved(true);
     try {
-      const { data, error } = await supabase
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let q = supabase
         .from("fleet_management_view")
-        .select("*")
+        .select("*", { count: "exact" })
         .neq("verification_status", "moved_to_library")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (searchMatchingIds !== null) {
+        if (searchMatchingIds.length === 0) {
+          setSavedVehicles([]);
+          setTotalCount(0);
+          return;
+        }
+        q = q.in("id", searchMatchingIds);
+      }
+
+      const { data, count, error } = await q;
 
       if (error) throw error;
       setSavedVehicles(data || []);
-      setGlobalSearchQuery(""); // reset search state when fetching all
+      setTotalCount(count || 0);
     } catch (err) {
-      console.error("Failed to fetch saved vehicles:", err);
+      console.error("Failed to fetch vehicles:", err);
     } finally {
       setIsLoadingSaved(false);
     }
-  }, []);
+  }, [page, pageSize, searchMatchingIds]);
+
+  const fetchSavedVehicles = useCallback(() => {
+    setGlobalSearchQuery("");
+    setSearchMatchingIds(null);
+    if (page === 1) {
+      loadData();
+    } else {
+      setPage(1);
+    }
+  }, [page, loadData]);
 
   // Fetch a single vehicle from the view and merge it into state
   const fetchSingleVehicle = useCallback(
@@ -66,8 +95,10 @@ export function useVehicles() {
   );
 
   useEffect(() => {
-    fetchSavedVehicles();
+    loadData();
+  }, [loadData]);
 
+  useEffect(() => {
     const channel = supabase
       .channel("vehicle_synthesis_changes")
       .on(
@@ -266,21 +297,8 @@ export function useVehicles() {
       if (!response.ok) throw new Error("Failed to search fleet");
 
       const data = await response.json();
-      const ids = data.matching_ids || [];
-
-      if (ids.length === 0) {
-        setSavedVehicles([]);
-      } else {
-        const { data: searchData, error } = await supabase
-          .from("fleet_management_view")
-          .select("*")
-          .in("id", ids)
-          .neq("verification_status", "moved_to_library")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setSavedVehicles(searchData || []);
-      }
+      setSearchMatchingIds(data.matching_ids || []);
+      setPage(1); // jump to first page of search results
     } catch (err) {
       console.error("Search error via Gemini:", err);
       alert("Wystąpił błąd podczas wyszukiwania AI.");
@@ -303,5 +321,10 @@ export function useVehicles() {
     handleCloneVehicle,
     handleDeleteVehicle,
     handleGlobalSearch,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalCount,
   };
 }

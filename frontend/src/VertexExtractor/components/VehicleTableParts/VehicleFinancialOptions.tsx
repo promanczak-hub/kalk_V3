@@ -12,8 +12,8 @@ import { parsePriceToNumber } from "./PriceDualFormat";
 interface VehicleFinancialOptionsProps {
   vehicle: FleetVehicleView;
   // Prices
-  totalCatalogPrice: number;
-  activeFinalPrice: number;
+  totalCatalogPriceNet: number;
+  activeFinalPriceNet: number;
   dynamicTotalOptionsPrice: number;
   discountableOptionsTotal: number;
   nonDiscountableOptionsTotal: number;
@@ -148,12 +148,12 @@ const TIRE_COUNT_OPTIONS = [
 
 export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const {
-    vehicle, activeFinalPrice,
+    vehicle, activeFinalPriceNet,
+    discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
     catalogBasePriceNet, setCatalogBasePriceNet, aiExtractedBasePrice,
     aiPriceAlertThresholdPln, requireManualPriceReview, priceDeltaFromAiPln,
     discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
     isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
-    discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
@@ -195,16 +195,6 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     if (value === 0) return "—";
     return value.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " PLN";
   };
-
-  // Detect if source prices are netto or brutto
-  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
-  const toNetto = (val: number) => isSourceNetto ? val : val / 1.23;
-  const toBrutto = (val: number) => isSourceNetto ? val * 1.23 : val;
-
-  // basePriceNum in source domain derived from editable catalogBasePriceNet
-  const basePriceNum = isSourceNetto
-    ? catalogBasePriceNet
-    : Math.round(catalogBasePriceNet * 1.23);
 
   // AI-extracted base price (converted to netto for comparison)
   const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
@@ -383,10 +373,10 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                         Rabat ({activeDiscountPct}%)
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-sm text-emerald-600">
-                        ({fmtPLN(toNetto(basePriceNum) * (activeDiscountPct / 100) + discountableOptionsTotal * (activeDiscountPct / 100))})
+                        ({fmtPLN((catalogBasePriceNet + discountableOptionsTotal) * (activeDiscountPct / 100))})
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-700">
-                        ({fmtPLN(toBrutto(basePriceNum) * (activeDiscountPct / 100) + discountableOptionsTotal * 1.23 * (activeDiscountPct / 100))})
+                        ({fmtPLN((catalogBasePriceNet * 1.23 + discountableOptionsTotal * 1.23) * (activeDiscountPct / 100))})
                       </td>
                     </tr>
 
@@ -394,10 +384,10 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                     <tr className="border-b border-slate-200">
                       <td className="py-2 text-xs font-semibold text-slate-600">Suma po rabacie</td>
                       <td className="py-2 text-right tabular-nums text-sm font-semibold text-slate-600">
-                        {fmtPLN((toNetto(basePriceNum) + discountableOptionsTotal) * (1 - activeDiscountPct / 100))}
+                        {fmtPLN((catalogBasePriceNet + discountableOptionsTotal) * (1 - activeDiscountPct / 100))}
                       </td>
                       <td className="py-2 text-right tabular-nums text-sm font-semibold text-slate-600">
-                        {fmtPLN((toBrutto(basePriceNum) + discountableOptionsTotal * 1.23) * (1 - activeDiscountPct / 100))}
+                        {fmtPLN((catalogBasePriceNet * 1.23 + discountableOptionsTotal * 1.23) * (1 - activeDiscountPct / 100))}
                       </td>
                     </tr>
                   </>
@@ -438,8 +428,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 {/* Cena końcowa */}
                 <tr className="border-t-2 border-slate-300">
                   <td className="py-2.5 text-sm font-semibold text-slate-900">Cena końcowa</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(toNetto(activeFinalPrice))}</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(toBrutto(activeFinalPrice))}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(activeFinalPriceNet)}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(activeFinalPriceNet * 1.23)}</td>
                 </tr>
               </tbody>
             </table>

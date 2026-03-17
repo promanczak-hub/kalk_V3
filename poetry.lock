@@ -844,14 +844,14 @@ files = [
 
 [[package]]
 name = "docling"
-version = "2.78.0"
+version = "2.80.0"
 description = "SDK and CLI for parsing PDF, DOCX, HTML, and more, to a unified document representation for powering downstream workflows such as gen AI applications."
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "docling-2.78.0-py3-none-any.whl", hash = "sha256:237ba66a253962c87e9278c15d872154c750e08ea424bccf8bc91adebaf45ddc"},
-    {file = "docling-2.78.0.tar.gz", hash = "sha256:46ac9fb208cbbbbc9feba7bc650b660df4706a92f1ed6b26a952a9bcaf72cf04"},
+    {file = "docling-2.80.0-py3-none-any.whl", hash = "sha256:6c7bc26bcad9b06b63ce02b2c9dead53ec6514bb4a65ecd4bedbc73284c1fad2"},
+    {file = "docling-2.80.0.tar.gz", hash = "sha256:9d94584f125942d98fbdbc5b9fc87ddfac307233ebf4c65bbd972cf9f5d4b5a2"},
 ]
 
 [package.dependencies]
@@ -6953,4 +6953,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "66d5cbd8ef41029f789ff28a1a8c544aa7fdfba366d41aabad2f9dd98ac285d8"
+content-hash = "72d97a67c45716ebb6512d1f0c433597787c2f7fd97f629c7b6a2b72c88eecd1"

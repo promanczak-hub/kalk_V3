@@ -50,7 +50,6 @@ _EMPTY_VALUES = frozenset(
         "n/a",
         "-",
         "—",
-        "0",
     }
 )
 

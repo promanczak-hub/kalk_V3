@@ -7,7 +7,6 @@ from core.json_utils import clean_json_response
 from core.prompts import (
     MASTER_PROMPT_V2,
     FALLBACK_STRUCTURED_PROMPT_FLASH,
-    TWIN_RERANKING_PROMPT,
 )
 
 
@@ -154,50 +153,6 @@ def _call_gemini_flash(client, contents) -> dict:
         return {}
 
 
-def evaluate_and_rank_twins(client, twin_a: dict, twin_b: dict) -> dict:
-    """
-    Uses an LLM (gemini-2.5-flash) to evaluate which digital twin is better extracted.
-    Twin A is from Pro, Twin B is from Flash.
-    """
-    print("Starting LLM-as-a-judge reranking...")
-    twin_a_str = json.dumps(twin_a, ensure_ascii=False)
-    twin_b_str = json.dumps(twin_b, ensure_ascii=False)
-
-    prompt = f"Oto wariant A (wygenerowany przez model A):\n{twin_a_str}\n\nOto wariant B (wygenerowany przez model B):\n{twin_b_str}"
-
-    config = types.GenerateContentConfig(
-        temperature=0.0,
-        response_mime_type="application/json",
-        system_instruction=TWIN_RERANKING_PROMPT,
-        safety_settings=SAFETY_SETTINGS_PERMISSIVE,
-    )
-
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[types.Part.from_text(text=prompt)],
-            config=config,
-        )
-        response_text = getattr(response, "text", "{}") or "{}"
-        evaluation = json.loads(clean_json_response(response_text))
-
-        best_candidate = evaluation.get("best_candidate", "A")
-        reasoning = evaluation.get("reasoning", "Brak uzasadnienia")
-
-        print(f"Reranking result: Wygrał {best_candidate}. Powód: {reasoning}")
-
-        if best_candidate == "B":
-            print("Returning Twin B (Flash fallback version).")
-            twin_b["_evaluation_reasoning"] = reasoning
-            return twin_b
-        else:
-            print("Returning Twin A (Pro version).")
-            twin_a["_evaluation_reasoning"] = reasoning
-            return twin_a
-
-    except Exception as e:
-        print(f"Reranking failed: {e}. Defaulting to Twin A (Pro).")
-        return twin_a
 
 
 def extract_digital_twin_from_pdf(

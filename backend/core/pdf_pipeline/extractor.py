@@ -1,44 +1,51 @@
 from pathlib import Path
-from docling.document_converter import DocumentConverter
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 class PDFExtractor:
-    """Class responsible for deterministic extraction of PDF content using docling."""
+    """Class responsible for hybrid extraction of PDF content: Native bytes + PyMuPDF4LLM Markdown."""
 
     def __init__(self):
-        self.converter = DocumentConverter()
+        pass
 
-    def extract_to_markdown(self, pdf_path: str | Path) -> str:
+    def extract_hybrid(self, pdf_path: str | Path) -> tuple[str, bytes]:
         """
-        Converts a given PDF file to Markdown format using docling.
-
+        Reads a given PDF file and returns both its raw bytes (for Vision processing) 
+        and its Markdown representation (for table structure context).
+        
         Args:
             pdf_path: Path to the PDF file.
-
+            
         Returns:
-            The extracted text content in Markdown format.
-
+            A tuple of (markdown_content, pdf_bytes).
+            
         Raises:
             FileNotFoundError: If the provided path does not exist.
-            Exception: If the conversion process fails.
         """
         path_obj = Path(pdf_path)
         if not path_obj.exists():
             logger.error(f"File not found: {path_obj}")
             raise FileNotFoundError(f"Plik PDF nie istnieje: {path_obj}")
 
-        logger.info(f"Rozpoczynam ekstrakcję docling dla pliku: {path_obj}")
+        logger.info(f"Otwieranie pliku PDF do ekstrakcji hybrydowej: {path_obj}")
 
         try:
-            result = self.converter.convert(str(path_obj))
-            markdown_content = result.document.export_to_markdown()
-            logger.info(
-                f"Ekstrakcja zakończona. Wygenerowano {len(markdown_content)} znaków MD."
-            )
-            return markdown_content
+            import fitz
+            # 1. Wyciągnięcie szybkiego tekstu przy użyciu PyMuPDF (bez OCR)
+            markdown_content = ""
+            with fitz.open(str(path_obj)) as doc:
+                for page in doc:
+                    markdown_content += page.get_text("text") + "\n\n"
+            
+            logger.info(f"Ekstrakcja PyMuPDF zakończona wygenerowaniem {len(markdown_content)} znaków tekstu.")
+            
+            # 2. Odczyt surowych bajtów do wysyłki graficznej
+            with open(path_obj, "rb") as f:
+                pdf_bytes = f.read()
+                
+            return markdown_content, pdf_bytes
+            
         except Exception as e:
-            logger.error(f"Błąd podczas konwersji docling: {str(e)}")
+            logger.error(f"Błąd podczas analizy hybrydowej pliku PDF: {str(e)}")
             raise

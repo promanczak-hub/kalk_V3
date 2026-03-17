@@ -2,7 +2,7 @@ import json
 import datetime
 import threading
 import uuid
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from dotenv import load_dotenv
 from core.extractor_v2 import extract_vehicle_data_v2, process_single_twin
 from core.json_utils import clean_json_response
@@ -69,7 +69,8 @@ def _is_cancelled(cancel_event: threading.Event) -> bool:
 
 
 def get_supabase_client() -> Client:
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    options = ClientOptions(postgrest_client_timeout=60, storage_client_timeout=60)
+    return create_client(SUPABASE_URL, SUPABASE_KEY, options=options)
 
 
 def _finalize_vehicle(
@@ -264,6 +265,7 @@ def process_and_save_document_bg(
     """
     cancel_event = register_cancel_event(file_id)
     print(f"[BG TASK] Zaczynam przetwarzanie pliku {file_name} (ID: {file_id})")
+    tmp_pdf_path = None
 
     try:
         supabase = get_supabase_client()
@@ -284,11 +286,16 @@ def process_and_save_document_bg(
         storage_path = f"{file_id}-{sanitized_name}"
         res = None
 
-        res = supabase.storage.from_("raw-vehicle-pdfs").upload(
-            path=storage_path,
-            file=file_bytes,
-            file_options={"content-type": mime_type},
-        )
+        print(f"[BG TASK] Rozpoczynam upload HTTP do Supabase storage dla {file_id}...")
+        try:
+            res = supabase.storage.from_("raw-vehicle-pdfs").upload(
+                path=storage_path,
+                file=file_bytes,
+                file_options={"content-type": mime_type},
+            )
+            print(f"[BG TASK] Sukces uploadu HTTP do Supabase dla {file_id}.")
+        except Exception as upload_err:
+            print(f"[BG TASK] Upload pominęty (plik może już istnieć lub błąd RLS): {upload_err}")
 
         raw_pdf_url = None
         if hasattr(res, "error") and res.error:
@@ -325,6 +332,7 @@ def process_and_save_document_bg(
             from core.pdf_pipeline.extractor import PDFExtractor
             import tempfile
             import os
+            import concurrent.futures
 
             try:
                 # Save PDF to temporary file for Docling
@@ -332,12 +340,23 @@ def process_and_save_document_bg(
                 with os.fdopen(fd, "wb") as f:
                     f.write(file_bytes)
 
+                file_size_mb = len(file_bytes) / (1024 * 1024)
                 print(
-                    f"[BG TASK] Ekstrakcja Docling z tymczasowego PDF {tmp_pdf_path} na potrzeby routera..."
+                    f"[BG TASK] Ekstrakcja Docling z tymczasowego PDF {tmp_pdf_path} "
+                    f"[BG TASK] Ekstrakcja z PDF do natywnych bajtów..."
                 )
-                extractor = PDFExtractor()
-                router_data = extractor.extract_to_markdown(tmp_pdf_path)
+                pdf_extractor = PDFExtractor()
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(pdf_extractor.extract_hybrid, tmp_pdf_path)
+                    markdown_content, pdf_bytes = future.result(timeout=300)
+
+                router_data = markdown_content
                 router_mime = "text/plain"
+            except concurrent.futures.TimeoutError:
+                print(f"[BG TASK CRITICAL] Docling extraction timeout (300s) dla {file_name}! Nastąpi zrzut na docelowe bajty PDF.")
+                router_data = gemini_data
+                router_mime = gemini_mime
             except Exception as docling_err:
                 print(
                     f"[BG TASK] Docling extraction failed! Zrzut na docelowe bajty PDF. Błąd: {docling_err}"
@@ -368,39 +387,12 @@ def process_and_save_document_bg(
             )
             _update_progress(supabase, file_id, "processing_library_document")
 
-            # Wymuszenie pełnej ekstrakcji Digital Twin mimo iż to nie jest oferta
-            from core.pipeline_digital_twin import extract_digital_twin_from_pdf
-
-            print(
-                "[BG TASK] Wyciąganie pełnego Digital Twin dla dokumentu biblioteki..."
-            )
-            pro_data = extract_digital_twin_from_pdf(gemini_data, gemini_mime)
-
             if _is_cancelled(cancel_event):
                 _update_progress(supabase, file_id, "cancelled")
                 return
 
-            # Dodanie Digital Twin do metadanych routera i zapis do tabeli document_library
-            library_payload = {
-                "file_name": file_name,
-                "document_url": raw_pdf_url or "",
-                "document_type": doc_type,
-                "brand": doc_meta.get("brand"),
-                "model": doc_meta.get("model"),
-                "valid_from": doc_meta.get("date"),
-                "description": doc_meta.get("description"),
-                "digital_twin": pro_data,
-                "document_markdown": router_data,
-            }
-            try:
-                supabase.table("document_library").insert(library_payload).execute()
-                print("[BG TASK] Dokument zapisany w document_library.")
-            except Exception as lib_err:
-                print(
-                    f"[BG TASK ERROR] Nie udało się zapisać do document_library: {lib_err}"
-                )
 
-            # --- ALSO INSERT INTO model_document_sources ---
+            # Zapis tylko do tabeli model_document_sources (Globalne Cenniki)
             try:
                 ext = (
                     file_name.rsplit(".", 1)[-1].lower() if "." in file_name else "pdf"
@@ -424,6 +416,7 @@ def process_and_save_document_bg(
                     "file_size_bytes": len(file_bytes),
                     "extraction_status": "extracting",
                     "variant_count": 0,
+                    "document_markdown": router_data if isinstance(router_data, str) else None,
                 }
                 supabase.schema("reverse_search").table(
                     "model_document_sources"
@@ -562,7 +555,12 @@ def process_and_save_document_bg(
 
                 # Finalize: mapping, SAMAR, engine class, DB save
                 _finalize_vehicle(
-                    supabase, current_id, parsed_data, raw_pdf_url, cancel_event, router_data
+                    supabase,
+                    current_id,
+                    parsed_data,
+                    raw_pdf_url,
+                    cancel_event,
+                    router_data if isinstance(router_data, str) else None,
                 )
 
             print(
@@ -597,7 +595,14 @@ def process_and_save_document_bg(
         cleaned_json = clean_json_response(json_response)
         parsed_data = json.loads(cleaned_json)
 
-        _finalize_vehicle(supabase, file_id, parsed_data, raw_pdf_url, cancel_event, router_data)
+        _finalize_vehicle(
+            supabase,
+            file_id,
+            parsed_data,
+            raw_pdf_url,
+            cancel_event,
+            router_data if isinstance(router_data, str) else None,
+        )
 
     except Exception as e:
         import traceback

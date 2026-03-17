@@ -161,6 +161,29 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     detected_domain = detect_and_normalize_price_domain(card_summary)
     card_summary["_price_domain"] = detected_domain
 
+    # ── User-facing warning when price domain cannot be determined ──
+    if detected_domain == "unknown":
+        validation_dict = card_summary.get("_validation", {})
+        existing_warnings = validation_dict.get("warnings", [])
+        existing_warnings.append(
+            {
+                "rule": "PRICE_DOMAIN_UNKNOWN",
+                "message": (
+                    "⚠️ Nie udało się ustalić domeny cenowej (netto/brutto). "
+                    "System domyślnie przyjmie BRUTTO. "
+                    "Zweryfikuj ręcznie ceny bazową i końcową."
+                ),
+                "severity": "WARNING",
+            }
+        )
+        validation_dict["warnings"] = existing_warnings
+        validation_dict["is_valid"] = False
+        card_summary["_validation"] = validation_dict
+        logger.warning(
+            "[PRICE DOMAIN] Domena cenowa 'unknown' — "
+            "dodano ostrzeżenie dla użytkownika"
+        )
+
     return pro_data
 
 

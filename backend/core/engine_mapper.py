@@ -102,7 +102,7 @@ def map_to_engine_class(
 
     # Build a compact representation for the prompt
     dict_text = "\n".join(
-        f"- {row['name']} ({row['category']}): {row['description']}"
+        f"- {row['name']}: {row['description']}"
         for row in engine_dict
     )
 

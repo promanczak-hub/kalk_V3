@@ -151,3 +151,127 @@ async def reprocess_document(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{document_id}/make-global-catalog")
+async def make_global_catalog(
+    document_id: str, background_tasks: BackgroundTasks
+) -> Dict[str, Any]:
+    """
+    Fetch a document from the library and add it to model_document_sources 
+    (Global Catalogs) for cross-referencing. Then trigger AI extraction.
+    """
+    try:
+        # 1. Fetch document from library
+        response = (
+            supabase.table("document_library")
+            .select("*")
+            .eq("id", document_id)
+            .execute()
+        )
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        doc = response.data[0]
+        file_name = doc.get("file_name", "document.pdf")
+        document_url = doc.get("document_url")
+        brand = doc.get("brand", "") or "Unknown"
+        model = doc.get("model", "") or "Unknown"
+
+        if not document_url:
+            raise HTTPException(status_code=400, detail="Document lacks a valid URL.")
+
+        # 2. Download the file from the URL
+        print(f"[GLOBAL CATALOG] Downloading {document_url}...")
+        download_response = requests.get(document_url, timeout=30)
+        download_response.raise_for_status()
+        file_bytes = download_response.content
+
+        # Determine file type
+        ext = os.path.splitext(urlparse(document_url).path)[1].lower()
+        file_type = ext.replace(".", "") if ext else "pdf"
+
+        # 3. Upload to target bucket (catalog-documents)
+        doc_id = str(uuid.uuid4())
+        import unicodedata
+        import re
+        sanitized_name = (
+            unicodedata.normalize("NFKD", file_name)
+            .encode("ASCII", "ignore")
+            .decode("utf-8")
+        )
+        sanitized_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", sanitized_name)
+        storage_path = f"{brand}/{model}/{doc_id}_{sanitized_name}"
+
+        print(f"[GLOBAL CATALOG] Uploading to catalog-documents: {storage_path}")
+        # Note: We use raw supabase client here.
+        try:
+            supabase.storage.from_("catalog-documents").upload(
+                path=storage_path,
+                file=file_bytes,
+                file_options={"content-type": "application/pdf" if file_type == "pdf" else "application/octet-stream"},
+            )
+        except Exception as storage_exc:
+            print(f"[GLOBAL CATALOG] Storage upload issue (perhaps exists): {storage_exc}")
+        
+        # 4. Insert into reverse_search.model_document_sources
+        mds_payload = {
+            "id": doc_id,
+            "brand": brand.strip(),
+            "model_family": model.strip(),
+            "document_type": "catalog",
+            "display_name": file_name.strip(),
+            "is_active": True,
+            "file_type": file_type,
+            "storage_path": storage_path,
+            "original_filename": file_name,
+            "file_size_bytes": len(file_bytes),
+            "extraction_status": "extracting",
+            "variant_count": 0,
+        }
+        
+        supabase.schema("reverse_search").table("model_document_sources").insert(mds_payload).execute()
+        
+        # 5. Remove from document_library
+        supabase.table("document_library").delete().eq("id", document_id).execute()
+
+        # 6. Trigger extraction in background
+        from core.catalog_extractor import extract_catalog_variants
+        
+        def _extract_task():
+            try:
+                print(f"[GLOBAL CATALOG BG] Starting extraction for {doc_id}...")
+                result = extract_catalog_variants(mds_payload)
+                supabase.schema("reverse_search").table("model_document_sources").update(
+                    {
+                        "extraction_status": "ready",
+                        "extracted_data": result["extracted_data"],
+                        "variant_count": result["variant_count"],
+                        "extracted_at": "now()",
+                        "extraction_error": None,
+                    }
+                ).eq("id", doc_id).execute()
+                print(f"[GLOBAL CATALOG BG] Extraction complete for {doc_id}: {result['variant_count']} variants")
+            except Exception as exc:
+                print(f"[GLOBAL CATALOG BG] Extraction failed for {doc_id}: {exc}")
+                supabase.schema("reverse_search").table("model_document_sources").update(
+                    {
+                        "extraction_status": "error",
+                        "extraction_error": str(exc),
+                    }
+                ).eq("id", doc_id).execute()
+
+        background_tasks.add_task(_extract_task)
+
+        return {
+            "status": "extracting",
+            "catalog_id": doc_id,
+            "message": "Pomyślnie przeniesiono do globalnych cenników i rozpoczęto AI ekstrakcję w tle."
+        }
+        
+    except requests.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

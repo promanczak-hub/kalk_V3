@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config/env";
 import {
   Loader2,
@@ -41,6 +41,7 @@ interface CatalogCrossRefPanelProps {
   vehicleId: string;
   vehicleBrand?: string;
   vehicleModel?: string;
+  targetBasePrice?: string | number | null;
   onFeaturesChanged?: () => void;
 }
 
@@ -48,6 +49,7 @@ export function CatalogCrossRefPanel({
   vehicleId,
   vehicleBrand,
   vehicleModel,
+  targetBasePrice,
   onFeaturesChanged,
 }: CatalogCrossRefPanelProps) {
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
@@ -272,10 +274,17 @@ export function CatalogCrossRefPanel({
     <div className="border border-slate-200 rounded bg-white mt-3">
       {/* Header */}
       <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-          <GitMerge className="w-3.5 h-3.5" />
-          Cross-reference z katalogami
-        </h4>
+        <div className="flex flex-col">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <GitMerge className="w-3.5 h-3.5" />
+            Cross-reference z katalogami
+          </h4>
+          {targetBasePrice && (
+            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              Cel matchingu (baza): <strong className="text-slate-600 font-medium">{targetBasePrice}</strong>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <button
             onClick={handleEnrichFromSpec}

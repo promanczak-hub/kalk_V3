@@ -46,3 +46,28 @@ frontend/dist/
 !samar_rv_data.json
 !service_insurance_data.json
 !v1_dataOption.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.app.json
+!tsconfig.node.json
+!eslint.config.js
+
+# Secrets — NEVER commit
+backend/.env
+frontend/.env.local
+
+# Database dumps
+*.sql
+!supabase/migrations/*.sql
+
+# Temp/debug scripts (should be in /tmp or scripts/)
+backend/check_*.py
+backend/tmp_*.py
+backend/tmp_*.txt
+backend/get_*.py
+backend/diag_*.py
+backend/diag_*.txt
+backend/*.log
+backend/*_out.txt
+backend/*_output.txt

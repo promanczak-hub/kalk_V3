@@ -42,7 +42,11 @@ def extract_vehicle_data_v2(
         _progress("extracting_twin")
         pro_data = extract_digital_twin_from_pdf(document_data, mime_type)
         if not pro_data:
-            return "{}"
+            logger.error("Digital twin extraction returned empty result")
+            raise ValueError(
+                "Ekstrakcja cyfrowego bliźniaka nie zwróciła danych. "
+                "Sprawdź format dokumentu i upewnij się, że Gemini API jest dostępne."
+            )
 
         if _check_cancel():
             return "{}"
@@ -64,9 +68,11 @@ def extract_vehicle_data_v2(
 
         return json.dumps(pro_data, ensure_ascii=False)
 
+    except ValueError:
+        raise  # Let validation errors propagate to caller
     except Exception:
         logger.exception("Error in modular extractor pipeline")
-        return "{}"
+        raise  # Let caller handle error status in DB
 
 
 def process_single_twin(
@@ -104,9 +110,11 @@ def process_single_twin(
 
         return json.dumps(pro_data, ensure_ascii=False)
 
+    except ValueError:
+        raise  # Let validation errors propagate to caller
     except Exception:
         logger.exception("Error in single-twin pipeline")
-        return "{}"
+        raise  # Let caller handle error status in DB
 
 
 def process_manual_override_v2(original_json: dict, user_prompt: str) -> str:

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Database, Info, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { FleetVehicleView } from "../types";
@@ -10,6 +10,7 @@ import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
 import { API_BASE_URL } from "../../config/env";
 import type { ControlCenterSettings } from "../../hooks/useCalculator";
+import Pagination from "@mui/material/Pagination";
 
 interface VehicleTableProps {
   savedVehicles: FleetVehicleView[];
@@ -22,19 +23,27 @@ interface VehicleTableProps {
   handleOpenSavedJson: (vehicleId: string, titleName: string) => void;
   handleDeleteVehicle?: (vehicleId: string) => void;
   globalSettings?: ControlCenterSettings | null;
+  page: number;
+  setPage: (page: number) => void;
+  pageSize: number;
+  totalCount: number;
 }
 
 export function VehicleTable({
   savedVehicles,
   isLoadingSaved,
-  globalSearchQuery,
-  isSearching,
-  setGlobalSearchQuery,
-  handleGlobalSearch,
+  globalSearchQuery: _globalSearchQuery,
+  isSearching: _isSearching,
+  setGlobalSearchQuery: _setGlobalSearchQuery,
+  handleGlobalSearch: _handleGlobalSearch,
   fetchSavedVehicles,
   handleOpenSavedJson,
   handleDeleteVehicle,
   globalSettings,
+  page,
+  setPage,
+  pageSize,
+  totalCount,
 }: VehicleTableProps) {
   const {
     filters,
@@ -130,41 +139,40 @@ export function VehicleTable({
           <h2 className="text-lg font-medium text-slate-900 tracking-tight">
             Przetworzone pojazdy
           </h2>
-          <p className="text-xs text-slate-500 mt-1 flex items-center">
-            <Info className="w-3 h-3 mr-1" />
-            Baza zsynchronizowana z modelem
-            <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded ml-1 font-mono text-xs font-semibold border border-blue-100">
-              v2.0_digital_twin
+          <div className="text-xs text-slate-500 mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
+            <span className="flex items-center">
+              <Info className="w-3 h-3 mr-1" />
+              Baza zsynchronizowana z modelem
+              <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded ml-1 font-mono text-xs font-semibold border border-blue-100">
+                v2.0_digital_twin
+              </span>
             </span>
-          </p>
+            {totalCount > 0 && (
+              <span className="text-slate-400">
+                (Łącznie w bazie: <strong className="text-slate-700">{totalCount}</strong> rekordów)
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <form
-            onSubmit={handleGlobalSearch}
+            onSubmit={(e) => e.preventDefault()}
             className="relative flex-1 min-w-[280px]"
+            title="Wyszukiwanie AI — wkrótce dostępne"
           >
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
             <input
               type="text"
-              value={globalSearchQuery}
-              onChange={(e) => setGlobalSearchQuery(e.target.value)}
-              placeholder="Wyszukaj z użyciem AI (Gemini)..."
-              className="w-full pl-9 pr-20 py-2.5 border border-slate-200 bg-white rounded-lg text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
+              disabled
+              placeholder="Wyszukaj z użyciem AI (Gemini)... — wkrótce"
+              className="w-full pl-9 pr-24 py-2.5 border border-slate-200 bg-slate-50 rounded-lg text-sm outline-none cursor-not-allowed text-slate-400 shadow-sm"
             />
-            <button
-              type="submit"
-              disabled={isSearching}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs uppercase font-bold text-slate-600 hover:text-blue-600 px-3 py-1.5 rounded-md bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors disabled:opacity-50"
-            >
-              {isSearching ? (
-                <Loader2 className="w-3 h-3 animate-spin mx-auto" />
-              ) : (
-                "Szukaj"
-              )}
-            </button>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+              Wkrótce
+            </span>
           </form>
 
           <button
@@ -226,6 +234,20 @@ export function VehicleTable({
 
           {/* Vehicle list */}
           <div className="flex flex-col gap-4">
+            {totalCount > pageSize && (
+              <div className="flex justify-center my-2">
+                <Pagination
+                  count={Math.ceil(totalCount / pageSize)}
+                  page={page}
+                  onChange={(_, val) => {
+                    setPage(val);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  color="primary"
+                />
+              </div>
+            )}
+
             <style
               dangerouslySetInnerHTML={{
                 __html: `
@@ -262,6 +284,20 @@ export function VehicleTable({
                   globalSettings={globalSettings}
                 />
               ))
+            )}
+
+            {totalCount > pageSize && filteredVehicles.length > 0 && (
+              <div className="flex justify-center mt-6 mb-2">
+                <Pagination
+                  count={Math.ceil(totalCount / pageSize)}
+                  page={page}
+                  onChange={(_, val) => {
+                    setPage(val);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  color="primary"
+                />
+              </div>
             )}
           </div>
         </>

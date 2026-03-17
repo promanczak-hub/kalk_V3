@@ -7,7 +7,7 @@ interface MarkdownViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
   documentId: string;
-  source: "library" | "synthesis";
+  source: "library" | "synthesis" | "catalog";
   title?: string;
 }
 
@@ -25,7 +25,9 @@ export function MarkdownViewerModal({ isOpen, onClose, documentId, source, title
       try {
         const url = source === "library"
           ? `/api/document-library/${documentId}/markdown`
-          : `/api/extract/${documentId}/markdown`;
+          : source === "catalog"
+            ? `/api/catalogs/${documentId}/markdown`
+            : `/api/extract/${documentId}/markdown`;
           
         const res = await apiFetch(url);
         if (!res.ok) throw new Error("Nie udało się pobrać pliku markdown.");

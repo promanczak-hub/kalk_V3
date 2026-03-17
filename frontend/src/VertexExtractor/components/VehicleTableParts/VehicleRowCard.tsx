@@ -53,6 +53,7 @@ export function VehicleRowCard({
   // Subcomponent states
   const [activeKalkulacjaId, setActiveKalkulacjaId] = useState<string | null>(null);
   const [activeKalkulacjaNumer, setActiveKalkulacjaNumer] = useState<string | null>(null);
+  const [hasAttemptedAutoLoadHistory, setHasAttemptedAutoLoadHistory] = useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [overridePrompt, setOverridePrompt] = useState("");
   const [isOverriding, setIsOverriding] = useState(false);
@@ -362,6 +363,8 @@ export function VehicleRowCard({
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
+
     const verifyHomologation = async () => {
       try {
         const mappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
@@ -385,6 +388,7 @@ export function VehicleRowCard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          signal: controller.signal
         });
 
         if (!res.ok) return;
@@ -393,8 +397,10 @@ export function VehicleRowCard({
           console.log("HOMO Response raw:", Array.isArray(data) ? data[0] : data);
           setHomologationResult(Array.isArray(data) ? data[0] : data);
         }
-      } catch {
-        // silently fail verification
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          // silently fail verification
+        }
       }
     };
 
@@ -402,6 +408,7 @@ export function VehicleRowCard({
     return () => {
       mounted = false;
       clearTimeout(timeout);
+      controller.abort();
     };
   }, [customServiceOptions, vehicle.id, vehicle.synthesis_data]);
 
@@ -633,6 +640,43 @@ export function VehicleRowCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded, mappedData, vehicle.synthesis_data]);
 
+  // Auto-load latest calculation history on mount
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    if (!hasAttemptedAutoLoadHistory && !activeKalkulacjaId && vehicle.id) {
+      setHasAttemptedAutoLoadHistory(true);
+      const fetchLatestCalc = async () => {
+        try {
+          const res = await apiFetch(`/api/kalkulacje/vehicle/${vehicle.id}`, {
+            signal: controller.signal
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (mounted && data && data.length > 0) {
+              const latest = data[0];
+              setActiveKalkulacjaId(latest.id);
+              setActiveKalkulacjaNumer(latest.numer_kalkulacji);
+            }
+          }
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            console.error("Silent err auto-loading latest calc:", err);
+          }
+        }
+      };
+      // adding a small delay to avoid hammering the connection pool instantly for all rows
+      const timeout = setTimeout(fetchLatestCalc, 100);
+      
+      return () => {
+        mounted = false;
+        clearTimeout(timeout);
+        controller.abort();
+      };
+    }
+  }, [hasAttemptedAutoLoadHistory, activeKalkulacjaId, vehicle.id]);
+
   // ── Processing stages for progress stepper ──
   const PROCESSING_STAGES = [
     { key: "uploading", label: "Upload pliku do chmury" },
@@ -799,50 +843,14 @@ export function VehicleRowCard({
     ? `Różnica ceny bazowej względem AI wynosi ${aiBasePriceDeltaPln.toFixed(2)} PLN (limit ${AI_PRICE_ALERT_THRESHOLD_PLN} PLN). Zweryfikuj ręcznie i skoryguj cenę.`
     : null;
 
-  // Detect source price domain (netto vs brutto) from AI-extracted string
-  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
-
-  // totalCatalogPrice in SOURCE DOMAIN (brutto or netto matching PDF) for display + discount logic
-  // catalogBasePriceNet is always netto; convert to source domain + add options
-  const catalogBaseInSourceDomain = isSourceNetto
-    ? catalogBasePriceNet
-    : Math.round(catalogBasePriceNet * 1.23);
-  const totalCatalogPrice = catalogBaseInSourceDomain
-    + parsePriceToNumber(vehicle.options_price);
-
-  const offerFinalPrice = parsePriceToNumber(vehicle.final_price_pln);
-  const hasOfferFinalPrice = Boolean(
-    vehicle.final_price_pln &&
-    vehicle.final_price_pln !== "Brak" &&
-    vehicle.final_price_pln !== vehicle.base_price
-  );
-  const isDealerOffer = Boolean(
-    hasOfferFinalPrice && offerFinalPrice > 0 && offerFinalPrice < totalCatalogPrice - 1.0
-  );
-  
-  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
-  const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
-
-  const offerDiscountPercentage = parsedOfferDiscountPct
-    ? Number(parsedOfferDiscountPct)
-    : isDealerOffer && totalCatalogPrice > 0
-      ? Number((((totalCatalogPrice - offerFinalPrice) / totalCatalogPrice) * 100).toFixed(1))
-      : 0;
-
-  const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
-  const suggestedDiscountConfidence = vehicle.suggested_discount_confidence || 0;
-
-  let activeDiscountPct = 0;
-  let activeFinalPrice = totalCatalogPrice;
-
-  // We need option splits to properly compute discounted price
-  // These are in netto; convert to source domain below if needed
+  // ── Dynamic option splits (must come BEFORE totalCatalogPriceNet) ──
+  // These are the source of truth for option prices, not raw vehicle.options_price.
   const factoryOptionsPriceTotal = customFactoryOptions.reduce((acc, curr) => acc + curr.price_net, 0);
   const customServiceOptionsPriceTotal = customServiceOptions.reduce((acc, curr) => acc + curr.price_net, 0);
 
   const dynamicTotalOptionsPrice = factoryOptionsPriceTotal + customServiceOptionsPriceTotal;
 
-  // Split factory options into discountable / non-discountable
+  // Split factory options into discountable / non-discountable (always Netto)
   const discountableOptionsTotal = customFactoryOptions
     .filter(opt => !opt.no_discount)
     .reduce((acc, curr) => acc + curr.price_net, 0);
@@ -850,38 +858,65 @@ export function VehicleRowCard({
     .filter(opt => opt.no_discount)
     .reduce((acc, curr) => acc + curr.price_net, 0);
 
-  // Options are always stored as price_net - convert non-discountable to source domain
-  const nonDiscInSourceDomain = isSourceNetto
-    ? nonDiscountableOptionsTotal
-    : nonDiscountableOptionsTotal * 1.23;
-  const serviceInSourceDomain = isSourceNetto
-    ? customServiceOptionsPriceTotal
-    : customServiceOptionsPriceTotal * 1.23;
-  // discountableBase = totalCatalogPrice minus non-discountable minus service opts
-  const discountableBase = totalCatalogPrice - nonDiscInSourceDomain - serviceInSourceDomain;
+  // totalCatalogPriceNet = base + ALL factory options (netto, from managed options — NOT raw vehicle.options_price)
+  const totalCatalogPriceNet = catalogBasePriceNet + factoryOptionsPriceTotal;
+
+  const offerFinalPriceRaw = parsePriceToNumber(vehicle.final_price_pln);
+  // Detect source price domain (netto vs brutto) ONLY for offer check
+  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
+  const offerFinalPriceNet = isSourceNetto ? offerFinalPriceRaw : offerFinalPriceRaw / 1.23;
+
+  const hasOfferFinalPrice = Boolean(
+    vehicle.final_price_pln &&
+    vehicle.final_price_pln !== "Brak" &&
+    vehicle.final_price_pln !== vehicle.base_price
+  );
+  
+  // To avoid false positives on dealer offer detection, check if offer is less than total catalog netto
+  const isDealerOffer = Boolean(
+    hasOfferFinalPrice && offerFinalPriceNet > 0 && offerFinalPriceNet < totalCatalogPriceNet - 1.0
+  );
+  
+  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
+  const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
+
+  const offerDiscountPercentage = parsedOfferDiscountPct
+    ? Number(parsedOfferDiscountPct)
+    : isDealerOffer && totalCatalogPriceNet > 0
+      ? Number((((totalCatalogPriceNet - offerFinalPriceNet) / totalCatalogPriceNet) * 100).toFixed(1))
+      : 0;
+
+  const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
+  const suggestedDiscountConfidence = vehicle.suggested_discount_confidence || 0;
+
+  // discountableBaseNet = base + discountable factory options
+  const discountableBaseNet = catalogBasePriceNet + discountableOptionsTotal;
+
+  let activeDiscountPct = 0;
+  // Default final price: base + all factory options + service options (no discount)
+  let activeFinalPriceNet = totalCatalogPriceNet + customServiceOptionsPriceTotal;
 
   if (discountMode === "offer" && isDealerOffer) {
     activeDiscountPct = offerDiscountPercentage;
-    activeFinalPrice = offerFinalPrice;
+    activeFinalPriceNet = offerFinalPriceNet;
   } else if (discountMode === "suggested") {
     activeDiscountPct = suggestedDiscountPct;
     // Discount only the discountable portion (base + discountable opts)
-    activeFinalPrice =
-      discountableBase * (1 - suggestedDiscountPct / 100)
-      + nonDiscInSourceDomain
-      + serviceInSourceDomain;
+    activeFinalPriceNet =
+      discountableBaseNet * (1 - suggestedDiscountPct / 100)
+      + nonDiscountableOptionsTotal
+      + customServiceOptionsPriceTotal;
   } else if (discountMode === "custom") {
     activeDiscountPct = customDiscountPct;
-    activeFinalPrice =
-      discountableBase * (1 - customDiscountPct / 100)
-      + nonDiscInSourceDomain
-      + serviceInSourceDomain;
+    activeFinalPriceNet =
+      discountableBaseNet * (1 - customDiscountPct / 100)
+      + nonDiscountableOptionsTotal
+      + customServiceOptionsPriceTotal;
   }
 
   const formatCalculatedPrice = (val: number) => {
       if (val === 0) return "Brak";
-      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
-      return `${val.toFixed(2)} PLN ${isNetto ? 'netto' : 'brutto'}`;
+      return `${val.toFixed(2)} PLN netto`;
   };
 
 
@@ -1057,8 +1092,8 @@ export function VehicleRowCard({
         mappedData={mappedData}
         isExpanded={isExpanded}
         onToggleExpand={() => setIsExpanded(!isExpanded)}
-        activeFinalPrice={activeFinalPrice}
-        totalCatalogPrice={totalCatalogPrice}
+        activeFinalPriceNet={activeFinalPriceNet}
+        totalCatalogPriceNet={totalCatalogPriceNet}
         formatCalculatedPrice={formatCalculatedPrice}
         samarCandidates={samarCandidates}
         onSamarCategoryChange={handleSamarCategoryChange}
@@ -1104,13 +1139,14 @@ export function VehicleRowCard({
               vehicleId={vehicle.id}
               vehicleBrand={vehicle.brand || undefined}
               vehicleModel={vehicle.model || undefined}
+              targetBasePrice={vehicle.base_price}
             />
           </div>
 
           <VehicleFinancialOptions 
              vehicle={vehicle}
-             totalCatalogPrice={totalCatalogPrice}
-             activeFinalPrice={activeFinalPrice}
+             totalCatalogPriceNet={totalCatalogPriceNet}
+             activeFinalPriceNet={activeFinalPriceNet}
              dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
              catalogBasePriceNet={catalogBasePriceNet}
              setCatalogBasePriceNet={setCatalogBasePriceNet}
@@ -1185,7 +1221,7 @@ export function VehicleRowCard({
              hookAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.has_tow_hook === true}
              vintageAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.is_current_year_vehicle != null}
              // Price context for czynsz inicjalny calculations
-             activeFinalPriceForDeposit={activeFinalPrice}
+             activeFinalPriceForDeposit={activeFinalPriceNet}
              crossCardAlerts={crossCardAlerts}
              paramPreview={paramPreview}
              controlCenter={controlCenter}
@@ -1223,7 +1259,7 @@ export function VehicleRowCard({
              <VehicleActionButtons
                vehicle={vehicle}
                isSavingSetup={isSavingSetup}
-               handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPrice, catalogBasePriceNet)}
+               handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPriceNet, catalogBasePriceNet)}
                wiborPct={wiborPct}
                marginPct={marginPct}
                pricingMarginPct={pricingMarginPct}
@@ -1243,7 +1279,7 @@ export function VehicleRowCard({
                vehicleVintage={vehicleVintage}
                isMetalic={isMetalic}
                activeDiscountPct={activeDiscountPct}
-               activeFinalPrice={activeFinalPrice}
+               activeFinalPrice={activeFinalPriceNet}
                isOverrideModalOpen={isOverrideModalOpen}
                setIsOverrideModalOpen={setIsOverrideModalOpen}
                brochureData={brochureData}
@@ -1263,6 +1299,8 @@ export function VehicleRowCard({
                  setActiveKalkulacjaNumer(numer);
                  if (!isExpanded) setIsExpanded(true);
                }}
+               activeKalkulacjaId={activeKalkulacjaId}
+               activeKalkulacjaNumer={activeKalkulacjaNumer}
              />
 
               {isOverrideModalOpen && (

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Loader2, Wand2, Database, ExternalLink, FileCode, History, X } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
@@ -59,6 +59,8 @@ interface VehicleActionButtonsProps {
     delta_pln: number;
     manual_review_required: boolean;
   };
+  activeKalkulacjaId?: string | null;
+  activeKalkulacjaNumer?: string | null;
 }
 
 export function VehicleActionButtons({
@@ -100,9 +102,10 @@ export function VehicleActionButtons({
   onCalculationCreated,
   calculationBlockReason,
   priceAudit,
+  activeKalkulacjaNumer,
 }: VehicleActionButtonsProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<'idle' | 'saving' | 'calculating' | 'done'>('idle');
   const isCreateBlocked = Boolean(calculationBlockReason);
   
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -111,19 +114,14 @@ export function VehicleActionButtons({
   const [historyItems, setHistoryItems] = useState<HistoricalCalculation[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
-  // Fake progress bar logic for UX
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isCreating) {
-      setProgress(0);
-      interval = setInterval(() => {
-        setProgress(prev => (prev >= 90 ? 90 : prev + 10));
-      }, 200);
-    } else {
-      setProgress(0);
-    }
-    return () => clearInterval(interval);
-  }, [isCreating]);
+  // Phase-based progress mapping (CSS transition handles smooth animation)
+  const PHASE_PROGRESS: Record<string, number> = {
+    idle: 0,
+    saving: 30,
+    calculating: 70,
+    done: 100,
+  };
+  const progress = PHASE_PROGRESS[phase] ?? 0;
 
   const loadHistory = async () => {
     setIsHistoryLoading(true);
@@ -156,7 +154,7 @@ export function VehicleActionButtons({
         abortControllerRef.current = null;
       }
       setIsCreating(false);
-      setProgress(0);
+      setPhase('idle');
       return;
     }
 
@@ -166,10 +164,12 @@ export function VehicleActionButtons({
     }
     
     setIsCreating(true);
+    setPhase('saving');
     abortControllerRef.current = new AbortController();
     
     try {
       await handleSaveSetup();
+      setPhase('calculating');
       const baseUrl = API_BASE_URL;
       const existingCalculatorSetup = ((vehicle.synthesis_data as Record<string, unknown>)?.calculator_setup as Record<string, unknown>) || {};
       const existingFinancialParams = (existingCalculatorSetup.financial_params as Record<string, unknown>) || {};
@@ -233,6 +233,9 @@ export function VehicleActionButtons({
       const numerKalkulacji = data.numer_kalkulacji || `ID: ${data.id}`;
 
       onCalculationCreated(data.id, numerKalkulacji);
+      setPhase('done');
+      // Brief visual confirmation before clearing
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.log('Kalkulacja przerwana');
@@ -242,6 +245,7 @@ export function VehicleActionButtons({
       }
     } finally {
       setIsCreating(false);
+      setPhase('idle');
     }
   };
 
@@ -300,10 +304,10 @@ export function VehicleActionButtons({
   return (
     <div className="w-full flex flex-col gap-2 relative">
       {isCreating && (
-        <div className="w-full h-1 bg-slate-100 rounded overflow-hidden">
+        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
            <div 
-             className="h-full bg-blue-600 transition-all duration-200 ease-out" 
-             style={{ width: `${progress}%` }} 
+             className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full" 
+             style={{ width: `${progress}%`, transition: phase === 'done' ? 'width 0.3s ease-out' : 'width 1.5s cubic-bezier(0.4, 0, 0.2, 1)' }} 
            />
         </div>
       )}
@@ -344,8 +348,16 @@ export function VehicleActionButtons({
           ? "Zapisywanie setupu..."
           : isCreating
             ? "Przerwij"
-            : "Zrób kalkulację"}
+            : activeKalkulacjaNumer
+              ? "Nowa kalkulacja"
+              : "Zrób kalkulację"}
       </button>
+
+      {activeKalkulacjaNumer && !isCreating && (
+         <span className="absolute -top-3 right-0 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm font-bold border border-white z-10">
+           ZAŁADOWANO: {activeKalkulacjaNumer.split('/').pop()}
+         </span>
+      )}
 
       <button
         onClick={(e) => {

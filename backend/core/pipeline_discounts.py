@@ -168,7 +168,7 @@ Oczekuję w odpowiedzi wyłącznie JEDNEGO wariantu (najlepszego) jako czysty ob
         match_result = json.loads(clean_json_response(str(resp_text)))
 
         confidence = match_result.get("match_confidence", 0) if match_result else 0
-        min_confidence_threshold = 95
+        min_confidence_threshold = 85
 
         # Always store confidence for debugging purposes
         flash_data["suggested_discount_confidence"] = confidence

@@ -66,6 +66,83 @@ _NUMERIC_DIRECT_MAP: dict[str, tuple[str, str]] = {
     # NOTE: "seats" is handled by _DIRECT_FIELD_MAP ("number_of_seats")
 }
 
+# Canonical drive type values — ALL raw LLM outputs are normalized to these.
+_CANONICAL_DRIVE_FWD = "4x2 (FWD)"
+_CANONICAL_DRIVE_RWD = "4x2 (RWD)"
+_CANONICAL_DRIVE_AWD = "4x4 (AWD)"
+
+# Exact-match map (case-insensitive via .strip().lower()).
+_DRIVE_TYPE_EXACT: dict[str, str] = {
+    "napęd fwd": _CANONICAL_DRIVE_FWD,
+    "fwd": _CANONICAL_DRIVE_FWD,
+    "4x2": _CANONICAL_DRIVE_FWD,
+    "4x2 (fwd)": _CANONICAL_DRIVE_FWD,
+    "napęd przedni": _CANONICAL_DRIVE_FWD,
+    "napęd przedni (fwd)": _CANONICAL_DRIVE_FWD,
+    "front-wheel drive": _CANONICAL_DRIVE_FWD,
+    "na przednią oś": _CANONICAL_DRIVE_FWD,
+    "przedni": _CANONICAL_DRIVE_FWD,
+    "napęd rwd": _CANONICAL_DRIVE_RWD,
+    "rwd": _CANONICAL_DRIVE_RWD,
+    "4x2 (rwd)": _CANONICAL_DRIVE_RWD,
+    "napęd tylny": _CANONICAL_DRIVE_RWD,
+    "rear-wheel drive": _CANONICAL_DRIVE_RWD,
+    "na tylną oś": _CANONICAL_DRIVE_RWD,
+    "tylny": _CANONICAL_DRIVE_RWD,
+    "hinterradantrieb": _CANONICAL_DRIVE_RWD,
+    "napęd awd": _CANONICAL_DRIVE_AWD,
+    "awd": _CANONICAL_DRIVE_AWD,
+    "4x4": _CANONICAL_DRIVE_AWD,
+    "4x4 (awd)": _CANONICAL_DRIVE_AWD,
+    "all-wheel drive": _CANONICAL_DRIVE_AWD,
+    "napęd na wszystkie koła": _CANONICAL_DRIVE_AWD,
+    "napęd integralny": _CANONICAL_DRIVE_AWD,
+}
+
+# Substring keywords → canonical (checked via `in` on lowered text).
+_DRIVE_TYPE_KEYWORDS: list[tuple[str, str]] = [
+    ("4motion", _CANONICAL_DRIVE_AWD),
+    ("quattro", _CANONICAL_DRIVE_AWD),
+    ("xdrive", _CANONICAL_DRIVE_AWD),
+    ("4matic", _CANONICAL_DRIVE_AWD),
+    ("all4", _CANONICAL_DRIVE_AWD),
+    ("e-4orce", _CANONICAL_DRIVE_AWD),
+    ("4drive", _CANONICAL_DRIVE_AWD),
+    ("allgrip", _CANONICAL_DRIVE_AWD),
+    ("e-ts", _CANONICAL_DRIVE_AWD),
+    ("4x4", _CANONICAL_DRIVE_AWD),
+    ("all-wheel", _CANONICAL_DRIVE_AWD),
+    ("wszystkie koła", _CANONICAL_DRIVE_AWD),
+    ("integralny", _CANONICAL_DRIVE_AWD),
+    ("rear-wheel", _CANONICAL_DRIVE_RWD),
+    ("tylną oś", _CANONICAL_DRIVE_RWD),
+    ("front-wheel", _CANONICAL_DRIVE_FWD),
+    ("przednią oś", _CANONICAL_DRIVE_FWD),
+]
+
+
+def _normalize_drive_type(raw: str) -> str:
+    """Normalize a raw drive_type string to one of 3 canonical values.
+
+    Returns the original string unchanged only if no mapping is found
+    (should not happen in practice — log a warning in calling code).
+    """
+    key = raw.strip().lower()
+    if not key:
+        return raw
+
+    # 1. Exact match
+    if key in _DRIVE_TYPE_EXACT:
+        return _DRIVE_TYPE_EXACT[key]
+
+    # 2. Substring / keyword match
+    for keyword, canonical in _DRIVE_TYPE_KEYWORDS:
+        if keyword in key:
+            return canonical
+
+    # 3. No match — return as-is (caller should log warning)
+    return raw
+
 
 def _safe_parse_num(raw_value: Any) -> float | None:
     """Safely extract a numeric value from a string or number."""
@@ -376,7 +453,7 @@ def enrich_vehicle_features(
             {
                 "source_vehicle_id": vehicle_id,
                 "feature_id": feat_id,
-                "source_type": "catalog",
+                "source_type": "spec",
                 "evidence_status": "observed",
                 "value_bool": True,
                 "value_text": match["item"],
@@ -401,7 +478,7 @@ def enrich_vehicle_features(
             {
                 "source_vehicle_id": vehicle_id,
                 "feature_id": feat_id,
-                "source_type": "price_list",
+                "source_type": "spec",
                 "evidence_status": "observed",
                 "value_bool": True,
                 "value_text": match["item"],
@@ -427,7 +504,7 @@ def enrich_vehicle_features(
             {
                 "source_vehicle_id": vehicle_id,
                 "feature_id": feat_id,
-                "source_type": "catalog",
+                "source_type": "spec",
                 "evidence_status": "observed",
                 "value_num": _safe_parse_num(match.get("value_num")),
                 "unit": match.get("unit"),
@@ -450,7 +527,7 @@ def enrich_vehicle_features(
         evidence: dict[str, Any] = {
             "source_vehicle_id": vehicle_id,
             "feature_id": feat_id,
-            "source_type": "catalog",
+            "source_type": "spec",
             "evidence_status": "observed",
             "confidence": 0.95,
         }
@@ -462,6 +539,15 @@ def enrich_vehicle_features(
         else:
             str_val = str(value).strip()
             if str_val.lower() not in ("brak", "none", "null", ""):
+                # Normalize drive_type to canonical values
+                if cs_field == "drive_type":
+                    normalized = _normalize_drive_type(str_val)
+                    if normalized == str_val:
+                        logger.warning(
+                            "Unknown drive_type value '%s' — not normalized",
+                            str_val,
+                        )
+                    str_val = normalized
                 evidence["value_text"] = str_val
             else:
                 continue
@@ -488,7 +574,7 @@ def enrich_vehicle_features(
             {
                 "source_vehicle_id": vehicle_id,
                 "feature_id": feat_id,
-                "source_type": "catalog",
+                "source_type": "spec",
                 "evidence_status": "observed",
                 "value_num": parsed,
                 "unit": unit,

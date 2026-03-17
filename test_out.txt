@@ -1,0 +1,15 @@
+Testing GET INITIAL DATA...
+Time: 0.39s, Results: True
+First Brand: ['Audi', 'BMW', 'CUPRA']
+
+Testing SEARCH...
+Time: 0.07s, Results: 1
+Top result: {
+  "vehicle_id": "07a2d4aa-374e-4eb9-8425-51a4494ba042",
+  "brand": "Toyota",
+  "model": "RAV4 - MC22",
+  "version": null,
+  "match_score_pct": 0.0,
+  "matched_features": [],
+  "missing_features": []
+}

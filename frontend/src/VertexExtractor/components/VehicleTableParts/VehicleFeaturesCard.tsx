@@ -25,21 +25,24 @@ interface VehicleFeaturesCardProps {
   vehicleTypeHint?: string | null;
 }
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  present_confirmed_primary: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-  present_confirmed_secondary: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-200" },
-  present_inferred: { bg: "bg-sky-50", text: "text-sky-600", border: "border-sky-200" },
-  absent_confirmed: { bg: "bg-slate-50", text: "text-slate-400", border: "border-slate-200" },
-  absent_inferred: { bg: "bg-slate-50", text: "text-slate-400", border: "border-slate-200" },
-  contradicted: { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
+const STATUS_STYLES: Record<string, string> = {
+  present_confirmed_primary: "bg-emerald-50 text-emerald-700 border-emerald-200", // Green for Config PDF
+  present_crossmatched: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200", // Purple for Cenniki crossmatch
+  present_confirmed_secondary: "bg-green-50 text-green-700 border-green-200",
+  present_inferred: "bg-blue-50 text-blue-700 border-blue-200",
+  absent_confirmed_primary: "bg-red-50 text-red-700 border-red-200",
+  absent_confirmed_secondary: "bg-rose-50 text-rose-700 border-rose-200",
+  absent_inferred: "bg-orange-50 text-orange-700 border-orange-200",
+  unknown: "bg-slate-50 text-slate-600 border-slate-200",
+  conflict: "bg-amber-100 text-amber-800 border-amber-300 font-semibold",
 };
 
-const DEFAULT_STYLE = { bg: "bg-slate-50", text: "text-slate-500", border: "border-slate-200" };
+const DEFAULT_STYLE = "bg-slate-50 text-slate-500 border-slate-200";
 
 function getStatusIcon(status: string): string {
   if (status.startsWith("present")) return "✓";
   if (status.startsWith("absent")) return "✗";
-  if (status === "contradicted") return "⚠";
+  if (status === "conflict") return "⚠";
   return "?";
 }
 
@@ -83,41 +86,102 @@ function isCargoCategory(categoryName: string): boolean {
 }
 
 export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeaturesCardProps) {
-  const [categories, setCategories] = useState<CategoryGroup[]>([]);
+  const [rawCategories, setRawCategories] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["⭐ Konfiguracja (PDF)"]));
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
+  const [configFeatures, setConfigFeatures] = useState<FeatureItem[]>([]);
 
   const fetchFeatures = async () => {
     setLoading(true);
     setError(null);
     try {
+      // 1. Fetch from Synthesis Data (Local instant fallback)
+      const vehicleResp = await apiFetch(`/api/kalkulator/pojazd/${vehicleId}`);
+      let instantFeatures: FeatureItem[] = [];
+      if (vehicleResp.ok) {
+        const vehicleData = await vehicleResp.json();
+        const synthData = vehicleData.synthesis_data?.card_summary || {};
+        
+        const stdEq = (synthData.standard_equipment || []).map((name: string, i: number) => ({
+          feature_key: `config_std_${name}_${i}`,
+          display_name: name,
+          resolved_status: "present_confirmed_primary", // Will map to green
+          resolved_value_bool: true,
+          resolved_value_text: null,
+          resolved_value_num: null,
+          confidence_score: 1.0,
+          category_name: "⭐ Konfiguracja (PDF)"
+        }));
+
+        const paidEq = (synthData.paid_options || []).map((opt: any, i: number) => ({
+          feature_key: `config_paid_${opt.name}_${i}`,
+          display_name: opt.name,
+          resolved_status: "present_confirmed_primary", // Will map to green
+          resolved_value_bool: true,
+          resolved_value_text: opt.price,
+          resolved_value_num: null,
+          confidence_score: 1.0,
+          category_name: "⭐ Konfiguracja (PDF)"
+        }));
+        
+        instantFeatures = [...stdEq, ...paidEq];
+        setConfigFeatures(instantFeatures);
+      }
+
+      // 2. Fetch from API (Async cross-referenced)
       const response = await apiFetch(`/api/features/vehicle/${vehicleId}/state`);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
-      const grouped: CategoryGroup[] = Object.entries(data.categories as Record<string, FeatureItem[]>)
-        .map(([name, features]) => ({
-          name,
-          features,
-          presentCount: features.filter(
-            (f) => f.resolved_status?.startsWith("present")
-          ).length,
-        }))
+      let grouped: CategoryGroup[] = [];
+      
+      // Add local config features as the first category if they exist
+      if (instantFeatures.length > 0) {
+        grouped.push({
+          name: "⭐ Konfiguracja (PDF)",
+          features: instantFeatures,
+          presentCount: instantFeatures.length,
+        });
+      }
+
+      // Process API features
+      const apiGroups = Object.entries(data.categories as Record<string, any[]>)
+        .map(([name, apiFeatures]) => {
+          // Filter out features that came from 'spec' because we already show them in the local config group to prevent obvious duplicates
+          const processedFeatures = apiFeatures
+             .filter(f => f.resolution_source !== 'spec') // Avoid duplicating the PDF features
+             .map(f => {
+               // If it's from catalog/price_list, force a custom status to make it purple
+               // Normally 'catalog' maps to 'present_inferred'.
+               let status = f.resolved_status;
+               if (f.resolution_source === 'catalog' || f.resolution_source === 'price_list') {
+                  status = "present_crossmatched"; // We will add a style for this
+               }
+               return { ...f, resolved_status: status };
+             });
+
+          return {
+            name,
+            features: processedFeatures,
+            presentCount: processedFeatures.filter(
+              (f) => f.resolved_status?.startsWith("present")
+            ).length,
+          };
+        })
         .filter((g) => g.features.length > 0)
         .sort((a, b) => b.presentCount - a.presentCount);
-      const filteredGrouped = isPassengerVehicleType(vehicleTypeHint)
-        ? grouped.filter((group) => !isCargoCategory(group.name))
-        : grouped;
+      
+      grouped = [...grouped, ...apiGroups];
 
-      setCategories(filteredGrouped);
+      setRawCategories(grouped);
       const autoExpand = new Set(
-        filteredGrouped.filter((g) => g.presentCount > 0).map((g) => g.name)
+        grouped.filter((g) => g.presentCount > 0).map((g) => g.name)
       );
-      setExpandedCats(autoExpand);
+      setExpandedCats(prev => new Set([...prev, "⭐ Konfiguracja (PDF)", ...autoExpand]));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd pobierania cech");
     } finally {
@@ -127,11 +191,31 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
 
   useEffect(() => {
     // Auto-load cech po zmianie vehicleId
-    setCategories([]);
+    setRawCategories([]);
+    setConfigFeatures([]);
     setError(null);
     fetchFeatures();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId, vehicleTypeHint]);
+  }, [vehicleId]);
+
+  const categories = isPassengerVehicleType(vehicleTypeHint)
+    ? rawCategories.filter((group) => !isCargoCategory(group.name))
+    : rawCategories;
+
+  const totalFeatures = categories.reduce((sum, cat) => sum + cat.features.length, 0);
+  const totalPresent = categories.reduce((sum, cat) => sum + cat.presentCount, 0);
+
+  // Set up event listener to allow external triggers to refresh features
+  useEffect(() => {
+    const handleRefresh = (e: CustomEvent) => {
+      if (e.detail?.vehicleId === vehicleId) {
+        fetchFeatures();
+      }
+    };
+    window.addEventListener('refreshVehicleFeatures', handleRefresh as EventListener);
+    return () => window.removeEventListener('refreshVehicleFeatures', handleRefresh as EventListener);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId]);
 
   const toggleCategory = (name: string) => {
     setExpandedCats((prev) => {
@@ -145,9 +229,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
     });
   };
 
-  const totalPresent = categories.reduce((s, c) => s + c.presentCount, 0);
-  const totalFeatures = categories.reduce((s, c) => s + c.features.length, 0);
-
   return (
     <div className="border border-slate-200 rounded bg-white">
       {/* Header — klikalny toggle zwijania */}
@@ -159,7 +240,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
           {isPanelCollapsed ? (
             <ChevronRight className="w-3.5 h-3.5" />
           ) : (
-            <ChevronDown className="w-3.5 h-3.5" />
+             <ChevronDown className="w-3.5 h-3.5" />
           )}
           <Package className="w-3.5 h-3.5" />
           Cechy użytkowe pojazdu
@@ -272,7 +353,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
                               return (
                                 <span
                                   key={f.feature_key}
-                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${style.bg} ${style.text} ${style.border}`}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${style}`}
                                   title={`${f.display_name} — ${f.resolved_status}${f.resolved_value_text ? `: ${f.resolved_value_text}` : ""}${f.confidence_score ? ` (${Math.round(f.confidence_score * 100)}%)` : ""}`}
                                 >
                                   <span className="text-[10px]">{icon}</span>

@@ -1,4 +1,4 @@
-﻿import { useVehicles } from "./hooks/useVehicles";
+import { useVehicles } from "./hooks/useVehicles";
 import { useDocumentProcessing } from "./hooks/useDocumentProcessing";
 
 import { UploadZone } from "./components/UploadZone";
@@ -20,6 +20,10 @@ export default function VertexExtractorPage() {
     fetchSavedVehicles,
     handleGlobalSearch,
     handleDeleteVehicle,
+    page,
+    setPage,
+    pageSize,
+    totalCount,
   } = useVehicles();
 
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
@@ -74,6 +78,10 @@ export default function VertexExtractorPage() {
           handleOpenSavedJson={handleOpenSavedJson}
           handleDeleteVehicle={handleDeleteVehicle}
           globalSettings={globalSettings}
+          page={page}
+          setPage={setPage}
+          pageSize={pageSize}
+          totalCount={totalCount}
         />
       </main>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   ThemeProvider,
   createTheme,
@@ -7,14 +7,108 @@ import {
   Tab,
   Box,
 } from "@mui/material";
+import {
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  Navigate,
+} from "react-router-dom";
 import ControlCenter from "./ControlCenter";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
-import { ReverseSearchPage } from "./VertexExtractor/components/ReverseSearchPage";
 import { CatalogLibraryPage } from "./VertexExtractor/components/CatalogLibraryPage";
+import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { NotificationProvider } from "./components/NotificationProvider";
+import { useAppStore } from "./stores/useAppStore";
+
+/**
+ * Route definitions — single source of truth for navigation.
+ */
+const ROUTES = [
+  { path: "/", label: "Ekstrakcja Danych" },
+  { path: "/control-center", label: "Control Center" },
+  { path: "/library", label: "Biblioteka Cenników" },
+  { path: "/search", label: "Wyszukiwarka pojazdów" },
+] as const;
+
+function AppContent() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const currentTabIndex = ROUTES.findIndex(
+    (r) => r.path === location.pathname
+  );
+  const activeTab = currentTabIndex >= 0 ? currentTabIndex : 0;
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    navigate(ROUTES[newValue].path);
+  };
+
+  // Listen for global tab switch events (backward compat)
+  useEffect(() => {
+    const handleSwitchTab = (event: CustomEvent<{ tabIndex: number }>) => {
+      const route = ROUTES[event.detail.tabIndex];
+      if (route) navigate(route.path);
+    };
+
+    window.addEventListener('switchTab', handleSwitchTab as EventListener);
+    return () => {
+      window.removeEventListener('switchTab', handleSwitchTab as EventListener);
+    };
+  }, [navigate]);
+
+  // Fetch global settings on mount
+  const fetchGlobalSettings = useAppStore((s) => s.fetchGlobalSettings);
+  useEffect(() => {
+    fetchGlobalSettings();
+  }, [fetchGlobalSettings]);
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        padding: "24px 32px",
+      }}
+    >
+      {/* Express Car Rental Logo */}
+      <Box sx={{ mb: 2 }}>
+        <img src="/express-logo.png" alt="Express Car Rental" style={{ height: 40 }} />
+      </Box>
+
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+          aria-label="Nawigacja"
+        >
+          {ROUTES.map((route) => (
+            <Tab key={route.path} label={route.label} />
+          ))}
+        </Tabs>
+      </Box>
+
+      <ErrorBoundary fallbackTitle="Błąd ładowania sekcji">
+        <Routes>
+          <Route path="/" element={<VertexExtractorPage />} />
+          <Route path="/control-center" element={<ControlCenter />} />
+          <Route path="/library" element={<CatalogLibraryPage />} />
+          <Route path="/search" element={<ScoringSearchPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
+    </div>
+  );
+}
 
 function App() {
-  const [mode, setMode] = useState<'light' | 'dark'>('light');
+  const mode = useAppStore((s) => s.themeMode);
+  const toggleTheme = useAppStore((s) => s.toggleTheme);
 
   const theme = useMemo(() => createTheme({
     palette: {
@@ -90,61 +184,16 @@ function App() {
       },
     },
   }), [mode]);
-  const [currentTab, setCurrentTab] = useState(0);
-
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setCurrentTab(newValue);
-  };
-
-  // Listen for global tab switch events
-  useEffect(() => {
-    const handleSwitchTab = (event: CustomEvent<{ tabIndex: number }>) => {
-      setCurrentTab(event.detail.tabIndex);
-    };
-
-    window.addEventListener('switchTab', handleSwitchTab as EventListener);
-    return () => {
-      window.removeEventListener('switchTab', handleSwitchTab as EventListener);
-    };
-  }, []);
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <CommandPalette toggleTheme={() => setMode(m => m === 'light' ? 'dark' : 'light')} mode={mode} />
-      <div
-        style={{
-          minHeight: "100vh",
-          padding: "24px 32px",
-        }}
-      >
-        {/* Express Car Rental Logo */}
-        <Box sx={{ mb: 2 }}>
-          <img src="/express-logo.png" alt="Express Car Rental" style={{ height: 40 }} />
-        </Box>
-
-        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-          <Tabs
-            value={currentTab}
-            onChange={handleTabChange}
-            indicatorColor="primary"
-            textColor="primary"
-            variant="scrollable"
-            scrollButtons="auto"
-            aria-label="Nawigacja"
-          >
-            <Tab value={0} label="Ekstrakcja Danych" />
-            <Tab value={1} label="Control Center" />
-            <Tab value={2} label="Reverse Search" />
-            <Tab value={3} label="Biblioteka Cenników" />
-          </Tabs>
-        </Box>
-
-        {currentTab === 0 && <VertexExtractorPage />}
-        {currentTab === 1 && <ControlCenter />}
-        {currentTab === 2 && <ReverseSearchPage />}
-        {currentTab === 3 && <CatalogLibraryPage />}
-      </div>
+      <NotificationProvider>
+        <ErrorBoundary fallbackTitle="Krytyczny błąd aplikacji">
+          <CommandPalette toggleTheme={toggleTheme} mode={mode} />
+          <AppContent />
+        </ErrorBoundary>
+      </NotificationProvider>
     </ThemeProvider>
   );
 }

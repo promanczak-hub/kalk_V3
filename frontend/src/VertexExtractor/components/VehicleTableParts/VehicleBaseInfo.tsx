@@ -36,8 +36,8 @@ interface VehicleBaseInfoProps {
   mappedData?: MappedData | null;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  activeFinalPrice: number;
-  totalCatalogPrice: number;
+  activeFinalPriceNet: number;
+  totalCatalogPriceNet: number;
   formatCalculatedPrice: (val: number) => string;
   samarCandidates?: SamarCandidate[];
   onSamarCategoryChange?: (newCategory: string) => void;
@@ -371,8 +371,8 @@ export function VehicleBaseInfo({
   mappedData,
   isExpanded,
   onToggleExpand,
-  activeFinalPrice,
-  totalCatalogPrice,
+  activeFinalPriceNet,
+  totalCatalogPriceNet,
   formatCalculatedPrice,
   samarCandidates = [],
   onSamarCategoryChange,
@@ -453,25 +453,25 @@ export function VehicleBaseInfo({
 
         {/* Price */}
         <div className="flex-shrink-0 text-right min-w-[160px] flex flex-col items-end pt-0.5">
-          {activeFinalPrice > 0 && activeFinalPrice !== totalCatalogPrice ? (
+          {activeFinalPriceNet > 0 && activeFinalPriceNet !== totalCatalogPriceNet ? (
             <>
               <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
                 Suma Całkowita
               </span>
               <span className="text-lg font-semibold tracking-tight text-slate-900 tabular-nums">
                 <PriceDualFormat
-                  priceStr={formatCalculatedPrice(activeFinalPrice)}
+                  priceStr={formatCalculatedPrice(activeFinalPriceNet)}
                   align="right"
                 />
               </span>
             </>
-          ) : totalCatalogPrice > 0 ? (
+          ) : totalCatalogPriceNet > 0 ? (
             <>
               <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
                 Cena Katalogowa
               </span>
               <span className="text-lg font-semibold tracking-tight text-slate-800 tabular-nums">
-                <PriceDualFormat priceStr={formatCalculatedPrice(totalCatalogPrice)} align="right" />
+                <PriceDualFormat priceStr={formatCalculatedPrice(totalCatalogPriceNet)} align="right" />
               </span>
             </>
           ) : (
