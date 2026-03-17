@@ -10,12 +10,14 @@ interface SamarCategoryDropdownProps {
   currentCategory: string;
   candidates: SamarCandidate[];
   onCategoryChange: (newCategory: string) => void;
+  connected?: boolean;
 }
 
 export function SamarCategoryDropdown({
   currentCategory,
   candidates,
   onCategoryChange,
+  connected,
 }: SamarCategoryDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,16 +60,20 @@ export function SamarCategoryDropdown({
         type="button"
         onClick={hasCandidates ? toggleOpen : undefined}
         className={`
-          inline-flex items-center gap-1 border px-2 py-0.5 rounded text-xs font-medium
-          transition-colors select-none
-          ${
-            hasCandidates
-              ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 cursor-pointer"
-              : "border-slate-200 bg-slate-50 text-slate-600 cursor-default"
+          inline-flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-medium h-full
+          transition-colors select-none focus:outline-none focus:ring-inset focus:ring-1 focus:ring-blue-400
+          ${connected ? "" : "border rounded"}
+          ${hasCandidates
+              ? connected
+                  ? "bg-blue-50/50 text-blue-700 hover:bg-blue-100 cursor-pointer"
+                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 cursor-pointer"
+              : connected
+                  ? "bg-slate-50/50 text-slate-600 cursor-default"
+                  : "border-slate-200 bg-slate-50 text-slate-600 cursor-default"
           }
         `}
         title={hasCandidates ? "Zmień klasę SAMAR" : currentCategory}
-        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.875rem" }}
+        style={{ fontFamily: "'Geist Mono', monospace" }}
       >
         <span className="whitespace-nowrap">SAMAR: {currentCategory}</span>
         {hasCandidates && (

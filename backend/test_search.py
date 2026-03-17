@@ -1,6 +1,5 @@
 from core.database import supabase
 import json
-import os
 import time
 
 with open("test_out.txt", "w", encoding="utf-8") as out:

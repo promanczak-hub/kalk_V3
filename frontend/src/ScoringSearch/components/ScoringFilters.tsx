@@ -16,6 +16,110 @@ interface ScoringFiltersProps {
   isSearching: boolean;
 }
 
+// ── Reusable styled chip ──────────────────────────────────────────────────────
+const FilterChip: React.FC<{
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary';
+}> = ({ label, selected, onClick, variant = 'primary' }) => {
+  const selectedBg =
+    variant === 'secondary'
+      ? 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
+      : 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)';
+
+  return (
+    <Chip
+      label={label}
+      size="small"
+      onClick={onClick}
+      sx={{
+        cursor: 'pointer',
+        fontWeight: selected ? 700 : 400,
+        fontSize: '0.75rem',
+        height: 26,
+        transition: 'all 0.15s ease',
+        background: selected ? selectedBg : '#f1f5f9',
+        color: selected ? '#ffffff' : '#475569',
+        border: selected ? 'none' : '1px solid #cbd5e1',
+        boxShadow: selected ? '0 2px 6px rgba(59,130,246,0.35)' : 'none',
+        '&:hover': {
+          transform: 'scale(1.04)',
+          background: selected ? selectedBg : '#e2e8f0',
+          boxShadow: selected
+            ? '0 4px 10px rgba(59,130,246,0.45)'
+            : '0 1px 4px rgba(0,0,0,0.08)',
+        },
+      }}
+    />
+  );
+};
+
+// ── Section badge (count of selected items) ──────────────────────────────────
+const SectionBadge: React.FC<{ count: number }> = ({ count }) =>
+  count > 0 ? (
+    <Box
+      sx={{
+        ml: 'auto',
+        bgcolor: '#3b82f6',
+        color: 'white',
+        borderRadius: 10,
+        px: 0.8,
+        py: 0.1,
+        fontSize: '0.65rem',
+        fontWeight: 700,
+        lineHeight: 1.6,
+        minWidth: 18,
+        textAlign: 'center',
+      }}
+    >
+      {count}
+    </Box>
+  ) : null;
+
+// ── Section header ────────────────────────────────────────────────────────────
+const SectionLabel: React.FC<{ label: string; selectedCount?: number }> = ({
+  label,
+  selectedCount = 0,
+}) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+    <Typography
+      variant="subtitle2"
+      sx={{
+        fontWeight: 700,
+        color: '#1e40af',
+        fontSize: '0.7rem',
+        textTransform: 'uppercase',
+        letterSpacing: 1.5,
+        borderLeft: '3px solid #3b82f6',
+        pl: 1,
+      }}
+    >
+      {label}
+    </Typography>
+    <SectionBadge count={selectedCount} />
+  </Box>
+);
+
+// ── Section wrapper ───────────────────────────────────────────────────────────
+const Section: React.FC<{ children: React.ReactNode; alt?: boolean }> = ({
+  children,
+  alt = false,
+}) => (
+  <Box
+    sx={{
+      p: 2,
+      borderBottom: '1px solid #e2e8f0',
+      bgcolor: alt ? '#f8fafc' : '#ffffff',
+      transition: 'background 0.2s',
+    }}
+  >
+    {children}
+  </Box>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
   searchContext, onContextChange, selectedFeatures, onFeaturesChange, onTriggerSearch, isSearching
 }) => {
@@ -90,6 +194,14 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     onContextChange({ ...searchContext, brands: next, models: [] });
   };
 
+  const toggleBodyType = (name: string) => {
+    const current = searchContext.bodyTypes || [];
+    const next = current.includes(name)
+      ? current.filter(b => b !== name)
+      : [...current, name];
+    onContextChange({ ...searchContext, bodyTypes: next });
+  };
+
   // ── Extract primary enum facets (napęd, etc.) from facet_groups ──
   const primaryEnumFacets = useMemo(() => {
     if (!data?.facet_groups) return [];
@@ -104,9 +216,8 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     return facets;
   }, [data]);
 
-  const isFeatureSelected = (key: string, value: string) => {
-    return selectedFeatures.some(f => f.feature_key === key && f.value === value);
-  };
+  const isFeatureSelected = (key: string, value: string) =>
+    selectedFeatures.some(f => f.feature_key === key && f.value === value);
 
   const toggleFeature = (key: string, value: string, weight: number = 1, isMustHave: boolean = false) => {
     const existing = selectedFeatures.findIndex(f => f.feature_key === key && f.value === value);
@@ -125,15 +236,16 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     }
   };
 
-  // Chip styling — handled globally via MuiChip theme override
+  // ── Section counts for badges ──
+  const selectedBrandsCount = searchContext.brands.length;
+  const selectedBodyCount = (searchContext.bodyTypes || []).length;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
       {/* ── Section 1: Brands ── */}
-      <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9fafb' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Marka
-        </Typography>
+      <Section>
+        <SectionLabel label="Marka" selectedCount={selectedBrandsCount} />
         {loadingInitial ? (
           <CircularProgress size={20} />
         ) : (
@@ -142,27 +254,44 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
               const count = initialData?.brand_counts?.[brand] || 0;
               const selected = searchContext.brands.includes(brand);
               return (
-                <Chip
+                <FilterChip
                   key={brand}
                   label={`${brand} (${count})`}
-                  size="small"
-                  color={selected ? 'primary' : 'default'}
-                  variant={selected ? 'filled' : 'outlined'}
+                  selected={selected}
                   onClick={() => toggleBrand(brand)}
-                  sx={{ cursor: 'pointer' }}
+                  variant="primary"
                 />
               );
             })}
           </Box>
         )}
-      </Box>
+      </Section>
 
-      {/* ── Section 2: Models (conditional) ── */}
+      {/* ── Section 2: Body Types ── */}
+      {!loadingInitial && initialData?.body_types && initialData.body_types.length > 0 && (
+        <Section alt>
+          <SectionLabel label="Typ nadwozia" selectedCount={selectedBodyCount} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {initialData.body_types.map(bt => {
+              const selected = (searchContext.bodyTypes || []).includes(bt.name);
+              return (
+                <FilterChip
+                  key={bt.name}
+                  label={`${bt.name} (${bt.count})`}
+                  selected={selected}
+                  onClick={() => toggleBodyType(bt.name)}
+                  variant="primary"
+                />
+              );
+            })}
+          </Box>
+        </Section>
+      )}
+
+      {/* ── Section 3: Models (conditional) ── */}
       {searchContext.brands.length > 0 && (
-        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#fafbfc' }}>
-          <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Model
-          </Typography>
+        <Section>
+          <SectionLabel label="Model" selectedCount={searchContext.models.length} />
           <Autocomplete
             multiple
             size="small"
@@ -173,44 +302,41 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             onChange={(_, newVal) => onContextChange({ ...searchContext, models: newVal })}
             renderInput={(params) => <TextField {...params} placeholder="Wybierz modele..." />}
           />
-        </Box>
+        </Section>
       )}
 
-      {/* ── Section 3: Primary Enum Facets (Napęd, etc.) ── */}
+      {/* ── Section 4: Primary Enum Facets (Napęd, Paliwo, Skrzynia…) ── */}
       {!loadingFilters && primaryEnumFacets.length > 0 && (
-        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9fafb' }}>
-          {primaryEnumFacets.map(facet => (
-            <Box key={facet.key} sx={{ mb: 1 }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {facet.name}
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {facet.items.map(item => {
-                  const selected = isFeatureSelected(facet.key, item.value);
-                  return (
-                    <Chip
-                      key={item.value}
-                      label={`${item.value} (${item.count})`}
-                      size="small"
-                      color={selected ? 'secondary' : 'default'}
-                      variant={selected ? 'filled' : 'outlined'}
-                      onClick={() => toggleFeature(facet.key, item.value, 1, false)}
-                      sx={{ cursor: 'pointer' }}
-                    />
-                  );
-                })}
+        <Section alt>
+          {primaryEnumFacets.map(facet => {
+            const facetSelected = facet.items.filter(i => isFeatureSelected(facet.key, i.value)).length;
+            return (
+              <Box key={facet.key} sx={{ mb: 1.5, '&:last-child': { mb: 0 } }}>
+                <SectionLabel label={facet.name} selectedCount={facetSelected} />
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {facet.items.map(item => {
+                    const selected = isFeatureSelected(facet.key, item.value);
+                    return (
+                      <FilterChip
+                        key={item.value}
+                        label={`${item.value} (${item.count})`}
+                        selected={selected}
+                        onClick={() => toggleFeature(facet.key, item.value, 1, false)}
+                        variant="secondary"
+                      />
+                    );
+                  })}
+                </Box>
               </Box>
-            </Box>
-          ))}
-        </Box>
+            );
+          })}
+        </Section>
       )}
 
-      {/* ── Section 4: Samar Classes ── */}
+      {/* ── Section 5: Samar Classes ── */}
       {!loadingInitial && (
-        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#fafbfc' }}>
-          <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Klasa Samar
-          </Typography>
+        <Section>
+          <SectionLabel label="Klasa Samar" selectedCount={searchContext.samarClassIds.length} />
           <Autocomplete
             multiple
             size="small"
@@ -220,14 +346,12 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             onChange={(_, newVal) => onContextChange({ ...searchContext, samarClassIds: newVal.map(v => v.id) })}
             renderInput={(params) => <TextField {...params} placeholder="Wybierz klasy..." />}
           />
-        </Box>
+        </Section>
       )}
 
-      {/* ── Section 5: Numeric params ── */}
-      <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9fafb' }}>
-        <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Parametry
-        </Typography>
+      {/* ── Section 6: Numeric params ── */}
+      <Section alt>
+        <SectionLabel label="Parametry" />
 
         {/* ── Duration range slider ── */}
         <Box sx={{ mb: 2 }}>
@@ -299,44 +423,80 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
           />
         </Box>
-      </Box>
+      </Section>
 
       {/* ── Search Button ── */}
-      <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e0e0e0' }}>
+      <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e2e8f0', bgcolor: '#ffffff' }}>
         <Button
           variant="contained"
-          color="primary"
           fullWidth
           onClick={onTriggerSearch}
           disabled={isSearching}
-          sx={{ fontWeight: 'bold', py: 1.2 }}
+          sx={{
+            fontWeight: 700,
+            py: 1.2,
+            fontSize: '0.9rem',
+            letterSpacing: 0.5,
+            borderRadius: 2,
+            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+            boxShadow: '0 4px 12px rgba(59,130,246,0.4)',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+              boxShadow: '0 6px 16px rgba(59,130,246,0.5)',
+              transform: 'translateY(-1px)',
+            },
+            '&:active': {
+              transform: 'translateY(0)',
+            },
+            '&.Mui-disabled': {
+              background: '#cbd5e1',
+              boxShadow: 'none',
+            },
+          }}
         >
-          {isSearching ? 'Wyszukiwanie...' : 'Szukaj Ofert'}
+          {isSearching ? 'Wyszukiwanie…' : '🔍 Szukaj Ofert'}
         </Button>
       </Box>
 
-      {/* ── Section 6: Feature Tree (Nice to have) ── */}
-      <Box sx={{ p: 2, flexGrow: 1, overflowY: 'auto' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Wymagania (Nice to have)
-        </Typography>
+      {/* ── Section 7: Feature Tree (Nice to have) ── */}
+      <Box sx={{ p: 2 }}>
+        <SectionLabel label="Wymagania" selectedCount={selectedFeatures.filter(f => f.requirement === 'NICE_TO_HAVE' || f.requirement === 'MUST_HAVE').length} />
         {loadingFilters ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
         ) : !data || (!data.facet_groups?.length && !data.boolean_filters?.length) ? (
           <Typography variant="body2" color="textSecondary">Wybierz pojazdy, aby załadować cechy.</Typography>
         ) : (
           <Box>
-            {/* Render Boolean Facets (Ontology Features) */}
             {data.boolean_filters && Array.from(new Set(data.boolean_filters.map(f => f.group_name))).map((groupName) => {
               const groupFilters = data.boolean_filters!.filter(f => f.group_name === groupName);
               if (groupFilters.length === 0) return null;
 
               return (
-                <Accordion key={`bool-${groupName}`} disableGutters>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography sx={{ textTransform: 'capitalize', fontSize: '0.85rem' }}>{groupName.replace(/_/g, ' ')}</Typography>
+                <Accordion key={`bool-${groupName}`} disableGutters
+                  sx={{
+                    boxShadow: 'none',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px !important',
+                    mb: 0.5,
+                    '&:before': { display: 'none' },
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon sx={{ color: '#64748b', fontSize: '1.1rem' }} />}
+                    sx={{
+                      minHeight: 36,
+                      bgcolor: '#f1f5f9',
+                      color: '#334155',
+                      '&:hover': { bgcolor: '#e9eef5' },
+                      '& .MuiAccordionSummary-content': { my: 0.5 },
+                    }}
+                  >
+                    <Typography sx={{ textTransform: 'capitalize', fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>
+                      {groupName.replace(/_/g, ' ')}
+                    </Typography>
                   </AccordionSummary>
-                  <AccordionDetails sx={{ p: '8px 16px' }}>
+                  <AccordionDetails sx={{ p: '8px 16px', bgcolor: '#f8fafc' }}>
                     <FormGroup sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                       {groupFilters.map((filter) => (
                         <FormControlLabel
@@ -346,6 +506,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
                               size="small"
                               checked={isFeatureSelected(filter.feature_key, 'true')}
                               onChange={() => toggleFeature(filter.feature_key, 'true', 1, false)}
+                              sx={{ color: '#94a3b8', '&.Mui-checked': { color: '#3b82f6' } }}
                             />
                           }
                           label={<Typography variant="body2" noWrap>{filter.feature_name || filter.feature_key.replace(/_/g, ' ')} ({filter.cnt})</Typography>}

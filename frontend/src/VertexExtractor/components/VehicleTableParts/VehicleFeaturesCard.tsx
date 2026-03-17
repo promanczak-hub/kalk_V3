@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "../../../lib/api";
 import { ChevronDown, ChevronRight, Loader2, Package, Settings } from "lucide-react";
 import VehicleFeaturesCrud from "../VehicleFeaturesCrud";
+import { CatalogFeatureSelectorModal } from "./CatalogFeatureSelectorModal";
 
 interface FeatureItem {
   feature_key: string;
@@ -23,6 +24,12 @@ interface CategoryGroup {
 interface VehicleFeaturesCardProps {
   vehicleId: string;
   vehicleTypeHint?: string | null;
+}
+
+interface SuggestedCatalog {
+  catalog_id: string;
+  score: number;
+  display_name: string;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -92,7 +99,8 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["⭐ Konfiguracja (PDF)"]));
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
-  const [configFeatures, setConfigFeatures] = useState<FeatureItem[]>([]);
+  const [suggestedCatalog, setSuggestedCatalog] = useState<SuggestedCatalog | null>(null);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
 
   const fetchFeatures = async () => {
     setLoading(true);
@@ -103,7 +111,14 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
       let instantFeatures: FeatureItem[] = [];
       if (vehicleResp.ok) {
         const vehicleData = await vehicleResp.json();
-        const synthData = vehicleData.synthesis_data?.card_summary || {};
+        const synthDataRaw = vehicleData.synthesis_data || {};
+        const synthData = synthDataRaw.card_summary || {};
+        
+        if (synthDataRaw.suggested_catalog) {
+            setSuggestedCatalog(synthDataRaw.suggested_catalog);
+        } else {
+            setSuggestedCatalog(null);
+        }
         
         const stdEq = (synthData.standard_equipment || []).map((name: string, i: number) => ({
           feature_key: `config_std_${name}_${i}`,
@@ -128,7 +143,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
         }));
         
         instantFeatures = [...stdEq, ...paidEq];
-        setConfigFeatures(instantFeatures);
       }
 
       // 2. Fetch from API (Async cross-referenced)
@@ -192,7 +206,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   useEffect(() => {
     // Auto-load cech po zmianie vehicleId
     setRawCategories([]);
-    setConfigFeatures([]);
     setError(null);
     fetchFeatures();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -302,6 +315,30 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
                 </div>
               )}
 
+              {suggestedCatalog && !loading && !error && (
+                <div className="mb-4 mx-4 mt-2">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                       <span className="text-xl bg-white p-1 rounded shadow-sm border border-indigo-100">✨</span>
+                       <div>
+                         <p className="text-sm font-semibold text-indigo-900 leading-snug">
+                           {suggestedCatalog.display_name}
+                         </p>
+                         <p className="text-xs text-indigo-700 mt-0.5 font-medium">
+                           Dopasowanie do pojazdu: <span className="text-indigo-800 font-bold">{Math.round(suggestedCatalog.score * 100)}%</span>
+                         </p>
+                       </div>
+                    </div>
+                    <button
+                      onClick={() => setShowCatalogModal(true)}
+                      className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded shadow-sm hover:bg-indigo-700 hover:shadow transition-all"
+                    >
+                      Przejrzyj opcje
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!loading && !error && categories.length === 0 && (
                 <div className="text-sm text-slate-400 py-6 text-center">
                   Brak danych o cechach użytkowych dla tego pojazdu.
@@ -380,6 +417,20 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
             </div>
           )}
         </>
+      )}
+      {/* We will conditionally render the modal if a suggested catalog is present */}
+      {showCatalogModal && suggestedCatalog && (
+        <CatalogFeatureSelectorModal
+          vehicleId={vehicleId}
+          catalogId={suggestedCatalog.catalog_id}
+          catalogName={suggestedCatalog.display_name}
+          onClose={() => setShowCatalogModal(false)}
+          onSuccess={() => {
+            setShowCatalogModal(false);
+            setSuggestedCatalog(null);
+            fetchFeatures();
+          }}
+        />
       )}
     </div>
   );

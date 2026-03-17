@@ -104,6 +104,16 @@ W folderze `backend/`:
 - **Typowanie:** `poetry run mypy .`
 - **Testy jednostkowe/integracyjne:** `poetry run pytest`
 
+### 🔄 Testy Dwukierunkowe (Zmiany wpływające na Bazę Danych)
+
+Jeśli jakakolwiek akcja lub wprowadzana modyfikacja w aplikacji ma wpływ na bazę danych (np. dodanie nowej logiki zapisu, operacje CRUD, zmiana struktury pól, nowy endpoint mutujący), **bezwzględnie wymagane jest zaplanowanie i wykonanie testu dwukierunkowego**.
+
+**Zasady testu dwukierunkowego:**
+1. **W przód (Zapis / Mutacja):** Należy potwierdzić (testem manualnym lub automatycznym), że aplikacja potrafi poprawnie utworzyć lub zaktualizować rekord w bazie, a zserializowany payload odpowiada schematowi (np. uderzenie do API skutkuje dodaniem poprawnego wiersza w Supabase bez zgubionych danych).
+2. **W tył (Odczyt / Rekonstrukcja stanu):** Bezpośrednio po udanym zapisie, należy odpytać bazę o ten sam zasób i udowodnić, że system potrafi go bezbłędnie odebrać, zdeserializować i wyświetlić (np. pobranie dodanego zasobu przez React Query i pełne, poprawne wyrenderowanie go bez błędów w konsoli).
+
+**Cel:** Eliminacja bolesnych błędów typu "write-only", w których zapis kończy się statusem 200 OK, ale ukryty błąd w nazwach pól lub typach sprawia, że przy pierwszej próbie ponownego załadowania widoku, aplikacja "wysypuje się" podczas parsowania (np. FastAPI/Pydantic rzuca wyjątek walidacji lub UI "wybucha" renderując `undefined`).
+
 ## 🤝 Kontrybucja
 
 1. Skonfiguruj środowisko lokalne zgodnie z wytycznymi w pliku `SKILLS.md`.

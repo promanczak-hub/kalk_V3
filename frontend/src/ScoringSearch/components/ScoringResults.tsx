@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   Box, Typography, Card, CardContent, Chip, FormControl, Select, MenuItem,
-  Tooltip, Button, CircularProgress
+  Tooltip, Button, CircularProgress, IconButton
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
@@ -14,6 +14,7 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import BuildIcon from '@mui/icons-material/Build';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { apiFetch } from '../../lib/api';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
@@ -150,6 +151,16 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                       <Chip label={car.trim_level as string} size="small" variant="outlined" color="primary"
                         sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '4px' }} />
                     )}
+                    <Tooltip title="Sprawdź rekord w Ekstrakcji Danych">
+                      <IconButton
+                        size="small"
+                        href={`/?highlight=${vehicleId}`}
+                        target="_blank"
+                        sx={{ color: 'text.secondary', ml: 'auto' }}
+                      >
+                        <OpenInNewIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </Box>
                   <Typography variant="body2" color="textSecondary" sx={{ mt: 0.25 }}>{car.version as string}</Typography>
 

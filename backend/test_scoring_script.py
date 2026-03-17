@@ -1,7 +1,5 @@
 import os
 import sys
-import logging
-from pprint import pprint
 
 # Set up environment and paths
 sys.path.append(os.path.dirname(__file__))

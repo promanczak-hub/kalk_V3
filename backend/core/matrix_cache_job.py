@@ -6,7 +6,6 @@ across margin/mileage variants via Pydantic model_copy().
 
 import logging
 import asyncio
-import uuid
 from typing import Any, Dict, List, Optional
 
 from core.database import supabase
@@ -375,7 +374,7 @@ def trigger_all_vehicles_cache_refresh() -> None:
         v_res = (
             supabase.table("vehicle_synthesis")
             .select("id")
-            .eq("verification_status", "verified")
+            .eq("verification_status", "completed")
             .execute()
         )
         vehicles = v_res.data or []

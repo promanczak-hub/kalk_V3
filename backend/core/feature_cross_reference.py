@@ -237,6 +237,55 @@ def cross_reference_vehicle(
     }
 
 
+def preview_catalog_features(
+    vehicle_id: str,
+    catalog_id: str,
+) -> dict[str, Any]:
+    """Preview features that would be matched from a catalog.
+
+    Does NOT save any evidence or state. Just runs the matching.
+    """
+    sb = sb_client
+
+    v_resp = (
+        sb.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .eq("id", vehicle_id)
+        .limit(1)
+        .execute()
+    )
+    if not v_resp.data:
+        return {"error": f"Vehicle {vehicle_id} not found"}
+
+    synthesis = v_resp.data[0].get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary", {})
+    if not card_summary:
+        return {"error": "Vehicle has no card_summary"}
+
+    vehicle_spec = _build_vehicle_spec(card_summary, synthesis)
+
+    all_variants, _ = _load_catalog_variants([catalog_id])
+    if not all_variants:
+        return {"error": "No ready variants found in selected catalog"}
+
+    feature_keys = _get_feature_keys()
+
+    match_result = _perform_matching(vehicle_spec, all_variants, feature_keys)
+    if isinstance(match_result, dict):
+        return match_result
+
+    # model_dump is pydantic v2
+    features_dicts = [f.model_dump() if hasattr(f, 'model_dump') else f.dict() for f in match_result.features]
+
+    return {
+        "status": "preview_ready",
+        "matched_variant": match_result.matched_variant_name,
+        "confidence": match_result.confidence,
+        "reasoning": match_result.reasoning,
+        "features": features_dicts,
+    }
+
+
 # ── Private helpers ──────────────────────────────────────────────
 
 

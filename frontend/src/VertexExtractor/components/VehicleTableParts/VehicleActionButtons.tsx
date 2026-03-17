@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Loader2, Wand2, Database, ExternalLink, FileCode, History, X } from "lucide-react";
+import { Loader2, Database, ExternalLink, FileCode, History, X } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
@@ -36,8 +36,6 @@ interface VehicleActionButtonsProps {
   isMetalic: boolean;
   activeDiscountPct: number;
   activeFinalPrice: number;
-  isOverrideModalOpen: boolean;
-  setIsOverrideModalOpen: (val: boolean) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   brochureData: any;
   setIsBrochureModalOpen: (val: boolean) => void;
@@ -87,8 +85,6 @@ export function VehicleActionButtons({
   isMetalic,
   activeDiscountPct,
   activeFinalPrice,
-  isOverrideModalOpen,
-  setIsOverrideModalOpen,
   brochureData,
   setIsBrochureModalOpen,
   isGeneratingBrochure,
@@ -359,16 +355,7 @@ export function VehicleActionButtons({
          </span>
       )}
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsOverrideModalOpen(!isOverrideModalOpen);
-        }}
-        className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-200 hover:shadow-sm transition-all shadow-sm"
-      >
-        <Wand2 className="w-3.5 h-3.5 mr-2" />
-        Modyfikacja manualna
-      </button>
+
 
       <button
         onClick={handleGenerateBrochure}

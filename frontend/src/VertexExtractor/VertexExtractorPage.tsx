@@ -5,12 +5,26 @@ import { UploadZone } from "./components/UploadZone";
 import { DocumentList } from "./components/DocumentList";
 import { VehicleTable } from "./components/VehicleTable";
 import { JsonViewerModal } from "./components/JsonViewerModal";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
 import type { ControlCenterSettings } from "../hooks/useCalculator";
 
 export default function VertexExtractorPage() {
+  // Read the ?highlight=<uuid> deep-link param on mount, then clean URL
+  const highlightVehicleId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("highlight") ?? null;
+  }, []);
+
+  useEffect(() => {
+    if (highlightVehicleId) {
+      // Clean up ?highlight= from URL bar without triggering re-render
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState(null, "", cleanUrl);
+    }
+  }, [highlightVehicleId]);
+
   const {
     savedVehicles,
     isLoadingSaved,
@@ -82,6 +96,7 @@ export default function VertexExtractorPage() {
           setPage={setPage}
           pageSize={pageSize}
           totalCount={totalCount}
+          highlightVehicleId={highlightVehicleId}
         />
       </main>
 

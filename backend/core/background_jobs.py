@@ -196,7 +196,7 @@ def _finalize_vehicle(
 
     # ── 3. Wzbogacanie cech (Feature Enrichment) i 100% dopasowanie katalogu ──
     from core.feature_enrichment import enrich_vehicle_features
-    from core.feature_cross_reference import rank_catalogs_for_vehicle, cross_reference_vehicle
+    from core.feature_cross_reference import rank_catalogs_for_vehicle
 
     print("[BG TASK] Szukam 100% dopasowanego katalogu dla auto-enrichmentu...")
     try:
@@ -223,16 +223,31 @@ def _finalize_vehicle(
             catalogs = cast(list[dict[str, Any]], c_resp.data) if c_resp.data else []
             if catalogs:
                 ranked = rank_catalogs_for_vehicle(vehicle_spec, catalogs)
-                if ranked and ranked[0].get("_ranking", {}).get("score", 0.0) == 1.0:
-                    best_cat_id = ranked[0]["id"]
-                    print(f"[BG TASK] Znaleziono 100% dopasowanie - katalog ID: {best_cat_id}. Uruchamiam auto-cross-reference.")
-                    cr_result = cross_reference_vehicle(vehicle_id, [best_cat_id])
-                    print(f"[BG TASK] Wynik auto-cross-reference: {cr_result.get('status')}")
-                else:
-                    best_score = ranked[0].get('_ranking', {}).get('score') if ranked else 'N/A'
-                    print(f"[BG TASK] Brak 100% dopasowania katalogu (najlepszy score: {best_score}).")
+                if ranked:
+                    best_cat = ranked[0]
+                    best_score = best_cat.get('_ranking', {}).get('score', 0.0)
+                    
+                    if best_score > 0.0:
+                        print(f"[BG TASK] Najlepszy katalog: {best_cat['id']} (score: {best_score}). Zapisuję jako sugestię.")
+                        
+                        # Pobieramy aktualne synthesis_data, żeby zaktualizować (jest to konieczne w background jobs)
+                        current_synth_resp = supabase.table("vehicle_synthesis").select("synthesis_data").eq("id", vehicle_id).execute()
+                        if current_synth_resp.data:
+                            current_synth = current_synth_resp.data[0].get("synthesis_data") or {}
+                            current_synth["suggested_catalog"] = {
+                                "catalog_id": best_cat["id"],
+                                "score": best_score,
+                                "display_name": best_cat.get("display_name", "Nieznany cennik"),
+                            }
+                            # Zapisujemy zasugerowany cennik (bez automatycznego mergowania)
+                            supabase.table("vehicle_synthesis").update({
+                                "synthesis_data": current_synth
+                            }).eq("id", vehicle_id).execute()
+                            
+                    else:
+                        print(f"[BG TASK] Brak sensownego dopasowania katalogu (najlepszy score: {best_score}).")
     except Exception as cr_err:
-        print(f"[BG TASK] Błąd przy próbie auto-cross-reference: {cr_err}")
+        print(f"[BG TASK] Błąd przy próbie zapisania zasugerowanego katalogu: {cr_err}")
 
     print(f"[BG TASK] Uruchamiam standardowe wzbogacanie cech dla {vehicle_id}...")
     try:
@@ -242,6 +257,19 @@ def _finalize_vehicle(
         )
     except Exception as enrich_err:
         print(f"[BG TASK] Błąd wzbogacania cech dla {vehicle_id}: {enrich_err}")
+
+    # ── 4. Auto-trigger: LTR matrix cache ──
+    print(f"[BG TASK] Auto-kalkulacja LTR cache dla {vehicle_id}...")
+    try:
+        from core.matrix_cache_job import refresh_matrix_cache_for_vehicles
+
+        refresh_matrix_cache_for_vehicles([vehicle_id])
+        print(f"[BG TASK] Auto-kalkulacja LTR zakończona dla {vehicle_id}")
+    except Exception as calc_err:
+        print(
+            f"[BG TASK] Auto-kalkulacja pominięta "
+            f"(dane niekompletne): {calc_err}"
+        )
 
     print(f"[BG TASK] Gotowe dla {vehicle_id}")
 

@@ -54,9 +54,26 @@ class AvailableFiltersRequest(BaseModel):
     samar_class_ids: Optional[List[int]] = None
     current_filters: Optional[dict[str, Any]] = None
 
+class BodyTypeItem(BaseModel):
+    name: str
+    count: int
+
 class InitialDataResponse(BaseModel):
     brands: List[str]
     models: List[str]
     brand_model_map: dict[str, List[str]]
     brand_counts: dict[str, int] = {}
     samar_classes: List[dict[str, Any]]
+    body_types: List[BodyTypeItem] = []
+
+class SimilarVehicleMatch(BaseModel):
+    vehicle_id: str
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    version: Optional[str] = None
+    body_type: Optional[str] = None
+    fuel_type: Optional[str] = None
+    transmission: Optional[str] = None
+    best_monthly_price: Optional[float] = None
+    image_url: Optional[str] = None
+    similarity_score_pct: Optional[float] = None

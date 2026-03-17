@@ -18,6 +18,7 @@ from core.models_scoring_search import (
     ScoringSearchResponse,
     ScoringSearchMatch,
     InitialDataResponse,
+    SimilarVehicleMatch,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,29 @@ def refresh_derived_features(vehicle_id: str) -> dict[str, Any]:
             status_code=500, detail=f"Failed to refresh derived features: {e}"
         )
 
+@router.get("/scoring-search/vehicle/{vehicle_id}/similar", response_model=list[SimilarVehicleMatch])
+def get_similar_vehicles(vehicle_id: str, limit: int = 5) -> list[SimilarVehicleMatch]:
+    """Get similar vehicles sorted by best monthly price net."""
+    sb = supabase
+    try:
+        resp = sb.rpc(
+            "rpc_get_similar_vehicles",
+            {
+                "p_vehicle_id": vehicle_id,
+                "p_limit": limit
+            }
+        ).execute()
+
+        if not resp.data:
+            return []
+
+        return [SimilarVehicleMatch(**row) for row in resp.data]
+    except Exception as e:
+        logger.exception(f"Error calling rpc_get_similar_vehicles: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch similar vehicles: {e}"
+        )
+
 class RefreshCacheRequest(BaseModel):
     vehicle_ids: list[str]
 
@@ -198,6 +222,95 @@ def trigger_matrix_cache_refresh_missing(
         raise HTTPException(
             status_code=500, detail=f"Wystąpił błąd: {e}"
         )
+
+@router.get("/scoring-search/readiness-check")
+def readiness_check() -> dict[str, Any]:
+    """Return per-vehicle cache/readiness status with missing field details."""
+    sb = supabase
+    try:
+        v_res = (
+            sb.table("vehicle_synthesis")
+            .select("id, brand, model, verification_status, synthesis_data")
+            .neq("verification_status", "moved_to_library")
+            .execute()
+        )
+        vehicles = v_res.data or []
+
+        c_res = sb.table("vehicle_matrix_cache").select("vehicle_id").execute()
+        cached_ids = set(row["vehicle_id"] for row in (c_res.data or []))
+
+        result_vehicles: list[dict[str, Any]] = []
+        cached_count = 0
+        calculable_count = 0
+        failed_count = 0
+
+        for v in vehicles:
+            vid = v["id"]
+            brand = v.get("brand") or "?"
+            model = v.get("model") or "?"
+            status = v.get("verification_status") or "?"
+            has_cache = vid in cached_ids
+            missing: list[str] = []
+
+            sd = v.get("synthesis_data") or {}
+            cs = sd.get("card_summary") or {}
+            mai = sd.get("mapped_ai_data") or {}
+
+            # Check base_price
+            parsed_prices = cs.get("parsed_prices") or {}
+            base_price = (
+                cs.get("base_price")
+                or parsed_prices.get("base")
+                or sd.get("universal_features", {}).get("cena_pojazdu")
+            )
+            if not base_price:
+                missing.append("base_price")
+
+            # Check power
+            power_kw = cs.get("power_kw") or 0
+            powertrain = cs.get("powertrain", "") or ""
+            if not power_kw and not powertrain:
+                missing.append("power_kw")
+
+            # Check SAMAR class
+            samar = cs.get("samar_category") or mai.get("samar_category")
+            if not samar:
+                missing.append("samar_category")
+
+            # Check engine
+            engine = cs.get("engine_category") or mai.get("fuel")
+            if not engine:
+                missing.append("engine_category")
+
+            can_calculate = len(missing) == 0
+            if has_cache:
+                cached_count += 1
+            if can_calculate:
+                calculable_count += 1
+            else:
+                failed_count += 1
+
+            result_vehicles.append({
+                "vehicle_id": vid,
+                "brand": brand,
+                "model": model,
+                "status": status,
+                "has_cache": has_cache,
+                "can_calculate": can_calculate,
+                "missing_fields": missing,
+            })
+
+        return {
+            "total": len(vehicles),
+            "cached": cached_count,
+            "calculable": calculable_count,
+            "failed": failed_count,
+            "vehicles": result_vehicles,
+        }
+    except Exception as e:
+        logger.exception(f"Error in readiness_check: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/scoring-search/cache/progress/{job_id}")
 def get_cache_job_progress(job_id: str) -> dict[str, Any]:

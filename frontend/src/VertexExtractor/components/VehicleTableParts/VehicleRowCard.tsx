@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Loader2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
@@ -24,7 +24,7 @@ import { useReferenceData } from "../../hooks/useReferenceData";
 
 // Extracted UI Components
 import { VehicleActionButtons } from "./VehicleActionButtons";
-import { VehicleManualOverrideModal } from "./VehicleManualOverrideModal";
+
 import { PDFViewerFrame } from "./PDFViewerFrame";
 import { MarkdownViewerModal } from "../MarkdownViewerModal";
 import { VehicleRowCalculations } from "./VehicleRowCalculations";
@@ -38,6 +38,7 @@ interface VehicleRowCardProps {
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
   globalSettings?: ControlCenterSettings | null;
+  isHighlighted?: boolean;
 }
 
 export function VehicleRowCard({
@@ -48,15 +49,15 @@ export function VehicleRowCard({
   onToggleSelect,
   crossCardAlerts = [],
   globalSettings,
+  isHighlighted = false,
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const scrolledToMatrixRef = useRef(false);
   // Subcomponent states
   const [activeKalkulacjaId, setActiveKalkulacjaId] = useState<string | null>(null);
   const [activeKalkulacjaNumer, setActiveKalkulacjaNumer] = useState<string | null>(null);
   const [hasAttemptedAutoLoadHistory, setHasAttemptedAutoLoadHistory] = useState(false);
-  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
-  const [overridePrompt, setOverridePrompt] = useState("");
-  const [isOverriding, setIsOverriding] = useState(false);
+
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isMarkdownOpen, setIsMarkdownOpen] = useState(false);
@@ -79,7 +80,7 @@ export function VehicleRowCard({
   const { isSavingFields, handleDirectSave, isRemappingClassification, handleRemapClassification } = useVehicleDataSync(vehicle, onRefresh, setLocalMappedData);
 
   // Hook: CRUD reference data for manual edit dropdowns
-  const { samarClasses, engineTypes, bodyTypes } = useReferenceData();
+  const { bodyTypes } = useReferenceData();
 
   // Auto-detect metalic function needs to be passed down
   const autoDetectMetalic = useCallback((): boolean => {
@@ -680,6 +681,31 @@ export function VehicleRowCard({
     }
   }, [hasAttemptedAutoLoadHistory, activeKalkulacjaId, vehicle.id]);
 
+  // Auto-expand + auto-scroll to matrix when highlighted via deep-link
+  useEffect(() => {
+    if (!isHighlighted || scrolledToMatrixRef.current) return;
+    if (!activeKalkulacjaId) return; // wait for calc ID to load first
+
+    // Expand the card
+    if (!isExpanded) setIsExpanded(true);
+
+    // After expansion, poll for the matrix section to appear
+    let attempts = 0;
+    const tryScrollToMatrix = () => {
+      const el = document.getElementById(`vehicle-matrix-${vehicle.id}`);
+      if (el) {
+        scrolledToMatrixRef.current = true;
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (attempts < 15) {
+        attempts++;
+        setTimeout(tryScrollToMatrix, 200);
+      }
+    };
+    // Small delay to let React render the expanded content first
+    setTimeout(tryScrollToMatrix, 150);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHighlighted, activeKalkulacjaId]);
+
   // ── Processing stages for progress stepper ──
   const PROCESSING_STAGES = [
     { key: "uploading", label: "Upload pliku do chmury" },
@@ -699,50 +725,6 @@ export function VehicleRowCard({
     "processing", "uploading", "detecting_vehicles", "extracting_twin",
     "generating_summary", "matching_discounts", "mapping_data",
   ]);
-
-  const handleManualOverride = async (promptOverride?: string) => {
-    const finalPrompt = promptOverride || overridePrompt;
-    if (!finalPrompt.trim()) return;
-    setIsOverriding(true);
-    try {
-      const res = await apiFetch(`/api/extract/manual-override`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          original_json: vehicle.synthesis_data,
-          user_prompt: finalPrompt,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Błąd z odpowiedzi serwera.");
-      }
-
-      const updatedJson = await res.json();
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-
-      setIsOverrideModalOpen(false);
-      setOverridePrompt("");
-      onRefresh();
-    } catch (err) {
-      console.error(err);
-      alert("Błąd podczas modyfikacji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
-    } finally {
-      setIsOverriding(false);
-    }
-  };
-
-
-
-
-
-
 
   const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
     const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
@@ -1012,10 +994,12 @@ export function VehicleRowCard({
 
   return (
     <div
+      id={`vehicle-row-${vehicle.id}`}
       data-vehicle-id={vehicle.id}
       className={cn(
         "bg-white rounded-xl border transition-all duration-200 shadow-sm overflow-hidden group hover:shadow-md",
-        isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-200"
+        isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-200",
+        isHighlighted && !isExpanded && "ring-4 ring-amber-300 border-amber-400 animate-highlight-fade"
       )}
     >
       <VehicleBaseInfo 
@@ -1051,9 +1035,6 @@ export function VehicleRowCard({
               isSaving={isSavingFields}
               onRemapClassification={handleRemapClassification}
               isRemapping={isRemappingClassification}
-              samarClasses={samarClasses}
-              engineTypes={engineTypes}
-              bodyTypes={bodyTypes}
             />
 
             <VehicleEquipmentCard
@@ -1214,8 +1195,6 @@ export function VehicleRowCard({
                isMetalic={isMetalic}
                activeDiscountPct={activeDiscountPct}
                activeFinalPrice={activeFinalPriceNet}
-               isOverrideModalOpen={isOverrideModalOpen}
-               setIsOverrideModalOpen={setIsOverrideModalOpen}
                brochureData={brochureData}
                setIsBrochureModalOpen={setIsBrochureModalOpen}
                isGeneratingBrochure={isGeneratingBrochure}
@@ -1237,14 +1216,6 @@ export function VehicleRowCard({
                activeKalkulacjaNumer={activeKalkulacjaNumer}
              />
 
-              {isOverrideModalOpen && (
-               <VehicleManualOverrideModal
-                 overridePrompt={overridePrompt}
-                 setOverridePrompt={setOverridePrompt}
-                 isOverriding={isOverriding}
-                 handleManualOverride={handleManualOverride}
-               />
-             )}
 
               {isViewerOpen && vehicle.raw_pdf_url && (
                 <div className="w-full h-full xl:w-1/2 p-2 border-l border-slate-200 mt-4 rounded-lg">
@@ -1254,16 +1225,18 @@ export function VehicleRowCard({
             </div>
 
             {activeKalkulacjaId && activeKalkulacjaNumer && (
-              <VehicleRowCalculations
-                kalkulacjaId={activeKalkulacjaId}
-                kalkulacjaNumer={activeKalkulacjaNumer}
-                vehicleId={vehicle.id}
-                vehicleName={`${vehicle.brand || "?"} ${vehicle.model}`}
-                powertrain={mappedData?.fuel ? `${mappedData.fuel} ${mappedData.engine_class || ""}`.trim() : (vehicle.powertrain || "")}
-                offerNumber={vehicle.offer_number || ""}
-                configCode={vehicle.configuration_code || ""}
-                basePrice={catalogBasePriceNet}
-              />
+              <div id={`vehicle-matrix-${vehicle.id}`}>
+                <VehicleRowCalculations
+                  kalkulacjaId={activeKalkulacjaId}
+                  kalkulacjaNumer={activeKalkulacjaNumer}
+                  vehicleId={vehicle.id}
+                  vehicleName={`${vehicle.brand || "?"} ${vehicle.model}`}
+                  powertrain={mappedData?.fuel ? `${mappedData.fuel} ${mappedData.engine_class || ""}`.trim() : (vehicle.powertrain || "")}
+                  offerNumber={vehicle.offer_number || ""}
+                  configCode={vehicle.configuration_code || ""}
+                  basePrice={catalogBasePriceNet}
+                />
+              </div>
             )}
         </div>
       )}

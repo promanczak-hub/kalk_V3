@@ -48,10 +48,27 @@ app = FastAPI(
 )
 
 
+@app.on_event("startup")
+async def _startup_redis_probe() -> None:
+    """Probe Redis on startup so logs show connection status."""
+    from core.redis_cache import is_redis_available
+
+    status = "connected" if is_redis_available() else "unavailable (fallback lru_cache)"
+    import logging
+
+    logging.getLogger("main").info("Redis status on startup: %s", status)
+
+
 @app.get("/health", tags=["System"])
 async def health_check() -> dict[str, str]:
     """Public health check — exempt from auth."""
-    return {"status": "ok", "version": "3.0.0"}
+    from core.redis_cache import is_redis_available
+
+    return {
+        "status": "ok",
+        "version": "3.0.0",
+        "redis_status": "connected" if is_redis_available() else "unavailable",
+    }
 
 app.include_router(samar_rv_router)
 app.include_router(parser_router, prefix="/api")
@@ -91,21 +108,12 @@ app.add_middleware(
 )
 
 if __name__ == "__main__":
-    import uvicorn
+    from granian import Granian
 
-    uvicorn.run(
+    Granian(
         "main:app",
-        host="0.0.0.0",
+        address="0.0.0.0",
         port=8000,
+        interface="asgi",
         reload=True,
-        reload_dirs=["./"],
-        reload_excludes=[
-            "__pycache__",
-            "*.pyc",
-            "*.log",
-            "tests/*",
-            "*.txt",
-            ".git/*",
-        ],
-        timeout_keep_alive=30,
-    )
+    ).serve()

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from core.database import supabase
 from core.matrix_cache_job import refresh_matrix_cache_for_vehicles

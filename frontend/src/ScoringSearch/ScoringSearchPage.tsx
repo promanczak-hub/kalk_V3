@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   Box, Paper, Typography, Divider, CircularProgress, Button, Tooltip,
   Snackbar, Alert, LinearProgress,
@@ -6,7 +6,7 @@ import {
 import CalculateIcon from '@mui/icons-material/Calculate';
 import { ScoringFilters } from './components/ScoringFilters';
 import { ScoringResults } from './components/ScoringResults';
-import type { SelectedFeature, SearchContext } from './types';
+import type { SelectedFeature, SearchContext, ScoredVehicle } from './types';
 
 interface CacheProgress {
   total: number;
@@ -20,6 +20,7 @@ export const ScoringSearchPage: React.FC = () => {
     brands: [],
     models: [],
     samarClassIds: [],
+    bodyTypes: [],
     duration_months_range: [24, 48],
     annual_mileage_range: [15000, 30000],
     margin_pct: 10,
@@ -28,13 +29,14 @@ export const ScoringSearchPage: React.FC = () => {
   
   const [selectedFeatures, setSelectedFeatures] = useState<SelectedFeature[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<ScoredVehicle[]>([]);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   // ── Progress tracking ──
   const [cacheProgress, setCacheProgress] = useState<CacheProgress | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -44,7 +46,25 @@ export const ScoringSearchPage: React.FC = () => {
   }, []);
 
   // Clean up on unmount
-  useEffect(() => stopPolling, [stopPolling]);
+  useEffect(() => () => {
+    stopPolling();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, [stopPolling]);
+
+  // ── Auto-search with debounce on every filter change ──
+  // Stringify only the fields that affect results to avoid reference churn
+  const searchKey = useMemo(
+    () => JSON.stringify({ searchContext, selectedFeatures }),
+    [searchContext, selectedFeatures]
+  );
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      handleSearch();
+    }, 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey]);
 
   const startPolling = useCallback(async (jobId: string) => {
     stopPolling();
@@ -115,6 +135,19 @@ export const ScoringSearchPage: React.FC = () => {
       }
       if (searchContext.monthly_budget) {
         requirements.push({ feature_key: 'monthly_price_net', operator: 'lte', value: searchContext.monthly_budget, requirement: 'MUST_HAVE', weight: 1 });
+      }
+
+      // Body type filter — każdy wybrany typ jako osobna cecha MUST_HAVE
+      if (searchContext.bodyTypes.length > 0) {
+        for (const bt of searchContext.bodyTypes) {
+          requirements.push({
+            feature_key: 'body_style',
+            operator: 'eq',
+            value: bt,
+            requirement: 'MUST_HAVE',
+            weight: 1
+          });
+        }
       }
 
       const payload = {

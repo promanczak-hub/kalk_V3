@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Database, Info, RefreshCw, Sparkles } from "lucide-react";
 import Skeleton from "@mui/material/Skeleton";
 import { cn } from "../../lib/utils";
@@ -9,7 +9,7 @@ import { VehicleComparisonModal } from "./VehicleComparisonModal";
 import { useVehicleFilters } from "../hooks/useVehicleFilters";
 import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
-import { API_BASE_URL } from "../../config/env";
+import { apiFetch } from "../../lib/api";
 import type { ControlCenterSettings } from "../../hooks/useCalculator";
 import Pagination from "@mui/material/Pagination";
 
@@ -28,6 +28,7 @@ interface VehicleTableProps {
   setPage: (page: number) => void;
   pageSize: number;
   totalCount: number;
+  highlightVehicleId?: string | null;
 }
 
 export function VehicleTable({
@@ -45,6 +46,7 @@ export function VehicleTable({
   setPage,
   pageSize,
   totalCount,
+  highlightVehicleId,
 }: VehicleTableProps) {
   const {
     filters,
@@ -68,6 +70,25 @@ export function VehicleTable({
 
   const discountAlerts = useDiscountAlerts(savedVehicles);
   const [showComparison, setShowComparison] = useState(false);
+  const scrollAttemptedRef = useRef(false);
+
+  // Scroll to highlighted vehicle once data has loaded
+  useEffect(() => {
+    if (!highlightVehicleId || isLoadingSaved || scrollAttemptedRef.current) return;
+    // Try up to 10 times (500ms apart) to find the element after render
+    let attempts = 0;
+    const tryScroll = () => {
+      const el = document.getElementById(`vehicle-row-${highlightVehicleId}`);
+      if (el) {
+        scrollAttemptedRef.current = true;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (attempts < 10) {
+        attempts++;
+        setTimeout(tryScroll, 300);
+      }
+    };
+    tryScroll();
+  }, [highlightVehicleId, isLoadingSaved, savedVehicles]);
 
   // Listen for the custom event from the nested card
   useEffect(() => {
@@ -88,7 +109,9 @@ export function VehicleTable({
   }, [handleDeleteVehicle]);
 
   const handleDeleteSelected = async () => {
+    console.log("[DEBUG] handleDeleteSelected called, selectedCount:", selectedCount);
     const selected = getSelectedVehicles();
+    console.log("[DEBUG] selected vehicles:", selected.length, selected.map(v => v.id));
     if (selected.length === 0) return;
 
     const confirmed = window.confirm(
@@ -97,18 +120,13 @@ export function VehicleTable({
     if (!confirmed) return;
 
     try {
-      const baseUrl =
-        API_BASE_URL;
-      const response = await fetch(
-        `${baseUrl}/api/delete-vehicles-batch`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            vehicle_ids: selected.map((v) => v.id),
-          }),
-        },
-      );
+      const response = await apiFetch(`/api/delete-vehicles-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vehicle_ids: selected.map((v) => v.id),
+        }),
+      });
 
       if (!response.ok) throw new Error("Batch delete failed");
 
@@ -295,6 +313,7 @@ export function VehicleTable({
                   onToggleSelect={() => toggleSelect(vehicle.id)}
                   crossCardAlerts={discountAlerts.get(vehicle.id)}
                   globalSettings={globalSettings}
+                  isHighlighted={vehicle.id === highlightVehicleId}
                 />
               ))
             )}

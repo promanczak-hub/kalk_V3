@@ -1,9 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import type { FleetVehicleView } from "../types";
 
 export function useVehicles() {
+  const [searchParams] = useSearchParams();
+  const initialId = searchParams.get("highlight");
+
   const [savedVehicles, setSavedVehicles] = useState<FleetVehicleView[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -15,7 +19,16 @@ export function useVehicles() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
-  const [searchMatchingIds, setSearchMatchingIds] = useState<string[] | null>(null);
+  const [searchMatchingIds, setSearchMatchingIds] = useState<string[] | null>(
+    initialId ? [initialId] : null
+  );
+
+  useEffect(() => {
+    if (initialId) {
+      setSearchMatchingIds([initialId]);
+      setPage(1);
+    }
+  }, [initialId]);
 
   const loadData = useCallback(async () => {
     setIsLoadingSaved(true);

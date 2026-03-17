@@ -112,11 +112,11 @@ function hasValue(v: string | null | undefined): boolean {
   return Boolean(v && v !== "Brak" && v !== "-");
 }
 
-function Tag({ children }: { children: React.ReactNode }) {
+function Tag({ children, connected }: { children: React.ReactNode; connected?: boolean }) {
   return (
     <span
-      className="inline-flex items-center border border-slate-200 bg-slate-50 px-2 py-1 rounded text-xs font-medium text-slate-600"
-      style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+      className={`inline-flex items-center font-medium text-slate-600 ${connected ? "justify-center h-full px-2.5 py-1 text-[11px] bg-slate-50/50" : "bg-slate-50 px-2 py-1 text-xs border border-slate-200 rounded"}`}
+      style={{ fontFamily: "'Geist Mono', monospace", lineHeight: 1 }}
     >
       {children}
     </span>
@@ -129,15 +129,15 @@ const DRIVE_TYPE_OPTIONS = [
   { value: "4x4 (AWD)", label: "4x4 (AWD)" },
 ];
 
-function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: string) => void }) {
+function DriveTypeTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
   if (!onChange) {
-    return current ? <Tag>Oś: {current}</Tag> : null;
+    return current ? <Tag connected={connected}>Oś: {current}</Tag> : null;
   }
   return (
-    <span className="inline-flex items-center">
+    <span className="inline-flex items-center h-full">
       <select
-        className="text-xs border border-slate-200 bg-slate-50 rounded px-1.5 py-1 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
-        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+        className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
+        style={{ fontFamily: "'Geist Mono', monospace" }}
         value={current || ""}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
@@ -179,14 +179,15 @@ function normalizeBodyTypeValue(value: string): string {
   return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
 }
 
-function BodyTypeTag({ current, dbOptions, onChange }: {
+function BodyTypeTag({ current, dbOptions, onChange, connected }: {
   current: string;
   dbOptions?: string[];
   onChange?: (v: string) => void;
+  connected?: boolean;
 }) {
   if (!onChange) {
     const normalizedCurrent = normalizeBodyTypeValue(current || "");
-    return normalizedCurrent ? <Tag>{normalizedCurrent}</Tag> : null;
+    return normalizedCurrent ? <Tag connected={connected}>{normalizedCurrent}</Tag> : null;
   }
 
   // Build options list from DB (single source of truth), falling back to hardcoded if DB not loaded
@@ -201,10 +202,10 @@ function BodyTypeTag({ current, dbOptions, onChange }: {
   const selectedValue = allOptions.includes(normalizedCurrent) ? normalizedCurrent : "";
 
   return (
-    <span className="inline-flex items-center">
+    <span className="inline-flex items-center h-full">
       <select
-        className="text-xs border border-slate-200 bg-slate-50 rounded px-1.5 py-1 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
-        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
+        className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
+        style={{ fontFamily: "'Geist Mono', monospace" }}
         value={selectedValue}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => { e.stopPropagation(); onChange(normalizeBodyTypeValue(e.target.value)); }}
@@ -511,27 +512,31 @@ export function VehicleBaseInfo({
 
         {/* Line B: Klasyfikacja + serwis + status — zawsze od lewej krawędzi */}
         <div className="flex items-center gap-2 flex-wrap">
-          {mappedData?.samar_category && onSamarCategoryChange ? (
-            <SamarCategoryDropdown
-              currentCategory={mappedData.samar_category}
-              candidates={samarCandidates}
-              onCategoryChange={onSamarCategoryChange}
-            />
-          ) : mappedData?.samar_category ? (
-            <Tag>SAMAR: {mappedData.samar_category}</Tag>
-          ) : null}
-          {mappedData?.engine_class && onEngineCategoryChange ? (
-            <EngineCategoryDropdown
-              currentCategory={mappedData.fuel}
-              candidates={engineCandidates}
-              onCategoryChange={onEngineCategoryChange}
-            />
-          ) : mappedData?.engine_class ? (
-            <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
-          ) : null}
-          {powerBand && <Tag>Serwis: {powerBand}</Tag>}
-          <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
-          <BodyTypeTag current={bodyType} dbOptions={bodyTypeOptions.map(bt => bt.name)} onChange={onBodyTypeChange} />
+          <div className="flex items-stretch border border-slate-200 rounded-md bg-white overflow-hidden divide-x divide-slate-200 shadow-sm h-[26px]">
+            {mappedData?.samar_category && onSamarCategoryChange ? (
+              <SamarCategoryDropdown
+                currentCategory={mappedData.samar_category}
+                candidates={samarCandidates}
+                onCategoryChange={onSamarCategoryChange}
+                connected={true}
+              />
+            ) : mappedData?.samar_category ? (
+              <Tag connected={true}>SAMAR: {mappedData.samar_category}</Tag>
+            ) : null}
+            {mappedData?.engine_class && onEngineCategoryChange ? (
+              <EngineCategoryDropdown
+                currentCategory={mappedData.fuel}
+                candidates={engineCandidates}
+                onCategoryChange={onEngineCategoryChange}
+                connected={true}
+              />
+            ) : mappedData?.engine_class ? (
+              <Tag connected={true}>{mappedData.fuel} / {mappedData.engine_class}</Tag>
+            ) : null}
+            {powerBand && <Tag connected={true}>Serwis: {powerBand}</Tag>}
+            <DriveTypeTag current={driveType} onChange={onDriveTypeChange} connected={true} />
+            <BodyTypeTag current={bodyType} dbOptions={bodyTypeOptions.map(bt => bt.name)} onChange={onBodyTypeChange} connected={true} />
+          </div>
           {readinessResult && <ReadinessBadge result={readinessResult} />}
           {crossCardAlerts.length > 0 && (
             <button

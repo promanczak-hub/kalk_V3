@@ -256,6 +256,103 @@ def rebuild_vehicle_features(
     }
 
 
+# ── Catalog Manual Features Selection ──────────────────────────
+
+
+@router.get("/features/vehicle/{vehicle_id}/catalog-preview")
+def preview_catalog_features_endpoint(
+    vehicle_id: str,
+    catalog_id: str,
+) -> dict[str, Any]:
+    """Preview features that would be matched from a catalog."""
+    from core.feature_cross_reference import preview_catalog_features
+    
+    return preview_catalog_features(vehicle_id, catalog_id)
+
+
+class AddSelectedFeaturesRequest(BaseModel):
+    catalog_id: str
+    features: list[dict[str, Any]]
+
+
+@router.post("/features/vehicle/{vehicle_id}/add-selected-catalog-features")
+def add_selected_catalog_features(
+    vehicle_id: str,
+    body: AddSelectedFeaturesRequest,
+) -> dict[str, Any]:
+    """Add selected features manually from a catalog preview."""
+    from core.database import supabase
+    from core.feature_resolver import resolve_vehicle_features
+    from core.feature_cross_reference import _get_feature_id_map
+    
+    feature_id_map = _get_feature_id_map()
+    evidence_batch = []
+    
+    for feat in body.features:
+        feat_key = feat.get("feature_key")
+        feat_id = feature_id_map.get(feat_key)
+        if not feat_id:
+            continue
+            
+        evidence: dict[str, Any] = {
+            "source_vehicle_id": vehicle_id,
+            "feature_id": feat_id,
+            "source_type": "manual_override",
+            "evidence_status": "observed",
+            "confidence": 1.0,
+            "source_text": "Ręczny wybór z zasugerowanego cennika",
+        }
+        
+        if "value_bool" in feat and feat["value_bool"] is not None:
+            evidence["value_bool"] = feat["value_bool"]
+        if "value_num" in feat and feat["value_num"] is not None:
+            evidence["value_num"] = feat["value_num"]
+        if "value_text" in feat and feat["value_text"] is not None:
+            evidence["value_text"] = feat["value_text"]
+        if "unit" in feat and feat["unit"]:
+            evidence["unit"] = feat["unit"]
+            
+        evidence_batch.append(evidence)
+        
+    if evidence_batch:
+        try:
+            supabase.schema("reverse_search").table("vehicle_feature_evidence").upsert(
+                evidence_batch,
+                on_conflict="source_vehicle_id,feature_id,source_type",
+            ).execute()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Błąd zapisu cech: {exc}")
+        
+    # Zapisz w vehicle_catalog_matches fakt, że dopasowaliśmy ręcznie
+    try:
+        supabase.schema("reverse_search").table("vehicle_catalog_matches").upsert({
+            "source_vehicle_id": vehicle_id,
+            "catalog_source_id": body.catalog_id,
+            "matched_variant_name": "Wybrane ręcznie z cennika",
+            "match_confidence": 1.0,
+        }, on_conflict="source_vehicle_id,catalog_source_id").execute()
+    except Exception:
+        pass
+        
+    # Usuń suggested_catalog bo już dodaliśmy dane
+    try:
+        current_synth_resp = supabase.table("vehicle_synthesis").select("synthesis_data").eq("id", vehicle_id).execute()
+        if current_synth_resp.data:
+            current_synth = current_synth_resp.data[0].get("synthesis_data") or {}
+            if "suggested_catalog" in current_synth:
+                del current_synth["suggested_catalog"]
+                supabase.table("vehicle_synthesis").update({"synthesis_data": current_synth}).eq("id", vehicle_id).execute()
+    except Exception:
+        pass
+
+    result = resolve_vehicle_features(vehicle_id)
+    return {
+        "status": "success",
+        "added_features": len(evidence_batch),
+        "resolve_result": result,
+    }
+
+
 # ── Reverse Search AI Extraction ───────────────────────────────
 
 

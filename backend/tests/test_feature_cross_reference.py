@@ -6,11 +6,9 @@ orchestrator paths (mocked DB + LLM).
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from core.cross_ref_evidence import _classify_dimension
 from core.cross_ref_llm import find_exact_variant_match

@@ -266,7 +266,19 @@ async def extract_brochure_endpoint(req: ParseRequest):
     (dedykowane pod Czystą Broszurę / White-label).
     """
     from core.ai_service import process_brochure_document
+    from core.brochure_mapper import build_brochure_from_synthesis
 
+    # Spróbuj sparsować jako JSON i zmapować twardą logiką (szybka droga, bez LLM)
+    try:
+        data = json.loads(req.raw_text)
+        if isinstance(data, dict) and data:
+            mapped_result = build_brochure_from_synthesis(data)
+            if mapped_result:
+                return mapped_result
+    except Exception as e:
+        print(f"Szybkie mapowanie broszury nie powiodło się, używam LLM: {e}")
+
+    # Fallback na AI (wolna droga dla surowego pdf_text)
     result = process_brochure_document(req.raw_text)
     if not result:
         raise HTTPException(

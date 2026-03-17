@@ -1,6 +1,5 @@
 from core.database import supabase
 import json
-import sys
 
 try:
     resp = supabase.rpc("rpc_get_available_filters", {"p_segment": "Premium-Sport", "p_current_filters": {}}).execute()

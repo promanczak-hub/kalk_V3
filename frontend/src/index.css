@@ -62,3 +62,15 @@ body {
 .stagger-children > *:nth-child(7) { animation-delay: 240ms; }
 .stagger-children > *:nth-child(8) { animation-delay: 280ms; }
 .stagger-children > *:nth-child(n+9) { animation-delay: 320ms; }
+
+/* ── Deep-link highlight pulse ── */
+@keyframes highlightFade {
+  0%   { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.7); }
+  50%  { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.4); }
+  100% { box-shadow: 0 0 0 0px rgba(251, 191, 36, 0); }
+}
+
+.animate-highlight-fade {
+  animation: highlightFade 2.5s ease-out forwards;
+}
+

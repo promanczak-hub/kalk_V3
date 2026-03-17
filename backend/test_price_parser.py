@@ -1,4 +1,3 @@
-import json
 
 def _parse_price_to_net(price_val, is_brutto):
     try:
