@@ -30,7 +30,7 @@ from api.config_crud_routes import config_crud_router
 from api.base_rv_routes import router as base_rv_router
 from api.catalog_routes import router as catalog_router
 from api.excel_draft_routes import router as excel_draft_router
-from api.document_library_routes import router as document_library_router
+
 from api.admin_insurance_routes import router as admin_insurance_router
 
 from api.control_center_admin_routes import router as control_center_admin_router
@@ -66,7 +66,7 @@ app.include_router(config_crud_router, prefix="/api")
 app.include_router(base_rv_router, prefix="/api", tags=["Control Center"])
 app.include_router(catalog_router, prefix="/api")
 app.include_router(excel_draft_router, prefix="/api")
-app.include_router(document_library_router, prefix="/api")
+
 app.include_router(admin_insurance_router, prefix="/api")
 app.include_router(control_center_admin_router, prefix="/api")
 app.include_router(calculator_core_router, prefix="/api")
@@ -92,4 +92,20 @@ app.add_middleware(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_dirs=["./"],
+        reload_excludes=[
+            "__pycache__",
+            "*.pyc",
+            "*.log",
+            "tests/*",
+            "*.txt",
+            ".git/*",
+        ],
+        timeout_keep_alive=30,
+    )

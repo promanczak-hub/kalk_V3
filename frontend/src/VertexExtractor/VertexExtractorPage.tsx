@@ -56,7 +56,7 @@ export default function VertexExtractorPage() {
   } = useDocumentProcessing(fetchSavedVehicles);
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-orange-100">
+    <div className="min-h-screen text-slate-900 font-sans selection:bg-orange-100">
       <main className="w-full px-4 py-8 md:py-16 md:px-8">
 
         <UploadZone onFilesSelected={handleFiles} />

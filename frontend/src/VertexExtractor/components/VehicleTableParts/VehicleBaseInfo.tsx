@@ -47,6 +47,8 @@ interface VehicleBaseInfoProps {
   onDriveTypeChange?: (newDriveType: string) => void;
   bodyType?: string;
   onBodyTypeChange?: (newBodyType: string) => void;
+  /** DB body_types — single source of truth for dropdown options */
+  bodyTypeOptions?: { name: string; vehicle_class: string }[];
   isSelected?: boolean;
   onToggleSelect?: () => void;
   crossCardAlerts?: DiscountAlert[];
@@ -149,10 +151,11 @@ function DriveTypeTag({ current, onChange }: { current: string; onChange?: (v: s
   );
 }
 
-const BODY_TYPE_OPTIONS = [
+/** Fallback body type options — used only when DB data hasn't loaded yet */
+const BODY_TYPE_FALLBACK = [
   "Hatchback", "Sedan", "Kombi", "SUV", "Liftback", "Coupe", "Cabrio", "Minivan",
-  "Wieloosobowy", "Pickup", "Furgon", "Podwozie", "Kontener", "Skrzynia", "Autolaweta", "Izoterma", "Ch\u0142odnia"
-] as const;
+  "Wieloosobowy", "Pickup", "Furgon", "Podwozie",
+];
 
 const BODY_TYPE_ALIAS_MAP: Record<string, string> = {
   "SPORTSTOURER": "Kombi",
@@ -176,26 +179,26 @@ function normalizeBodyTypeValue(value: string): string {
   return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
 }
 
-function BodyTypeTag({ current, candidates, onChange }: { current: string; candidates?: { klasa: string }[], onChange?: (v: string) => void }) {
+function BodyTypeTag({ current, dbOptions, onChange }: {
+  current: string;
+  dbOptions?: string[];
+  onChange?: (v: string) => void;
+}) {
   if (!onChange) {
     const normalizedCurrent = normalizeBodyTypeValue(current || "");
-    return normalizedCurrent ? <Tag>Nadwozie: {normalizedCurrent}</Tag> : null;
+    return normalizedCurrent ? <Tag>{normalizedCurrent}</Tag> : null;
   }
 
-  const candidateValues = (candidates || [])
-    .map((c) => normalizeBodyTypeValue(c.klasa))
-    .filter(Boolean);
-
-  const whitelistedCandidates = Array.from(new Set(
-    candidateValues.filter((v) => BODY_TYPE_OPTIONS.includes(v as (typeof BODY_TYPE_OPTIONS)[number]))
-  ));
-
-  const options = whitelistedCandidates.length > 0
-    ? whitelistedCandidates
-    : [...BODY_TYPE_OPTIONS];
-
+  // Build options list from DB (single source of truth), falling back to hardcoded if DB not loaded
+  const baseOptions = dbOptions && dbOptions.length > 0 ? dbOptions : BODY_TYPE_FALLBACK;
   const normalizedCurrent = normalizeBodyTypeValue(current || "");
-  const selectedValue = options.includes(normalizedCurrent) ? normalizedCurrent : "";
+
+  // Ensure the current value is always in the list (even if not in DB yet)
+  const allOptions = normalizedCurrent && !baseOptions.includes(normalizedCurrent)
+    ? [normalizedCurrent, ...baseOptions]
+    : baseOptions;
+
+  const selectedValue = allOptions.includes(normalizedCurrent) ? normalizedCurrent : "";
 
   return (
     <span className="inline-flex items-center">
@@ -207,24 +210,14 @@ function BodyTypeTag({ current, candidates, onChange }: { current: string; candi
         onChange={(e) => { e.stopPropagation(); onChange(normalizeBodyTypeValue(e.target.value)); }}
       >
         <option value="" disabled>Typ nadwozia...</option>
-        {options.map((optionValue) => (
+        {allOptions.map((optionValue) => (
           <option key={optionValue} value={optionValue}>{optionValue}</option>
         ))}
       </select>
     </span>
   );
 }
-function Separator() {
-  return (
-    <span
-      className="text-slate-300 select-none px-0.5"
-      style={{ fontSize: "0.75rem", lineHeight: 1 }}
-      aria-hidden="true"
-    >
-      ·
-    </span>
-  );
-}
+
 
 /** Readiness badge - shows SAMAR data availability with hover tooltip */
 function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
@@ -382,6 +375,7 @@ export function VehicleBaseInfo({
   onDriveTypeChange,
   bodyType = "",
   onBodyTypeChange,
+  bodyTypeOptions = [],
   isSelected = false,
   onToggleSelect,
   crossCardAlerts = [],
@@ -498,99 +492,73 @@ export function VehicleBaseInfo({
         </button>
       </div>
 
-      {/* Row 2: Badges - fixed order with group separators */}
-      {(() => {
-        /* Determine which groups have content for smart separator placement */
-        const hasIdGroup = hasValue(vehicle.offer_number) || hasValue(vehicle.configuration_code);
-        const hasRabatGroup = vehicle.suggested_discount_pct != null || (vehicle.synthesis_data && vehicle.suggested_discount_pct == null);
-        const hasClassGroup = !!mappedData?.samar_category || !!mappedData?.engine_class;
-        const hasServiceGroup = !!powerBand || !!driveType;
-        const hasStatusGroup = !!readinessResult || crossCardAlerts.length > 0;
+      {/* Row 2: Badges — two dedicated lines for stable alignment */}
+      <div className="mt-2 ml-0 sm:ml-8 space-y-1.5">
+        {/* Line A: Kody identyfikacyjne + rabat */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {hasValue(vehicle.offer_number) && (
+            <CodeTag>{vehicle.offer_number}</CodeTag>
+          )}
+          {hasValue(vehicle.configuration_code) && (
+            <CodeTag>{vehicle.configuration_code}</CodeTag>
+          )}
+          {vehicle.suggested_discount_pct != null ? (
+            <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
+          ) : vehicle.synthesis_data ? (
+            <Tag>Brak rabatu</Tag>
+          ) : null}
+        </div>
 
-        return (
-          <div className="flex gap-2 mt-2 flex-wrap items-center ml-0 sm:ml-8">
-            {/* 1) Identyfikacja: nr oferty, kod konfiguracji */}
-            {hasValue(vehicle.offer_number) && (
-              <CodeTag>{vehicle.offer_number}</CodeTag>
-            )}
-            {hasValue(vehicle.configuration_code) && (
-              <CodeTag>{vehicle.configuration_code}</CodeTag>
-            )}
-
-            {/* · separator · */}
-            {hasIdGroup && hasRabatGroup && <Separator />}
-
-            {/* 2) Warunki: rabat */}
-            {vehicle.suggested_discount_pct != null && (
-              <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
-            )}
-            {vehicle.synthesis_data && vehicle.suggested_discount_pct == null && (
-              <Tag>Brak rabatu</Tag>
-            )}
-
-            {/* · separator · */}
-            {(hasIdGroup || hasRabatGroup) && hasClassGroup && <Separator />}
-
-            {/* 3) Klasyfikacja: SAMAR, silnik */}
-            {mappedData?.samar_category && onSamarCategoryChange ? (
-              <SamarCategoryDropdown
-                currentCategory={mappedData.samar_category}
-                candidates={samarCandidates}
-                onCategoryChange={onSamarCategoryChange}
-              />
-            ) : mappedData?.samar_category ? (
-              <Tag>SAMAR: {mappedData.samar_category}</Tag>
-            ) : null}
-            {mappedData?.engine_class && onEngineCategoryChange ? (
-              <EngineCategoryDropdown
-                currentCategory={mappedData.fuel}
-                candidates={engineCandidates}
-                onCategoryChange={onEngineCategoryChange}
-              />
-            ) : mappedData?.engine_class ? (
-              <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
-            ) : null}
-
-            {/* · separator · */}
-            {(hasIdGroup || hasRabatGroup || hasClassGroup) && hasServiceGroup && <Separator />}
-
-            {/* 4) Serwis: poziom, napęd, nadwozie */}
-            {powerBand && <Tag>Serwis: {powerBand}</Tag>}
-            <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
-            <BodyTypeTag current={bodyType} candidates={mappedData?.body_candidates} onChange={onBodyTypeChange} />
-
-            {/* · separator · */}
-            {(hasIdGroup || hasRabatGroup || hasClassGroup || hasServiceGroup) && hasStatusGroup && <Separator />}
-
-            {/* 5) Status: alerty */}
-            {readinessResult && <ReadinessBadge result={readinessResult} />}
-            {crossCardAlerts.length > 0 && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
-                title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"} z rabatem ${crossCardAlerts[0].siblingDiscountPct}%`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const targetId = crossCardAlerts[0].siblingVehicleId;
-                  if (onScrollToVehicle) {
-                    onScrollToVehicle(targetId);
-                  } else {
-                    const el = document.querySelector(`[data-vehicle-id="${targetId}"]`);
-                    if (el) {
-                      el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      el.classList.add("ring-4", "ring-amber-300");
-                      setTimeout(() => el.classList.remove("ring-4", "ring-amber-300"), 2000);
-                    }
+        {/* Line B: Klasyfikacja + serwis + status — zawsze od lewej krawędzi */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {mappedData?.samar_category && onSamarCategoryChange ? (
+            <SamarCategoryDropdown
+              currentCategory={mappedData.samar_category}
+              candidates={samarCandidates}
+              onCategoryChange={onSamarCategoryChange}
+            />
+          ) : mappedData?.samar_category ? (
+            <Tag>SAMAR: {mappedData.samar_category}</Tag>
+          ) : null}
+          {mappedData?.engine_class && onEngineCategoryChange ? (
+            <EngineCategoryDropdown
+              currentCategory={mappedData.fuel}
+              candidates={engineCandidates}
+              onCategoryChange={onEngineCategoryChange}
+            />
+          ) : mappedData?.engine_class ? (
+            <Tag>{mappedData.fuel} / {mappedData.engine_class}</Tag>
+          ) : null}
+          {powerBand && <Tag>Serwis: {powerBand}</Tag>}
+          <DriveTypeTag current={driveType} onChange={onDriveTypeChange} />
+          <BodyTypeTag current={bodyType} dbOptions={bodyTypeOptions.map(bt => bt.name)} onChange={onBodyTypeChange} />
+          {readinessResult && <ReadinessBadge result={readinessResult} />}
+          {crossCardAlerts.length > 0 && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
+              title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"} z rabatem ${crossCardAlerts[0].siblingDiscountPct}%`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const targetId = crossCardAlerts[0].siblingVehicleId;
+                if (onScrollToVehicle) {
+                  onScrollToVehicle(targetId);
+                } else {
+                  const el = document.querySelector(`[data-vehicle-id="${targetId}"]`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    el.classList.add("ring-4", "ring-amber-300");
+                    setTimeout(() => el.classList.remove("ring-4", "ring-amber-300"), 2000);
                   }
-                }}
-              >
-                <AlertTriangle className="w-3 h-3" />
-                Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.) →
-              </button>
-            )}
-          </div>
-        );
-      })()}
+                }
+              }}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.) →
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

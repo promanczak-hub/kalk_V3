@@ -402,7 +402,12 @@ def process_and_save_document_bg(
 
                 cat_doc_id = str(uuid.uuid4())
 
-                db_doc_type = "price_list" if doc_type == "PRICE_LIST" else "catalog"
+                _DOC_TYPE_MAP = {
+                    "PRICE_LIST": "price_list",
+                    "BROCHURE": "brochure",
+                    "OTHER": "other",
+                }
+                db_doc_type = _DOC_TYPE_MAP.get(doc_type, "catalog")
                 mds_payload = {
                     "id": cat_doc_id,
                     "brand": doc_meta.get("brand", "") or "Unknown",

@@ -125,15 +125,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     }
   };
 
-  // ── Chip styling ──
-  const chipSx = {
-    fontWeight: 500,
-    fontSize: '0.78rem',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    '&:hover': { transform: 'translateY(-1px)', boxShadow: 1 },
-  };
+  // Chip styling — handled globally via MuiChip theme override
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -157,7 +149,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
                   color={selected ? 'primary' : 'default'}
                   variant={selected ? 'filled' : 'outlined'}
                   onClick={() => toggleBrand(brand)}
-                  sx={chipSx}
+                  sx={{ cursor: 'pointer' }}
                 />
               );
             })}
@@ -203,7 +195,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
                       color={selected ? 'secondary' : 'default'}
                       variant={selected ? 'filled' : 'outlined'}
                       onClick={() => toggleFeature(facet.key, item.value, 1, false)}
-                      sx={chipSx}
+                      sx={{ cursor: 'pointer' }}
                     />
                   );
                 })}

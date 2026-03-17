@@ -192,8 +192,12 @@ async def upload_catalog(
 ) -> dict[str, Any]:
     """Upload a catalog/price list file and store metadata."""
     # Validate
-    if document_type not in ("catalog", "price_list"):
-        raise HTTPException(400, "document_type must be 'catalog' or 'price_list'")
+    _VALID_DOC_TYPES = {"catalog", "price_list", "brochure", "other"}
+    if document_type not in _VALID_DOC_TYPES:
+        raise HTTPException(
+            400,
+            f"document_type must be one of: {', '.join(sorted(_VALID_DOC_TYPES))}",
+        )
 
     filename = file.filename or "unknown"
     try:

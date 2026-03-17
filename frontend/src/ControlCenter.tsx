@@ -13,15 +13,40 @@ export default function ControlCenter() {
 
   return (
     <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 3 }}>
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
-        <Tabs value={activeTab} onChange={(_e, val) => setActiveTab(val)} variant="scrollable" scrollButtons="auto">
+      <Box sx={{ mb: 2 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_e, val) => setActiveTab(val)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            minHeight: 40,
+            "& .MuiTabs-indicator": { display: "none" },
+            "& .MuiTab-root": {
+              minHeight: 36,
+              fontSize: "0.78rem",
+              fontWeight: 500,
+              textTransform: "none",
+              borderRadius: "8px",
+              mx: 0.3,
+              px: 2,
+              transition: "all 0.15s ease",
+              "&:hover": { bgcolor: "action.hover" },
+              "&.Mui-selected": {
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+                fontWeight: 600,
+              },
+            },
+          }}
+        >
           <Tab label="Ustawienia Globalne" />
-          <Tab label="📊 SAMAR Parametry" sx={{ fontWeight: 700 }} />
+          <Tab label="📊 SAMAR Parametry" />
           <Tab label="Tabela rabaty" />
           <Tab label="Tabele Napędy" />
           <Tab label="Tabela Opon" />
           <Tab label="Opłaty Transportowe" />
-          <Tab label="📝 Modele Wyceny (Draft)" sx={{ fontWeight: 700, color: "secondary.main" }} />
+          <Tab label="📝 Modele Wyceny (Draft)" />
         </Tabs>
       </Box>
 

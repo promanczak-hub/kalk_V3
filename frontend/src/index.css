@@ -11,18 +11,11 @@
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #020617;
-    --foreground: #f8fafc;
-  }
-}
 
 body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  /* A refined multi-layer gradient background for that premium vibe */
   background-image:
     radial-gradient(
       circle at 15% 50%,
@@ -39,15 +32,33 @@ body {
   min-height: 100vh;
 }
 
-/* Glassmorphism utility classes aligned with FleetMap 2026 aesthetics */
-.glass-panel {
-  @apply bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl border border-white/20 shadow-lg;
+
+/* ── Entrance animations ── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.glass-card {
-  @apply bg-white/60 dark:bg-slate-800/60 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm transition-all duration-300;
+.animate-fadeUp {
+  animation: fadeUp 0.35s ease-out both;
 }
 
-.glass-card:hover {
-  @apply shadow-indigo-500/10 dark:shadow-indigo-500/20 shadow-xl border-white/40 dark:border-white/30 transform -translate-y-1;
+/* Stagger children animation — use on parent container */
+.stagger-children > * {
+  animation: fadeUp 0.35s ease-out both;
 }
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 40ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 280ms; }
+.stagger-children > *:nth-child(n+9) { animation-delay: 320ms; }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Database, Info, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Database, Info, RefreshCw, Sparkles } from "lucide-react";
+import Skeleton from "@mui/material/Skeleton";
 import { cn } from "../../lib/utils";
 import type { FleetVehicleView } from "../types";
 import { VehicleRowCard } from "./VehicleTableParts/VehicleRowCard";
@@ -191,11 +192,23 @@ export function VehicleTable({
       </div>
 
       {isLoadingSaved && savedVehicles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-          <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-500" />
-          <p className="text-sm font-medium text-slate-600">
-            Wczytywanie floty...
-          </p>
+        <div className="flex flex-col gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-5 animate-fadeUp" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <Skeleton variant="text" width={220} height={28} />
+                  <Skeleton variant="text" width={320} height={18} sx={{ mt: 0.5 }} />
+                  <div className="flex gap-2 mt-2">
+                    <Skeleton variant="rounded" width={80} height={24} />
+                    <Skeleton variant="rounded" width={60} height={24} />
+                    <Skeleton variant="rounded" width={100} height={24} />
+                  </div>
+                </div>
+                <Skeleton variant="rounded" width={140} height={60} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : savedVehicles.length === 0 ? (
         <div className="border border-dashed border-slate-300 bg-slate-50 rounded-2xl p-16 text-center flex flex-col items-center justify-center shadow-inner">
@@ -233,7 +246,7 @@ export function VehicleTable({
           />
 
           {/* Vehicle list */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 stagger-children">
             {totalCount > pageSize && (
               <div className="flex justify-center my-2">
                 <Pagination

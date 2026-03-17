@@ -35,33 +35,47 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
   };
 
   return (
-    <div className="w-full mb-16">
+    <div className="w-full mb-6">
       <label
         htmlFor="file-upload"
         className={cn(
-          "relative flex flex-col sm:flex-row items-center justify-center w-full py-6 px-8 border rounded-lg cursor-pointer transition-all duration-200 ease-in-out group bg-slate-50/50 hover:bg-slate-50",
+          "relative flex flex-col sm:flex-row items-center justify-center w-full py-8 px-10 rounded-xl cursor-pointer transition-all duration-300 ease-in-out group",
+          "bg-white/60 backdrop-blur-sm border-2 border-dashed",
+          "hover:bg-white/80 hover:shadow-lg hover:shadow-blue-500/5",
           isDragging
-            ? "border-orange-400 bg-orange-50/30 shadow-inner"
-            : "border-slate-200 hover:border-slate-300",
+            ? "border-blue-400 bg-blue-50/40 shadow-lg shadow-blue-500/10 scale-[1.01]"
+            : "border-slate-200/80 hover:border-blue-300",
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <div className="flex items-center gap-4">
-          <UploadCloud className="w-5 h-5 text-slate-400 group-hover:text-orange-500 transition-colors" />
-          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-            <span className="text-sm font-medium text-slate-700">
+        <div className="flex items-center gap-5">
+          <div className={cn(
+            "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+            isDragging
+              ? "bg-blue-100 text-blue-600 scale-110"
+              : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500",
+          )}>
+            <UploadCloud className="w-6 h-6" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-slate-800">
               Wybierz plik z komputera
             </span>
-            <span className="text-sm text-slate-400 font-light hidden sm:inline">
-              lub przeciągnij go tutaj
+            <span className="text-xs text-slate-400 font-normal mt-0.5 hidden sm:inline">
+              lub przeciągnij go tutaj • PDF, XLS, XLSX do 50 MB
             </span>
           </div>
         </div>
-        <div className="mt-2 sm:mt-0 sm:ml-auto">
-          <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded">
-            PDF / XLS / XLSX do 50MB
+        <div className="mt-3 sm:mt-0 sm:ml-auto">
+          <span className={cn(
+            "text-[11px] uppercase tracking-wider font-semibold px-3.5 py-1.5 rounded-lg border transition-all duration-300",
+            isDragging
+              ? "text-blue-600 bg-blue-50 border-blue-200"
+              : "text-slate-400 bg-white border-slate-100 group-hover:text-blue-500 group-hover:border-blue-100 group-hover:bg-blue-50/50",
+          )}>
+            Prześlij pliki
           </span>
         </div>
         <input

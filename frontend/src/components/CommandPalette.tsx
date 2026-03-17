@@ -16,8 +16,6 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import DarkModeIcon from '@mui/icons-material/DarkMode';
-import LightModeIcon from '@mui/icons-material/LightMode';
 
 interface Command {
   id: string;
@@ -27,12 +25,7 @@ interface Command {
   shortcut?: string;
 }
 
-interface CommandPaletteProps {
-  toggleTheme: () => void;
-  mode: 'light' | 'dark';
-}
-
-export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProps) {
+export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -76,13 +69,7 @@ export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProp
       action: () => dispatchTabStatus(1),
       shortcut: 'T2'
     },
-    {
-      id: 'theme',
-      name: `Zmień motyw na ${mode === 'light' ? 'Ciemny' : 'Jasny'}`,
-      icon: mode === 'light' ? <DarkModeIcon color="primary" /> : <LightModeIcon color="primary" />,
-      action: toggleTheme,
-      shortcut: 'M'
-    }
+
   ];
 
   const filteredCommands = commands.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
@@ -122,7 +109,7 @@ export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProp
           sx={{
             '& .MuiOutlinedInput-root': {
               borderRadius: 0,
-              '& fieldset': { border: 'none', borderBottom: `1px solid ${mode === 'light' ? '#e0e0e0' : '#444'}` },
+              '& fieldset': { border: 'none', borderBottom: '1px solid #e0e0e0' },
             },
             '& input': {
               p: 2.5,
@@ -164,7 +151,7 @@ export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProp
                         height: 20, 
                         fontSize: '0.7rem', 
                         borderRadius: 1,
-                        bgcolor: mode === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'
+                        bgcolor: 'rgba(0,0,0,0.05)'
                       }} 
                     />
                   )}
@@ -177,12 +164,12 @@ export default function CommandPalette({ toggleTheme, mode }: CommandPaletteProp
              </Box>
           )}
         </List>
-        <Box sx={{ px: 3, py: 1.5, borderTop: `1px solid ${mode === 'light' ? '#f0f0f0' : '#333'}`, bgcolor: mode === 'light' ? '#fafafa' : '#1e1e1e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ px: 3, py: 1.5, borderTop: '1px solid #f0f0f0', bgcolor: '#fafafa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="caption" color="text.secondary">
               Nawigacja za pomocą klawiatury jest dostępna.
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', gap: 1 }}>
-              <kbd style={{ padding: '2px 6px', backgroundColor: mode === 'light' ? '#eee' : '#333', borderRadius: '4px' }}>ESC</kbd> zamknij
+              <kbd style={{ padding: '2px 6px', backgroundColor: '#eee', borderRadius: '4px' }}>ESC</kbd> zamknij
             </Typography>
         </Box>
       </DialogContent>

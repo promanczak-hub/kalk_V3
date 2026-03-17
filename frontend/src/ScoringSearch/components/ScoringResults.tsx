@@ -43,14 +43,7 @@ const fuelColor = (fuel: string | null): 'default' | 'success' | 'info' => {
   return 'default';
 };
 
-/* ── Spec chip styling ── */
-const specChipSx = {
-  height: 24,
-  fontSize: '0.72rem',
-  fontWeight: 500,
-  borderRadius: '6px',
-  '& .MuiChip-icon': { fontSize: 14 },
-};
+/* Spec chip styling — handled globally via MuiChip theme override */
 
 interface ScoringResultsProps {
   results: Record<string, unknown>[];
@@ -167,10 +160,10 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                         <Chip icon={fuelIcon(car.fuel_type as string)} label={car.fuel_type as string} size="small"
                           color={fuelColor(car.fuel_type as string)}
                           variant={fuelColor(car.fuel_type as string) !== 'default' ? 'filled' : 'outlined'}
-                          sx={specChipSx} />
+                          sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                       {car.power_hp && (
-                        <Chip icon={<SpeedIcon />} label={`${car.power_hp} KM`} size="small" variant="outlined" sx={specChipSx} />
+                        <Chip icon={<SpeedIcon />} label={`${car.power_hp} KM`} size="small" variant="outlined" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                       {car.transmission && (
                         <Chip icon={<SettingsIcon />}
@@ -178,19 +171,19 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                           size="small"
                           color={(car.transmission as string) === 'Automatyczna' ? 'info' : 'default'}
                           variant={(car.transmission as string) === 'Automatyczna' ? 'filled' : 'outlined'}
-                          sx={specChipSx} />
+                          sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                       {car.body_style && (
-                        <Chip icon={<DirectionsCarIcon />} label={car.body_style as string} size="small" variant="outlined" sx={specChipSx} />
+                        <Chip icon={<DirectionsCarIcon />} label={car.body_style as string} size="small" variant="outlined" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                       {car.drive_type && (
                         <Chip label={(car.drive_type as string).replace(/^Napęd\s*/i, '')} size="small"
                           color={(car.drive_type as string).toLowerCase().includes('awd') || (car.drive_type as string).toLowerCase().includes('4x4') ? 'warning' : 'default'}
                           variant={(car.drive_type as string).toLowerCase().includes('awd') || (car.drive_type as string).toLowerCase().includes('4x4') ? 'filled' : 'outlined'}
-                          sx={specChipSx} />
+                          sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                       {car.vehicle_class && (car.vehicle_class as string) !== 'Osobowy' && (
-                        <Chip label={car.vehicle_class as string} size="small" variant="outlined" color="secondary" sx={specChipSx} />
+                        <Chip label={car.vehicle_class as string} size="small" variant="outlined" color="secondary" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                     </Box>
                   )}
@@ -274,7 +267,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                         <Chip icon={<LocalOfferIcon />}
                           label={`BD ${car.suggested_discount_pct}%`} size="small"
                           color="success" variant="filled"
-                          sx={{ ...specChipSx, fontWeight: 700 }} />
+                          sx={{ fontWeight: 700, '& .MuiChip-icon': { fontSize: 14 } }} />
                       </Tooltip>
                     )}
                     {/* Calc params: service type + tire class */}
@@ -283,14 +276,14 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                         <Chip icon={<BuildIcon />}
                           label={car.service_cost_type as string}
                           size="small" variant="outlined"
-                          sx={{ ...specChipSx, fontSize: '0.65rem' }} />
+                          sx={{ fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 14 } }} />
                       </Tooltip>
                     )}
                     {car.tire_class && (
                       <Tooltip title="Klasa opon użyta w kalkulacji">
                         <Chip label={`Opony: ${car.tire_class}`}
                           size="small" variant="outlined"
-                          sx={{ ...specChipSx, fontSize: '0.65rem' }} />
+                          sx={{ fontSize: '0.65rem' }} />
                       </Tooltip>
                     )}
                   </Box>

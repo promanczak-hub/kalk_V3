@@ -19,8 +19,6 @@ interface OptionsTablesSectionProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleUpdateServiceOption: (id: number, field: string, value: any) => void;
   handleAddServiceOption: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handleAddExtractedServiceOption: (extracted: any) => void;
   handleRemoveServiceOption: (id: number) => void;
 }
 
@@ -31,7 +29,6 @@ export default function OptionsTablesSection({
   handleRemoveFactoryOption,
   handleUpdateServiceOption,
   handleAddServiceOption,
-  handleAddExtractedServiceOption,
   handleRemoveServiceOption,
 }: OptionsTablesSectionProps) {
   return (
@@ -69,7 +66,6 @@ export default function OptionsTablesSection({
           options={data.OpcjeSerwisowe}
           onUpdate={handleUpdateServiceOption}
           onAdd={handleAddServiceOption}
-          onAddExtracted={handleAddExtractedServiceOption}
           onRemove={handleRemoveServiceOption}
         />
       </AccordionDetails>

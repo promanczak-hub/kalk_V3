@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FleetVehicleView } from "../../types";
 import { Pencil, X, Loader2, RefreshCw, Save } from "lucide-react";
+import type { SamarClassRef, EngineTypeRef, BodyTypeRef } from "../../hooks/useReferenceData";
 
 interface VehicleSummaryCardProps {
   vehicle: FleetVehicleView;
@@ -8,6 +9,9 @@ interface VehicleSummaryCardProps {
   isSaving?: boolean;
   onRemapClassification?: () => Promise<void>;
   isRemapping?: boolean;
+  samarClasses?: SamarClassRef[];
+  engineTypes?: EngineTypeRef[];
+  bodyTypes?: BodyTypeRef[];
 }
 
 const EMPTY = "—";
@@ -22,6 +26,12 @@ const DRIVE_TYPE_LABELS: Record<string, string> = {
   "4x2": "4x2",
   "4x4": "4x4",
 };
+
+const DRIVE_TYPE_OPTIONS = [
+  { value: "FWD", label: "4x2 (FWD)" },
+  { value: "RWD", label: "4x2 (RWD)" },
+  { value: "AWD", label: "4x4 (AWD)" },
+];
 
 function extractDriveType(vehicle: FleetVehicleView): string {
   const raw = vehicle.drive_type;
@@ -45,28 +55,59 @@ function val(v: string | null | undefined): string {
   return v;
 }
 
+// Extract mapped_ai_data field safely
+function getMappedField(vehicle: FleetVehicleView, key: string): string {
+  const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
+  const mapped = synth?.mapped_ai_data as Record<string, unknown> | undefined;
+  const value = mapped?.[key];
+  return typeof value === "string" ? value : "";
+}
+
 interface RowProps {
   label: string;
   value: string;
   isEditing?: boolean;
   editValue?: string;
   onEditChange?: (newVal: string) => void;
+  type?: "text" | "dropdown";
+  options?: { value: string; label: string }[];
+  highlightNew?: boolean;
 }
 
-function Row({ label, value, isEditing, editValue, onEditChange }: RowProps) {
+function Row({ label, value, isEditing, editValue, onEditChange, type = "text", options, highlightNew }: RowProps) {
   return (
     <tr className="border-b border-slate-100 last:border-b-0">
       <td className="py-2 pr-6 text-xs text-slate-400 whitespace-nowrap align-middle">
         {label}
+        {highlightNew && (
+          <span className="ml-1.5 text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 text-violet-600 uppercase">
+            CRUD
+          </span>
+        )}
       </td>
       <td className="py-2 text-sm text-slate-800 font-medium align-middle">
         {isEditing ? (
-          <input
-            type="text"
-            className="w-full text-sm border border-slate-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-            value={editValue ?? ""}
-            onChange={(e) => onEditChange?.(e.target.value)}
-          />
+          type === "dropdown" && options ? (
+            <select
+              className="w-full text-sm border border-slate-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white cursor-pointer"
+              value={editValue ?? ""}
+              onChange={(e) => onEditChange?.(e.target.value)}
+            >
+              <option value="">— wybierz —</option>
+              {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              className="w-full text-sm border border-slate-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              value={editValue ?? ""}
+              onChange={(e) => onEditChange?.(e.target.value)}
+            />
+          )
         ) : (
           value
         )}
@@ -75,7 +116,16 @@ function Row({ label, value, isEditing, editValue, onEditChange }: RowProps) {
   );
 }
 
-export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapClassification, isRemapping }: VehicleSummaryCardProps) {
+export function VehicleSummaryCard({
+  vehicle,
+  onDirectSave,
+  isSaving,
+  onRemapClassification,
+  isRemapping,
+  samarClasses = [],
+  engineTypes = [],
+  bodyTypes = [],
+}: VehicleSummaryCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
@@ -85,8 +135,11 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
       "Marka": val(vehicle.brand),
       "Model": val(vehicle.model),
       "Wersja": val(vehicle.trim_level),
-      "Typ nadwozia": val(vehicle.body_style),
       "Kategoria": val(vehicle.vehicle_class ?? vehicle.document_category),
+      "Klasa SAMAR": getMappedField(vehicle, "samar_category"),
+      "Kategoria silnika": getMappedField(vehicle, "fuel"),
+      "Oś napędowa (DB)": getMappedField(vehicle, "drive_type") || vehicle.drive_type || "",
+      "Typ nadwozia (DB)": getMappedField(vehicle, "body_type") || val(vehicle.body_style),
       "Napęd": val(vehicle.powertrain),
       "Paliwo": val(vehicle.fuel),
       "Moc silnika (KM)": val(cardSummary?.power_hp?.toString()),
@@ -121,11 +174,17 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     collectIfChanged("Marka", val(vehicle.brand), "brand");
     collectIfChanged("Model", val(vehicle.model), "model");
     collectIfChanged("Wersja", val(vehicle.trim_level), "trim_level");
-    collectIfChanged("Typ nadwozia", val(vehicle.body_style), "body_style");
     collectIfChanged("Kategoria", val(vehicle.vehicle_class ?? vehicle.document_category), "vehicle_class");
+
+    // New mapped_ai_data fields (prefixed with "mapped:" for save handler)
+    collectIfChanged("Klasa SAMAR", getMappedField(vehicle, "samar_category"), "mapped:samar_category");
+    collectIfChanged("Kategoria silnika", getMappedField(vehicle, "fuel"), "mapped:fuel");
+    collectIfChanged("Oś napędowa (DB)", getMappedField(vehicle, "drive_type") || vehicle.drive_type || "", "mapped:drive_type");
+    collectIfChanged("Typ nadwozia (DB)", getMappedField(vehicle, "body_type") || val(vehicle.body_style), "mapped:body_type");
+
+    const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
     collectIfChanged("Napęd", val(vehicle.powertrain), "powertrain");
     collectIfChanged("Paliwo", val(vehicle.fuel), "fuel");
-    const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
     collectIfChanged("Moc silnika (KM)", val(cardSummary?.power_hp?.toString()), "power_hp");
     collectIfChanged("Moc silnika (kW)", val(cardSummary?.power_kw?.toString()), "power_kw");
     collectIfChanged("Skrzynia biegów", val(vehicle.transmission), "transmission");
@@ -173,32 +232,59 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     });
   };
 
-  const renderRows = (config: {label: string, value: string}[]) => {
-    return config.map((r) => (
-      <Row 
-        key={r.label} 
-        label={r.label}
-        value={r.value}
-        isEditing={isEditing}
-        editValue={editValues[r.label]}
-        onEditChange={(newVal) => handleEditChange(r.label, newVal)}
-      />
-    ));
+  // Build dropdown options from CRUD data
+  const samarOptions = samarClasses.map(sc => ({
+    value: sc.name,
+    label: `${sc.name}${sc.size_class ? ` (${sc.size_class})` : ""}`,
+  }));
+
+  const engineOptions = engineTypes.map(et => ({
+    value: et.name,
+    label: `${et.name} — ${et.category}`,
+  }));
+
+  const bodyTypeOptions = bodyTypes.map(bt => ({
+    value: bt.name,
+    label: `${bt.name} (${bt.vehicle_class})`,
+  }));
+
+  const renderRow = (config: { label: string; value: string; type?: "text" | "dropdown"; options?: { value: string; label: string }[]; highlightNew?: boolean }) => (
+    <Row
+      key={config.label}
+      label={config.label}
+      value={config.value}
+      isEditing={isEditing}
+      editValue={editValues[config.label]}
+      onEditChange={(newVal) => handleEditChange(config.label, newVal)}
+      type={config.type}
+      options={config.options}
+      highlightNew={config.highlightNew}
+    />
+  );
+
+  const renderRows = (configs: { label: string; value: string; type?: "text" | "dropdown"; options?: { value: string; label: string }[]; highlightNew?: boolean }[]) => {
+    return configs.map(renderRow);
   };
 
-  const identityRows = [
+  const identityRows: { label: string; value: string; type?: "text" | "dropdown"; options?: { value: string; label: string }[]; highlightNew?: boolean }[] = [
     { label: "Marka", value: val(vehicle.brand) },
     { label: "Model", value: val(vehicle.model) },
     { label: "Wersja", value: val(vehicle.trim_level) },
-    { label: "Typ nadwozia", value: val(vehicle.body_style) },
     { label: "Kategoria", value: val(vehicle.vehicle_class ?? vehicle.document_category) },
+  ];
+
+  // New CRUD-backed classification rows
+  const classificationRows: typeof identityRows = [
+    { label: "Klasa SAMAR", value: getMappedField(vehicle, "samar_category") || EMPTY, type: "dropdown", options: samarOptions, highlightNew: true },
+    { label: "Kategoria silnika", value: getMappedField(vehicle, "fuel") || EMPTY, type: "dropdown", options: engineOptions, highlightNew: true },
+    { label: "Oś napędowa (DB)", value: extractDriveType(vehicle), type: "dropdown", options: DRIVE_TYPE_OPTIONS, highlightNew: true },
+    { label: "Typ nadwozia (DB)", value: getMappedField(vehicle, "body_type") || val(vehicle.body_style), type: "dropdown", options: bodyTypeOptions, highlightNew: true },
   ];
 
   const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
 
-  const techRows = [
+  const techRows: typeof identityRows = [
     { label: "Napęd", value: val(vehicle.powertrain) },
-    { label: "Oś napędowa", value: extractDriveType(vehicle) },
     { label: "Paliwo", value: val(vehicle.fuel) },
     { label: "Moc silnika (KM)", value: val(cardSummary?.power_hp?.toString()) },
     { label: "Moc silnika (kW)", value: val(cardSummary?.power_kw?.toString()) },
@@ -210,7 +296,7 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
     { label: "Ilość miejsc", value: extractSeats(vehicle) },
   ];
 
-  const metaRows = [
+  const metaRows: typeof identityRows = [
     { label: "Numer oferty", value: val(vehicle.offer_number) },
     { label: "Kod konfiguracji", value: val(vehicle.configuration_code) },
   ];
@@ -306,9 +392,19 @@ export function VehicleSummaryCard({ vehicle, onDirectSave, isSaving, onRemapCla
           </table>
         </div>
 
-        {/* Metadane */}
+        {/* Klasyfikacja kalkulacyjna + Metadane */}
         <div>
-          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+          <h5 className="text-xs font-bold uppercase tracking-widest text-violet-500 mb-3 flex items-center">
+            <span className="w-2 h-2 rounded-full bg-violet-500 mr-2" />
+            Klasyfikacja kalkulacyjna
+          </h5>
+          <table className="w-full">
+            <tbody>
+              {renderRows(classificationRows)}
+            </tbody>
+          </table>
+
+          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 mt-5">
             Metadane oferty
           </h5>
           <table className="w-full">

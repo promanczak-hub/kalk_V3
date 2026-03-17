@@ -30,7 +30,7 @@ const MONTHS_MAX = 84;
 const MONTHS_STEP = 12;
 const MONTHS_TICKS = [12, 24, 36, 48, 60, 72, 84];
 
-const KM_MIN = 40_000;
+const KM_MIN = 10_000;
 const KM_MAX = 80_000;
 const KM_STEP = 5_000;
 const KM_MARGIN_PCT = 0.05;

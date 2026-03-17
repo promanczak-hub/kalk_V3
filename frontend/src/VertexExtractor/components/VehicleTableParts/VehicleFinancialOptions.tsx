@@ -1,8 +1,6 @@
 import { Banknote, Database, Loader2, Wrench, CircleDot, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
-import { ServiceOptionsManager } from "../../../components/Calculator/ServiceOptionsManager";
-import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
 import { useMemo } from "react";
@@ -47,7 +45,6 @@ interface VehicleFinancialOptionsProps {
   handleRestoreAllOptions: () => void;
   handleSaveAllOptions: () => Promise<void>;
   isSavingServices: boolean;
-  handleServiceOptionExtracted: (option: ExtractedServiceOption) => void;
   // Financial parameters
   wiborPct: number;
   setWiborPct: (val: number) => void;
@@ -157,7 +154,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
-    handleSaveAllOptions, isSavingServices, handleServiceOptionExtracted,
+    handleSaveAllOptions, isSavingServices,
     wiborPct, setWiborPct, marginPct, setMarginPct, pricingMarginPct, setPricingMarginPct,
     initialDepositPct, setInitialDepositPct, otherServiceCosts, setOtherServiceCosts,
     expressPaysInsurance, setExpressPaysInsurance, replacementCar, setReplacementCar,
@@ -486,9 +483,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                         </button>
                      </div>
                  </div>
-                 <div className="w-full pt-2 mt-2 border-t border-slate-50">
-                     <ServiceOptionsManager onOptionExtracted={handleServiceOptionExtracted} />
-                 </div>
+
               </div>
            </div>
       </div>

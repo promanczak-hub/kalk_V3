@@ -7,7 +7,7 @@ interface MarkdownViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
   documentId: string;
-  source: "library" | "synthesis" | "catalog";
+  source: "catalog" | "synthesis";
   title?: string;
 }
 
@@ -23,9 +23,7 @@ export function MarkdownViewerModal({ isOpen, onClose, documentId, source, title
       setLoading(true);
       setError(null);
       try {
-        const url = source === "library"
-          ? `/api/document-library/${documentId}/markdown`
-          : source === "catalog"
+        const url = source === "catalog"
             ? `/api/catalogs/${documentId}/markdown`
             : `/api/extract/${documentId}/markdown`;
           

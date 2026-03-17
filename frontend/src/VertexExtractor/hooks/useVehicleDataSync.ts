@@ -12,13 +12,14 @@ export function useVehicleDataSync(
   const [isSavingFields, setIsSavingFields] = useState(false);
   const [isRemappingClassification, setIsRemappingClassification] = useState(false);
 
-  // Direct save: patch card_summary JSON + top-level columns
+  // Direct save: patch card_summary JSON + mapped_ai_data + top-level columns
   const handleDirectSave = async (fields: Record<string, string>) => {
     setIsSavingFields(true);
     try {
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
       if (!updatedJson.card_summary) updatedJson.card_summary = {};
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
 
       const cardSummaryKeys = new Set([
         "trim_level", "body_style", "vehicle_class", "powertrain",
@@ -28,7 +29,48 @@ export function useVehicleDataSync(
 
       const columnUpdates: Record<string, unknown> = {};
 
-      const normalizedFields: Record<string, string> = { ...fields };
+      // Separate mapped_ai_data fields (prefixed with "mapped:") from regular fields
+      const regularFields: Record<string, string> = {};
+      const mappedFields: Record<string, string> = {};
+
+      for (const [key, value] of Object.entries(fields)) {
+        if (key.startsWith("mapped:")) {
+          mappedFields[key.replace("mapped:", "")] = value;
+        } else {
+          regularFields[key] = value;
+        }
+      }
+
+      // Handle mapped_ai_data fields
+      for (const [key, value] of Object.entries(mappedFields)) {
+        updatedJson.mapped_ai_data[key] = value;
+
+        // When engine name changes, resolve its category from DB
+        if (key === "fuel" && value) {
+          try {
+            const engResp = await apiFetch(`/api/engines`);
+            if (engResp.ok) {
+              const engines = await engResp.json();
+              const matched = (engines as { name: string; category: string }[]).find(
+                (e) => e.name === value
+              );
+              if (matched) {
+                updatedJson.mapped_ai_data.engine_class = matched.category;
+              }
+            }
+          } catch (engErr) {
+            console.warn("Engine category resolution failed:", engErr);
+          }
+        }
+
+        // Sync body_type → card_summary.body_style as well
+        if (key === "body_type" && value) {
+          updatedJson.card_summary.body_style = value;
+        }
+      }
+
+      // Handle regular fields (card_summary + columns)
+      const normalizedFields: Record<string, string> = { ...regularFields };
       const rawBodyStyle = (normalizedFields.body_style || "").trim();
       if (rawBodyStyle) {
         try {

@@ -22,9 +22,6 @@ interface AppState {
   isLoadingSettings: boolean;
   setGlobalSettings: (settings: GlobalSettings) => void;
 
-  // ── Theme ──
-  themeMode: 'light' | 'dark';
-  toggleTheme: () => void;
 
   // ── Settings fetch ──
   fetchGlobalSettings: () => Promise<void>;
@@ -36,12 +33,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoadingSettings: false,
   setGlobalSettings: (settings) => set({ globalSettings: settings }),
 
-  // ── Theme ──
-  themeMode: 'light',
-  toggleTheme: () =>
-    set((state) => ({
-      themeMode: state.themeMode === 'light' ? 'dark' : 'light',
-    })),
 
   // ── Fetch settings (called once on app init) ──
   fetchGlobalSettings: async () => {

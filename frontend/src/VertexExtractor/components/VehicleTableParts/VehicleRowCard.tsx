@@ -6,7 +6,6 @@ import { parsePriceToNumber } from "./PriceDualFormat";
 import { VehicleBaseInfo } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
-import type { ExtractedServiceOption } from "../../../components/Calculator/ServiceOptionsManager";
 import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
@@ -21,6 +20,7 @@ import { useVehicleFinancing } from "../../hooks/useVehicleFinancing";
 import { useVehicleDataSync } from "../../hooks/useVehicleDataSync";
 import { useVehicleReadiness } from "../../hooks/useVehicleReadiness";
 import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
+import { useReferenceData } from "../../hooks/useReferenceData";
 
 // Extracted UI Components
 import { VehicleActionButtons } from "./VehicleActionButtons";
@@ -77,6 +77,9 @@ export function VehicleRowCard({
 
   // Hook 1: Synchronizacja bazy danych / zmiana parametrów (Direct Save / Remap AI)
   const { isSavingFields, handleDirectSave, isRemappingClassification, handleRemapClassification } = useVehicleDataSync(vehicle, onRefresh, setLocalMappedData);
+
+  // Hook: CRUD reference data for manual edit dropdowns
+  const { samarClasses, engineTypes, bodyTypes } = useReferenceData();
 
   // Auto-detect metalic function needs to be passed down
   const autoDetectMetalic = useCallback((): boolean => {
@@ -735,83 +738,11 @@ export function VehicleRowCard({
     }
   };
 
-  const inferBodyworkFromOption = (
-  name: string,
-  effects?: ModificationEffect | null,
-  components?: string[]
-): { bodyType: string; zabudowaTypeName: string; samarOverride: string } | null => {
-  const joinedComponents = Array.isArray(components) ? components.join(" ") : "";
-  const combined = `${name || ""} ${joinedComponents} ${effects?.override_samar_class || ""} ${effects?.override_homologation || ""}`.toLowerCase();
-  if (combined.includes("kontener")) return { bodyType: "Kontener", zabudowaTypeName: "Kontener", samarOverride: "Kontener" };
-  if (combined.includes("izoterma")) return { bodyType: "Izoterma", zabudowaTypeName: "Izoterma", samarOverride: "Izoterma" };
-  if (combined.includes("chłodnia") || combined.includes("chlodnia")) return { bodyType: "Chłodnia", zabudowaTypeName: "Chłodnia", samarOverride: "Chłodnia" };
-  if (combined.includes("skrzyn")) return { bodyType: "Skrzynia", zabudowaTypeName: "Skrzynia", samarOverride: "Skrzyniowy" };
-  if (combined.includes("plandek")) return { bodyType: "Skrzynia", zabudowaTypeName: "Plandeka", samarOverride: "Skrzyniowy" };
-  if (combined.includes("autolawet") || combined.includes("laweta")) return { bodyType: "Autolaweta", zabudowaTypeName: "Autolaweta", samarOverride: "Autolaweta" };
-  return null;
-};
 
-  const handleServiceOptionExtracted = async (extractedOption: ExtractedServiceOption) => {
-    try {
-      const inferredBodywork = inferBodyworkFromOption(extractedOption.name, extractedOption.effects, extractedOption.description_or_components);
-      const mergedEffects: ModificationEffect | undefined = inferredBodywork
-        ? {
-            ...(extractedOption.effects || {}),
-            override_samar_class: extractedOption.effects?.override_samar_class || inferredBodywork.samarOverride,
-            is_financial_only: extractedOption.effects?.is_financial_only ?? false,
-          }
-        : (extractedOption.effects || undefined);
 
-      const newOption = {
-        id: crypto.randomUUID(),
-        name: extractedOption.name,
-        category: "Opcja Serwisowa",
-        price_net: Number(extractedOption.net_price) || 0,
-        effects: mergedEffects,
-      };
 
-      setCustomServiceOptions((prev) => [...prev, newOption]);
 
-      const shouldPersistVehicleShape = Boolean(
-        mergedEffects?.override_samar_class ||
-        mergedEffects?.override_homologation ||
-        inferredBodywork
-      );
 
-      if (!shouldPersistVehicleShape) return;
-
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      if (!updatedJson.card_summary) updatedJson.card_summary = {};
-
-      if (mergedEffects?.override_samar_class) {
-        updatedJson.mapped_ai_data.samar_category = mergedEffects.override_samar_class;
-      }
-      if (mergedEffects?.override_homologation) {
-        updatedJson.mapped_ai_data.vehicle_type = mergedEffects.override_homologation;
-      }
-
-      if (inferredBodywork) {
-        updatedJson.mapped_ai_data.body_type = inferredBodywork.bodyType;
-        updatedJson.card_summary.body_style = inferredBodywork.bodyType;
-        updatedJson.zabudowa_type_name = inferredBodywork.zabudowaTypeName;
-        updatedJson.card_summary.zabudowa_type_name = inferredBodywork.zabudowaTypeName;
-        updatedJson.zabudowa_apr_wr = true;
-      }
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson, zabudowa_apr_wr: true })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-      onRefresh();
-    } catch (err) {
-      console.error("Error saving extracted service option", err);
-      alert("Błąd podczas zapisu opcji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
-    }
-  };
 
   const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
     const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
@@ -1103,6 +1034,7 @@ export function VehicleRowCard({
         onDriveTypeChange={handleDriveTypeChange}
         bodyType={localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined}
         onBodyTypeChange={handleBodyTypeChange}
+        bodyTypeOptions={bodyTypes}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
@@ -1119,6 +1051,9 @@ export function VehicleRowCard({
               isSaving={isSavingFields}
               onRemapClassification={handleRemapClassification}
               isRemapping={isRemappingClassification}
+              samarClasses={samarClasses}
+              engineTypes={engineTypes}
+              bodyTypes={bodyTypes}
             />
 
             <VehicleEquipmentCard
@@ -1175,7 +1110,6 @@ export function VehicleRowCard({
              handleRestoreAllOptions={handleRestoreAllOptions}
              handleSaveAllOptions={handleSaveAllOptions}
              isSavingServices={isSavingServices}
-             handleServiceOptionExtracted={handleServiceOptionExtracted}
              // Financial parameters
              wiborPct={wiborPct}
              setWiborPct={setWiborPct}

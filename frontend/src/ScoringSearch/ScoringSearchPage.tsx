@@ -150,11 +150,11 @@ export const ScoringSearchPage: React.FC = () => {
     : 0;
 
   return (
-    <Box sx={{ display: 'flex', gap: 3, height: 'calc(100vh - 120px)' }}>
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, height: { md: 'calc(100vh - 120px)' } }}>
       {/* Left Column - Filters */}
-      <Box sx={{ width: 560, flexShrink: 0, height: '100%' }}>
+      <Box sx={{ width: { xs: '100%', md: 560 }, flexShrink: 0, height: { xs: 'auto', md: '100%' } }}>
         <Paper elevation={2} sx={{ p: 0, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ p: 2, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ p: 2, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', color: 'primary.contrastText', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
               <Typography variant="h6">Wyszukiwarka Ofert</Typography>
               <Typography variant="body2" sx={{ opacity: 0.8 }}>Zbuduj profil Idealnego Auta</Typography>

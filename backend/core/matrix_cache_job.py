@@ -20,14 +20,8 @@ logger = logging.getLogger(__name__)
 # Standard configurations for pricing matrix
 CACHE_MARGINS_PCT = [0.0]  # Only base cost; margin applied dynamically in RPC
 
-# Extra mileage variants (okres_bazowy, przebieg_bazowy)
-EXTRA_MILEAGE_VARIANTS = [
-    (36, 30000),   # -> 10000 km/yr
-    (36, 45000),   # -> 15000 km/yr
-    (36, 60000),   # -> 20000 km/yr
-    (36, 75000),   # -> 25000 km/yr
-    (36, 90000),   # -> 30000 km/yr
-]
+# Extra mileage variants removed — build_matrix() now covers 10k-80k km/yr
+# natively across all period buckets (12-84 months).
 
 # ── In-memory progress store ──
 _cache_progress: Dict[str, Dict[str, Any]] = {}
@@ -305,30 +299,6 @@ def refresh_matrix_cache_for_vehicles(
                 )
                 continue
 
-            # 2. Extra mileage variants (low-km range)
-            for extra_okres, extra_przebieg in EXTRA_MILEAGE_VARIANTS:
-                try:
-                    extra_input = base_input.model_copy(
-                        update={
-                            "pricing_margin_pct": margin,
-                            "okres_bazowy": extra_okres,
-                            "przebieg_bazowy": extra_przebieg,
-                        }
-                    )
-                    extra_input.wibor_pct = float(settings.default_wibor)
-                    extra_engine = LTRKalkulator(
-                        input_data=extra_input, settings=settings
-                    )
-                    extra_cells = extra_engine.build_matrix()
-                    all_cells.extend(extra_cells)
-                except Exception as e:
-                    logger.warning(
-                        "Failed extra mileage variant (%dm/%dkm) for %s: %s",
-                        extra_okres,
-                        extra_przebieg,
-                        vid,
-                        e,
-                    )
 
             # Deduplicate by (Okres, Przebieg)
             seen_keys: set[tuple[int, int]] = set()

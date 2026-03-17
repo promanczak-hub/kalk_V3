@@ -1,4 +1,3 @@
-import React, { useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -7,33 +6,8 @@ import {
   FormControlLabel,
   Checkbox,
   IconButton,
-  CircularProgress,
-  Alert,
 } from "@mui/material";
 import { Trash2, Plus } from "lucide-react";
-import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
-import axios from "axios";
-import { API_BASE_URL } from "../../config/env";
-
-interface ExtractedServiceOption {
-  name: string;
-  net_price: number;
-  description_or_components: string[];
-  effects: {
-    override_samar_class?: string;
-    override_homologation?: string;
-    adds_weight_kg?: number;
-    is_financial_only: boolean;
-  } | null;
-}
-
-interface ExtractedServiceOptionBatch {
-  service_options: ExtractedServiceOption[];
-}
-
-type ExtractedServiceOptionResponse =
-  | ExtractedServiceOption
-  | ExtractedServiceOptionBatch;
 
 interface Option {
   Id: number;
@@ -50,57 +24,6 @@ interface ServiceOptionsManagerProps {
   onUpdate: (id: number, field: string, value: any) => void;
   onAdd: () => void;
   onRemove: (id: number) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onAddExtracted?: (extracted: any) => void;
-}
-
-function isExtractedServiceOptionBatch(
-  data: ExtractedServiceOptionResponse
-): data is ExtractedServiceOptionBatch {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "service_options" in data &&
-    Array.isArray((data as ExtractedServiceOptionBatch).service_options)
-  );
-}
-
-function isExtractedServiceOption(
-  data: ExtractedServiceOptionResponse
-): data is ExtractedServiceOption {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "name" in data &&
-    typeof (data as ExtractedServiceOption).name === "string"
-  );
-}
-
-function parseNetPrice(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return 0;
-  const cleaned = value.replace(/\s+/g, "").replace(/PLN|zł|zl/gi, "").replace(",", ".");
-  const numeric = cleaned.match(/-?\d+(?:\.\d+)?/);
-  return numeric ? Number(numeric[0]) : 0;
-}
-
-function normalizeExtractedOptions(
-  data: ExtractedServiceOptionResponse | null | undefined
-): ExtractedServiceOption[] {
-  if (!data) return [];
-
-  const rows = isExtractedServiceOptionBatch(data)
-    ? data.service_options
-    : isExtractedServiceOption(data)
-      ? [data]
-      : [];
-
-  return rows
-    .filter((item): item is ExtractedServiceOption => !!item && typeof item.name === "string")
-    .map((item) => ({
-      ...item,
-      net_price: parseNetPrice((item as { net_price?: unknown }).net_price),
-    }));
 }
 
 export default function ServiceOptionsManager({
@@ -108,56 +31,7 @@ export default function ServiceOptionsManager({
   onUpdate,
   onAdd,
   onRemove,
-  onAddExtracted,
 }: ServiceOptionsManagerProps) {
-  const [isUploading, setIsUploading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    setErrorMsg(null);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await axios.post<ExtractedServiceOptionResponse>(
-        `${API_BASE_URL}/api/extract/service-option`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-
-      const extractedOptions = normalizeExtractedOptions(response.data);
-      if (extractedOptions.length === 0) {
-        setErrorMsg("Nie znaleziono opcji serwisowych w dokumencie.");
-      } else if (onAddExtracted) {
-        extractedOptions.forEach((item) => onAddExtracted(item));
-      }
-    } catch (error: unknown) {
-      console.error("Error extracting service option:", error);
-      let errMsg = "Wystąpił błąd podczas analizy pliku.";
-      if (axios.isAxiosError(error) && error.response?.data?.detail) {
-        errMsg = error.response.data.detail;
-      } else if (error instanceof Error) {
-        errMsg = error.message;
-      }
-      setErrorMsg(errMsg);
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
   return (
     <Box sx={{ p: 2, bgcolor: "#fff", borderBottom: "1px solid #ddd" }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 2 }}>
@@ -173,32 +47,8 @@ export default function ServiceOptionsManager({
           >
             Dodaj Usługę
           </Button>
-          <input
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.webp"
-            style={{ display: "none" }}
-            ref={fileInputRef}
-            onChange={handleFileChange}
-          />
-          <Button
-            variant="contained"
-            size="small"
-            color="secondary"
-            startIcon={isUploading ? <CircularProgress size={16} color="inherit" /> : <AutoFixHighIcon fontSize="small" />}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || !onAddExtracted}
-            sx={{ whiteSpace: "nowrap" }}
-          >
-            {isUploading ? "Analizuję..." : "Z PDF (AI)"}
-          </Button>
         </Box>
       </Box>
-
-      {errorMsg && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {errorMsg}
-        </Alert>
-      )}
 
       {options.map((opt) => (
         <Box key={opt.Id} sx={{ display: "flex", gap: 2, mb: 1, alignItems: "center", flexWrap: "wrap" }}>

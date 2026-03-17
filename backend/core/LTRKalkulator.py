@@ -794,7 +794,7 @@ class LTRKalkulator:
         if matrix_km_mode == "contract":
             # Full rectangular matrix: every month bucket uses the same contract-km axis.
             # This removes visual "holes" in the grid.
-            default_contract_km_min = 40000
+            default_contract_km_min = 10000
             default_contract_km_max = int(round((80000 / 12) * req_months))
             if default_contract_km_max < default_contract_km_min:
                 default_contract_km_max = default_contract_km_min
@@ -830,7 +830,7 @@ class LTRKalkulator:
                     add_grid_pair(m, km_py, total_km_contract)
         else:
             for m in range(12, 85, 12):
-                for km_py in range(40000, 80001, 10000):
+                for km_py in range(10000, 80001, 5000):
                     add_grid_pair(m, km_py)
 
         # Inject requested base period/mileage into the grid.

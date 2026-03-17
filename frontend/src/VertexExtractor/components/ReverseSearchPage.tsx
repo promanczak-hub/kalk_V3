@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Filter, X, Loader2, Car, ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import { API_BASE_URL } from "../../config/env";
 
@@ -30,12 +30,7 @@ interface SearchFilter {
   value_text?: string;
 }
 
-const BODY_TYPES = [
-  "SUV", "Hatchback", "Kombi", "Sedan", "Furgon",
-  "Skrzynia", "Chłodnia", "Kontener", "Izoterma",
-  "Platforma", "Wywrotka", "Plandeka", "Brygadówka",
-  "Minibus", "KombiVan", "Pick-up", "Coupe", "Kabriolet"
-];
+/* Body types are fetched from DB — see useEffect below */
 
 const CURATED_SHARED = [
   "rodzaj_paliwa", "paliwo",
@@ -109,6 +104,7 @@ export function ReverseSearchPage() {
   const [bodyTypeSearch, setBodyTypeSearch] = useState("");
   const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [dbBodyTypes, setDbBodyTypes] = useState<string[]>([]);
 
   // Search Queries
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -144,6 +140,22 @@ export function ReverseSearchPage() {
       }
     };
     fetchCatalog();
+  }, [baseUrl]);
+
+  // Fetch body types from DB — single source of truth
+  useEffect(() => {
+    const fetchBodyTypes = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/body-types`);
+        if (res.ok) {
+          const data = await res.json();
+          setDbBodyTypes(Array.isArray(data) ? data.map((bt: { name: string }) => bt.name) : []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch body types:", err);
+      }
+    };
+    fetchBodyTypes();
   }, [baseUrl]);
 
   // Handle AI Extraction
@@ -576,7 +588,7 @@ export function ReverseSearchPage() {
                        />
                      </div>
                      <div className="max-h-48 overflow-y-auto space-y-0.5">
-                       {BODY_TYPES.filter(bt => bt.toLowerCase().includes(bodyTypeSearch.toLowerCase())).map(bt => (
+                       {dbBodyTypes.filter(bt => bt.toLowerCase().includes(bodyTypeSearch.toLowerCase())).map(bt => (
                          <label key={bt} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
                            <input
                              type="checkbox"
@@ -590,7 +602,7 @@ export function ReverseSearchPage() {
                            <span className="text-xs text-slate-700">{bt}</span>
                          </label>
                        ))}
-                       {BODY_TYPES.filter(bt => bt.toLowerCase().includes(bodyTypeSearch.toLowerCase())).length === 0 && (
+                       {dbBodyTypes.filter(bt => bt.toLowerCase().includes(bodyTypeSearch.toLowerCase())).length === 0 && (
                          <div className="text-xs text-slate-400 text-center py-2">Brak wyników</div>
                        )}
                      </div>

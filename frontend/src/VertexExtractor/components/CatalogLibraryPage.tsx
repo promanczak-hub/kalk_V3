@@ -33,10 +33,15 @@ interface DocumentLibraryItem {
 import { apiFetch } from "../../lib/api";
 
 const DOC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  catalog: { label: "Katalog", color: "bg-indigo-100 text-indigo-700" },
+  price_list: { label: "Cennik", color: "bg-emerald-100 text-emerald-700" },
+  brochure: { label: "Broszura", color: "bg-violet-100 text-violet-700" },
+  other: { label: "Inny", color: "bg-slate-100 text-slate-600" },
+  // Backward compat for any old uppercase values
   Katalog: { label: "Katalog", color: "bg-indigo-100 text-indigo-700" },
   Cennik: { label: "Cennik", color: "bg-emerald-100 text-emerald-700" },
   PRICE_LIST: { label: "Cennik", color: "bg-emerald-100 text-emerald-700" },
-  BROCHURE: { label: "Broszura", color: "bg-indigo-100 text-indigo-700" },
+  BROCHURE: { label: "Broszura", color: "bg-violet-100 text-violet-700" },
 };
 
 /* ── Component ────────────────────────────────────────────────── */
@@ -185,8 +190,8 @@ export function CatalogLibraryPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((doc) => {
-            const docTypeStr = typeof doc.document_type === "string" ? doc.document_type.toUpperCase() : "INNE";
-            const docType = DOC_TYPE_LABELS[docTypeStr] || {
+            const docTypeStr = doc.document_type || "other";
+            const docType = DOC_TYPE_LABELS[docTypeStr] || DOC_TYPE_LABELS[docTypeStr.toUpperCase()] || {
               label: doc.document_type || "Niezdefiniowano",
               color: "bg-slate-100 text-slate-600",
             };
