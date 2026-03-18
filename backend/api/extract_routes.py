@@ -494,6 +494,33 @@ DANE POJAZDÓW:
         )
 
 
+@router.get("/kalkulator/pojazd/{vehicle_id}")
+async def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
+    """Zwraca synthesis_data pojazdu po ID — używane przez VehicleFeaturesCard."""
+    try:
+        response = (
+            supabase_client.table("vehicle_synthesis")
+            .select("id, brand, model, trim_level, synthesis_data, verification_status")
+            .eq("id", vehicle_id)
+            .execute()
+        )
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Pojazd nie znaleziony")
+        row = response.data[0]
+        return {
+            "id": row.get("id"),
+            "brand": row.get("brand"),
+            "model": row.get("model"),
+            "trim_level": row.get("trim_level"),
+            "verification_status": row.get("verification_status"),
+            "synthesis_data": row.get("synthesis_data") or {},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/extract/{vehicle_id}/markdown")
 async def get_vehicle_markdown(vehicle_id: str) -> Dict[str, Any]:
     """Fetch the raw markdown for a vehicle synthesis record."""

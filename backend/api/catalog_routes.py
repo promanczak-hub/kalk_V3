@@ -108,6 +108,58 @@ async def list_catalogs(
     return {"catalogs": resp.data or [], "total": len(resp.data or [])}
 
 
+@router.get("/match")
+async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
+    """Fast brand-based catalog matching (no LLM).
+
+    Returns all catalogs that match the vehicle's brand, sorted by
+    model_family relevance. Much faster than /suggest (no LLM call).
+    """
+    v_resp = (
+        sb_client.table("vehicle_synthesis")
+        .select("synthesis_data")
+        .eq("id", vehicle_id)
+        .limit(1)
+        .execute()
+    )
+    if not v_resp.data:
+        raise HTTPException(404, f"Vehicle {vehicle_id} not found")
+
+    synthesis = v_resp.data[0].get("synthesis_data") or {}
+    card = synthesis.get("card_summary", {})
+    brand = (card.get("brand") or synthesis.get("brand", "")).strip().upper()
+    model = (card.get("model") or synthesis.get("model", "")).strip().lower()
+
+    if not brand:
+        return {"catalogs": []}
+
+    c_resp = (
+        _rs()
+        .table("model_document_sources")
+        .select(
+            "id, brand, model_family, document_type, "
+            "display_name, version_tag, file_type, "
+            "extraction_status, variant_count"
+        )
+        .ilike("brand", f"%{brand}%")
+        .order("uploaded_at", desc=True)
+        .execute()
+    )
+    catalogs = c_resp.data or []
+
+    # Simple score: exact model match = 1.0, same brand = 0.5
+    for cat in catalogs:
+        cat_model = (cat.get("model_family") or "").strip().lower()
+        if model and cat_model and model in cat_model:
+            cat["score"] = 1.0
+        elif model and cat_model and cat_model in model:
+            cat["score"] = 0.9
+        else:
+            cat["score"] = 0.5
+
+    catalogs.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return {"catalogs": catalogs}
+
 @router.get("/suggest")
 async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
     """Suggest best catalogs for a given vehicle using LLM ranking."""

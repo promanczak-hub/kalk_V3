@@ -250,6 +250,11 @@ class PipelineDebugger(LTRKalkulator):
         # KROK 6: Utrata Wartości (WR)
         rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
         base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
+        base_wr_options += sum(
+            opt.price_net
+            for opt in self.input_data.service_options
+            if getattr(opt, "include_in_wr", False)
+        )
         
         # W V1 Utrata Wartości (Amortyzacja) liczona jest WYŁĄCZNIE od ceny pojazdu i opcji fabrycznych (bez opon i bez opcji serwisowych)
         discount_pct = getattr(self.input_data, "discount_pct", 0) / 100.0

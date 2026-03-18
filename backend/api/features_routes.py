@@ -130,16 +130,33 @@ def get_feature_catalog() -> FeatureCatalogResponse:
 
 # ── Vehicle Feature State ─────────────────────────────────────
 
+_TTL_FEATURES_STATE = 180  # 3 minutes — invalidated on resolve/crossref
+
 
 @router.get("/features/vehicle/{vehicle_id}/state")
 def get_vehicle_feature_state(
     vehicle_id: str,
 ) -> dict[str, Any]:
-    """Get resolved features for a vehicle.
+    """Get resolved features for a vehicle, with Redis cache (TTL 3 min).
 
     Lazy enrichment: if no feature state exists yet,
     auto-enrich from vehicle_synthesis.card_summary.
     """
+    from core.redis_cache import _get_client, _PREFIX
+    import json
+
+    client = _get_client()
+    cache_key = f"{_PREFIX}features_state:{vehicle_id}"
+
+    if client is not None:
+        try:
+            cached = client.get(cache_key)
+            if cached is not None:
+                logger.debug("Cache HIT: features_state [%s]", vehicle_id)
+                return json.loads(cached)
+        except Exception as exc:
+            logger.debug("Redis GET error [%s]: %s", cache_key, exc)
+
     sb = supabase
     resp = (
         sb.schema("reverse_search")
@@ -148,17 +165,24 @@ def get_vehicle_feature_state(
         .eq("source_vehicle_id", vehicle_id)
         .execute()
     )
-    # Group by category
     by_category: dict[str, list[dict]] = {}
     for row in resp.data:
         cat = row.get("category_name", "Inne")
         by_category.setdefault(cat, []).append(row)
 
-    return {
+    result = {
         "vehicle_id": vehicle_id,
         "categories": by_category,
         "total_features": len(resp.data),
     }
+
+    if client is not None:
+        try:
+            client.setex(cache_key, _TTL_FEATURES_STATE, json.dumps(result, default=str))
+        except Exception as exc:
+            logger.debug("Redis SET error [%s]: %s", cache_key, exc)
+
+    return result
 
 
 # ── Vehicle Feature Evidence ──────────────────────────────────
@@ -912,5 +936,18 @@ def enrich_all(
     limit: int = 100,
 ) -> dict[str, Any]:
     """Batch-enrich all vehicles with features from card_summary."""
-    result = enrich_all_vehicles(limit=limit)
-    return result
+
+@router.post("/features/vehicle/{vehicle_id}/enrich-background")
+def enrich_vehicle_background(
+    vehicle_id: str,
+) -> dict[str, Any]:
+    """Trigger background CELERY task to enrich vehicle features from documents."""
+    from tasks.enrichment_tasks import enrich_vehicle_features_from_catalog
+    
+    task = enrich_vehicle_features_from_catalog.delay(vehicle_id)
+    
+    return {
+        "status": "queued",
+        "vehicle_id": vehicle_id,
+        "task_id": task.id
+    }

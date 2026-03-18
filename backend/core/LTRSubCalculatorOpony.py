@@ -190,7 +190,7 @@ class LTRSubCalculatorOpony:
         if not self.srednica_felgi:
             return 0.0
         
-        budget_col = "wielosezon_budget" if self.all_season else "letnie_budget"
+        budget_col = "wielosezon_budget" if self.all_season else "budget"
         try:
             response = (
                 supabase.table("koszty_opon")

@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from core.feature_enrichment import (
     _CONFIDENCE_THRESHOLD,
     _llm_match_equipment,
+    _normalize_body_style,
     enrich_vehicle_features,
 )
 
@@ -171,3 +172,48 @@ def test_enrich_returns_error_on_missing_card_summary() -> None:
     result = enrich_vehicle_features("vehicle-uuid", {})
     assert "error" in result
     assert result["evidence_created"] == 0
+
+
+# ── _normalize_body_style ──────────────────────────────────────────────────────
+
+
+def test_normalize_body_style_sportstourer() -> None:
+    """Sportstourer and its variants must map to Kombi."""
+    assert _normalize_body_style("Sportstourer") == "Kombi"
+    assert _normalize_body_style("SPORTSTOURER") == "Kombi"
+    assert _normalize_body_style("Sports Tourer") == "Kombi"
+    assert _normalize_body_style("SPORTS TOURER") == "Kombi"
+
+
+def test_normalize_body_style_kombi_aliases() -> None:
+    """All Kombi aliases must resolve correctly."""
+    for alias in ["Touring", "Avant", "Wagon", "Estate", "Variant", "Sportswagon", "Break", "SW", "Alltrack"]:
+        assert _normalize_body_style(alias) == "Kombi", f"Expected Kombi for alias '{alias}'"
+
+
+def test_normalize_body_style_suv_aliases() -> None:
+    """SUV aliases must resolve to SUV."""
+    assert _normalize_body_style("Crossover") == "SUV"
+    assert _normalize_body_style("CROSS") == "SUV"
+
+
+def test_normalize_body_style_passthrough_canonical() -> None:
+    """Canonical names must pass through unchanged (correct casing)."""
+    assert _normalize_body_style("SUV") == "SUV"
+    assert _normalize_body_style("Van") == "Van"
+    assert _normalize_body_style("Hatchback") == "Hatchback"
+    assert _normalize_body_style("Sedan") == "Sedan"
+    assert _normalize_body_style("Kombi") == "Kombi"
+
+
+def test_normalize_body_style_unknown_survives() -> None:
+    """Completely unknown value must not crash — returns title-cased string."""
+    result = _normalize_body_style("CoolCar2000")
+    assert isinstance(result, str)
+    assert len(result) > 0
+
+
+def test_normalize_body_style_empty_string() -> None:
+    """Empty / whitespace input returns input unchanged."""
+    assert _normalize_body_style("") == ""
+    assert _normalize_body_style("  ") == "  "

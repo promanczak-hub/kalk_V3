@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, Chip, FormControl, Select, MenuItem,
-  Tooltip, Button, CircularProgress, IconButton
+  Tooltip, Button, CircularProgress, IconButton, Skeleton,
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
@@ -9,13 +9,13 @@ import BoltIcon from '@mui/icons-material/Bolt';
 import SpeedIcon from '@mui/icons-material/Speed';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import SettingsIcon from '@mui/icons-material/Settings';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import BuildIcon from '@mui/icons-material/Build';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import { apiFetch } from '../../lib/api';
+import type { SearchContext } from '../types';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
@@ -44,16 +44,318 @@ const fuelColor = (fuel: string | null): 'default' | 'success' | 'info' => {
   return 'default';
 };
 
-/* Spec chip styling — handled globally via MuiChip theme override */
+/* ── Types ── */
+
+interface PriceForParams {
+  duration_months: number | null;
+  annual_mileage: number | null;
+  monthly_price_net: number | null;
+  found: boolean;
+}
+
+interface SimilarVehicle {
+  vehicle_id: string;
+  brand: string | null;
+  model: string | null;
+  best_monthly_price: number | null;
+  similarity_score_pct: number | null;
+}
+
+/* ── Sub-hooks ── */
+
+function usePriceForParams(
+  vehicleId: string,
+  hasCache: boolean,
+  durationMonths: number,
+  annualMileage: number,
+): { price: PriceForParams | null; loading: boolean } {
+  const [price, setPrice] = useState<PriceForParams | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!hasCache) return;
+    let cancelled = false;
+
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const r = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/price-for-params?duration_months=${durationMonths}&annual_mileage=${annualMileage}`);
+        const data: PriceForParams = await r.json();
+        if (!cancelled) setPrice(data);
+      } catch {
+        if (!cancelled) setPrice(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    
+    doFetch();
+    return () => { cancelled = true; };
+  }, [vehicleId, hasCache, durationMonths, annualMileage]);
+
+  return { price, loading };
+}
+
+function usePriceVariants(
+  vehicleId: string,
+  hasCache: boolean,
+  annualMileage: number,
+): { variants: PriceForParams[] | null; loading: boolean } {
+  const [variants, setVariants] = useState<PriceForParams[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!hasCache) return;
+    let cancelled = false;
+
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const r = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/price-variants?annual_mileage=${annualMileage}`);
+        const data: PriceForParams[] = await r.json();
+        if (!cancelled) setVariants(data);
+      } catch {
+        if (!cancelled) setVariants(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    doFetch();
+    return () => { cancelled = true; };
+  }, [vehicleId, hasCache, annualMileage]);
+
+  return { variants, loading };
+}
+
+function useSimilarVehicles(vehicleId: string, durationMonths?: number, annualMileage?: number): {
+  similar: SimilarVehicle[];
+  loading: boolean;
+} {
+  const [similar, setSimilar] = useState<SimilarVehicle[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    
+    const doFetch = async () => {
+      setLoading(true);
+      const params = new URLSearchParams({ limit: '3' });
+      if (durationMonths) params.append('duration_months', durationMonths.toString());
+      if (annualMileage) params.append('annual_mileage', annualMileage.toString());
+      
+      try {
+        const r = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/similar?${params.toString()}`);
+        const data: SimilarVehicle[] = await r.json();
+        if (!cancelled) setSimilar(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setSimilar([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    doFetch();
+    return () => { cancelled = true; };
+  }, [vehicleId, durationMonths, annualMileage]);
+
+  return { similar, loading };
+}
+
+/* ── Card sub-components ── */
+
+interface LtrPriceBlockProps {
+  vehicleId: string;
+  hasCache: boolean;
+  bestMonthlyPrice: number | null;
+  durationMonths: number;
+  annualMileage: number;
+  isCalculating: boolean;
+  onCalculate: (id: string) => void;
+}
+
+const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
+  vehicleId, hasCache, bestMonthlyPrice, durationMonths, annualMileage,
+  isCalculating, onCalculate,
+}) => {
+  const { price, loading } = usePriceForParams(
+    vehicleId, !!hasCache, durationMonths, annualMileage
+  );
+  const { variants } = usePriceVariants(
+    vehicleId, !!hasCache, annualMileage
+  );
+
+  if (!hasCache || !bestMonthlyPrice) {
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        {isCalculating ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+            <CircularProgress size={16} />
+            <Typography variant="caption" color="textSecondary">Przeliczanie…</Typography>
+          </Box>
+        ) : (
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<CalculateIcon />}
+            onClick={() => onCalculate(vehicleId)}
+            sx={{ fontSize: '0.72rem', textTransform: 'none' }}
+          >
+            Przelicz LTR
+          </Button>
+        )}
+      </Box>
+    );
+  }
+
+  const displayPrice = price?.found && price.monthly_price_net != null
+    ? price.monthly_price_net
+    : bestMonthlyPrice;
+
+  const paramLabel = price?.found && price.duration_months != null && price.annual_mileage != null
+    ? `${price.duration_months} mc / ${((price.annual_mileage * price.duration_months / 12) / 1000).toFixed(0)}k km`
+    : null;
+
+  return (
+    <Box sx={{ mt: 0.75, textAlign: 'right', bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1 }}>
+      <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>Rata LTR:</Typography>
+      {loading ? (
+        <Skeleton variant="text" width={80} sx={{ ml: 'auto', bgcolor: 'rgba(255,255,255,0.2)' }} />
+      ) : (
+        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+          {Number(displayPrice).toLocaleString('pl-PL')} PLN
+        </Typography>
+      )}
+      {paramLabel && !loading && (
+        <Tooltip title="Cena dla wybranych parametrów">
+          <Typography
+            variant="caption"
+            sx={{ opacity: 0.85, display: 'block', fontSize: '0.68rem', cursor: 'default' }}
+          >
+            {paramLabel}
+          </Typography>
+        </Tooltip>
+      )}
+      {!paramLabel && !loading && (
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>netto / mc</Typography>
+      )}
+
+      {/* Rendering price variants */}
+      {variants && variants.length > 0 && (
+        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {variants.filter(v => v.duration_months !== durationMonths).map(v => (
+            <Typography key={v.duration_months} variant="caption" sx={{ fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', opacity: 0.85 }}>
+              <span>{v.duration_months}mc/{( (v.annual_mileage || 0) * (v.duration_months || 0) / 12 / 1000).toFixed(0)}k:</span>
+              <span style={{ fontWeight: 600 }}>{Number(v.monthly_price_net).toLocaleString('pl-PL')} PLN</span>
+            </Typography>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+interface SimilarVehiclesSectionProps {
+  vehicleId: string;
+  durationMonths?: number;
+  annualMileage?: number;
+}
+
+const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicleId, durationMonths, annualMileage }) => {
+  const { similar, loading } = useSimilarVehicles(vehicleId, durationMonths, annualMileage);
+
+  if (loading) {
+    return (
+      <Box sx={{ mt: 1.5 }}>
+        <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <PeopleAltIcon sx={{ fontSize: 14 }} /> Podobne oferty:
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+          {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" width={140} height={24} />)}
+        </Box>
+      </Box>
+    );
+  }
+
+  if (!similar.length) return null;
+
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <PeopleAltIcon sx={{ fontSize: 14 }} /> Podobne oferty:
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+        {similar.map((s) => {
+          const label = [
+            `${s.brand ?? ''} ${s.model ?? ''}`.trim(),
+            s.best_monthly_price != null
+              ? `${Number(s.best_monthly_price).toLocaleString('pl-PL')} PLN/mc`
+              : null,
+            s.similarity_score_pct != null ? `${s.similarity_score_pct}%` : null,
+          ]
+            .filter(Boolean)
+            .join(' | ');
+
+          const score = s.similarity_score_pct ?? 0;
+          let chipColor: 'success' | 'info' | 'default' = 'default';
+          let chipSx = { fontSize: '0.65rem', maxWidth: 280, fontWeight: 400, opacity: 1 };
+
+          if (score >= 75) {
+            chipColor = 'success';
+            chipSx = { ...chipSx, fontWeight: 600 };
+          } else if (score >= 40) {
+            chipColor = 'info';
+          } else {
+            chipColor = 'default';
+            chipSx = { ...chipSx, opacity: 0.6 };
+          }
+
+          return (
+            <Tooltip key={s.vehicle_id} title={`Podobieństwo: ${s.similarity_score_pct ?? '?'}%`}>
+              <Chip
+                label={label}
+                size="small"
+                variant="outlined"
+                color={chipColor}
+                component="a"
+                href={`/?highlight=${s.vehicle_id}`}
+                target="_blank"
+                clickable
+                sx={chipSx}
+              />
+            </Tooltip>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+};
+
+/* ── Main component ── */
 
 interface ScoringResultsProps {
   results: Record<string, unknown>[];
   loading: boolean;
+  searchContext: SearchContext;
 }
 
-export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading }) => {
+export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext }) => {
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [calculatingIds, setCalculatingIds] = useState<Set<string>>(new Set());
+
+  let targetDuration = Math.round(
+    (searchContext.duration_months_range[0] + searchContext.duration_months_range[1]) / 2
+  );
+  let targetTotalMileage = Math.round(
+    (searchContext.total_mileage_range[0] + searchContext.total_mileage_range[1]) / 2
+  );
+
+  if (searchContext.exact_mode) {
+    targetDuration = searchContext.exact_duration_months;
+    targetTotalMileage = searchContext.exact_total_mileage;
+  }
+
+  const targetAnnualMileage = Math.round((targetTotalMileage * 12) / targetDuration);
 
   const handleCalculateSingle = useCallback(async (vehicleId: string) => {
     setCalculatingIds(prev => new Set(prev).add(vehicleId));
@@ -66,8 +368,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     } catch (err) {
       console.error('Failed to trigger calculation for', vehicleId, err);
     }
-    // Don't remove from set — it stays as "calculating in background"
-    // User will re-search to see fresh prices
   }, []);
 
   const sortedResults = useMemo(() => {
@@ -78,15 +378,15 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
         break;
       case 'price_asc':
         sorted.sort((a, b) => {
-          const pa = (a.best_monthly_price as number) ?? Infinity;
-          const pb = (b.best_monthly_price as number) ?? Infinity;
+          const pa = (a.best_monthly_price as number) || Infinity;
+          const pb = (b.best_monthly_price as number) || Infinity;
           return pa - pb;
         });
         break;
       case 'price_desc':
         sorted.sort((a, b) => {
-          const pa = (a.best_monthly_price as number) ?? -Infinity;
-          const pb = (b.best_monthly_price as number) ?? -Infinity;
+          const pa = (a.best_monthly_price as number) || 0;
+          const pb = (b.best_monthly_price as number) || 0;
           return pb - pa;
         });
         break;
@@ -122,9 +422,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
             sx={{ fontSize: '0.85rem' }}
           >
             {SORT_OPTIONS.map(opt => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </MenuItem>
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -147,9 +445,13 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{car.brand as string} {car.model as string}</Typography>
-                    {car.trim_level && (
+                    {!!car.trim_level && car.trim_level !== 'Brak' && (
                       <Chip label={car.trim_level as string} size="small" variant="outlined" color="primary"
                         sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '4px' }} />
+                    )}
+                    {(!!car.configuration_code || !!car.offer_number) && (
+                      <Chip label={(car.configuration_code as string) || (car.offer_number as string)} size="small" variant="outlined"
+                        sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '4px', fontFamily: '"Geist Mono", monospace', color: 'slate.600', borderColor: 'slate.300', bgcolor: 'slate.50' }} />
                     )}
                     <Tooltip title="Sprawdź rekord w Ekstrakcji Danych">
                       <IconButton
@@ -165,18 +467,18 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                   <Typography variant="body2" color="textSecondary" sx={{ mt: 0.25 }}>{car.version as string}</Typography>
 
                   {/* ── Spec Badges ── */}
-                  {hasSpecs && (
+                  {!!hasSpecs && (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                      {car.fuel_type && (
+                      {!!car.fuel_type && (
                         <Chip icon={fuelIcon(car.fuel_type as string)} label={car.fuel_type as string} size="small"
                           color={fuelColor(car.fuel_type as string)}
                           variant={fuelColor(car.fuel_type as string) !== 'default' ? 'filled' : 'outlined'}
                           sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
-                      {car.power_hp && (
+                      {!!car.power_hp && (
                         <Chip icon={<SpeedIcon />} label={`${car.power_hp} KM`} size="small" variant="outlined" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
-                      {car.transmission && (
+                      {!!car.transmission && (
                         <Chip icon={<SettingsIcon />}
                           label={(car.transmission as string) === 'Automatyczna' ? 'Automat' : car.transmission as string}
                           size="small"
@@ -184,27 +486,25 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                           variant={(car.transmission as string) === 'Automatyczna' ? 'filled' : 'outlined'}
                           sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
-                      {car.body_style && (
+                      {!!car.body_style && (
                         <Chip icon={<DirectionsCarIcon />} label={car.body_style as string} size="small" variant="outlined" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
-                      {car.drive_type && (
+                      {!!car.drive_type && (
                         <Chip label={(car.drive_type as string).replace(/^Napęd\s*/i, '')} size="small"
                           color={(car.drive_type as string).toLowerCase().includes('awd') || (car.drive_type as string).toLowerCase().includes('4x4') ? 'warning' : 'default'}
                           variant={(car.drive_type as string).toLowerCase().includes('awd') || (car.drive_type as string).toLowerCase().includes('4x4') ? 'filled' : 'outlined'}
                           sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
-                      {car.vehicle_class && (car.vehicle_class as string) !== 'Osobowy' && (
+                      {!!car.vehicle_class && (car.vehicle_class as string) !== 'Osobowy' && (
                         <Chip label={car.vehicle_class as string} size="small" variant="outlined" color="secondary" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                       )}
                     </Box>
                   )}
 
                   {/* ── Catalog Price Breakdown ── */}
-                  {(car.base_price_gross || car.total_price_gross) && (
+                  {!!(car.base_price_gross || car.total_price_gross) && (
                     <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                      <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
-                        Katalog:
-                      </Typography>
+                      <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>Katalog:</Typography>
                       {car.base_price_gross && car.options_price_gross && car.total_price_gross ? (
                         <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
                           <strong>{car.base_price_gross as string}</strong>
@@ -241,39 +541,20 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                   </Typography>
                   <Typography variant="caption" color="textSecondary">Dopasowanie</Typography>
 
-                  {/* LTR Price Block — show price if cached, button if not */}
-                  {car.has_ltr_cache && car.best_monthly_price ? (
-                    <Box sx={{ mt: 0.75, textAlign: 'right', bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1 }}>
-                      <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>Rata LTR:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                        {Number(car.best_monthly_price).toLocaleString('pl-PL')} PLN
-                      </Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.9 }}>netto / mc</Typography>
-                    </Box>
-                  ) : (
-                    <Box sx={{ mt: 0.75 }}>
-                      {isCalculating ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                          <CircularProgress size={16} />
-                          <Typography variant="caption" color="textSecondary">Przeliczanie…</Typography>
-                        </Box>
-                      ) : (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<CalculateIcon />}
-                          onClick={() => handleCalculateSingle(vehicleId)}
-                          sx={{ fontSize: '0.72rem', textTransform: 'none' }}
-                        >
-                          Przelicz LTR
-                        </Button>
-                      )}
-                    </Box>
-                  )}
+                  {/* LTR Price Block — price for selected params */}
+                  <LtrPriceBlock
+                    vehicleId={vehicleId}
+                    hasCache={!!(car.has_ltr_cache)}
+                    bestMonthlyPrice={(car.best_monthly_price as number) || null}
+                    durationMonths={targetDuration}
+                    annualMileage={targetAnnualMileage}
+                    isCalculating={isCalculating}
+                    onCalculate={handleCalculateSingle}
+                  />
 
                   {/* Business badges row */}
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
-                    {car.suggested_discount_pct != null && (car.suggested_discount_pct as number) > 0 && (
+                    {!!car.suggested_discount_pct && (car.suggested_discount_pct as number) > 0 && (
                       <Tooltip title="Sugerowany rabat z bazy dealera">
                         <Chip icon={<LocalOfferIcon />}
                           label={`BD ${car.suggested_discount_pct}%`} size="small"
@@ -281,20 +562,15 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                           sx={{ fontWeight: 700, '& .MuiChip-icon': { fontSize: 14 } }} />
                       </Tooltip>
                     )}
-                    {/* Calc params: service type + tire class */}
-                    {car.service_cost_type && (
-                      <Tooltip title="Typ serwisu użyty w kalkulacji">
+                    {(!!car.service_cost_type || !!car.tire_class) && (
+                      <Tooltip title="Parametry użyte w kalkulacji">
                         <Chip icon={<BuildIcon />}
-                          label={car.service_cost_type as string}
+                          label={[
+                            car.service_cost_type ? `Serwis: ${car.service_cost_type}` : null,
+                            car.tire_class ? `Opony: ${car.tire_class}` : null
+                          ].filter(Boolean).join(' | ')}
                           size="small" variant="outlined"
                           sx={{ fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 14 } }} />
-                      </Tooltip>
-                    )}
-                    {car.tire_class && (
-                      <Tooltip title="Klasa opon użyta w kalkulacji">
-                        <Chip label={`Opony: ${car.tire_class}`}
-                          size="small" variant="outlined"
-                          sx={{ fontSize: '0.65rem' }} />
                       </Tooltip>
                     )}
                   </Box>
@@ -323,6 +599,10 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                   </Box>
                 </Box>
               )}
+
+              {/* ── Row 4: Similar vehicles ── */}
+              <SimilarVehiclesSection vehicleId={vehicleId} />
+
             </CardContent>
           </Card>
         );

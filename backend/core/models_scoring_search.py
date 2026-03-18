@@ -12,6 +12,7 @@ class ScoringRequirement(BaseModel):
 class ScoringSearchRequest(BaseModel):
     brands: Optional[List[str]] = None
     models: Optional[List[str]] = None
+    trims: Optional[List[str]] = None
     samar_class_ids: Optional[List[int]] = None
     requirements: List[ScoringRequirement]
     limit: int = 50
@@ -43,6 +44,8 @@ class ScoringSearchMatch(BaseModel):
     # Calculation parameters
     service_cost_type: Optional[str] = None
     tire_class: Optional[str] = None
+    offer_number: Optional[str] = None
+    configuration_code: Optional[str] = None
 
 class ScoringSearchResponse(BaseModel):
     results: List[ScoringSearchMatch]
@@ -51,6 +54,7 @@ class ScoringSearchResponse(BaseModel):
 class AvailableFiltersRequest(BaseModel):
     brands: Optional[List[str]] = None
     models: Optional[List[str]] = None
+    body_types: Optional[List[str]] = None
     samar_class_ids: Optional[List[int]] = None
     current_filters: Optional[dict[str, Any]] = None
 
@@ -63,8 +67,22 @@ class InitialDataResponse(BaseModel):
     models: List[str]
     brand_model_map: dict[str, List[str]]
     brand_counts: dict[str, int] = {}
+    trim_level_map: dict[str, List[str]] = {}
     samar_classes: List[dict[str, Any]]
     body_types: List[BodyTypeItem] = []
+
+class OptionItem(BaseModel):
+    name: str
+    count: int
+
+class TrimsAndOptionsRequest(BaseModel):
+    brands: Optional[List[str]] = None
+    models: Optional[List[str]] = None
+
+class TrimsAndOptionsResponse(BaseModel):
+    trim_levels: List[OptionItem] = []
+    standard_options: List[OptionItem] = []
+    paid_options: List[OptionItem] = []
 
 class SimilarVehicleMatch(BaseModel):
     vehicle_id: str
@@ -77,3 +95,11 @@ class SimilarVehicleMatch(BaseModel):
     best_monthly_price: Optional[float] = None
     image_url: Optional[str] = None
     similarity_score_pct: Optional[float] = None
+
+
+class PriceForParamsResponse(BaseModel):
+    vehicle_id: str
+    duration_months: Optional[int] = None
+    annual_mileage: Optional[int] = None
+    monthly_price_net: Optional[float] = None
+    found: bool = False

@@ -73,6 +73,16 @@ def get_supabase_client() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY, options=options)
 
 
+def _normalize_brand(brand: str | None) -> str | None:
+    """Normalize brand name: strip diacritics, uppercase, strip whitespace."""
+    import unicodedata as _ud
+
+    if not brand:
+        return brand
+    normalized = _ud.normalize("NFKD", brand).encode("ASCII", "ignore").decode("utf-8")
+    return normalized.strip().upper()
+
+
 def _finalize_vehicle(
     supabase: Client,
     vehicle_id: str,
@@ -86,7 +96,7 @@ def _finalize_vehicle(
 
     Used by both single-vehicle and multi-vehicle flows.
     """
-    brand = parsed_data.get("brand")
+    brand = _normalize_brand(parsed_data.get("brand"))
     model = parsed_data.get("model")
     offer_number = parsed_data.get("offer_number")
     if not offer_number and "metadata" in parsed_data:

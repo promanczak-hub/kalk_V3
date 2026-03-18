@@ -680,12 +680,9 @@ class LTRKalkulator:
                 )
             )
 
-        # V1 parity: GSM (abonament + urządzenie + montaż) jest kosztem dodatkowym
-        # rozkładanym miesięcznie i NIE może podnosić CAPEX.
-        # V1 parity: Do CAPEX-u wchodzi tylko historyczna wartość referencyjna opony "Budżet",
-        # niezależnie od tego czy docelowo płacimy więcej za Premium. Reszta wraca w czynszu techn.
-        tires_capex = self.tires_calc._fetch_budget_tire_cost() if self.tires_calc.z_oponami else 0.0
-
+        # Zmiana względem pierwotnego V1: użytkownik chce by wartość CAPEX wprost
+        # odpowiadała wybranej klasie opon (np. Premium), eliminując niespójność "Ceny zakupu".
+        tires_capex = self.tires_calc.tire_set_price if self.tires_calc.z_oponami else 0.0
         brand = self.vehicle.get("brand", "").strip()
         transport_fee_net = float(getattr(self.input_data, "transport_fee_net", 0.0))
         if brand and transport_fee_net == 0.0:
@@ -1132,6 +1129,8 @@ class LTRKalkulator:
                 "CenaZakupuBezOponIOpcjiSerwisowychIPakietu": capex_res.CenaZakupuBezOponIOpcjiSerwisowychIPakietu,
                 "CenaKatalogowaNetto": capex_res.CenaKatalogowaNetto,
                 "RabatKwotowo": capex_res.RabatKwotowo,
+                "GsmCapexNetto": capex_res.gsm_capex_net,
+                "OpcjeSerwisoweSumaNetto": capex_res.total_service_options,
 
                 # 3. Utrata WartoĹ›ci
                 "WR": vr_samar,
@@ -1150,6 +1149,7 @@ class LTRKalkulator:
                 "LacznyKosztOpon": round(tires_total, 0),
                 "IloscOpon": round(tires_res["IloscOpon"], 0),
                 "Cena1KompletOpon": round(tires_res.get("Cena1KompletOpon", 0.0), 0),
+                "Koszt1KplOpon": round(tires_res.get("Koszt1KplOpon", 0.0), 0),
 
                 # 6. Serwis
                 "LacznieKosztySerwisowe": round(service_total, 0),

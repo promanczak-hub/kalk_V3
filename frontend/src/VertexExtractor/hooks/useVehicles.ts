@@ -12,6 +12,7 @@ export function useVehicles() {
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [liveSearchText, setLiveSearchText] = useState("");
   const [activeEdit, setActiveEdit] = useState<{
     vehicleId: string;
     field: string;
@@ -22,6 +23,41 @@ export function useVehicles() {
   const [searchMatchingIds, setSearchMatchingIds] = useState<string[] | null>(
     initialId ? [initialId] : null
   );
+  const [liveSearchMatchingIds, setLiveSearchMatchingIds] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!liveSearchText.trim()) {
+      setLiveSearchMatchingIds(null);
+      return;
+    }
+    const fetchMatching = async () => {
+      const tokens = liveSearchText
+        .trim()
+        .split(/\s+/)
+        .filter((t) => t.length > 0);
+        
+      if (tokens.length === 0) {
+        setLiveSearchMatchingIds(null);
+        return;
+      }
+      try {
+        const { data, error } = await supabase.rpc("rpc_search_fleet_text", {
+          search_terms: tokens,
+        });
+        if (error) throw error;
+        setLiveSearchMatchingIds(data?.map((r: { id: string }) => r.id) || []);
+      } catch (e) {
+        console.error("Live search failed:", e);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      fetchMatching();
+      setPage(1); // Reset page on new search
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
+  }, [liveSearchText]);
 
   useEffect(() => {
     if (initialId) {
@@ -43,13 +79,24 @@ export function useVehicles() {
         .order("created_at", { ascending: false })
         .range(from, to);
 
-      if (searchMatchingIds !== null) {
-        if (searchMatchingIds.length === 0) {
+      if (searchMatchingIds !== null || liveSearchMatchingIds !== null) {
+        let combined: string[] = [];
+        if (searchMatchingIds !== null && liveSearchMatchingIds !== null) {
+          combined = searchMatchingIds.filter((id) =>
+            liveSearchMatchingIds.includes(id),
+          );
+        } else if (searchMatchingIds !== null) {
+          combined = searchMatchingIds;
+        } else {
+          combined = liveSearchMatchingIds!;
+        }
+
+        if (combined.length === 0) {
           setSavedVehicles([]);
           setTotalCount(0);
           return;
         }
-        q = q.in("id", searchMatchingIds);
+        q = q.in("id", combined);
       }
 
       const { data, count, error } = await q;
@@ -62,11 +109,13 @@ export function useVehicles() {
     } finally {
       setIsLoadingSaved(false);
     }
-  }, [page, pageSize, searchMatchingIds]);
+  }, [page, pageSize, searchMatchingIds, liveSearchMatchingIds]);
 
   const fetchSavedVehicles = useCallback(() => {
     setGlobalSearchQuery("");
     setSearchMatchingIds(null);
+    setLiveSearchText("");
+    setLiveSearchMatchingIds(null);
     if (page === 1) {
       loadData();
     } else {
@@ -326,6 +375,8 @@ export function useVehicles() {
     globalSearchQuery,
     setGlobalSearchQuery,
     isSearching,
+    liveSearchText,
+    setLiveSearchText,
     activeEdit,
     setActiveEdit,
     fetchSavedVehicles,

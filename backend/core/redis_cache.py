@@ -1,9 +1,10 @@
 """Redis cache layer for LTR calculator DB lookups.
 
-Provides a decorator ``redis_cache`` that stores function results in Redis
-with configurable TTL.  Falls back to direct DB calls when Redis is
-unavailable (connection refused, timeout, etc.) — the system never crashes
-because of Redis being down.
+Provides:
+- ``redis_cache`` decorator — stores function results in Redis with configurable
+  TTL.  Falls back to direct DB calls when Redis is unavailable.
+- ``cache_invalidate_pattern`` — bulk-delete keys by glob pattern.
+- ``get_cache_stats`` — lightweight stats dict for health/diagnostics.
 
 Environment variable ``REDIS_URL`` controls the connection.
 Default: ``redis://localhost:6379/0``
@@ -59,6 +60,44 @@ def is_redis_available() -> bool:
     if _redis_available is None:
         _get_client()
     return bool(_redis_available)
+
+
+def cache_invalidate_pattern(pattern: str) -> int:
+    """Delete all Redis keys matching *pattern* (glob).
+
+    Returns the number of deleted keys. Returns 0 if Redis is unavailable.
+    """
+    client = _get_client()
+    if client is None:
+        return 0
+    full_pattern = f"{_PREFIX}{pattern}"
+    keys = list(client.scan_iter(match=full_pattern, count=500))
+    if keys:
+        client.delete(*keys)
+    logger.debug("Invalidated %d Redis keys matching '%s'", len(keys), full_pattern)
+    return len(keys)
+
+
+def get_cache_stats() -> dict[str, Any]:
+    """Return lightweight Redis statistics for health/diagnostics."""
+    client = _get_client()
+    if client is None:
+        return {"available": False, "key_count": 0, "memory_mb": 0.0}
+    try:
+        info = client.info("memory")
+        key_count = sum(
+            client.dbsize()
+            for _ in [None]  # dbsize across current DB
+        )
+        memory_bytes: int = info.get("used_memory", 0)
+        return {
+            "available": True,
+            "key_count": key_count,
+            "memory_mb": round(memory_bytes / (1024 * 1024), 2),
+        }
+    except Exception as exc:
+        logger.debug("Redis stats error: %s", exc)
+        return {"available": False, "key_count": 0, "memory_mb": 0.0}
 
 
 def redis_cache(

@@ -19,6 +19,7 @@ from typing import Any
 
 from google.genai import types
 
+from core.body_type_matcher import BODY_ALIAS_MAP as _BODY_ALIAS_MAP
 from core.database import supabase as sb_client
 from core.feature_resolver import resolve_vehicle_features
 from core.gemini_client import SAFETY_SETTINGS_PERMISSIVE, get_gemini_client
@@ -27,6 +28,14 @@ logger = logging.getLogger(__name__)
 
 # Minimum confidence required to accept an LLM match.
 _CONFIDENCE_THRESHOLD = 0.70
+
+# Lower threshold for package-decomposed features (LLM knowledge, not from doc).
+_PACKAGE_CONFIDENCE_THRESHOLD = 0.75
+
+# Heuristic keywords to detect package names in paid_options.
+_PACKAGE_KEYWORDS: frozenset[str] = frozenset({
+    "pakiet", "pack", "package", "edition", "paket",
+})
 
 # Direct card_summary field → feature_key mappings (text/bool).
 _DIRECT_FIELD_MAP: dict[str, str] = {
@@ -142,6 +151,43 @@ def _normalize_drive_type(raw: str) -> str:
 
     # 3. No match — return as-is (caller should log warning)
     return raw
+
+
+# Known canonical body type names (used to suppress spurious warnings).
+_CANONICAL_BODY_TYPE_NAMES: frozenset[str] = frozenset(
+    {
+        "Hatchback", "Sedan", "Kombi", "SUV", "Liftback", "Coupe", "Cabrio",
+        "Minivan", "Wieloosobowy", "Pickup", "Furgon", "Podwozie",
+        "Furgon Brygadowy", "Podwozie z kabiną", "Van",
+    }
+)
+
+
+def _normalize_body_style(raw: str) -> str:
+    """Normalize raw body_style string to a canonical body_types.name.
+
+    Uses BODY_ALIAS_MAP from body_type_matcher (single source of truth).
+    Falls back to title-cased input if no mapping is found.
+
+    NOTE: Uses exact lookup only (no substring matching) to avoid false
+    positives e.g. 'VAN' substring-matching 'PANEL VAN' alias.
+    """
+    stripped = raw.strip()
+    if not stripped:
+        return raw
+    upper = stripped.upper()
+
+    # 1. Direct alias lookup (exact match on uppercased input)
+    canonical = _BODY_ALIAS_MAP.get(upper)
+    if canonical:
+        return canonical
+
+    # 2. No mapping — normalize casing (SUV/Van stay as-is, rest → Title Case)
+    if upper == "SUV":
+        return "SUV"
+    if upper == "VAN":
+        return "Van"
+    return stripped.title()
 
 
 def _safe_parse_num(raw_value: Any) -> float | None:
@@ -394,6 +440,117 @@ Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
         return []
 
 
+# ── Package Decomposition ─────────────────────────────────────────────────
+
+_PACKAGE_DECOMPOSITION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "packages": {
+            "type": "array",
+            "description": "One entry per input package.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "package_name": {
+                        "type": "string",
+                        "description": "Original package name (verbatim).",
+                    },
+                    "contents": {
+                        "type": "array",
+                        "description": (
+                            "List of individual equipment items "
+                            "included in this package."
+                        ),
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["package_name", "contents"],
+            },
+        },
+    },
+    "required": ["packages"],
+}
+
+
+def _is_package_name(name: str) -> bool:
+    """Heuristic check: does this option name look like a package?"""
+    lower = name.strip().lower()
+    return any(kw in lower for kw in _PACKAGE_KEYWORDS)
+
+
+def _llm_decompose_packages(
+    package_names: list[str],
+    brand: str,
+    model: str,
+) -> dict[str, list[str]]:
+    """Ask LLM to decompose manufacturer packages into sub-features.
+
+    Returns a mapping: package_name -> [sub-feature, ...].
+    If LLM doesn't know a package, it returns an empty list (safe fallback).
+    """
+    if not package_names:
+        return {}
+
+    items_text = "\n".join(f"- {name}" for name in package_names)
+
+    prompt = f"""Jesteś ekspertem ds. wyposażenia pojazdów marki {brand}.
+
+Dla modelu **{brand} {model}**, wypisz elementy składowe (zawartość) każdego
+z poniższych pakietów wyposażeniowych producenta.
+
+Pakiety do rozłożenia:
+{items_text}
+
+ZASADY:
+1. Dla każdego pakietu wypisz konkretne elementy wyposażenia, które w nim
+   są zawarte (np. "Kamera 360°", "Adaptacyjny tempomat ACC", "Asystent
+   martwego pola").
+2. Wypisuj TYLKO elementy, o których masz pewną wiedzę dla tego konkretnego
+   modelu. NIE zgaduj — jeśli nie znasz składu pakietu, zwróć pustą listę.
+3. Każdy element powinien być krótką, precyzyjną nazwą wyposażenia.
+4. Nie powtarzaj nazwy pakietu jako elementu.
+"""
+
+    try:
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                response_mime_type="application/json",
+                response_schema=_PACKAGE_DECOMPOSITION_SCHEMA,
+                safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+            ),
+        )
+        resp_text = getattr(response, "text", "{}") or "{}"
+        result = json.loads(resp_text)
+        packages: list[dict[str, Any]] = result.get("packages", [])
+
+        decomposed: dict[str, list[str]] = {}
+        for pkg in packages:
+            name = pkg.get("package_name", "")
+            contents = pkg.get("contents", [])
+            if name and contents:
+                decomposed[name] = [
+                    c for c in contents if isinstance(c, str) and c.strip()
+                ]
+                logger.info(
+                    "Package '%s' decomposed into %d sub-features",
+                    name,
+                    len(decomposed[name]),
+                )
+        return decomposed
+
+    except Exception as exc:
+        logger.warning(
+            "LLM package decomposition failed for %d packages: %s",
+            len(package_names),
+            exc,
+        )
+        return {}
+
+
 def _load_feature_catalog() -> list[dict[str, Any]]:
     """Load all active universal_features."""
     resp = (
@@ -486,6 +643,72 @@ def enrich_vehicle_features(
             }
         )
 
+    # ── 2a. Package Decomposition → LLM decompose → sub-feature matching ──
+    brand = (
+        card_summary.get("brand")
+        or synthesis_data.get("brand")
+        or synthesis_data.get("card_summary", {}).get("brand", "")
+    ) or ""
+    model_name = (
+        card_summary.get("model")
+        or synthesis_data.get("model")
+        or synthesis_data.get("card_summary", {}).get("model", "")
+    ) or ""
+
+    # Collect package names from paid_options & standard equipment
+    package_names: list[str] = [
+        name for name in opt_names if _is_package_name(name)
+    ]
+    # Also check standard equipment for package names
+    package_names.extend(
+        item for item in std_items if _is_package_name(item)
+    )
+
+    pkg_evidence_count = 0
+    if package_names and brand:
+        decomposed = _llm_decompose_packages(package_names, brand, model_name)
+        all_sub_features: list[str] = []
+        sub_feature_to_package: dict[str, str] = {}
+        for pkg_name, contents in decomposed.items():
+            for sub in contents:
+                all_sub_features.append(sub)
+                sub_feature_to_package[sub] = pkg_name
+
+        if all_sub_features:
+            sub_matches = _llm_match_equipment(all_sub_features, features)
+            for match in sub_matches:
+                feat_id = feature_by_key.get(match["feature_key"])
+                if not feat_id:
+                    continue
+                pkg_origin = sub_feature_to_package.get(
+                    match["item"], "unknown_package"
+                )
+                evidence_batch.append(
+                    {
+                        "source_vehicle_id": vehicle_id,
+                        "feature_id": feat_id,
+                        "source_type": "package_decomposition",
+                        "evidence_status": "inferred",
+                        "value_bool": True,
+                        "value_text": (
+                            f"{match['item']} (z: {pkg_origin})"
+                        ),
+                        "confidence": round(
+                            match["confidence"] * 0.9, 4
+                        ),
+                    }
+                )
+                pkg_evidence_count += 1
+
+        logger.info(
+            "Vehicle %s: decomposed %d packages → %d sub-features → "
+            "%d evidence records",
+            vehicle_id,
+            len(package_names),
+            len(all_sub_features),
+            pkg_evidence_count,
+        )
+
     # ── 2b. Utility Features → LLM match → numeric evidence ──
     utility_features: list[dict] = card_summary.get("utility_features", [])
     valid_utility = [
@@ -545,6 +768,17 @@ def enrich_vehicle_features(
                     if normalized == str_val:
                         logger.warning(
                             "Unknown drive_type value '%s' — not normalized",
+                            str_val,
+                        )
+                    str_val = normalized
+                elif cs_field == "body_style":
+                    normalized = _normalize_body_style(str_val)
+                    if (
+                        normalized == str_val
+                        and str_val not in _CANONICAL_BODY_TYPE_NAMES
+                    ):
+                        logger.warning(
+                            "Unknown body_style value '%s' — stored as-is",
                             str_val,
                         )
                     str_val = normalized
@@ -624,6 +858,8 @@ def enrich_vehicle_features(
         "evidence_matched_from": {
             "standard_equipment": len(std_items),
             "paid_options": len(opt_names),
+            "packages_decomposed": len(package_names),
+            "package_sub_features": pkg_evidence_count,
             "direct_fields": len(_DIRECT_FIELD_MAP),
         },
         "resolve_result": resolve_result,

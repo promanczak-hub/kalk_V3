@@ -610,8 +610,11 @@ class SamarRVCalculator:
         # KROK 4: Korekta przebiegu (V1 PARITY - sztywne 140k twardy start)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         under_rate, over_rate = self._fetch_mileage_corrections()
+        # Odtwarzamy bezpiecznie sztywne progi V1 (parity)
+        # UWAGA: Usunięto ograniczenie max(..., 0) z przebieg_ponizej_190, aby obsłużyć "bonus" 
+        # (redukcję kary) dla mniejszych przebiegów zgodnie z formułami V1.
         
-        przebieg_ponizej_190 = max(min(self.data.total_km, 190000) - 140000, 0)
+        przebieg_ponizej_190 = min(self.data.total_km, 190000) - 140000
         paczki_under = przebieg_ponizej_190 / 10000.0
         
         przebieg_powyzej_190 = max(self.data.total_km - 190000, 0)

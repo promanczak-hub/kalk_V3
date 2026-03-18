@@ -84,8 +84,10 @@ function buildV1SummaryRows(cell: MiniMatrixCell): V1SummaryRow[] {
     { label: "Koszty dodatkowe (admin.: rej, sprzedaz, GSM)", kind: "money", net: cell.Admin },
     { label: "Ilosc opon na kontrakt", kind: "plain", net: Number(cell.IloscOpon || 0).toFixed(2) },
     { label: "Cena zakupu (BUDZET)", kind: "money", net: cell.CenaZakupu, emphasize: true },
-    { label: "Cena jednego kompletu opon", kind: "money", net: cell.Cena1KompletOpon },
+    { label: "Cena jednego kompletu opon", kind: "money", net: cell.Koszt1KplOpon || cell.Cena1KompletOpon },
     { label: "Cena zakupu bez opon", kind: "money", net: cell.CenaZakupuBezOpon },
+    { label: "  - Opcje serwisowe (CAPEX)", kind: "money", net: cell.OpcjeSerwisoweSumaNetto },
+    { label: "  - Urzadzenia i instalacja GSM (CAPEX)", kind: "money", net: cell.GsmCapexNetto },
     { label: "Cena zakupu opcji fabrycznych", kind: "money", net: cell.CenaZakupuBezOponIOpcjiSerwisowych },
     {
       label: "Cena zakupu opcji fabrycznych bez p. serwisowego",

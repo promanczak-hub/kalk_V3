@@ -9,6 +9,10 @@ import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
 import type { ControlCenterSettings } from "../hooks/useCalculator";
+import { Button, Box } from "@mui/material";
+import CalculateOutlinedIcon from "@mui/icons-material/CalculateOutlined";
+import { CreateManualModal } from "../ManualKalkulacje/CreateManualModal";
+import { useNavigate } from "react-router-dom";
 
 export default function VertexExtractorPage() {
   // Read the ?highlight=<uuid> deep-link param on mount, then clean URL
@@ -31,6 +35,8 @@ export default function VertexExtractorPage() {
     globalSearchQuery,
     setGlobalSearchQuery,
     isSearching,
+    liveSearchText,
+    setLiveSearchText,
     fetchSavedVehicles,
     handleGlobalSearch,
     handleDeleteVehicle,
@@ -40,6 +46,8 @@ export default function VertexExtractorPage() {
     totalCount,
   } = useVehicles();
 
+  const navigate = useNavigate();
+  const [manualModalOpen, setManualModalOpen] = useState(false);
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
 
   useEffect(() => {
@@ -73,6 +81,17 @@ export default function VertexExtractorPage() {
     <div className="min-h-screen text-slate-900 font-sans selection:bg-orange-100">
       <main className="w-full px-4 py-8 md:py-16 md:px-8">
 
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<CalculateOutlinedIcon />}
+            onClick={() => setManualModalOpen(true)}
+            sx={{ textTransform: 'none', fontWeight: 500 }}
+          >
+            Nowa kalkulacja manualna
+          </Button>
+        </Box>
+
         <UploadZone onFilesSelected={handleFiles} />
 
         <DocumentList
@@ -88,6 +107,8 @@ export default function VertexExtractorPage() {
           isSearching={isSearching}
           setGlobalSearchQuery={setGlobalSearchQuery}
           handleGlobalSearch={handleGlobalSearch}
+          liveSearchText={liveSearchText}
+          setLiveSearchText={setLiveSearchText}
           fetchSavedVehicles={fetchSavedVehicles}
           handleOpenSavedJson={handleOpenSavedJson}
           handleDeleteVehicle={handleDeleteVehicle}
@@ -105,6 +126,15 @@ export default function VertexExtractorPage() {
         onClose={() => setActiveJsonView(null)}
         onSaveToDatabase={handleSaveToDatabase}
         isSaving={isSaving}
+      />
+
+      <CreateManualModal
+        open={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        onCreated={() => {
+          setManualModalOpen(false);
+          navigate('/kalkulacje');
+        }}
       />
     </div>
   );

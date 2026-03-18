@@ -61,8 +61,20 @@ export interface InitialDataResponse {
   models: string[];
   brand_model_map: Record<string, string[]>;
   brand_counts: Record<string, number>;
+  trim_level_map: Record<string, string[]>;
   samar_classes: SamarClass[];
   body_types: BodyType[];
+}
+
+export interface OptionItem {
+  name: string;
+  count: number;
+}
+
+export interface TrimsAndOptionsResponse {
+  trim_levels: OptionItem[];
+  standard_options: OptionItem[];
+  paid_options: OptionItem[];
 }
 
 // User selections
@@ -80,11 +92,16 @@ export interface SelectedFeature {
 export interface SearchContext {
   brands: string[];
   models: string[];
+  trims: string[];
   samarClassIds: number[];
   bodyTypes: string[];
+  useMatrixFilters: boolean;
   monthly_budget?: number;
   duration_months_range: [number, number];
-  annual_mileage_range: [number, number];
+  total_mileage_range: [number, number];
+  exact_mode: boolean;
+  exact_duration_months: number;
+  exact_total_mileage: number;
   margin_pct?: number;
 }
 
@@ -99,3 +116,4 @@ export interface ScoredVehicle {
   annual_mileage?: number;
   [key: string]: unknown;
 }
+

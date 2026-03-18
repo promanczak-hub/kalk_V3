@@ -185,6 +185,139 @@ function ExpertSelect({ label, value, options, onChange }: {
   );
 }
 
+// ─── Inline Target Price Calculator (zero API calls) ─────────────────────────
+
+const MARGIN_LEVELS = [5, 8, 10, 12, 15, 18, 20, 25];
+
+function marginColor(pct: number): string {
+  if (pct < 0) return "#ef4444";
+  if (pct < 8) return "#f97316";
+  if (pct < 12) return "#eab308";
+  if (pct < 15) return "#84cc16";
+  if (pct < 20) return "#22c55e";
+  return "#06b6d4";
+}
+
+function marginLabel(pct: number): string {
+  if (pct < 0) return "Ujemna";
+  if (pct < 8) return "Poniżej min.";
+  if (pct < 12) return "Minimalna";
+  if (pct < 15) return "Dobra";
+  if (pct < 20) return "Bardzo dobra";
+  return "Wysoka";
+}
+
+function InlineTargetPrice({ cell }: { cell: MiniMatrixCell }) {
+  const [open, setOpen] = useState(false);
+  const [targetInput, setTargetInput] = useState("");
+  const baseCost = cell.KosztyLaczneMC;
+
+  const targetPrice = parseFloat(targetInput.replace(",", ".")) || 0;
+  const impliedMargin = targetPrice > 0 ? (1 - baseCost / targetPrice) * 100 : null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-200">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider hover:text-purple-600 transition-colors"
+      >
+        <span>💰 Jaka marża przy stawce docelowej?</span>
+        <span className="text-[9px]">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="np. 3000"
+                value={targetInput}
+                onChange={(e) => setTargetInput(e.target.value)}
+                className="w-28 text-sm font-semibold p-1.5 pr-10 border border-purple-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-300 bg-white tabular-nums"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">PLN/mc</span>
+            </div>
+            <span className="text-[10px] text-slate-400">
+              Koszt bazowy:{" "}
+              <strong className="text-slate-600">
+                {baseCost.toLocaleString("pl-PL", { maximumFractionDigits: 0 })} PLN
+              </strong>
+            </span>
+          </div>
+
+          {impliedMargin !== null && (
+            <div className="space-y-2">
+              <div
+                className="flex items-center gap-3 p-2.5 rounded-lg"
+                style={{
+                  background: `${marginColor(impliedMargin)}12`,
+                  border: `1px solid ${marginColor(impliedMargin)}30`,
+                }}
+              >
+                <TrendingUp className="w-4 h-4 shrink-0" style={{ color: marginColor(impliedMargin) }} />
+                <div>
+                  <span className="text-base font-black tabular-nums" style={{ color: marginColor(impliedMargin) }}>
+                    {impliedMargin.toFixed(1)}%
+                  </span>
+                  <span className="ml-2 text-[10px] font-semibold text-slate-500">
+                    {marginLabel(impliedMargin)}
+                  </span>
+                </div>
+                <div className="ml-auto text-right">
+                  <div className="text-[9px] text-slate-400">
+                    przy {targetPrice.toLocaleString("pl-PL")} PLN
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1">
+                {MARGIN_LEVELS.slice(0, 8).map((m) => {
+                  const price = Math.round(baseCost / (1 - m / 100));
+                  const isTarget =
+                    impliedMargin >= m - 1.5 && impliedMargin < m + 2;
+                  return (
+                    <div
+                      key={m}
+                      className="p-1.5 rounded text-center"
+                      style={{
+                        background: `${marginColor(m)}10`,
+                        border: `1px solid ${isTarget ? marginColor(m) : marginColor(m) + "30"}`,
+                        boxShadow: isTarget
+                          ? `0 0 0 1.5px ${marginColor(m)}60`
+                          : undefined,
+                      }}
+                    >
+                      <div className="text-[9px] font-bold" style={{ color: marginColor(m) }}>
+                        {m}%
+                      </div>
+                      <div className="text-[10px] font-extrabold text-slate-700 tabular-nums">
+                        {price.toLocaleString("pl-PL")}
+                      </div>
+                      <div className="text-[7px] text-slate-400">PLN</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {targetInput === "" && (
+            <p className="text-[9px] text-slate-400 italic">
+              Wpisz docelową stawkę netto — system wyliczy marżę bez przeliczania.
+            </p>
+          )}
+          {targetPrice > 0 && targetPrice < baseCost && (
+            <p className="text-[9px] text-red-500 font-medium">
+              ⚠ Cena poniżej kosztów — marża ujemna.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Expanded Cell Detail with Expert Mode ───────────────────────────────────
 
 function CellDetail({
@@ -269,6 +402,80 @@ function CellDetail({
         </tfoot>
       </table>
 
+      {/* ── KOREKTA WR (always visible) ─────────────────────────────── */}
+      <div className="mt-3 pt-3 border-t border-slate-200">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Korekta WR</span>
+          {overrides.manual_wr_correction !== 0 && (
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{
+                background:
+                  overrides.manual_wr_correction > 0
+                    ? "rgba(234,179,8,0.15)"
+                    : "rgba(239,68,68,0.12)",
+                color:
+                  overrides.manual_wr_correction > 0 ? "#b45309" : "#dc2626",
+              }}
+            >
+              AKTYWNA{" "}
+              {overrides.manual_wr_correction > 0 ? "+" : ""}
+              {overrides.manual_wr_correction.toLocaleString("pl-PL")} PLN
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            step={500}
+            value={overrides.manual_wr_correction}
+            onChange={(e) =>
+              update({ manual_wr_correction: parseFloat(e.target.value) || 0 })
+            }
+            className="w-28 text-xs p-1.5 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white"
+          />
+          <span className="text-[10px] text-slate-400">PLN</span>
+          <button
+            onClick={onRecalculate}
+            disabled={isRecalculating}
+            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isRecalculating ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <TrendingUp className="w-3 h-3" />
+            )}
+            Przelicz
+          </button>
+          {isModified && (
+            <button
+              onClick={onReset}
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1.5 rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all border border-slate-200"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset
+            </button>
+          )}
+          <div className="ml-auto text-right">
+            <div className="text-[9px] text-slate-400">WR po korekcie</div>
+            <div
+              className="text-xs font-bold tabular-nums"
+              style={{ color: overrides.manual_wr_correction >= 0 ? "#059669" : "#dc2626" }}
+            >
+              {overrides.manual_wr_correction !== 0
+                ? `${fmtPLN(cell.WR + overrides.manual_wr_correction)} PLN`
+                : `${fmtPLN(cell.WR)} PLN`}
+            </div>
+          </div>
+        </div>
+        <p className="mt-1 text-[9px] text-slate-400">
+          Korekta ręczna WR: wyższa wartość rezydualna → niższy czynsz techniczny
+        </p>
+      </div>
+
+      {/* ── CEL CENOWY (zero dodatkowych API calls) ──────────────────── */}
+      <InlineTargetPrice cell={cell} />
+
       {/* Expert Mode Toggle */}
       <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
         <button
@@ -324,13 +531,6 @@ function CellDetail({
                 step={5000}
                 suffix="km"
                 min={5000}
-              />
-              <ExpertNumber
-                label="Korekta WR"
-                value={overrides.manual_wr_correction}
-                onChange={(v) => update({ manual_wr_correction: v })}
-                step={500}
-                suffix="PLN"
               />
             </div>
 
@@ -460,6 +660,9 @@ export function VehicleRowCalculations({
   const [marginRecalculating, setMarginRecalculating] = useState(false);
   const [matrixView, setMatrixView] = useState<"cards" | "heatmap">("heatmap");
   const [mileageMode, setMileageMode] = useState<MileageMode>("contract");
+  
+  const [globalWrCorrection, setGlobalWrCorrection] = useState<number>(0);
+  const [isGlobalWrRecalculating, setIsGlobalWrRecalculating] = useState(false);
 
   // Filter state
   const [filters, setFilters] = useState<MatrixFilters>({
@@ -659,6 +862,7 @@ export function VehicleRowCalculations({
       setOriginalCells(newCells);
       setModifiedCells(new Set());
       setCellOverrides({});
+      setGlobalWrCorrection(0);
 
       // Sync filter margin with the payload's default
       setFilters(prev => ({
@@ -920,6 +1124,41 @@ export function VehicleRowCalculations({
     }
   }, []);
 
+  // ─── Global WR Correction recalculation ────────────────────────────
+
+  const handleGlobalRecalculate = useCallback(async () => {
+    if (!basePayloadRef.current) return;
+    setIsGlobalWrRecalculating(true);
+    try {
+      const baseUrl = API_BASE_URL;
+      const modifiedPayload = {
+        ...basePayloadRef.current,
+        manual_wr_correction: globalWrCorrection,
+      };
+      
+      basePayloadRef.current = modifiedPayload;
+
+      const resp = await fetch(`${baseUrl}/api/calculate-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modifiedPayload),
+      });
+
+      if (!resp.ok) throw new Error("Błąd przeliczania matrycy z korektą WR");
+      const data = await resp.json();
+      const newCells = data.cells || [];
+      
+      setCells(newCells);
+      setOriginalCells(newCells);
+      setModifiedCells(new Set());
+      setCellOverrides({});
+    } catch (err) {
+      console.error("Global WR recalculation error:", err);
+    } finally {
+      setIsGlobalWrRecalculating(false);
+    }
+  }, [globalWrCorrection]);
+
   // ─── Render ──────────────────────────────────────────────────────────────
 
   if (!kalkulacjaId) {
@@ -967,19 +1206,42 @@ export function VehicleRowCalculations({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {modifiedCells.size > 0 && (
-              <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
-                {modifiedCells.size} zmodyfikowana(e)
-              </span>
-            )}
-            <button
-              onClick={fetchMatrix}
-              className="flex items-center text-xs font-semibold px-3 py-1.5 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors"
-            >
-              <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
-              Przelicz ponownie
-            </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              {modifiedCells.size > 0 && (
+                <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
+                  {modifiedCells.size} zmodyfikowana(e)
+                </span>
+              )}
+              <button
+                onClick={fetchMatrix}
+                className="flex items-center text-xs font-semibold px-3 py-1.5 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Reset (odśwież z serwera)
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Globalna Korekta WR</span>
+              <input
+                type="number"
+                step={500}
+                value={globalWrCorrection}
+                onChange={(e) => setGlobalWrCorrection(parseFloat(e.target.value) || 0)}
+                className="w-24 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
+                placeholder="np. -1500"
+              />
+              <span className="text-[10px] text-slate-400">PLN</span>
+              <button
+                onClick={handleGlobalRecalculate}
+                disabled={isGlobalWrRecalculating || loading}
+                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 shadow-sm"
+              >
+                {isGlobalWrRecalculating ? <Loader2 className="w-3 h-3 animate-spin" /> : <TrendingUp className="w-3 h-3" />}
+                Przelicz
+              </button>
+            </div>
           </div>
         </div>
       </Box>

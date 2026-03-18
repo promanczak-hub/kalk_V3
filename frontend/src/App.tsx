@@ -24,6 +24,7 @@ import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
 import { CatalogLibraryPage } from "./VertexExtractor/components/CatalogLibraryPage";
 import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
+import { ManualKalkulacjePage } from "./ManualKalkulacje/ManualKalkulacjePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationProvider";
 import { useAppStore } from "./stores/useAppStore";
@@ -168,6 +169,7 @@ function AppContent() {
             <Route path="/control-center" element={<ControlCenter />} />
             <Route path="/library" element={<CatalogLibraryPage />} />
             <Route path="/search" element={<ScoringSearchPage />} />
+            <Route path="/kalkulacje" element={<ManualKalkulacjePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>

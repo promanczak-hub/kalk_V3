@@ -20,6 +20,8 @@ interface VehicleTableProps {
   isSearching: boolean;
   setGlobalSearchQuery: (query: string) => void;
   handleGlobalSearch: (e: React.FormEvent) => void;
+  liveSearchText: string;
+  setLiveSearchText: (query: string) => void;
   fetchSavedVehicles: () => void;
   handleOpenSavedJson: (vehicleId: string, titleName: string) => void;
   handleDeleteVehicle?: (vehicleId: string) => void;
@@ -38,6 +40,8 @@ export function VehicleTable({
   isSearching: _isSearching,
   setGlobalSearchQuery: _setGlobalSearchQuery,
   handleGlobalSearch: _handleGlobalSearch,
+  liveSearchText,
+  setLiveSearchText,
   fetchSavedVehicles,
   handleOpenSavedJson,
   handleDeleteVehicle,
@@ -55,7 +59,6 @@ export function VehicleTable({
     filteredVehicles,
     setSortKey,
     setDateRange,
-    setLiveSearchText,
     resetFilters,
   } = useVehicleFilters(savedVehicles);
 
@@ -246,7 +249,7 @@ export function VehicleTable({
             sortKey={filters.sortKey}
             sortDir={filters.sortDir}
             onSortKeyChange={setSortKey}
-            liveSearchText={filters.liveSearchText}
+            liveSearchText={liveSearchText}
             onLiveSearchChange={setLiveSearchText}
             dateRange={activeDateRange}
             dateBounds={{

@@ -21,6 +21,7 @@ import { useVehicleDataSync } from "../../hooks/useVehicleDataSync";
 import { useVehicleReadiness } from "../../hooks/useVehicleReadiness";
 import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
 import { useReferenceData } from "../../hooks/useReferenceData";
+import { queuePreloadVehicleFeatures } from "../../hooks/useVehicleFeaturesCache";
 
 // Extracted UI Components
 import { VehicleActionButtons } from "./VehicleActionButtons";
@@ -28,8 +29,55 @@ import { VehicleActionButtons } from "./VehicleActionButtons";
 import { PDFViewerFrame } from "./PDFViewerFrame";
 import { MarkdownViewerModal } from "../MarkdownViewerModal";
 import { VehicleRowCalculations } from "./VehicleRowCalculations";
-import { CatalogCrossRefPanel } from "../CatalogCrossRefPanel";
 
+// Static lists sourced from DB (samar_classes & engines tables) - updated: 2026-03-18
+const ALL_SAMAR_CLASSES: string[] = [
+  "Autobusy - AUTOBUSY",
+  "Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE",
+  "Kombivany - H KOMBI-VANY",
+  "Lekkie dostawcze - KOMBI VAN",
+  "Lekkie dostawcze - VAN",
+  "Minibusy - I MINIBUSY",
+  "Pick-up - PICK-UP",
+  "Podstawowa - A MINI",
+  "Podstawowa - B MAŁE",
+  "Podstawowa - C NIŻSZA ŚREDNIA",
+  "Podstawowa - D ŚREDNIA",
+  "Podstawowa - E WYŻSZA",
+  "Podstawowa - F LUKSUSOWE",
+  "Podstawowa - G SUPER LUKSUSOWE",
+  "Sportowo-rekreacyjne - A MINI",
+  "Sportowo-rekreacyjne - B MAŁE",
+  "Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA",
+  "Sportowo-rekreacyjne - D ŚREDNIA",
+  "Sportowo-rekreacyjne - E WYŻSZA",
+  "Sportowo-rekreacyjne - F LUKSUSOWE",
+  "Sportowo-rekreacyjne - G SUPER LUKSUSOWE",
+  "Średnie dostawcze - ŚREDNIE DOSTAWCZE",
+  "Terenowo-rekreacyjne (SUV) - B MAŁE",
+  "Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA",
+  "Terenowo-rekreacyjne (SUV) - D ŚREDNIA",
+  "Terenowo-rekreacyjne (SUV) - E WYŻSZA",
+  "Terenowo-rekreacyjne (SUV) - F LUKSUSOWE",
+  "Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE",
+  "Vany - B MICROVANY",
+  "Vany - C MINIVANY",
+  "Vany - D VANY",
+  "Vany - E WYŻSZA",
+  "Vany - F LUKSUSOWE",
+];
+
+const ALL_ENGINE_TYPES: string[] = [
+  "Benzyna (PB)",
+  "Benzyna mHEV (PB-mHEV)",
+  "Diesel (ON)",
+  "Diesel mHEV (ON-mHEV)",
+  "Elektryczny (BEV)",
+  "Hybryda (HEV)",
+  "LPG",
+  "Plug-in Hybrid (PHEV)",
+  "Wodór (FCEV)",
+];
 interface VehicleRowCardProps {
   vehicle: FleetVehicleView;
   handleOpenSavedJson: (id: string, titleName: string) => void;
@@ -94,6 +142,14 @@ export function VehicleRowCard({
     if (cs?.is_metalic_paint === false) return false;
     return false;
   }, [vehicle.synthesis_data, vehicle.exterior_color]);
+
+  useEffect(() => {
+    if (vehicle.id) {
+      // Eagerly preload this vehicle's features into the global cache
+      // The hook manages its own internal queue to avoid blasting the API
+      queuePreloadVehicleFeatures(vehicle.id);
+    }
+  }, [vehicle.id]);
 
   // Hook 2: Parametry Finansowe / Formularz Setupu Kalkulatora
   const {
@@ -452,6 +508,16 @@ export function VehicleRowCard({
         .eq("id", vehicle.id);
 
       if (error) throw error;
+      
+      // Optymalizacja UX: Po zapisaniu opcji, automatycznie wyzwalamy weryfikację cech w tle,
+      // żeby sekcja "Cechy Użytkowe" nadążyła za ewentualnymi zmianami w opcjach (np. polem Hak Holowniczy)
+      try {
+        apiFetch(`/api/features/vehicle/${vehicle.id}/enrich-background`, { method: "POST" })
+          .catch(e => console.error("Silent err on bg-enrich:", e));
+      } catch {
+        // silently ignore error
+      }
+
       onRefresh();
     } catch (err) {
       console.error("Error saving options", err);
@@ -793,6 +859,11 @@ export function VehicleRowCard({
   const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
   const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
 
+  const hasValidOfferDiscount = Boolean(parsedOfferDiscountPct && Number(parsedOfferDiscountPct) > 0);
+  
+  // Extend isDealerOffer to include cases where we have an explicitly provided discount percentage
+  const isDealerOfferExtended = isDealerOffer || hasValidOfferDiscount;
+
   const offerDiscountPercentage = parsedOfferDiscountPct
     ? Number(parsedOfferDiscountPct)
     : isDealerOffer && totalCatalogPriceNet > 0
@@ -809,9 +880,16 @@ export function VehicleRowCard({
   // Default final price: base + all factory options + service options (no discount)
   let activeFinalPriceNet = totalCatalogPriceNet + customServiceOptionsPriceTotal;
 
-  if (discountMode === "offer" && isDealerOffer) {
+  if (discountMode === "offer" && isDealerOfferExtended) {
     activeDiscountPct = offerDiscountPercentage;
-    activeFinalPriceNet = offerFinalPriceNet;
+    if (parsedOfferDiscountPct && !hasOfferFinalPrice) {
+      activeFinalPriceNet = 
+        discountableBaseNet * (1 - offerDiscountPercentage / 100)
+        + nonDiscountableOptionsTotal
+        + customServiceOptionsPriceTotal;
+    } else {
+      activeFinalPriceNet = offerFinalPriceNet;
+    }
   } else if (discountMode === "suggested") {
     activeDiscountPct = suggestedDiscountPct;
     // Discount only the discountable portion (base + discountable opts)
@@ -1012,8 +1090,10 @@ export function VehicleRowCard({
         formatCalculatedPrice={formatCalculatedPrice}
         samarCandidates={samarCandidates}
         onSamarCategoryChange={handleSamarCategoryChange}
+        allSamarClasses={ALL_SAMAR_CLASSES}
         engineCandidates={engineCandidates}
         onEngineCategoryChange={handleEngineCategoryChange}
+        allEngineTypes={ALL_ENGINE_TYPES}
         driveType={driveType}
         onDriveTypeChange={handleDriveTypeChange}
         bodyType={localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined}
@@ -1050,12 +1130,6 @@ export function VehicleRowCard({
             <VehicleFeaturesCard
               vehicleId={vehicle.id}
               vehicleTypeHint={localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class}
-            />
-            <CatalogCrossRefPanel
-              vehicleId={vehicle.id}
-              vehicleBrand={vehicle.brand || undefined}
-              vehicleModel={vehicle.model || undefined}
-              targetBasePrice={vehicle.base_price}
             />
           </div>
 

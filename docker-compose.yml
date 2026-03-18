@@ -30,3 +30,28 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["poetry", "run", "celery", "-A", "core.celery_app", "worker", "-B", "--loglevel=info"]
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=production
+      - AUTH_ENABLED=true
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis_data:

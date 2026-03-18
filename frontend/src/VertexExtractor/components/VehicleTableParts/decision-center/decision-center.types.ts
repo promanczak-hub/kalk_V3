@@ -24,6 +24,8 @@ export interface MiniMatrixCell {
   CenaZakupuBezOpon: number;
   CenaZakupuBezOponIOpcjiSerwisowych: number;
   CenaZakupuBezOponIOpcjiSerwisowychIPakietu: number;
+  GsmCapexNetto: number;
+  OpcjeSerwisoweSumaNetto: number;
   CenaKatalogowaNetto: number;
   RabatKwotowo: number;
   WR: number;
@@ -38,6 +40,7 @@ export interface MiniMatrixCell {
   LacznyKosztOpon: number;
   IloscOpon: number;
   Cena1KompletOpon: number;
+  Koszt1KplOpon: number;
   LacznieKosztySerwisowe: number;
   KosztySerwisowe: number;
   LacznieUbezpieczenie: number;

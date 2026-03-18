@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Any, Dict, Optional, List, cast
+from pydantic import BaseModel, Field
+from typing import Any, Dict, Literal, Optional, List, cast
 from datetime import datetime
 import uuid
 import logging
 from core.database import supabase
+from api.schemas.pricing import PricingPatch, PricingResult
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,25 @@ router = APIRouter(prefix="/kalkulacje", tags=["kalkulacje"])
 
 class CreateKalkulacjaRequest(BaseModel):
     stan_json: dict
+    source: Literal["pdf", "manual", "clone"] = "pdf"
+
+
+class CreateManualRequest(BaseModel):
+    """Payload do tworzenia kalkulacji manualnej bez ekstrakcji PDF."""
+
+    brand: str
+    model: str
+    version: str = ""
+    fuel_type: str = ""
+    body_type: str = ""
+    engine_name: str = ""
+    samar_category: str = ""
+    rok: Optional[int] = None
+    # Parametry LTR
+    okres_bazowy: int = Field(default=48)
+    przebieg_bazowy: int = Field(default=140000)
+    # Sekcja cenowa (deterministyczna)
+    pricing: Optional[PricingPatch] = None
 
 
 class AskAiRequest(BaseModel):
@@ -40,6 +60,7 @@ class KalkulacjaResponse(BaseModel):
     id: str
     numer_kalkulacji: str
     status: str
+    source: Optional[str] = "pdf"
     dane_pojazdu: Optional[str]
     cena_netto: Optional[float]
     created_at: str
@@ -51,6 +72,7 @@ class KalkulacjaListItem(BaseModel):
     id: str
     numer_kalkulacji: str
     status: str
+    source: Optional[str] = "pdf"
     dane_pojazdu: Optional[str] = None
     cena_netto: Optional[float] = None
     created_at: str
@@ -73,10 +95,11 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
     short_uuid = uuid.uuid4().hex[:6].upper()
     numer_kalkulacji = f"KALK/{now.year}/{now.month:02d}/{short_uuid}"
 
+    stan = {**req.stan_json, "source": req.source}
     data = {
         "numer_kalkulacji": numer_kalkulacji,
         "status": "szkic_vertex",
-        "stan_json": req.stan_json,
+        "stan_json": stan,
         "dane_pojazdu": dane_pojazdu,
         "cena_netto": cena_netto,
     }
@@ -84,10 +107,63 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
     try:
         res = supabase.table("ltr_kalkulacje").insert(data).execute()
         if not res.data:
-            raise HTTPException(status_code=500, detail="BĹ‚Ä…d przy zapisie do bazy.")
-        return res.data[0]
+            raise HTTPException(status_code=500, detail="Błąd przy zapisie do bazy.")
+        row = res.data[0]
+        row["source"] = req.source
+        return row
     except Exception as e:
-        print(f"Db Error: {e}")
+        logger.exception("POST /kalkulacje failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/manual", response_model=KalkulacjaResponse)
+def create_manual_kalkulacja(req: CreateManualRequest):
+    """Tworzy kalkulację manualną bez ekstrakcji PDF."""
+    now = datetime.now()
+    short_uuid = uuid.uuid4().hex[:6].upper()
+    numer_kalkulacji = f"KALK/{now.year}/{now.month:02d}/{short_uuid}"
+    dane_pojazdu = f"{req.brand} {req.model}".strip() or "Manualna Kalkulacja"
+
+    pricing_dict = req.pricing.model_dump() if req.pricing else None
+    cena_netto = _compute_purchase_price_net(req.pricing) if req.pricing else 0.0
+
+    stan_json: Dict[str, Any] = {
+        "source": "manual",
+        "brand": req.brand,
+        "model": req.model,
+        "version": req.version,
+        "fuel_type": req.fuel_type,
+        "body_type": req.body_type,
+        "engine_name": req.engine_name,
+        "samar_category": req.samar_category,
+        "rok": req.rok,
+        "okres_bazowy": req.okres_bazowy,
+        "przebieg_bazowy": req.przebieg_bazowy,
+        "pricing": pricing_dict,
+        "base_price_net": cena_netto,
+    }
+
+    try:
+        res = (
+            supabase.table("ltr_kalkulacje")
+            .insert(
+                {
+                    "numer_kalkulacji": numer_kalkulacji,
+                    "status": "szkic_vertex",
+                    "stan_json": stan_json,
+                    "dane_pojazdu": dane_pojazdu,
+                    "cena_netto": cena_netto,
+                }
+            )
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(status_code=500, detail="Błąd przy zapisie manualnej kalkulacji.")
+        row = res.data[0]
+        row["source"] = "manual"
+        return row
+    except Exception as e:
+        logger.exception("POST /kalkulacje/manual failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -99,19 +175,54 @@ def _extract_list_fields(row: Dict[str, Any]) -> KalkulacjaListItem:
 
     factory_opts = sj.get("factory_options") or []
     service_opts = sj.get("service_options") or []
+    source = sj.get("source", "pdf")
 
     return KalkulacjaListItem(
         id=row["id"],
         numer_kalkulacji=row["numer_kalkulacji"],
         status=row.get("status", "szkic_vertex"),
+        source=source,
         dane_pojazdu=row.get("dane_pojazdu"),
         cena_netto=row.get("cena_netto"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
-        body_type=vehicle_mapped.get("body_type"),
-        fuel_type=vehicle_mapped.get("fuel_type"),
+        body_type=vehicle_mapped.get("body_type") or sj.get("body_type"),
+        fuel_type=vehicle_mapped.get("fuel_type") or sj.get("fuel_type"),
         discount_pct=discount_block.get("active_discount_pct"),
         options_count=len(factory_opts) + len(service_opts),
+    )
+
+
+def _compute_purchase_price_net(pricing: PricingPatch) -> float:
+    """Deterministyczne obliczenie ceny zakupu netto z panelu cenowego."""
+    discountable = sum(
+        c.amount_net for c in pricing.components if not c.no_discount
+    )
+    non_discountable = sum(
+        c.amount_net for c in pricing.components if c.no_discount
+    )
+    after_discount = discountable * (1 - pricing.discount_pct / 100)
+    return round(after_discount + non_discountable, 2)
+
+
+def _compute_pricing_result(pricing: PricingPatch) -> PricingResult:
+    """Pełny deterministyczny wynik panelu cenowego."""
+    discountable = sum(c.amount_net for c in pricing.components if not c.no_discount)
+    non_discountable = sum(c.amount_net for c in pricing.components if c.no_discount)
+    total_sum = discountable + non_discountable
+    discount_amount = round(discountable * pricing.discount_pct / 100, 2)
+    purchase_price_net = round(discountable - discount_amount + non_discountable, 2)
+    vat_amount = round(purchase_price_net * 0.23, 2)
+    return PricingResult(
+        components=pricing.components,
+        discount_pct=pricing.discount_pct,
+        discountable_sum=round(discountable, 2),
+        non_discountable_sum=round(non_discountable, 2),
+        total_sum_net=round(total_sum, 2),
+        discount_amount=discount_amount,
+        purchase_price_net=purchase_price_net,
+        vat_amount=vat_amount,
+        purchase_price_gross=round(purchase_price_net + vat_amount, 2),
     )
 
 
@@ -185,11 +296,14 @@ def duplicate_kalkulacja(kalk_id: str):
         short_uuid = uuid.uuid4().hex[:6].upper()
         new_numer = f"KALK/{now.year}/{now.month:02d}/{short_uuid}"
 
+        orig_stan = dict(original.get("stan_json") or {})
+        orig_stan["source"] = "clone"
+        orig_name = original.get("dane_pojazdu", "Kalkulacja")
         new_data = {
             "numer_kalkulacji": new_numer,
             "status": "szkic_vertex",
-            "stan_json": original.get("stan_json", {}),
-            "dane_pojazdu": original.get("dane_pojazdu", "Kopia"),
+            "stan_json": orig_stan,
+            "dane_pojazdu": f"KOPIA: {orig_name}",
             "cena_netto": original.get("cena_netto", 0.0),
         }
 
@@ -226,6 +340,59 @@ def update_kalkulacja_status(kalk_id: str, req: StatusUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.patch("/{kalk_id}/pricing", response_model=PricingResult)
+def patch_kalkulacja_pricing(kalk_id: str, patch: PricingPatch):
+    """Aktualizuje sekcję cenową kalkulacji i zwraca obliczony wynik."""
+    try:
+        res = supabase.table("ltr_kalkulacje").select("stan_json").eq("id", kalk_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
+
+        stan = dict(res.data[0].get("stan_json") or {})
+        result = _compute_pricing_result(patch)
+        stan["pricing"] = patch.model_dump()
+        stan["base_price_net"] = result.purchase_price_net
+
+        upd = (
+            supabase.table("ltr_kalkulacje")
+            .update({"stan_json": stan, "cena_netto": result.purchase_price_net})
+            .eq("id", kalk_id)
+            .execute()
+        )
+        if not upd.data:
+            raise HTTPException(status_code=500, detail="Błąd aktualizacji cen")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("PATCH /kalkulacje/%s/pricing failed", kalk_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{kalk_id}/recalculate")
+def recalculate_kalkulacja(kalk_id: str):
+    """Wyzwala przeliczenie matrycy LTR na podstawie bieżącego stan_json."""
+    from api.calculator_core_routes import _trigger_matrix_background
+
+    try:
+        res = supabase.table("ltr_kalkulacje").select("stan_json").eq("id", kalk_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
+
+        stan = res.data[0].get("stan_json") or {}
+        vehicle_id = stan.get("vehicle_id")
+        if not vehicle_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Kalkulacja manualna nie ma przypisanego vehicle_id. Przeliczenie LTR niemożliwe bez powiązania z pojazdem.",
+            )
+        _trigger_matrix_background(vehicle_id=vehicle_id)
+        return {"status": "queued", "vehicle_id": vehicle_id, "kalk_id": kalk_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("POST /kalkulacje/%s/recalculate failed", kalk_id)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

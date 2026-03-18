@@ -1,19 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
-import { ChevronDown, ChevronRight, Loader2, Package, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Package, Settings, FileText, AlertTriangle, ExternalLink } from "lucide-react";
 import VehicleFeaturesCrud from "../VehicleFeaturesCrud";
 import { CatalogFeatureSelectorModal } from "./CatalogFeatureSelectorModal";
-
-interface FeatureItem {
-  feature_key: string;
-  display_name: string;
-  resolved_status: string;
-  resolved_value_bool: boolean | null;
-  resolved_value_text: string | null;
-  resolved_value_num: number | null;
-  confidence_score: number | null;
-  category_name: string;
-}
+import {
+  type FeatureItem,
+  type SuggestedCatalog,
+  featuresCache,
+  fetchFeaturesForCache
+} from "../../hooks/useVehicleFeaturesCache";
 
 interface CategoryGroup {
   name: string;
@@ -24,12 +19,6 @@ interface CategoryGroup {
 interface VehicleFeaturesCardProps {
   vehicleId: string;
   vehicleTypeHint?: string | null;
-}
-
-interface SuggestedCatalog {
-  catalog_id: string;
-  score: number;
-  display_name: string;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -101,56 +90,53 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const [showCrudPanel, setShowCrudPanel] = useState(false);
   const [suggestedCatalog, setSuggestedCatalog] = useState<SuggestedCatalog | null>(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [matchedCatalogs, setMatchedCatalogs] = useState<any[]>([]);
+  const [showCatalogDropdown, setShowCatalogDropdown] = useState(false);
+  const catalogDropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchFeatures = async () => {
-    setLoading(true);
+  // Click-away to close catalog dropdown
+  useEffect(() => {
+    if (!showCatalogDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (catalogDropdownRef.current && !catalogDropdownRef.current.contains(e.target as Node)) {
+        setShowCatalogDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCatalogDropdown]);
+
+  const handleEnrichment = async () => {
+    setEnriching(true);
+    try {
+      const res = await apiFetch(`/api/features/vehicle/${vehicleId}/enrich-background`, { method: "POST" });
+      if (!res.ok) throw new Error("Wystąpił błąd podczas zlecania zadania do Celery.");
+      alert("Rozpoczęto w pełni zautomatyzowaną analizę dokumentów w tle (100% match). Cechy pojawią się po zakończeniu.");
+    } catch (err) {
+      alert("Błąd: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    } finally {
+      setEnriching(false);
+    }
+  };
+
+  const fetchFeatures = async (forceRefetch = false) => {
+    const hasCache = !forceRefetch && featuresCache.has(vehicleId);
+    if (!hasCache) setLoading(true);
+    
     setError(null);
     try {
-      // 1. Fetch from Synthesis Data (Local instant fallback)
-      const vehicleResp = await apiFetch(`/api/kalkulator/pojazd/${vehicleId}`);
-      let instantFeatures: FeatureItem[] = [];
-      if (vehicleResp.ok) {
-        const vehicleData = await vehicleResp.json();
-        const synthDataRaw = vehicleData.synthesis_data || {};
-        const synthData = synthDataRaw.card_summary || {};
-        
-        if (synthDataRaw.suggested_catalog) {
-            setSuggestedCatalog(synthDataRaw.suggested_catalog);
-        } else {
-            setSuggestedCatalog(null);
-        }
-        
-        const stdEq = (synthData.standard_equipment || []).map((name: string, i: number) => ({
-          feature_key: `config_std_${name}_${i}`,
-          display_name: name,
-          resolved_status: "present_confirmed_primary", // Will map to green
-          resolved_value_bool: true,
-          resolved_value_text: null,
-          resolved_value_num: null,
-          confidence_score: 1.0,
-          category_name: "⭐ Konfiguracja (PDF)"
-        }));
-
-        const paidEq = (synthData.paid_options || []).map((opt: any, i: number) => ({
-          feature_key: `config_paid_${opt.name}_${i}`,
-          display_name: opt.name,
-          resolved_status: "present_confirmed_primary", // Will map to green
-          resolved_value_bool: true,
-          resolved_value_text: opt.price,
-          resolved_value_num: null,
-          confidence_score: 1.0,
-          category_name: "⭐ Konfiguracja (PDF)"
-        }));
-        
-        instantFeatures = [...stdEq, ...paidEq];
+      if (!hasCache) {
+          await fetchFeaturesForCache(vehicleId);
       }
-
-      // 2. Fetch from API (Async cross-referenced)
-      const response = await apiFetch(`/api/features/vehicle/${vehicleId}/state`);
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-
+      
+      const cached = featuresCache.get(vehicleId)!;
+      setSuggestedCatalog(cached.suggestedCatalog);
+      
+      const instantFeatures = cached.instantFeatures;
+      const data = cached.data;
+      
       let grouped: CategoryGroup[] = [];
       
       // Add local config features as the first category if they exist
@@ -208,6 +194,18 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
     setRawCategories([]);
     setError(null);
     fetchFeatures();
+    // Fetch matched catalogs for this vehicle
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/catalogs/match?vehicle_id=${vehicleId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMatchedCatalogs(data.catalogs || []);
+        }
+      } catch {
+        // Silent — non-critical
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId]);
 
@@ -222,7 +220,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   useEffect(() => {
     const handleRefresh = (e: CustomEvent) => {
       if (e.detail?.vehicleId === vehicleId) {
-        fetchFeatures();
+        fetchFeatures(true);
       }
     };
     window.addEventListener('refreshVehicleFeatures', handleRefresh as EventListener);
@@ -267,6 +265,87 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
               {totalPresent} / {totalFeatures} potwierdzonych
             </span>
           )}
+          {/* Catalog match badge */}
+          {matchedCatalogs.length > 0 && (
+            <div className="relative" ref={catalogDropdownRef}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCatalogDropdown(prev => !prev);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-colors bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 hover:bg-fuchsia-100"
+                title="Dopasowane cenniki"
+              >
+                <FileText className="w-3 h-3" />
+                {matchedCatalogs.length} {matchedCatalogs.length === 1 ? 'cennik' : matchedCatalogs.length < 5 ? 'cenniki' : 'cenników'}
+              </button>
+              {showCatalogDropdown && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Dopasowane cenniki / dokumenty
+                  </div>
+                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                    {matchedCatalogs.map((cat: any) => (
+                      <div
+                        key={cat.id}
+                        className="px-3 py-2.5 hover:bg-slate-50 transition-colors flex items-center gap-2.5"
+                      >
+                        {cat.extraction_status === 'error' ? (
+                          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        ) : (
+                          <FileText className="w-4 h-4 text-fuchsia-500 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-700 truncate">
+                            {cat.display_name || cat.model_family}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {cat.brand} · {cat.document_type}
+                            {cat.extraction_status === 'error' && ' · ⚠️ Ekstrakcja nieudana'}
+                            {cat.variant_count > 0 && ` · ${cat.variant_count} wariantów`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {cat.score != null && (
+                            <span className="text-[10px] font-bold text-fuchsia-600 bg-fuchsia-50 px-1.5 py-0.5 rounded">
+                              {Math.round(cat.score * 100)}%
+                            </span>
+                          )}
+                          {cat.extraction_status !== 'error' && (
+                            <a
+                              href={`/api/catalogs/${cat.id}/file`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-slate-400 hover:text-fuchsia-600 transition-colors"
+                              title="Otwórz PDF"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEnrichment();
+            }}
+            disabled={enriching}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 disabled:opacity-50"
+            title="Wzbogać cechy w tle z dostępnych dokumentów"
+          >
+            {enriching ? <Loader2 className="w-3 h-3 animate-spin" /> : "✨"}
+            {enriching ? "Analiza w tle..." : "Wzbogać cechy"}
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();

@@ -383,3 +383,70 @@ def trigger_all_vehicles_cache_refresh() -> None:
             refresh_matrix_cache_for_vehicles(ids)
     except Exception as e:
         logger.error("Failed to trigger bulk matrix cache refresh: %s", e)
+
+
+def calculate_live_ltr_tile(
+    vehicle_id: str,
+    duration_months: int,
+    annual_mileage: int,
+) -> Optional[float]:
+    """
+    On-demand calculation of a single LTR tile for a chosen duration/mileage.
+    Returns the monthly_price_net if successful, otherwise None.
+    """
+    try:
+        # 1. Load settings and vehicle data
+        settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
+        if not settings_res.data:
+            logger.error("calculate_live_ltr_tile: Settings not found")
+            return None
+        settings = ControlCenterSettings(**settings_res.data[0])
+
+        v_res = (
+            supabase.table("vehicle_synthesis")
+            .select("id, synthesis_data")
+            .eq("id", vehicle_id)
+            .execute()
+        )
+        if not v_res.data:
+            return None
+        
+        vehicle_row = v_res.data[0]
+        
+        # 2. Build input parameters (margin = 0.0, to be applied later or here)
+        # Note: In cache we store margin=0.0. We should return the 0.0 margin price 
+        # so that rpc_reverse_search or get_price_for_params can apply the active margin from the frontend payload.
+        # Actually, get_price_for_params just returns whatever is there, wait!
+        # The frontend expects the RAW price from cache (margin 0.0), and the exact tile margin will be added by RPC... wait, `get_price_for_params` currently is called from frontend without margin input, and it just returns the cache value (which is margin=0.0). Oh wait, no!
+        # Let's see what get_price_for_params returns.
+        base_input = build_calculator_input(vehicle_row, 0.0)
+        if not base_input:
+            return None
+            
+        calc_input = base_input.model_copy()
+        calc_input.pricing_margin_pct = 0.0
+        calc_input.wibor_pct = float(settings.default_wibor)
+        
+        # Inject the exact pair we want
+        req_total_km = int(round((annual_mileage / 12) * duration_months))
+        calc_input.okres_bazowy = duration_months
+        calc_input.przebieg_bazowy = req_total_km
+        
+        # 3. Calculate grid
+        engine = LTRKalkulator(input_data=calc_input, settings=settings)
+        matrix_cells = engine.build_matrix()
+        
+        # 4. Find the exact cell
+        for cell in matrix_cells:
+            months = int(cell.get("Okres", 0))
+            km_py = int(cell.get("Przebieg", 0))
+            if months == duration_months and km_py == annual_mileage:
+                price = float(cell.get("LacznaStawka", 0.0))
+                if price > 0:
+                    return price
+                    
+        return None
+    except Exception as e:
+        logger.error("Failed live LTR calculation for %s: %s", vehicle_id, e)
+        return None
+

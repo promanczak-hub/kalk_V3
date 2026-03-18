@@ -17,7 +17,6 @@ interface FilterState {
   sortDir: SortDir;
   dateRange: [number, number]; // timestamps
   priceRange: [number, number];
-  liveSearchText: string;
 }
 
 function extractSamarCategory(v: FleetVehicleView): string {
@@ -87,7 +86,6 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     sortDir: "desc",
     dateRange: [0, Infinity],
     priceRange: [0, Infinity],
-    liveSearchText: "",
   });
 
   const activeDateRange = useMemo<[number, number]>(
@@ -124,34 +122,17 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     setFilters((prev) => ({ ...prev, priceRange: range }));
   }, []);
 
-  const setLiveSearchText = useCallback((text: string) => {
-    setFilters((prev) => ({ ...prev, liveSearchText: text }));
-  }, []);
-
   const resetFilters = useCallback(() => {
     setFilters({
       sortKey: "created_at",
       sortDir: "desc",
       dateRange: [0, Infinity],
       priceRange: [0, Infinity],
-      liveSearchText: "",
     });
   }, []);
 
   const filteredVehicles = useMemo(() => {
     let result = [...vehicles];
-
-    // Live search — tokenize and filter
-    const searchText = filters.liveSearchText.trim().toLowerCase();
-    if (searchText.length >= 2) {
-      const tokens = searchText.split(/\s+/).filter((t) => t.length >= 2);
-      if (tokens.length > 0) {
-        result = result.filter((v) => {
-          const haystack = JSON.stringify(v).toLowerCase();
-          return tokens.every((token) => haystack.includes(token));
-        });
-      }
-    }
 
     // Date range filter
     const [dMin, dMax] = activeDateRange;
@@ -215,7 +196,6 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     setSortKey,
     setDateRange,
     setPriceRange,
-    setLiveSearchText,
     resetFilters,
   };
 }
