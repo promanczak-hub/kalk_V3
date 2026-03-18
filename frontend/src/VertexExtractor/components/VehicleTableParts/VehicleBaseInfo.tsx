@@ -41,8 +41,10 @@ interface VehicleBaseInfoProps {
   formatCalculatedPrice: (val: number) => string;
   samarCandidates?: SamarCandidate[];
   onSamarCategoryChange?: (newCategory: string) => void;
+  allSamarClasses?: string[];
   engineCandidates?: EngineCandidate[];
   onEngineCategoryChange?: (newCategory: string) => void;
+  allEngineTypes?: string[];
   driveType?: string;
   onDriveTypeChange?: (newDriveType: string) => void;
   bodyType?: string;
@@ -204,7 +206,7 @@ function BodyTypeTag({ current, dbOptions, onChange, connected }: {
   return (
     <span className="inline-flex items-center h-full">
       <select
-        className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
+        className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0 rounded-r-[5px]" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
         style={{ fontFamily: "'Geist Mono', monospace" }}
         value={selectedValue}
         onClick={(e) => e.stopPropagation()}
@@ -370,8 +372,10 @@ export function VehicleBaseInfo({
   formatCalculatedPrice,
   samarCandidates = [],
   onSamarCategoryChange,
+  allSamarClasses = [],
   engineCandidates = [],
   onEngineCategoryChange,
+  allEngineTypes = [],
   driveType = "",
   onDriveTypeChange,
   bodyType = "",
@@ -512,11 +516,12 @@ export function VehicleBaseInfo({
 
         {/* Line B: Klasyfikacja + serwis + status — zawsze od lewej krawędzi */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-stretch border border-slate-200 rounded-md bg-white overflow-hidden divide-x divide-slate-200 shadow-sm h-[26px]">
+          <div className="flex items-stretch border border-slate-200 rounded-md bg-white divide-x divide-slate-200 shadow-sm h-[26px]">
             {mappedData?.samar_category && onSamarCategoryChange ? (
               <SamarCategoryDropdown
                 currentCategory={mappedData.samar_category}
                 candidates={samarCandidates}
+                allSamarClasses={allSamarClasses}
                 onCategoryChange={onSamarCategoryChange}
                 connected={true}
               />
@@ -527,6 +532,7 @@ export function VehicleBaseInfo({
               <EngineCategoryDropdown
                 currentCategory={mappedData.fuel}
                 candidates={engineCandidates}
+                allEngineTypes={allEngineTypes}
                 onCategoryChange={onEngineCategoryChange}
                 connected={true}
               />
