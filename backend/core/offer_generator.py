@@ -2,7 +2,6 @@ import io
 import os
 import openpyxl
 from openpyxl.styles import Font, PatternFill
-from openpyxl.utils import get_column_letter
 from typing import List, Dict, Any
 
 class ExcelOfferGenerator:

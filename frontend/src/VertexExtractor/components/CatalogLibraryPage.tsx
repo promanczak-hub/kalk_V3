@@ -51,6 +51,8 @@ export function CatalogLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [markdownPreviewId, setMarkdownPreviewId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -74,14 +76,46 @@ export function CatalogLibraryPage() {
   }, [fetchDocuments]);
 
   // ── Preview ───────────────────────────────────────────────────
-  const openPreview = (doc: DocumentLibraryItem) => {
+  const openPreview = async (doc: DocumentLibraryItem) => {
     setPreviewId(doc.id);
-    setPdfUrl(`http://localhost:8000/api/catalogs/${doc.id}/file`);
+    setPdfUrl(null);
+    setPdfError(null);
+    setPdfLoading(true);
+    
+    try {
+      // Fetch the file as a Blob to handle specific JSON error responses directly
+      const res = await fetch(`http://localhost:8000/api/catalogs/${doc.id}/file`);
+      if (!res.ok) {
+        let errorMsg = `HTTP ${res.status} ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData.detail) {
+            errorMsg = typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail);
+          }
+        } catch {
+          // Ignore json parse error
+        }
+        setPdfError(`Serwer zwrócił błąd: ${errorMsg}`);
+        return;
+      }
+      const blob = await res.blob();
+      setPdfUrl(URL.createObjectURL(blob));
+    } catch (err) {
+      console.error("Failed to load PDF:", err);
+      setPdfError("Wystąpił błąd sieci podczas pobierania pliku.");
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const closePreview = () => {
     setPreviewId(null);
+    if (pdfUrl && pdfUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(pdfUrl);
+    }
     setPdfUrl(null);
+    setPdfError(null);
+    setPdfLoading(false);
   };
 
   // ── Delete ────────────────────────────────────────────────────
@@ -321,15 +355,27 @@ export function CatalogLibraryPage() {
 
             {/* Modal body */}
             <div className="flex-1 overflow-hidden relative" style={{ minHeight: "80vh" }}>
-              {pdfUrl ? (
+              {pdfLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-sm text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
+                  Pobieranie pliku podglądu...
+                </div>
+              ) : pdfError ? (
+                <div className="flex items-center justify-center py-20 text-sm text-red-500 bg-red-50 h-full">
+                  <div className="text-center max-w-lg px-6">
+                    <p className="font-semibold text-base mb-2 text-red-700">Plik niedostępny</p>
+                    <p className="whitespace-pre-wrap">{pdfError}</p>
+                  </div>
+                </div>
+              ) : pdfUrl ? (
                 <iframe
                   src={pdfUrl}
-                  className="w-full h-full absolute inset-0 border-0"
+                  className="w-full h-full absolute inset-0 border-0 bg-slate-100"
                   title="PDF Preview"
                 />
               ) : (
                 <div className="flex items-center justify-center py-20 text-sm text-slate-400">
-                  Brak pliku do podglądu
+                   Brak pliku do podglądu
                 </div>
               )}
             </div>

@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Loader2, Database, ExternalLink, FileCode, History, X } from "lucide-react";
+import { Loader2, Database, ExternalLink, History, X } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
@@ -46,8 +46,6 @@ interface VehicleActionButtonsProps {
   handleOpenSavedJson: (id: string, name: string) => void;
   isViewerOpen: boolean;
   setIsViewerOpen: (val: boolean) => void;
-  isMarkdownOpen: boolean;
-  setIsMarkdownOpen: (val: boolean) => void;
   onCalculationCreated: (kalkulacjaId: string, numerKalkulacji: string) => void;
   calculationBlockReason?: string | null;
   priceAudit?: {
@@ -94,7 +92,6 @@ export function VehicleActionButtons({
   handleOpenSavedJson,
   isViewerOpen,
   setIsViewerOpen,
-  setIsMarkdownOpen,
   onCalculationCreated,
   calculationBlockReason,
   priceAudit,
@@ -383,16 +380,6 @@ export function VehicleActionButtons({
 
       {vehicle.raw_pdf_url && (
         <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsMarkdownOpen(true);
-            }}
-            className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 hover:shadow-sm transition-all shadow-sm"
-          >
-            <FileCode className="w-3.5 h-3.5 mr-2" />
-            {"Podgląd MD"}
-          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();

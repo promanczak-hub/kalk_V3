@@ -14,6 +14,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Background
 from pydantic import BaseModel
 
 from core.database import supabase as sb_client
+from core.cross_ref_llm import find_exact_variant_match
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,7 @@ async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
         .select(
             "id, brand, model_family, document_type, "
             "display_name, version_tag, file_type, "
-            "extraction_status, variant_count"
+            "extraction_status, variant_count, extracted_data"
         )
         .ilike("brand", f"%{brand}%")
         .order("uploaded_at", desc=True)
@@ -147,15 +148,42 @@ async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
     )
     catalogs = c_resp.data or []
 
+    vehicle_spec = {
+        "brand": brand,
+        "model": model,
+        "body_style": card.get("body_style", ""),
+        "powertrain": card.get("powertrain", ""),
+        "power_hp": card.get("power_hp"),
+        "drive_type": card.get("drive_type", ""),
+        "transmission": card.get("transmission", ""),
+        "vehicle_class": card.get("vehicle_class", ""),
+        "trim_level": card.get("trim_level", ""),
+        "base_price": card.get("base_price") or synthesis.get("pricing", {}).get("base_price"),
+    }
+
     # Simple score: exact model match = 1.0, same brand = 0.5
     for cat in catalogs:
         cat_model = (cat.get("model_family") or "").strip().lower()
+        base_score = 0.5
         if model and cat_model and model in cat_model:
-            cat["score"] = 1.0
+            base_score = 1.0
         elif model and cat_model and cat_model in model:
-            cat["score"] = 0.9
-        else:
-            cat["score"] = 0.5
+            base_score = 0.9
+
+        # Deep Match
+        exact_variant = None
+        extracted = cat.get("extracted_data") or {}
+        if extracted:
+            variants = extracted.get("variants", [])
+            exact_variant = find_exact_variant_match(vehicle_spec, variants)
+        
+        # Obcięcie wyniku (kara) jeśli cena bazowa pojazdu istnieje, ale brak idealnego wariantu cenowego w cenniku
+        has_base_price = bool(vehicle_spec.get("base_price"))
+        if has_base_price and not exact_variant:
+            base_score = min(base_score, 0.5)
+
+        cat["score"] = base_score
+        cat.pop("extracted_data", None)  # Usuń duży słownik przed wysłaniem
 
     catalogs.sort(key=lambda x: x.get("score", 0), reverse=True)
     return {"catalogs": catalogs}
@@ -351,6 +379,9 @@ async def get_catalog_file(catalog_id: str):
     try:
         file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(storage_path)
     except Exception as exc:
+        exc_str = str(exc)
+        if "404" in exc_str or "Object not found" in exc_str:
+            raise HTTPException(404, f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}") from exc
         raise HTTPException(500, f"File download failed: {exc}") from exc
 
     from fastapi.responses import Response
@@ -398,6 +429,9 @@ async def get_catalog_xlsx_data(catalog_id: str) -> dict[str, Any]:
             row["storage_path"]
         )
     except Exception as exc:
+        exc_str = str(exc)
+        if "404" in exc_str or "Object not found" in exc_str:
+            raise HTTPException(404, f"Plik fizycznie nie istnieje w magazynie danych (Storage): {row['storage_path']}") from exc
         raise HTTPException(500, f"File download failed: {exc}") from exc
 
     from core.catalog_xlsx_parser import parse_xlsx_for_viewer
@@ -489,6 +523,9 @@ async def reprocess_catalog_as_offer(
     try:
         file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(storage_path)
     except Exception as exc:
+        exc_str = str(exc)
+        if "404" in exc_str or "Object not found" in exc_str:
+            raise HTTPException(404, f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}") from exc
         raise HTTPException(500, f"File download failed: {exc}") from exc
         
     import hashlib

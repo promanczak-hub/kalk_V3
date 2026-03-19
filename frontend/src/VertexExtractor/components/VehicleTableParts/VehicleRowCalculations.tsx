@@ -13,6 +13,7 @@ import { MatrixHeatmapView, MatrixViewToggle } from "../../../CalculatorPanel/Ma
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 import type { MiniMatrixCell } from "./decision-center/decision-center.types";
+import { findBestCell } from "./decision-center/decision-center.utils";
 
 interface CellOverrides {
   pricing_margin_pct: number;
@@ -636,7 +637,9 @@ export function VehicleRowCalculations({
   powertrain = "",
   offerNumber = "",
   configCode = "",
-  basePrice = 0
+  basePrice = 0,
+  onBestPriceFound,
+  onSpecificPriceFound
 }: { 
   kalkulacjaId: string; 
   kalkulacjaNumer: string;
@@ -646,6 +649,8 @@ export function VehicleRowCalculations({
   offerNumber?: string;
   configCode?: string;
   basePrice?: number;
+  onBestPriceFound?: (price: number | null) => void;
+  onSpecificPriceFound?: (price: number | null) => void;
 }) {
   const [cells, setCells] = useState<MiniMatrixCell[]>([]);
   const [originalCells, setOriginalCells] = useState<MiniMatrixCell[]>([]);
@@ -864,6 +869,20 @@ export function VehicleRowCalculations({
       setCellOverrides({});
       setGlobalWrCorrection(0);
 
+      // Report best price if callback provided
+      if (onBestPriceFound) {
+        const best = findBestCell(newCells);
+        onBestPriceFound(best ? best.LacznaStawka : null);
+      }
+
+      if (onSpecificPriceFound) {
+        const specificCell = newCells.find((c: MiniMatrixCell) => {
+           const totalKm = c.PrzebiegKontrakt ?? ((c.Okres / 12) * c.Przebieg);
+           return c.Okres === 48 && totalKm === 140000;
+        });
+        onSpecificPriceFound(specificCell ? specificCell.LacznaStawka : null);
+      }
+
       // Sync filter margin with the payload's default
       setFilters(prev => ({
         ...prev,
@@ -875,7 +894,7 @@ export function VehicleRowCalculations({
     } finally {
       setLoading(false);
     }
-  }, [kalkulacjaId, vehicleId, mileageMode]);
+  }, [kalkulacjaId, vehicleId, mileageMode, onBestPriceFound, onSpecificPriceFound]);
 
   useEffect(() => {
     fetchMatrix();

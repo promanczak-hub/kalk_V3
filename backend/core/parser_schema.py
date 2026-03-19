@@ -65,6 +65,14 @@ class MappedOffer(BaseModel):
         None,
         description="Moc silnika w Koniach Mechanicznych (KM), o ile podana w ofercie.",
     )
+    power_kw: Optional[int] = Field(
+        None,
+        description="Moc silnika w Kilowatach (kW), o ile podana w ofercie.",
+    )
+    utility_features: List[dict] = Field(
+        default_factory=list,
+        description="Lista parametrów użytkowych (wymiary, masy, objętości).",
+    )
     transmission: Optional[str] = Field(
         None, description="Rodzaj skrzyni biegów ('manualna' lub 'automatyczna')"
     )

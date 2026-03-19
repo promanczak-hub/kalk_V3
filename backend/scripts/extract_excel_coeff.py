@@ -1,5 +1,4 @@
 import pandas as pd
-import json
 
 EXCEL_PATH = r"C:\Users\proma\Downloads\DRAFT_KALKULATORA_WARTOŚCI_REZYDUALNYCH_ver_aktualna_JŁ_02_02_2026_final.xlsx"
 

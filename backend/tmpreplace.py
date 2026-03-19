@@ -1,5 +1,3 @@
-import os
-import re
 
 file_path = r'd:\kalk_v3\backend\core\prompts.py'
 

@@ -4,10 +4,7 @@ from typing import Any, Dict
 from pydantic import BaseModel
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.responses import Response
-from core.extractor_v2 import process_manual_override_v2
-from core.json_utils import clean_json_response
 from core.background_jobs import process_and_save_document_bg, trigger_cancel
-from core.pipeline_service_option import extract_service_option_from_pdf
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.database import supabase as supabase_client
 
@@ -59,56 +56,10 @@ async def extract_pdf_async(
         )
 
 
-@router.post("/extract/service-option")
-async def extract_service_option(
-    file: UploadFile = File(...),
-) -> Dict[str, Any]:
-    supported_extensions = (".pdf", ".png", ".jpg", ".jpeg", ".webp")
-
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename missing.")
-
-    if not any(file.filename.lower().endswith(ext) for ext in supported_extensions):
-        raise HTTPException(
-            status_code=400, detail="Unsupported file format. Use PDF or Images."
-        )
-
-    try:
-        file_bytes = await file.read()
-        mime_type = file.content_type or "application/pdf"
-
-        # Synchronously call the new LLM pipeline
-        print(f"Extracting Service Option from {file.filename}")
-        extracted_data = extract_service_option_from_pdf(
-            document_data=file_bytes, mime_type=mime_type
-        )
-
-        if not extracted_data:
-            raise HTTPException(status_code=500, detail="Failed to extract data.")
-
-        return extracted_data
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred during service option extraction: {str(e)}",
-        )
 
 
-@router.post("/extract/manual-override")
-async def manual_override(request: ManualOverrideRequest) -> Dict[str, Any]:
-    try:
-        print(f"Processing manual override requested by user: '{request.user_prompt}'")
-        updated_json_str = process_manual_override_v2(
-            request.original_json, request.user_prompt
-        )
-        obj = json.loads(clean_json_response(updated_json_str))
-        return obj  # type: ignore
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred during manual override: {str(e)}",
-        )
+
+
 
 
 class MapDataRequest(BaseModel):
@@ -245,35 +196,7 @@ _MIME_MAP: dict[str, str] = {
 }
 
 
-@router.get("/doc-proxy")
-def proxy_document(url: str):
-    """Universal document proxy — returns correct Content-Type for PDF/XLSX/XLS."""
-    if not url:
-        raise HTTPException(status_code=400, detail="URL is required")
 
-    from urllib.parse import urlparse
-    import os
-
-    try:
-        parsed = urlparse(url)
-        ext = os.path.splitext(parsed.path)[1].lower()
-        media_type = _MIME_MAP.get(ext, "application/octet-stream")
-
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        return Response(
-            content=response.content,
-            media_type=media_type,
-            headers={
-                "Content-Disposition": f'inline; filename="document{ext}"',
-                "Accept-Ranges": "bytes",
-                "Access-Control-Allow-Origin": "*",
-                "Cross-Origin-Resource-Policy": "cross-origin",
-            },
-        )
-    except Exception as e:
-        print(f"Error proxying document: {e}")
-        raise HTTPException(status_code=500, detail="Failed to proxy document")
 
 
 class DeleteVehicleRequest(BaseModel):
@@ -439,7 +362,7 @@ async def compare_vehicles(request: CompareVehiclesRequest) -> Dict[str, Any]:
         # Fetch vehicles
         result = (
             supabase_client.table("vehicle_synthesis")
-            .select("id, brand, model, trim_level, synthesis_data")
+            .select("id, brand, model, synthesis_data")
             .in_("id", request.vehicle_ids)
             .execute()
         )
@@ -450,7 +373,10 @@ async def compare_vehicles(request: CompareVehiclesRequest) -> Dict[str, Any]:
         # Build comparison payloads
         vehicle_payloads = []
         for row in result.data:
-            name = f"{row.get('brand', '?')} {row.get('model', '')} {row.get('trim_level', '')}".strip()
+            synthesis = row.get("synthesis_data") or {}
+            mapped = synthesis.get("mapped_ai_data") or {}
+            trim = mapped.get("trim_level", "")
+            name = f"{row.get('brand', '?')} {row.get('model', '')} {trim}".strip()
             payload = _extract_comparison_payload(row.get("synthesis_data"))
             vehicle_payloads.append({"name": name, "data": payload})
 
@@ -500,20 +426,23 @@ async def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
     try:
         response = (
             supabase_client.table("vehicle_synthesis")
-            .select("id, brand, model, trim_level, synthesis_data, verification_status")
+            .select("id, brand, model, synthesis_data, verification_status")
             .eq("id", vehicle_id)
             .execute()
         )
         if not response.data:
             raise HTTPException(status_code=404, detail="Pojazd nie znaleziony")
         row = response.data[0]
+        synthesis = row.get("synthesis_data") or {}
+        mapped = synthesis.get("mapped_ai_data") or {}
+        trim = mapped.get("trim_level", "")
         return {
             "id": row.get("id"),
             "brand": row.get("brand"),
             "model": row.get("model"),
-            "trim_level": row.get("trim_level"),
+            "trim_level": trim,
             "verification_status": row.get("verification_status"),
-            "synthesis_data": row.get("synthesis_data") or {},
+            "synthesis_data": synthesis,
         }
     except HTTPException:
         raise

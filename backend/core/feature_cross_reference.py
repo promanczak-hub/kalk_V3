@@ -143,6 +143,18 @@ def wipe_vehicle_features(
         evidence_deleted,
         state_deleted,
     )
+
+    # Invalidate Redis cache for feature state
+    from core.redis_cache import _get_client, _PREFIX
+    client = _get_client()
+    if client is not None:
+        try:
+            cache_key = f"{_PREFIX}features_state:{vehicle_id}"
+            client.delete(cache_key)
+            logger.debug("Invalidated Redis cache for %s", cache_key)
+        except Exception as exc:
+            logger.warning("Failed to invalidate cache for %s: %s", vehicle_id, exc)
+
     return {
         "evidence_deleted": evidence_deleted,
         "state_deleted": state_deleted,

@@ -378,7 +378,6 @@ def process_and_save_document_bg(
                 with os.fdopen(fd, "wb") as f:
                     f.write(file_bytes)
 
-                file_size_mb = len(file_bytes) / (1024 * 1024)
                 print(
                     f"[BG TASK] Ekstrakcja Docling z tymczasowego PDF {tmp_pdf_path} "
                     f"[BG TASK] Ekstrakcja z PDF do natywnych bajtów..."
@@ -388,6 +387,11 @@ def process_and_save_document_bg(
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(pdf_extractor.extract_hybrid, tmp_pdf_path)
                     markdown_content, pdf_bytes = future.result(timeout=300)
+
+                # Formatuj otrzymany tekst w poprawny Markdown z wypunktowaniami
+                from core.markdown_formatter import format_markdown_with_llm
+                print(f"[BG TASK] Reformatowanie Markdown ({len(markdown_content)} znaków) przez Gemini Flash...")
+                markdown_content = format_markdown_with_llm(markdown_content)
 
                 router_data = markdown_content
                 router_mime = "text/plain"
@@ -439,6 +443,20 @@ def process_and_save_document_bg(
                     ext = "pdf"
 
                 cat_doc_id = str(uuid.uuid4())
+                
+                brand_val = _normalize_brand(doc_meta.get("brand", "") or "Unknown")
+                model_family_val = _normalize_brand(doc_meta.get("model", "") or "Unknown")
+                catalog_storage_path = f"{brand_val}/{model_family_val}/{cat_doc_id}.{ext}"
+                
+                print(f"[BG TASK] Uploading routed document to catalog-documents: {catalog_storage_path}")
+                try:
+                    supabase.storage.from_("catalog-documents").upload(
+                        path=catalog_storage_path,
+                        file=file_bytes,
+                        file_options={"content-type": mime_type},
+                    )
+                except Exception as u_err:
+                    print(f"[BG TASK ERROR] Failed to upload to catalog-documents: {u_err}")
 
                 _DOC_TYPE_MAP = {
                     "PRICE_LIST": "price_list",
@@ -448,13 +466,13 @@ def process_and_save_document_bg(
                 db_doc_type = _DOC_TYPE_MAP.get(doc_type, "catalog")
                 mds_payload = {
                     "id": cat_doc_id,
-                    "brand": doc_meta.get("brand", "") or "Unknown",
-                    "model_family": doc_meta.get("model", "") or "Unknown",
+                    "brand": brand_val,
+                    "model_family": model_family_val,
                     "document_type": db_doc_type,
                     "display_name": file_name,
                     "is_active": True,
                     "file_type": ext,
-                    "storage_path": storage_path,  # Reuse already uploaded path from Stage 1
+                    "storage_path": catalog_storage_path,
                     "original_filename": file_name,
                     "file_size_bytes": len(file_bytes),
                     "extraction_status": "extracting",
@@ -473,18 +491,28 @@ def process_and_save_document_bg(
 
                 try:
                     cat_result = extract_catalog_variants(mds_payload)
+                    
+                    extracted_data = cat_result.get("extracted_data", {})
+                    update_payload = {
+                        "extraction_status": "ready",
+                        "extracted_data": extracted_data,
+                        "variant_count": cat_result.get("variant_count", 0),
+                        "extracted_at": "now()",
+                    }
+                    
+                    ex_brand = extracted_data.get("brand")
+                    if ex_brand and str(ex_brand).strip() and str(ex_brand).strip().lower() != "unknown":
+                        update_payload["brand"] = str(ex_brand).strip().upper()
+                        
+                    ex_model = extracted_data.get("model_family")
+                    if ex_model and str(ex_model).strip() and str(ex_model).strip().lower() != "unknown":
+                        update_payload["model_family"] = str(ex_model).strip()
+
                     supabase.schema("reverse_search").table(
                         "model_document_sources"
-                    ).update(
-                        {
-                            "extraction_status": "ready",
-                            "extracted_data": cat_result["extracted_data"],
-                            "variant_count": cat_result["variant_count"],
-                            "extracted_at": "now()",
-                        }
-                    ).eq("id", cat_doc_id).execute()
+                    ).update(update_payload).eq("id", cat_doc_id).execute()
                     print(
-                        f"[BG TASK] Wyekstrahowano {cat_result['variant_count']} wariantów do model_document_sources."
+                        f"[BG TASK] Wyekstrahowano {cat_result.get('variant_count', 0)} wariantów do model_document_sources."
                     )
                 except Exception as ex_err:
                     print(f"[BG TASK ERROR] Błąd ekstrakcji wariantów: {ex_err}")
@@ -493,13 +521,12 @@ def process_and_save_document_bg(
                     ).update(
                         {"extraction_status": "error", "extraction_error": str(ex_err)}
                     ).eq("id", cat_doc_id).execute()
+                # Oznaczamy rekord w synthesis jako przeniesiony TYLKO JEŚLI SIĘ UDAŁO
+                _update_progress(supabase, file_id, "moved_to_library")
+                print(f"[BG TASK SUCCESS] Dokument {file_id} przeniesiony do biblioteki.")
             except Exception as mds_err:
-                print(
-                    f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}"
-                )
-
-            # Oznaczamy rekord w synthesis jako przeniesiony
-            _update_progress(supabase, file_id, "moved_to_library")
+                print(f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}")
+                _update_progress(supabase, file_id, f"error: {str(mds_err)[:100]}")
             return
 
         print(
@@ -628,6 +655,7 @@ def process_and_save_document_bg(
             mime_type=gemini_mime,
             on_progress=_pipeline_progress,
             is_cancelled=_pipeline_cancel_check,
+            text_data=router_data if isinstance(router_data, str) else None,
         )
 
         if _is_cancelled(cancel_event):

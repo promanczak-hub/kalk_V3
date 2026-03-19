@@ -827,7 +827,7 @@ class LTRKalkulator:
                     add_grid_pair(m, km_py, total_km_contract)
         else:
             for m in range(12, 85, 12):
-                for km_py in range(10000, 80001, 5000):
+                for km_py in range(10000, 80001, 2500):
                     add_grid_pair(m, km_py)
 
         # Inject requested base period/mileage into the grid.

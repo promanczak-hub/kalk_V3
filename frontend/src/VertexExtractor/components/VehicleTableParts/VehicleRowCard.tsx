@@ -27,7 +27,6 @@ import { queuePreloadVehicleFeatures } from "../../hooks/useVehicleFeaturesCache
 import { VehicleActionButtons } from "./VehicleActionButtons";
 
 import { PDFViewerFrame } from "./PDFViewerFrame";
-import { MarkdownViewerModal } from "../MarkdownViewerModal";
 import { VehicleRowCalculations } from "./VehicleRowCalculations";
 
 // Static lists sourced from DB (samar_classes & engines tables) - updated: 2026-03-18
@@ -108,7 +107,6 @@ export function VehicleRowCard({
 
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [isMarkdownOpen, setIsMarkdownOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
   const [brochureData, setBrochureData] = useState<any | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
@@ -1278,8 +1276,6 @@ export function VehicleRowCard({
                handleOpenSavedJson={handleOpenSavedJson}
                isViewerOpen={isViewerOpen}
                setIsViewerOpen={setIsViewerOpen}
-               isMarkdownOpen={isMarkdownOpen}
-               setIsMarkdownOpen={setIsMarkdownOpen}
                 calculationBlockReason={calculationBlockReason}
                onCalculationCreated={(id, numer) => {
                  setActiveKalkulacjaId(id);
@@ -1314,7 +1310,6 @@ export function VehicleRowCard({
             )}
         </div>
       )}
-
       {isBrochureModalOpen && brochureData && (
          <BrochureBuilderModal 
             vehicle={vehicle}
@@ -1323,13 +1318,6 @@ export function VehicleRowCard({
             onClose={() => setIsBrochureModalOpen(false)} 
          />
       )}
-
-      <MarkdownViewerModal
-        isOpen={isMarkdownOpen}
-        onClose={() => setIsMarkdownOpen(false)}
-        documentId={vehicle.id}
-        source="synthesis"
-      />
     </div>
   );
 }

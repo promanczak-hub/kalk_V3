@@ -75,7 +75,6 @@ export function useVehicles() {
       let q = supabase
         .from("fleet_management_view")
         .select("*", { count: "exact" })
-        .neq("verification_status", "moved_to_library")
         .order("created_at", { ascending: false })
         .range(from, to);
 
@@ -97,6 +96,9 @@ export function useVehicles() {
           return;
         }
         q = q.in("id", combined);
+      } else {
+        // Hide library vehicles from the general list
+        q = q.neq("verification_status", "moved_to_library");
       }
 
       const { data, count, error } = await q;
@@ -136,7 +138,9 @@ export function useVehicles() {
         if (error) throw error;
         if (!data) return;
 
-        if (data.verification_status === "moved_to_library") {
+        const isHighlighted = searchMatchingIds?.includes(vehicleId) || liveSearchMatchingIds?.includes(vehicleId);
+
+        if (data.verification_status === "moved_to_library" && !isHighlighted) {
           setSavedVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
           return;
         }
@@ -153,7 +157,7 @@ export function useVehicles() {
         fetchSavedVehicles();
       }
     },
-    [fetchSavedVehicles],
+    [fetchSavedVehicles, searchMatchingIds, liveSearchMatchingIds],
   );
 
   useEffect(() => {

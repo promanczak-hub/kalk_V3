@@ -1,5 +1,4 @@
 import requests
-import json
 from core.database import supabase
 
 # Get a vehicle ID

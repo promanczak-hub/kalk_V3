@@ -65,6 +65,7 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 - Python 3.12+
 - Poetry
 - Konto Supabase (klucze API w `.env`)
+- **Docker Desktop** (niezbędny do uruchomienia usługi Redis)
 
 ### 2. Konfiguracja zmiennych środowiskowych
 
@@ -72,12 +73,29 @@ Utwórz pliki `.env` w odpowiednich katalogach (patrz sekcja `.env.example` lub 
 
 Dla backendu niezbędne mogą być zmienne dla Supabase oraz Google GenAI (Vertex AI).
 
-### 3. Uruchomienie Backendu
+### 3. Uruchomienie infrastruktury w tle (Redis + Celery)
+
+> [!IMPORTANT]
+> Kalkulacje LTR oraz inne asynchroniczne zadania są teraz całkowicie oddelegowane do **Celery**. Zanim uruchomisz Backend API, upewnij się, że działa lokalny Redis oraz uruchomiony jest proces workera.
+
+**A. Uruchomienie Redisa za pomocą Dockera (w głównym folderze `kalk_v3`):**
+```bash
+docker-compose up -d redis
+```
+
+**B. Uruchomienie lokalnego workera Celery (w folderze `backend`):**
+```bash
+cd backend
+poetry run celery -A core.celery_app worker --pool=solo --loglevel=info
+```
+*(Uwaga: na systemie Windows konieczna jest flaga `--pool=solo` lub korzystanie z WSL)*
+
+### 4. Uruchomienie Backendu
 
 ```bash
 cd backend
 poetry install
-poetry run python main.py
+poetry run python run_dev.py
 ```
 
 > API będzie dostępne pod adresem: `http://localhost:8000`

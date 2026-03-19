@@ -342,14 +342,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-right align-top">
-                    <NetGrossInput
-                      netValue={catalogBasePriceNet}
-                      onChangeNet={setCatalogBasePriceNet}
-                    />
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">
-                    {catalogBasePriceNet > 0 ? fmtPLN(Math.round(catalogBasePriceNet * 1.23)) : "—"}
+                  <td colSpan={2} className="py-2.5 align-top">
+                    <div className="flex justify-end">
+                      <NetGrossInput
+                        netValue={catalogBasePriceNet}
+                        onChangeNet={setCatalogBasePriceNet}
+                      />
+                    </div>
                   </td>
                 </tr>
 

@@ -253,7 +253,7 @@ class CardSummary(BaseModel):
         description="Łączna cena opcji dodatkowo płatnych z walutą i przyrostkiem 'netto' lub 'brutto'. Zwróć 'Brak' jeśli nie znaleziono."
     )
     total_price: str = Field(
-        description="Podsumowanie łączna cena (końcowa / po upuście / oferta dealera) z walutą i przyrostkiem 'netto' lub 'brutto'. Zwróć 'Brak' jeśli nie znaleziono."
+        description="Podsumowanie łączna cena (końcowa / po upuście / oferta dealera) z walutą i przyrostkiem 'netto' lub 'brutto' wywnioskowanym z relacji kwot lub wprost z dokumentu (np. '120 000 PLN netto'). Zwróć 'Brak' jeśli nie znaleziono."
     )
     powertrain: str = Field(
         description=(
@@ -282,7 +282,7 @@ class CardSummary(BaseModel):
     power_hp: Optional[int] = Field(
         None,
         description=(
-            "Wyciągnięta moc pojazdu w koniach mechanicznych (KM) jako liczba całkowita "
+            "Wyciągnięta moc pojazdu in koniach mechanicznych (KM) jako liczba całkowita "
             "(int). Szukaj 'KM', 'HP', 'PS'. Jeśli widzisz tylko 'kW', pomnóż przez 1.36 "
             "i zwróć jako int. Jeśli moc ukryta jest w nazwie wersji (np. 'Crafter Kombi "
             "103 kW'), wyciągnij i przelicz."
@@ -294,6 +294,14 @@ class CardSummary(BaseModel):
     )
     fuel: str = Field(
         description="Rodzaj paliwa / zasilania, np. 'Diesel', 'Benzyna', 'Elektryczny', 'Hybryda PHEV', 'MHEV'. Zwróć 'Brak' jeśli nie znaleziono."
+    )
+    power_kw: Optional[int] = Field(
+        None,
+        description="Wyciągnięta moc pojazdu w kilowatach (kW) jako liczba całkowita (int).",
+    )
+    utility_features: List[UtilityFeatureItem] = Field(
+        default_factory=list,
+        description="Lista parametrów użytkowych (wymiary, masy, objętości) wyciągnięta z tekstu lub tabel.",
     )
     drive_type: Optional[NapedRodzaj] = Field(
         None,
@@ -365,20 +373,6 @@ class CardSummary(BaseModel):
         None,
         description="Wyliczony przez AI sugerowany procent rabatu na podstawie dopasowania auta do oficjalnej macierzy rabatowej (np. 12.5). Zostaw puste, jeśli nie dopasowano.",
     )
-    suggested_discount_source: Optional[str] = Field(
-        None,
-        description="Krótkie uzasadnienie z jakiego wiersza i na jakiej podstawie przyznano dany sugerowany rabat.",
-    )
-    utility_features: list[UtilityFeatureItem] = Field(
-        default_factory=list,
-        description="Lista wszelkich cech użytkowych i wymiarów liczbowych znalezionych w dokumencie. Wyodrębnij pojemność załadunkową, wymiary długość/szerokość/wysokość paki w mm, ładowność (kg), objętość (m3), rozstaw osi, masy całkowite (DMC).",
-    )
-
-
-class BrochureSummary(BaseModel):
-    model_description: str = Field(
-        description="Krótki opis modelu generowany na podstawie broszury, np. 'Elektryczny, kompaktowy SUV wyznaczający nowy język projektowy marki.'"
-    )
     available_powertrains: list[str] = Field(
         description="Zestawienie dostępnych wariantów napędowych, np. ['50 (125 kW)', '60 (150 kW)', '85 (210 kW)']"
     )
@@ -391,7 +385,6 @@ class BrochureSummary(BaseModel):
     key_technologies: list[str] = Field(
         description="Kluczowe nowinki technologiczne uwypuklone w broszurze, np. ['Reflektory Matrix LED', 'System AI MIB4']"
     )
-
 
 class OtherDocumentSummary(BaseModel):
     summary: str = Field(description="Ogólne podsumowanie zawartego dokumentu.")

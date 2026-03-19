@@ -11,12 +11,13 @@ interface SimilarVehicle {
   brand: string;
   model: string;
   version: string;
-  body_type: string;
-  fuel_type: string;
+  samar_category: string;
+  fuel: string;
   transmission: string;
   best_monthly_price: number | null;
   image_url: string | null;
   similarity_score_pct: number | null;
+  suggested_discount_pct?: number | null;
 }
 
 interface SimilarVehiclesProps {
@@ -96,12 +97,19 @@ export const SimilarVehicles: React.FC<SimilarVehiclesProps> = ({ vehicleId }) =
                   </Tooltip>
                   <Divider sx={{ my: 0.5 }} />
                   <Typography variant="caption" display="block" sx={{ fontSize: '0.65rem' }}>
-                    {v.body_type} • {v.fuel_type} • {v.transmission === 'Automatyczna' ? 'Automat' : v.transmission}
+                    {v.samar_category} • {v.fuel} • {v.transmission === 'Automatyczna' ? 'Automat' : v.transmission}
                   </Typography>
                   {v.similarity_score_pct !== null && (
-                     <Typography variant="caption" display="block" color="success.main" sx={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
+                     <Typography variant="caption" display="block" color="success.main" sx={{ fontSize: '0.65rem', fontWeight: 'bold', mb: 0.25 }}>
                        Zgodność opcji: {v.similarity_score_pct}%
                      </Typography>
+                  )}
+                  {v.suggested_discount_pct !== undefined && v.suggested_discount_pct !== null && (
+                    <Box sx={{ display: 'inline-block', bgcolor: 'rgba(0,0,0,0.06)', px: 0.75, py: 0.25, borderRadius: 1, mt: 0.25 }}>
+                       <Typography variant="caption" display="block" sx={{ fontSize: '0.6rem', fontWeight: 600, color: 'text.secondary' }}>
+                         {v.suggested_discount_pct > 0 ? `Rabat katalogowy: ${v.suggested_discount_pct}%` : 'Cena bazowa'}
+                       </Typography>
+                    </Box>
                   )}
                   
                   <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException
 
 from pydantic import BaseModel
 
@@ -19,8 +19,7 @@ from core.feature_cross_reference import (
     cross_reference_vehicle,
     wipe_vehicle_features,
 )
-from core.feature_enrichment import enrich_all_vehicles, enrich_vehicle_features
-from core.feature_importer import import_features_to_db
+from core.feature_enrichment import enrich_vehicle_features
 from core.feature_resolver import resolve_vehicle_features
 from core.models_features import (
     FeatureCatalogResponse,
@@ -33,54 +32,6 @@ from core.models_features import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["features"])
-
-
-# ── Excel Import ───────────────────────────────────────────────
-
-
-@router.post("/features/import-excel")
-async def import_excel_features(
-    file: UploadFile = File(...),
-) -> dict[str, Any]:
-    """Upload Excel file and import features into universal_features."""
-    if not file.filename or not file.filename.endswith(
-        (".xlsx", ".xls"),
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Plik musi być w formacie .xlsx lub .xls",
-        )
-
-    import tempfile
-    from pathlib import Path
-
-    # Save to temp file
-    tmp = tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".xlsx",
-    )
-    try:
-        contents = await file.read()
-        tmp.write(contents)
-        tmp.close()
-
-        result = import_features_to_db(
-            file_path=tmp.name,
-            imported_by="api_upload",
-        )
-        return {
-            "status": "ok",
-            "file_name": file.filename,
-            **result,
-        }
-    except Exception as e:
-        logger.exception("Excel import failed")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Import failed: {e}",
-        ) from e
-    finally:
-        Path(tmp.name).unlink(missing_ok=True)
 
 
 # ── Feature Catalog ────────────────────────────────────────────
@@ -849,30 +800,6 @@ def reverse_search_vehicles(
     )
 
 
-# ── Card Summary Features ─────────────────────────────────────
-
-
-@router.get("/features/card-summary/{vehicle_id}")
-def get_features_card_summary(
-    vehicle_id: str,
-) -> dict[str, Any]:
-    """Get features formatted for card summary display."""
-    sb = supabase
-
-    resp = (
-        sb.schema("reverse_search")
-        .table("universal_features_card_summary_view")
-        .select("*")
-        .eq("source_vehicle_id", vehicle_id)
-        .execute()
-    )
-
-    return {
-        "vehicle_id": vehicle_id,
-        "categories": resp.data,
-    }
-
-
 # ── Brochure Features ─────────────────────────────────────────
 
 
@@ -930,12 +857,6 @@ def enrich_single_vehicle(
     result = enrich_vehicle_features(vehicle_id, synthesis)
     return result
 
-
-@router.post("/features/enrich-all")
-def enrich_all(
-    limit: int = 100,
-) -> dict[str, Any]:
-    """Batch-enrich all vehicles with features from card_summary."""
 
 @router.post("/features/vehicle/{vehicle_id}/enrich-background")
 def enrich_vehicle_background(

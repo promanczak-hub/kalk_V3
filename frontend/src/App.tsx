@@ -28,6 +28,7 @@ import { ManualKalkulacjePage } from "./ManualKalkulacje/ManualKalkulacjePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationProvider";
 import { useAppStore } from "./stores/useAppStore";
+import OfferCartFab from "./components/OfferCart/OfferCartFab";
 
 /**
  * Route definitions — single source of truth for navigation.
@@ -283,6 +284,7 @@ function App() {
       <NotificationProvider>
         <ErrorBoundary fallbackTitle="Krytyczny błąd aplikacji">
           <CommandPalette />
+          <OfferCartFab />
           <AppContent />
         </ErrorBoundary>
       </NotificationProvider>

@@ -153,7 +153,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
         .map(([name, apiFeatures]) => {
           // Filter out features that came from 'spec' because we already show them in the local config group to prevent obvious duplicates
           const processedFeatures = apiFeatures
-             .filter(f => f.resolution_source !== 'spec') // Avoid duplicating the PDF features
              .map(f => {
                // If it's from catalog/price_list, force a custom status to make it purple
                // Normally 'catalog' maps to 'present_inferred'.
@@ -191,7 +190,9 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
 
   useEffect(() => {
     // Auto-load cech po zmianie vehicleId
-    setRawCategories([]);
+    if (!featuresCache.has(vehicleId)) {
+        setRawCategories([]);
+    }
     setError(null);
     fetchFeatures();
     // Fetch matched catalogs for this vehicle

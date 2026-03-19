@@ -42,7 +42,7 @@ _DIRECT_FIELD_MAP: dict[str, str] = {
     "fuel": "paliwo",
     "transmission": "skrzynia_biegow",
     "drive_type": "naped",
-    "body_style": "typ_nadwozia",
+    "body_style": "body_style",
     "number_of_seats": "liczba_miejsc",
     "has_tow_hook": "hak_holowniczy",
     "is_metalic_paint": "lakier_metalik",
@@ -597,6 +597,34 @@ def enrich_vehicle_features(
 
     evidence_batch: list[dict[str, Any]] = []
 
+    # ── 0. Flatten nested utility_features into card_summary for direct mapping ──
+    utility_features_list: list[dict] = card_summary.get("utility_features", [])
+    if isinstance(utility_features_list, list):
+        # Map of partial name in utility_features -> card_summary key
+        utility_to_cs_map = {
+            "Długość": "length_mm",
+            "Szerokość": "width_mm",
+            "Wysokość": "height_mm",
+            "Rozstaw osi": "wheelbase_mm",
+            "Dopuszczalna masa całkowita": "dmc_kg",
+            "Masa własna": "curb_weight_kg",
+            "Ładowność": "payload_kg",
+        }
+        
+        for item in utility_features_list:
+            if not isinstance(item, dict): continue
+            name = item.get("name", "")
+            value = item.get("value", "")
+            
+            for key_match, cs_target in utility_to_cs_map.items():
+                if key_match.lower() == name.strip().lower():
+                    # Only populate if not already present in card_summary
+                    if cs_target not in card_summary or card_summary[cs_target] is None:
+                        parsed = _safe_parse_num(value)
+                        if parsed is not None:
+                            card_summary[cs_target] = parsed
+                            logger.info("Flattened utility feature '%s' -> %s: %s", name, cs_target, parsed)
+
     # ── 1. Standard equipment → LLM match → boolean "present" evidence ──
     std_equipment: list[str] = card_summary.get("standard_equipment", [])
     std_items = [i for i in std_equipment if isinstance(i, str) and i.strip()]
@@ -829,12 +857,21 @@ def enrich_vehicle_features(
     errors: list[str] = []
 
     if evidence_batch:
+        # Deduplicate to prevent Supabase 'ON CONFLICT DO UPDATE command cannot affect row a second time'
+        unique_evidence_map: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for ev in evidence_batch:
+            key = (ev["source_vehicle_id"], ev["feature_id"], ev["source_type"])
+            if key not in unique_evidence_map or ev.get("confidence", 0) > unique_evidence_map[key].get("confidence", 0):
+                unique_evidence_map[key] = ev
+        
+        deduped_batch = list(unique_evidence_map.values())
+
         try:
             sb.schema("reverse_search").table("vehicle_feature_evidence").upsert(
-                evidence_batch,
+                deduped_batch,
                 on_conflict="source_vehicle_id,feature_id,source_type",
             ).execute()
-            created_count = len(evidence_batch)
+            created_count = len(deduped_batch)
         except Exception as exc:
             msg = f"Evidence batch upsert error: {exc}"
             errors.append(msg)

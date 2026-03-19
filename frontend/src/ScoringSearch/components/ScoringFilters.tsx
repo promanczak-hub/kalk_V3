@@ -11,6 +11,7 @@ import type {
   AvailableFiltersResponse, SearchContext, SelectedFeature, EnumFilter, InitialDataResponse,
   TrimsAndOptionsResponse, OptionItem,
 } from '../types';
+import { AdaptiveSliderField } from './AdaptiveSliderField';
 
 interface ScoringFiltersProps {
   searchContext: SearchContext;
@@ -270,7 +271,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     const facets: EnumFilter[] = [];
     for (const group of data.facet_groups) {
       for (const filter of group.filters) {
-        if (filter.items && filter.items.length > 0) facets.push(filter);
+        if (filter.items && filter.items.length > 0 && filter.key !== 'body_style') facets.push(filter);
       }
     }
     return facets;
@@ -548,18 +549,22 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             </>
           )}
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-            <TextField
-              label="Marża min (%)" type="number" size="small"
-              value={searchContext.margin_pct}
-              onChange={(e) => onContextChange({ ...searchContext, margin_pct: parseFloat(e.target.value) || 0 })}
-            />
-            <TextField
-              label="Max Rata (Netto)" type="number" size="small"
-              value={searchContext.monthly_budget || ''}
-              onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
-            />
-          </Box>
+        </Box>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 2 }}>
+          <AdaptiveSliderField
+            label="Marża min (%)"
+            min={0}
+            max={100}
+            value={searchContext.margin_pct || 0}
+            onChange={(val) => onContextChange({ ...searchContext, margin_pct: val })}
+          />
+          <TextField
+            label="Max Rata (Netto)" type="number" size="small"
+            value={searchContext.monthly_budget || ''}
+            onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
+            sx={{ flex: 1 }}
+          />
         </Box>
       </Section>
 

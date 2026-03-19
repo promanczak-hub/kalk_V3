@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv("../frontend/.env.local")
 
-from core.extractor_v2 import extract_vehicle_data_v2
+from core.extractor_v2 import extract_vehicle_data_v2  # noqa: E402
 
 file_path = "2810 JET - Opel Combo Cargo Załogowy L2 XL 102KM Diesel Manual.pdf"
 

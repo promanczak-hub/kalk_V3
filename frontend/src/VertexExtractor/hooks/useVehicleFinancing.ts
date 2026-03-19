@@ -86,8 +86,13 @@ export function useVehicleFinancing(
 
     if (setup.financial_params) {
       const fp = setup.financial_params;
-      if (fp.wibor_pct != null) setWiborPct(fp.wibor_pct);
-      if (fp.margin_pct != null) setMarginPct(fp.margin_pct);
+      
+      // Zawsze nadpisuj WIBOR i Marżę Bankową aktualnymi wartościami globalnymi (nie dziedzicz starych, zapisanych w pojeżdzie)
+      if (globalSettings) {
+        setWiborPct(globalSettings.default_wibor ?? 5.85);
+        setMarginPct(globalSettings.bank_spread ?? 2.0);
+      }
+      
       if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);
       if (fp.initial_deposit_pct != null) setInitialDepositPct(fp.initial_deposit_pct);
       if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);

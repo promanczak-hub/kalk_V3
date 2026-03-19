@@ -10,8 +10,10 @@ from core.prompts import (
 )
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
+
+from core.extractor_models import UtilityFeatureItem
 
 
 class EquipmentItem(BaseModel):
@@ -38,6 +40,7 @@ class FlatVehicleExtractionSchema(BaseModel):
     upholstery: Optional[str] = None
     standard_equipment: List[str]
     optional_equipment: List[EquipmentItem]
+    utility_features: List[UtilityFeatureItem] = Field(default_factory=list)
 
 
 def _call_gemini_pro(client, contents) -> dict:
@@ -134,6 +137,7 @@ def _call_gemini_flash(client, contents) -> dict:
                 },
                 "standard_equipment": fallback_data.get("standard_equipment", []),
                 "optional_equipment": fallback_data.get("optional_equipment", []),
+                "utility_features": fallback_data.get("utility_features", []),
             },
         }
 
@@ -156,7 +160,7 @@ def _call_gemini_flash(client, contents) -> dict:
 
 
 def extract_digital_twin_from_pdf(
-    document_data: Union[str, bytes], mime_type: str = "application/pdf"
+    document_data: Union[str, bytes], mime_type: str = "application/pdf", text_data: Optional[str] = None
 ) -> dict:
     """
     Extracts a raw JSON digital twin representation of the document using Gemini 2.5 Pro.
@@ -164,12 +168,15 @@ def extract_digital_twin_from_pdf(
     """
     client = get_gemini_client()
 
+    contents: list[types.Part] = []
+
+    if text_data:
+        contents.append(types.Part.from_text(text=f"--- EXTRACTED TEXT (MARKDOWN) ---\n{text_data}\n--- END EXTRACTED TEXT ---\n\nThe original document is attached below. Use BOTH the markdown text and the visual document to extract all features, dimensions, weights, and packages. Pay special attention to visual diagrams with measurements."))
+
     if isinstance(document_data, bytes):
-        contents: list[types.Part] = [
-            types.Part.from_bytes(data=document_data, mime_type=mime_type),
-        ]
+        contents.append(types.Part.from_bytes(data=document_data, mime_type=mime_type))
     else:
-        contents = [types.Part.from_text(text=document_data)]
+        contents.append(types.Part.from_text(text=document_data))
 
     twin_pro = _call_gemini_pro(client, contents)
 

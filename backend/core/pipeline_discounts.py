@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Any, cast
 
 from google.genai import types
 from core.database import supabase
@@ -50,49 +49,6 @@ def match_fleet_discount(pro_data: dict) -> dict:
         if not discount_rows:
             return pro_data
 
-        # ── Brand pre-check: skip LLM if brand doesn't exist in DB ──
-        # NOTE: Extend this mapping when adding new brand aliases.
-        # Future improvement: move to a DB table (e.g. brand_aliases).
-        brand_aliases: dict[str, set[str]] = {
-            "volkswagen": {"vw", "volkswagen", "vw osobowe", "vw dostawcze"},
-            "vw": {"vw", "volkswagen", "vw osobowe", "vw dostawcze"},
-            "vw osobowe": {"vw", "volkswagen", "vw osobowe"},
-            "vw dostawcze": {"vw", "volkswagen", "vw dostawcze"},
-            "seat": {"seat", "seat/cupra", "cupra"},
-            "cupra": {"seat", "seat/cupra", "cupra"},
-            "seat/cupra": {"seat", "seat/cupra", "cupra"},
-            "ds": {"ds", "ds automobiles"},
-            "ds automobiles": {"ds", "ds automobiles"},
-            "mercedes": {"mercedes", "mercedes-benz"},
-            "mercedes-benz": {"mercedes", "mercedes-benz"},
-        }
-
-        db_brands_raw: set[str] = {
-            (str(cast(dict[str, Any], row).get("marka") or "")).strip().lower()
-            for row in discount_rows
-            if isinstance(row, dict)
-        }
-        db_brands_raw.discard("")
-
-        # Expand DB brands with aliases
-        db_brands_expanded: set[str] = set()
-        for db_brand in db_brands_raw:
-            db_brands_expanded.add(db_brand)
-            db_brands_expanded.update(brand_aliases.get(db_brand, set()))
-
-        vehicle_brand_lower = extracted_brand.strip().lower()
-        vehicle_brand_aliases = brand_aliases.get(
-            vehicle_brand_lower, {vehicle_brand_lower}
-        )
-
-        if not vehicle_brand_aliases & db_brands_expanded:
-            logger.info(
-                "Brand '%s' not found in tabela_rabaty "
-                "(available: %s). Skipping LLM call.",
-                extracted_brand,
-                sorted(db_brands_raw),
-            )
-            return pro_data
 
         # Build explicit pricing for the prompt to easily do the math (hide total_price to strictly prevent LLM calculation)
         extracted_pricing = {

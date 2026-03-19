@@ -5,8 +5,8 @@ across margin/mileage variants via Pydantic model_copy().
 """
 
 import logging
-import asyncio
-from typing import Any, Dict, List, Optional
+
+from typing import Any, Dict, Optional, cast
 
 from core.database import supabase
 from core.models import ControlCenterSettings
@@ -23,7 +23,7 @@ CACHE_MARGINS_PCT = [0.0]  # Only base cost; margin applied dynamically in RPC
 # natively across all period buckets (12-84 months).
 
 # ── In-memory progress store ──
-_cache_progress: Dict[str, Dict[str, Any]] = {}
+_cache_progress: dict[str, dict[str, Any]] = {}
 
 
 def get_cache_progress(job_id: str) -> Optional[Dict[str, Any]]:
@@ -86,11 +86,16 @@ def _detect_price_domain(card_summary: Dict[str, Any]) -> str:
 def build_calculator_input(
     vehicle_row: Dict[str, Any],
     margin_pct: float,
+    settings: ControlCenterSettings,
 ) -> Optional[CalculatorInput]:
-    """Build CalculatorInput from a vehicle_synthesis row."""
+    """Build CalculatorInput from a vehicle_synthesis row.
+
+    Aligns with frontend useVehicleFinancing.ts defaults.
+    """
     vid = vehicle_row.get("id")
     sd = vehicle_row.get("synthesis_data") or {}
     cs = sd.get("card_summary") or {}
+    setup = sd.get("calculator_setup") or {}
 
     # ── Price domain detection (robust chain) ──
     price_domain = _detect_price_domain(cs)
@@ -100,54 +105,51 @@ def build_calculator_input(
         logger.warning(
             "[MATRIX CACHE] vehicle=%s: _price_domain='unknown' — "
             "nie udało się ustalić netto/brutto. Domyślnie traktuję "
-            "jako BRUTTO (bezpieczniejsze założenie dla polskich ofert).",
+            "jako BRUTTO.",
             vid,
         )
 
     # ── Base price extraction ──
-    parsed_prices = cs.get("parsed_prices") or {}
-    base_price_raw = (
-        cs.get("base_price") or parsed_prices.get("base") or 0.0
-    )
-
-    # Fallback to universal_features or computed if CS is missing
-    if not base_price_raw:
-        univ = sd.get("universal_features") or {}
-        comp = sd.get("computed") or {}
+    # Priority: calculator_setup > card_summary > parsed_prices
+    base_price_raw = setup.get("catalog_base_price_net")
+    if base_price_raw:
+        base_price_net = float(base_price_raw)
+    else:
+        parsed_prices = cs.get("parsed_prices") or {}
         base_price_raw = (
-            univ.get("cena_pojazdu") or comp.get("estimated_price") or 0.0
+            cs.get("base_price") or parsed_prices.get("base") or 0.0
         )
+        if not base_price_raw:
+            univ = sd.get("universal_features") or {}
+            comp = sd.get("computed") or {}
+            base_price_raw = (
+                univ.get("cena_pojazdu") or comp.get("estimated_price") or 0.0
+            )
 
-    if not base_price_raw:
-        logger.warning("Skipping %s: No base_price found", vid)
-        return None
-
-    base_price_net = _parse_price_to_net(base_price_raw, is_brutto)
+        if not base_price_raw:
+            logger.warning("Skipping %s: No base_price found", vid)
+            return None
+        base_price_net = _parse_price_to_net(base_price_raw, is_brutto)
 
     if base_price_net <= 0:
-        logger.warning(
-            "Skipping %s: base_price_net=%.2f (invalid, raw=%s)",
-            vid,
-            base_price_net,
-            base_price_raw,
-        )
+        logger.warning("Skipping %s: base_price_net invalid", vid)
         return None
 
-    discount_pct = float(cs.get("suggested_discount_pct") or 0.0)
-
-    # ── Price conversion trace (GEMINI.md §7) ──
-    logger.info(
-        "[PRICE TRACE] vehicle=%s | raw=%s | domain=%s | "
-        "is_brutto=%s | net=%.2f | discount=%.1f%%",
-        vid,
-        base_price_raw,
-        price_domain,
-        is_brutto,
-        base_price_net,
-        discount_pct,
+    # ── Discount extraction ──
+    # Priority: calculator_setup > card_summary
+    discount_pct = float(
+        setup.get("discount", {}).get("active_discount_pct")
+        or cs.get("suggested_discount_pct")
+        or 0.0
     )
 
-    # ── Paid options with category-aware flags ──
+    # ── Metalic paint ──
+    # Priority: calculator_setup > card_summary
+    is_metalic = setup.get("is_metalic")
+    if is_metalic is None:
+        is_metalic = cs.get("is_metalic_paint", False)
+
+    # ── Paid options ──
     factory_options_list: list[VehicleOptions] = []
     service_options_list: list[VehicleOptions] = []
 
@@ -181,23 +183,34 @@ def build_calculator_input(
         else:
             factory_options_list.append(option_item)
 
-    # ── Wheel size ──
-    srednica_felgi = 18
-    try:
+    # ── Toggles ──
+    toggles = setup.get("toggles") or {}
+    z_oponami = toggles.get("include_tires", True)  # Custom fallback
+    include_servicing = toggles.get("include_servicing", True)
+    replacement_car = toggles.get("replacement_car", True)
+    add_hook = toggles.get("hook_installation", False)
+
+    # ── Tire parameters ──
+    tire_params = setup.get("tire_params") or {}
+    klasa_opony = tire_params.get("tire_class", "Medium")
+    srednica_felgi = tire_params.get("rim_diameter")
+
+    if not srednica_felgi:
+        # Fallback to simple regex on wheels field
+        import re
+
+        wheels_str = cs.get("wheels", "")
+        if wheels_str and wheels_str != "Brak":
+            m = re.search(r"\b(1[3-9]|2[0-4])\b", str(wheels_str))
+            if m:
+                srednica_felgi = int(m.group(1))
+
+    if not srednica_felgi:
+        # Final fallback from computed or default 18
         computed = sd.get("computed") or {}
-        if computed.get("srednica_felgi"):
-            srednica_felgi = int(computed["srednica_felgi"])
-        else:
-            import re
+        srednica_felgi = int(computed.get("srednica_felgi") or 18)
 
-            wheels_str = cs.get("wheels", "")
-            if wheels_str and wheels_str != "Brak":
-                m = re.search(r"\b(1[3-9]|2[0-4])\b", str(wheels_str))
-                if m:
-                    srednica_felgi = int(m.group(1))
-    except Exception as ex:
-        logger.warning("Could not parse wheel size for %s: %s", vid, ex)
-
+    # ── Final input construction ──
     calc_input = CalculatorInput(
         vehicle_id=str(vid),
         base_price_net=base_price_net,
@@ -205,23 +218,26 @@ def build_calculator_input(
         factory_options=factory_options_list,
         service_options=service_options_list,
         pricing_margin_pct=margin_pct,
-        margin_pct=2.0,
-        wibor_pct=5.85,
+        margin_pct=float(settings.bank_spread or 2.0),
+        wibor_pct=float(settings.default_wibor or 5.85),
         matrix_km_mode="annual",
         okres_bazowy=48,
         przebieg_bazowy=140000,
-        z_oponami=True,
+        z_oponami=z_oponami,
+        klasa_opony_string=klasa_opony,
         srednica_felgi=srednica_felgi,
-        include_servicing=True,
-        replacement_car_enabled=True,
-        service_cost_type="ASO",
+        include_servicing=include_servicing,
+        replacement_car_enabled=replacement_car,
+        add_hook_installation=add_hook,
+        service_cost_type=setup.get("service_cost_type", "ASO"),
+        is_metalic=is_metalic,
     )
 
     return calc_input
 
 
 def refresh_matrix_cache_for_vehicles(
-    vehicle_ids: List[str],
+    vehicle_ids: list[str],
     job_id: Optional[str] = None,
 ) -> None:
     """Synchronously refresh the matrix cache for a list of vehicle IDs."""
@@ -240,7 +256,8 @@ def refresh_matrix_cache_for_vehicles(
     if not settings_res.data:
         logger.error("Control center settings not found")
         return
-    settings = ControlCenterSettings(**settings_res.data[0])
+    settings_dict = cast(dict[str, Any], settings_res.data[0])
+    settings = ControlCenterSettings(**settings_dict)
 
     # Fetch vehicles
     v_res = (
@@ -255,7 +272,7 @@ def refresh_matrix_cache_for_vehicles(
     total_vehicles = len(vehicles)
 
     for v_idx, v in enumerate(vehicles):
-        vid = v["id"]
+        vid = str(v["id"])
 
         # ── Progress update ──
         if job_id:
@@ -269,7 +286,7 @@ def refresh_matrix_cache_for_vehicles(
         # ──────────────────────────────────────────────
         # KEY OPTIMISATION: build input ONCE per vehicle
         # ──────────────────────────────────────────────
-        base_input = build_calculator_input(v, 0.0)
+        base_input = build_calculator_input(v, 0.0, settings)
         if not base_input:
             continue
 
@@ -278,7 +295,6 @@ def refresh_matrix_cache_for_vehicles(
             calc_input = base_input.model_copy(
                 update={"pricing_margin_pct": margin}
             )
-            calc_input.wibor_pct = float(settings.default_wibor)
 
             # Collect cells from all mileage variants
             all_cells: list[dict[str, Any]] = []
@@ -354,19 +370,6 @@ def refresh_matrix_cache_for_vehicles(
     logger.info("Matrix cache refresh complete")
 
 
-async def async_refresh_matrix_cache(
-    vehicle_ids: List[str],
-    job_id: Optional[str] = None,
-) -> None:
-    """Async wrapper for the background task."""
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(
-        None,
-        refresh_matrix_cache_for_vehicles,
-        vehicle_ids,
-        job_id,
-    )
-
 
 def trigger_all_vehicles_cache_refresh() -> None:
     """Fetches all verified vehicles and refreshes their matrix cache."""
@@ -377,8 +380,8 @@ def trigger_all_vehicles_cache_refresh() -> None:
             .eq("verification_status", "completed")
             .execute()
         )
-        vehicles = v_res.data or []
-        ids = [v["id"] for v in vehicles]
+        vehicles_list = cast(list[dict[str, Any]], v_res.data or [])
+        ids = [str(v["id"]) for v in vehicles_list]
         if ids:
             refresh_matrix_cache_for_vehicles(ids)
     except Exception as e:
@@ -400,7 +403,8 @@ def calculate_live_ltr_tile(
         if not settings_res.data:
             logger.error("calculate_live_ltr_tile: Settings not found")
             return None
-        settings = ControlCenterSettings(**settings_res.data[0])
+        settings_dict = cast(dict[str, Any], settings_res.data[0])
+        settings = ControlCenterSettings(**settings_dict)
 
         v_res = (
             supabase.table("vehicle_synthesis")
@@ -411,7 +415,7 @@ def calculate_live_ltr_tile(
         if not v_res.data:
             return None
         
-        vehicle_row = v_res.data[0]
+        vehicle_row = cast(dict[str, Any], v_res.data[0])
         
         # 2. Build input parameters (margin = 0.0, to be applied later or here)
         # Note: In cache we store margin=0.0. We should return the 0.0 margin price 
@@ -419,13 +423,12 @@ def calculate_live_ltr_tile(
         # Actually, get_price_for_params just returns whatever is there, wait!
         # The frontend expects the RAW price from cache (margin 0.0), and the exact tile margin will be added by RPC... wait, `get_price_for_params` currently is called from frontend without margin input, and it just returns the cache value (which is margin=0.0). Oh wait, no!
         # Let's see what get_price_for_params returns.
-        base_input = build_calculator_input(vehicle_row, 0.0)
+        base_input = build_calculator_input(vehicle_row, 0.0, settings)
         if not base_input:
             return None
             
         calc_input = base_input.model_copy()
         calc_input.pricing_margin_pct = 0.0
-        calc_input.wibor_pct = float(settings.default_wibor)
         
         # Inject the exact pair we want
         req_total_km = int(round((annual_mileage / 12) * duration_months))

@@ -138,6 +138,7 @@ def extract_multi_vehicle_twins(
     document_data: Union[str, bytes],
     mime_type: str = "application/pdf",
     expected_count: int = 2,
+    text_data: str | None = None,
 ) -> list[dict]:
     """
     Full multi-vehicle extraction using Gemini Pro.
@@ -150,6 +151,9 @@ def extract_multi_vehicle_twins(
     """
     client = get_gemini_client()
     contents = _build_document_parts(document_data, mime_type)
+    
+    if text_data:
+        contents.append(types.Part.from_text(text=f"--- EXTRACTED TEXT (MARKDOWN) ---\n{text_data}\n--- END EXTRACTED TEXT ---\n\nThe original document is attached below. Use BOTH the markdown text and the visual document to extract all features, dimensions, weights, and packages. Pay special attention to visual diagrams with measurements."))
 
     config = types.GenerateContentConfig(
         temperature=0.0,
@@ -194,6 +198,7 @@ def extract_multi_vehicle_twins(
 def detect_and_split_vehicles(
     document_data: Union[str, bytes],
     mime_type: str = "application/pdf",
+    text_data: str | None = None,
 ) -> list[dict] | None:
     """
     Main entry point for Phase 0.
@@ -212,7 +217,7 @@ def detect_and_split_vehicles(
         count,
     )
     vehicles = extract_multi_vehicle_twins(
-        document_data, mime_type, expected_count=count
+        document_data, mime_type, expected_count=count, text_data=text_data
     )
 
     if len(vehicles) < 2:

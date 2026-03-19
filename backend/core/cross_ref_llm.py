@@ -262,9 +262,21 @@ def rank_catalogs_for_vehicle(
 
             rank_data = score_map.get(cat["id"])
             if rank_data:
+                score = rank_data.relevance_score
+                reasoning = rank_data.reasoning
+                has_base_price = bool(vehicle_spec.get("base_price"))
+                
+                if has_base_price and score > 0.5:
+                    penalty = min(score, 0.5)
+                    reasoning = (
+                        f"Oryginalna ocena LLM: {score}. "
+                        f"Zastosowano KARĘ ({penalty}): Cennik nie posiada wariantu o identycznej cenie co pojazd docelowy."
+                    )
+                    score = penalty
+
                 cat["_ranking"] = {
-                    "score": rank_data.relevance_score,
-                    "reasoning": rank_data.reasoning,
+                    "score": score,
+                    "reasoning": reasoning,
                 }
             else:
                 cat["_ranking"] = {

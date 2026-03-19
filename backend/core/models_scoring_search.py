@@ -89,8 +89,8 @@ class SimilarVehicleMatch(BaseModel):
     brand: Optional[str] = None
     model: Optional[str] = None
     version: Optional[str] = None
-    body_type: Optional[str] = None
-    fuel_type: Optional[str] = None
+    samar_category: Optional[str] = None
+    fuel: Optional[str] = None
     transmission: Optional[str] = None
     best_monthly_price: Optional[float] = None
     image_url: Optional[str] = None
@@ -102,4 +102,5 @@ class PriceForParamsResponse(BaseModel):
     duration_months: Optional[int] = None
     annual_mileage: Optional[int] = None
     monthly_price_net: Optional[float] = None
+    calculated_at: Optional[str] = None
     found: bool = False

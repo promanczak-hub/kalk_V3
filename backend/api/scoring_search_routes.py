@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, HTTPException
@@ -321,19 +321,23 @@ async def get_price_for_params(
                     duration_months=duration_months,
                     annual_mileage=annual_mileage,
                     monthly_price_net=round(display_price, 2),
+                    calculated_at=calculated_at.isoformat() if hasattr(calculated_at, 'isoformat') else str(calculated_at) if calculated_at else None,
                     found=True,
                 )
 
         # 3. Live calculation (either no cache, no exact match, or stale cache)
         logger.info(f"Running live calculation for vehicle {vehicle_id} (Stale or Missing Cache)")
-        live_price = await calculate_live_ltr_tile(vehicle_id, duration_months, annual_mileage, margin)
+        live_base_price = calculate_live_ltr_tile(vehicle_id, duration_months, annual_mileage)
         
-        if live_price is not None:
+        if live_base_price is not None:
+            # Apply margin
+            display_price = live_base_price / (1.0 - (margin / 100.0))
             return PriceForParamsResponse(
                 vehicle_id=vehicle_id,
                 duration_months=duration_months,
                 annual_mileage=annual_mileage,
-                monthly_price_net=live_price,
+                monthly_price_net=round(display_price, 2),
+                calculated_at=datetime.now(timezone.utc).isoformat(),
                 found=True,
             )
 

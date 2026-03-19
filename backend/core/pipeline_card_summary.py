@@ -211,6 +211,21 @@ def _extract_from_pages(pages: list) -> dict:
                         result.setdefault("engine_capacity", val)
                     elif "cylindr" in lbl:
                         result.setdefault("cylinders", val)
+                    elif any(
+                        k in lbl
+                        for k in [
+                            "długoś",
+                            "szeroko",
+                            "wysoko",
+                            "rozstaw",
+                            "ładowno",
+                            "masa",
+                            "pojemno",
+                            "wymiar",
+                        ]
+                    ):
+                        uf_list = result.setdefault("utility_features", [])
+                        uf_list.append({"name": row.get("label", ""), "value": val})
 
             # --- Emissions from vehicle config ---
             vehicle = item.get("vehicle", {})
@@ -580,7 +595,36 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
                 card_summary["power_range"] = "HIGH (201 KM i więcej)"
             print(f"[BACKFILL] power_range: '{card_summary['power_range']}'")
 
-    # --- 7. Deterministic paint type override ---
+    # --- 8. Power KW ---
+    current_kw = card_summary.get("power_kw")
+    if not current_kw:
+        # Try to extract from technical_data (if available in DT)
+        kw_val = _deep_get(digital_twin, "technical_data.power_kw")
+        if not kw_val:
+            # Try to extract from engine_performance
+            max_p_val = _deep_get(
+                digital_twin, "technical_data.engine_performance.max_power"
+            )
+            if max_p_val and isinstance(max_p_val, str):
+                import re
+
+                kw_match = re.search(r"(\d+)\s*kW", max_p_val, re.IGNORECASE)
+                if kw_match:
+                    kw_val = int(kw_match.group(1))
+
+        if kw_val:
+            card_summary["power_kw"] = int(kw_val)
+            print(f"[BACKFILL] power_kw: {kw_val} kW")
+
+    # --- 9. Utility Features ---
+    if not card_summary.get("utility_features"):
+        # Try to extract from technical_data (if available in DT)
+        uf = _deep_get(digital_twin, "technical_data.utility_features")
+        if uf and isinstance(uf, list):
+            card_summary["utility_features"] = uf
+            print(f"[BACKFILL] utility_features: {len(uf)} items matched from DT")
+
+    # --- 10. Deterministic paint type override ---
     # AI sometimes misclassifies metallic paint as non-metallic.
     # Override is_metalic_paint based on keywords in exterior_color.
     exterior_color = str(card_summary.get("exterior_color", "")).strip().lower()

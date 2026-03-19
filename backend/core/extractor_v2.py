@@ -20,6 +20,7 @@ def extract_vehicle_data_v2(
     mime_type: str = "application/pdf",
     on_progress: Optional[ProgressCallback] = None,
     is_cancelled: Optional[CancelCheck] = None,
+    text_data: Optional[str] = None,
 ) -> str:
     """
     Orchestrates the modular extraction pipeline:
@@ -40,7 +41,7 @@ def extract_vehicle_data_v2(
     try:
         # 1. Digital Twin extraction (Gemini Pro — najdłuższy krok)
         _progress("extracting_twin")
-        pro_data = extract_digital_twin_from_pdf(document_data, mime_type)
+        pro_data = extract_digital_twin_from_pdf(document_data, mime_type, text_data=text_data)
         if not pro_data:
             logger.error("Digital twin extraction returned empty result")
             raise ValueError(

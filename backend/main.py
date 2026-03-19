@@ -38,6 +38,7 @@ from api.calculator_core_routes import router as calculator_core_router
 from api.vehicle_features_crud_routes import router as vehicle_features_crud_router
 from api.pdf_parser_routes import router as pdf_parser_router
 from api.scoring_search_routes import router as scoring_search_router
+from api.oferty_routes import router as oferty_router
 from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
@@ -90,6 +91,7 @@ app.include_router(calculator_core_router, prefix="/api")
 app.include_router(vehicle_features_crud_router, prefix="/api")
 app.include_router(pdf_parser_router, prefix="/api")
 app.include_router(scoring_search_router, prefix="/api")
+app.include_router(oferty_router, prefix="/api/offers", tags=["Oferty"])
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

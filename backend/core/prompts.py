@@ -181,11 +181,12 @@ Wyciągnij liczbę miejsc siedzących (łącznie z kierowcą) z danych techniczn
 - Jeśli brak informacji o układzie siedzeń lub ilości miejsc w konfiguracji, cenniku lub innej analizowanej broszurze, bezwzględnie zostaw to pole jako null. Zostanie ono ewentualnie wzbogacone później przy pomocy słowników cech użytkowych.
 
 CECHY UŻYTKOWE, TECHNICZNE I WYMIARY (utility_features):
-Znajdź w sekcjach danych technicznych (Technical Data lub w dowolnych tabelach z wymiarami) wszystkie parametry fizyczne i techniczne pojazdu. 
+Znajdź w sekcjach danych technicznych (Technical Data lub w dowolnych tabelach z wymiarami) oraz na RYSUNKACH TECHNICZNYCH I SZKICACH wszystkie parametry fizyczne i techniczne pojazdu. 
 - ZAKAZ HARDKODOWANIA MAREK I TYPÓW! Dotyczy to KAŻDEGO pojazdu, niezależnie czy to osobówka, czy dostawczak.
-- Szukaj: mas (masa własna, DMC, dopuszczalna ładowność, masa przyczepy), wymiarów zewnętrznych (długość, szerokość, wysokość, rozstaw osi, prześwit), wymiarów wewnętrznych (pojemność bagażnika w litrach, wymiary paki), a także innych cech mierzalnych.
-- Wypisz je wszystkie na listę obiektów zachowując oryginalną nazwę atrybutu i jego wartość z jednostką (np. "400 l", "1500 kg", "4500 mm", "14.4 m3").
-- Bądź odważny! Wyciągaj absolutnie każdą fizyczną, mierzalną cechę techniczną z jednostką, jaką tylko znajdziesz w zestawieniach.
+- Otrzymałeś jako wejście surowe strony dokumentu (obraz) oraz wyodrębniony tekst. Pamiętaj, aby uważnie "patrzeć" na wizualne aspekty dokumentu: schematy furgonów, rzuty na zewnątrz z przyłożoną "linijką" (strzałki z wymiarami w mm) - z nich również odczytuj długości, wysokości i pojemności!
+- Szukaj: mas (masa własna, DMC, dopuszczalna ładowność, masa przyczepy), wymiarów zewnętrznych (długość, szerokość, wysokość, rozstaw osi, prześwit), wymiarów wewnętrznych (pojemność bagażnika w litrach, wymiary przestrzeni ładunkowej, objętość paki w m3), a także innych cech mierzalnych.
+- Wypisz je wszystkie na listę obiektów zachowując oryginalną nazwę atrybutu (jeśli brak etykiety tekstowej, wymyśl ją precyzyjnie na podstawie rysunku, np. "Długość przestrzeni ładunkowej (rzut)") i jego wartość z jednostką (np. "400 l", "1500 kg", "4500 mm", "14.4 m3").
+- Bądź odważny! Wyciągaj absolutnie każdą fizyczną, mierzalną cechę techniczną z jednostką, jaką tylko znajdziesz w zestawieniach oraz na obrazkach.
 UWAGA KRYTYCZNA: Jeśli dokument to oferta na JEDEN KONKRETNY SAMOCHÓD (np. L3H3), a na końcu dokumentu znajduje się ogólna tabela/cennik z dziesiątkami innych wariantów (np. L2H2, L4H3) - BEZWZGLĘDNIE ODCZYTAJ WYMIARY TYLKO Z KOLUMNY/WIERSZA PASUJĄCEGO DO TWOJEGO KONKRETNEGO POJAZDU. Nie wypisuj wymiarów dla innych wersji nadwozia czy silnika.
 """
 

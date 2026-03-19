@@ -14,8 +14,11 @@ import CalculateIcon from '@mui/icons-material/Calculate';
 import BuildIcon from '@mui/icons-material/Build';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { apiFetch } from '../../lib/api';
 import type { SearchContext } from '../types';
+import { useOfferCartStore } from '../../stores/offerCartStore';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
@@ -50,6 +53,7 @@ interface PriceForParams {
   duration_months: number | null;
   annual_mileage: number | null;
   monthly_price_net: number | null;
+  calculated_at: string | null;
   found: boolean;
 }
 
@@ -88,9 +92,18 @@ function usePriceForParams(
         if (!cancelled) setLoading(false);
       }
     };
+
+    const handleRefreshEvent = () => {
+      if (!cancelled) doFetch();
+    };
+
+    window.addEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     
     doFetch();
-    return () => { cancelled = true; };
+    return () => { 
+      cancelled = true; 
+      window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
+    };
   }, [vehicleId, hasCache, durationMonths, annualMileage]);
 
   return { price, loading };
@@ -172,11 +185,13 @@ interface LtrPriceBlockProps {
   annualMileage: number;
   isCalculating: boolean;
   onCalculate: (id: string) => void;
+  suggestedDiscountPct?: number | null;
+  marginPct?: number;
 }
 
 const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
   vehicleId, hasCache, bestMonthlyPrice, durationMonths, annualMileage,
-  isCalculating, onCalculate,
+  isCalculating, onCalculate, suggestedDiscountPct, marginPct = 0,
 }) => {
   const { price, loading } = usePriceForParams(
     vehicleId, !!hasCache, durationMonths, annualMileage
@@ -208,47 +223,105 @@ const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
     );
   }
 
-  const displayPrice = price?.found && price.monthly_price_net != null
+  const rawPrice = price?.found && price.monthly_price_net != null
     ? price.monthly_price_net
     : bestMonthlyPrice;
+  const m = Math.min(marginPct, 99) / 100.0;
+  const displayPrice = rawPrice != null && m < 1.0 ? rawPrice / (1.0 - m) : null;
 
   const paramLabel = price?.found && price.duration_months != null && price.annual_mileage != null
     ? `${price.duration_months} mc / ${((price.annual_mileage * price.duration_months / 12) / 1000).toFixed(0)}k km`
     : null;
 
   return (
-    <Box sx={{ mt: 0.75, textAlign: 'right', bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1 }}>
-      <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>Rata LTR:</Typography>
+    <Box sx={{ mt: 0.75, textAlign: 'right', bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 1, borderRadius: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>Rata LTR:</Typography>
+        {suggestedDiscountPct !== undefined && suggestedDiscountPct !== null && (
+          <Box
+            sx={{
+              display: 'inline-block',
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              bgcolor: 'rgba(255,255,255,0.2)',
+              px: 0.75,
+              py: 0.25,
+              borderRadius: 1,
+            }}
+          >
+            {suggestedDiscountPct > 0 ? `Rabat: ${suggestedDiscountPct}%` : 'Cena katalogowa'}
+          </Box>
+        )}
+      </Box>
       {loading ? (
         <Skeleton variant="text" width={80} sx={{ ml: 'auto', bgcolor: 'rgba(255,255,255,0.2)' }} />
       ) : (
-        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+        <Typography variant="body1" sx={{ fontWeight: 'bold', mt: 0.5 }}>
           {Number(displayPrice).toLocaleString('pl-PL')} PLN
         </Typography>
       )}
       {paramLabel && !loading && (
-        <Tooltip title="Cena dla wybranych parametrów">
-          <Typography
-            variant="caption"
-            sx={{ opacity: 0.85, display: 'block', fontSize: '0.68rem', cursor: 'default' }}
-          >
-            {paramLabel}
-          </Typography>
-        </Tooltip>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+          <Tooltip title="Cena dla wybranych parametrów">
+            <Typography
+              variant="caption"
+              sx={{ opacity: 0.85, fontSize: '0.68rem', cursor: 'default' }}
+            >
+              {paramLabel}
+            </Typography>
+          </Tooltip>
+
+          {/* Cache Date & Refresh */}
+          {price?.calculated_at && (
+            <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5, borderLeft: '1px solid rgba(255,255,255,0.3)', pl: 0.5 }}>
+              <Tooltip title={`Ostatnia aktualizacja: ${new Date(price.calculated_at).toLocaleString('pl-PL')}. Kliknij, aby odświeżyć.`}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', '&:hover': { opacity: 1 } }} onClick={() => onCalculate(vehicleId)}>
+                  <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.7 }}>
+                    {new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })} {new Date(price.calculated_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                  </Typography>
+                  {isCalculating ? (
+                    <CircularProgress size={10} color="inherit" thickness={6} />
+                  ) : (
+                    <RefreshIcon sx={{ fontSize: 10, opacity: 0.7 }} />
+                  )}
+                </Box>
+              </Tooltip>
+            </Box>
+          )}
+        </Box>
       )}
       {!paramLabel && !loading && (
-        <Typography variant="caption" sx={{ opacity: 0.9 }}>netto / mc</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>netto / mc</Typography>
+          
+          {/* Cache Date & Refresh (Small fallback) */}
+          {price?.calculated_at && (
+            <Tooltip title={`Ostatnia aktualizacja: ${new Date(price.calculated_at).toLocaleString('pl-PL')}. Kliknij, aby odświeżyć.`}>
+              <IconButton 
+                size="small" 
+                onClick={() => onCalculate(vehicleId)} 
+                sx={{ color: 'inherit', p: 0.25, ml: 0.5, opacity: 0.6, '&:hover': { opacity: 1 } }}
+                disabled={isCalculating}
+              >
+                {isCalculating ? <CircularProgress size={10} color="inherit" /> : <RefreshIcon sx={{ fontSize: 10 }} />}
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
       )}
 
       {/* Rendering price variants */}
       {variants && variants.length > 0 && (
         <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {variants.filter(v => v.duration_months !== durationMonths).map(v => (
-            <Typography key={v.duration_months} variant="caption" sx={{ fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', opacity: 0.85 }}>
-              <span>{v.duration_months}mc/{( (v.annual_mileage || 0) * (v.duration_months || 0) / 12 / 1000).toFixed(0)}k:</span>
-              <span style={{ fontWeight: 600 }}>{Number(v.monthly_price_net).toLocaleString('pl-PL')} PLN</span>
-            </Typography>
-          ))}
+          {variants.filter(v => v.duration_months !== durationMonths).map(v => {
+            const variantPrice = v.monthly_price_net != null && m < 1.0 ? v.monthly_price_net / (1.0 - m) : 0;
+            return (
+              <Typography key={v.duration_months} variant="caption" sx={{ fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', opacity: 0.85 }}>
+                <span>{v.duration_months}mc/{( (v.annual_mileage || 0) * (v.duration_months || 0) / 12 / 1000).toFixed(0)}k:</span>
+                <span style={{ fontWeight: 600 }}>{Number(variantPrice).toLocaleString('pl-PL')} PLN</span>
+              </Typography>
+            );
+          })}
         </Box>
       )}
     </Box>
@@ -259,9 +332,10 @@ interface SimilarVehiclesSectionProps {
   vehicleId: string;
   durationMonths?: number;
   annualMileage?: number;
+  marginPct?: number;
 }
 
-const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicleId, durationMonths, annualMileage }) => {
+const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicleId, durationMonths, annualMileage, marginPct = 0 }) => {
   const { similar, loading } = useSimilarVehicles(vehicleId, durationMonths, annualMileage);
 
   if (loading) {
@@ -286,10 +360,11 @@ const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicle
       </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
         {similar.map((s) => {
+          const sPrice = s.best_monthly_price != null ? (s.best_monthly_price as number) * (1 + marginPct / 100) : null;
           const label = [
             `${s.brand ?? ''} ${s.model ?? ''}`.trim(),
-            s.best_monthly_price != null
-              ? `${Number(s.best_monthly_price).toLocaleString('pl-PL')} PLN/mc`
+            sPrice != null
+              ? `${Number(sPrice).toLocaleString('pl-PL')} PLN/mc`
               : null,
             s.similarity_score_pct != null ? `${s.similarity_score_pct}%` : null,
           ]
@@ -342,6 +417,7 @@ interface ScoringResultsProps {
 export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext }) => {
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [calculatingIds, setCalculatingIds] = useState<Set<string>>(new Set());
+  const addToCart = useOfferCartStore(state => state.addItem);
 
   let targetDuration = Math.round(
     (searchContext.duration_months_range[0] + searchContext.duration_months_range[1]) / 2
@@ -360,13 +436,53 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   const handleCalculateSingle = useCallback(async (vehicleId: string) => {
     setCalculatingIds(prev => new Set(prev).add(vehicleId));
     try {
-      await apiFetch('/api/scoring-search/cache/refresh-matrix', {
+      const res = await apiFetch('/api/scoring-search/cache/refresh-matrix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vehicle_ids: [vehicleId] }),
       });
+      const data = await res.json();
+      const jobId = data.job_id;
+      
+      if (jobId) {
+        const pollTimer = setInterval(async () => {
+          try {
+            const pollRes = await apiFetch(`/api/scoring-search/cache/progress/${jobId}`);
+            if (!pollRes.ok) throw new Error('Poll failed');
+            const pollData = await pollRes.json();
+            if (pollData.status === 'done' || pollData.status === 'error' || pollData.status === 'unknown') {
+              clearInterval(pollTimer);
+              setCalculatingIds(prev => {
+                const next = new Set(prev);
+                next.delete(vehicleId);
+                return next;
+              });
+              // Refresh triggering on window
+              window.dispatchEvent(new CustomEvent('SCORING_SEARCH_REFRESH'));
+            }
+          } catch {
+            clearInterval(pollTimer);
+            setCalculatingIds(prev => {
+              const next = new Set(prev);
+              next.delete(vehicleId);
+              return next;
+            });
+          }
+        }, 1500);
+      } else {
+        setCalculatingIds(prev => {
+          const next = new Set(prev);
+          next.delete(vehicleId);
+          return next;
+        });
+      }
     } catch (err) {
       console.error('Failed to trigger calculation for', vehicleId, err);
+      setCalculatingIds(prev => {
+        const next = new Set(prev);
+        next.delete(vehicleId);
+        return next;
+      });
     }
   }, []);
 
@@ -550,16 +666,50 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                     annualMileage={targetAnnualMileage}
                     isCalculating={isCalculating}
                     onCalculate={handleCalculateSingle}
+                    suggestedDiscountPct={(car.suggested_discount_pct as number) || 0}
+                    marginPct={searchContext.margin_pct || 0}
                   />
 
                   {/* Business badges row */}
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
+                    {!!car.has_ltr_cache && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<ShoppingCartIcon sx={{ fontSize: '14px !important' }} />}
+                        sx={{ fontSize: '0.65rem', height: 24, textTransform: 'none', px: 1, minWidth: 0, boxShadow: 'none' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const basePrice = (car.best_monthly_price as number) || 0;
+                          const finalPrice = basePrice * (1 + (searchContext.margin_pct || 0) / 100);
+                          addToCart({
+                            id: crypto.randomUUID(),
+                            brand: (car.brand as string) || '',
+                            model: (car.model as string) || '',
+                            powertrain: (car.fuel_type as string) || '',
+                            vin_or_config: (car.configuration_code as string) || (car.offer_number as string) || 'Brak',
+                            term: targetDuration,
+                            mileage: targetAnnualMileage,
+                            net_installment: finalPrice,
+                            contribution: 0,
+                            system_recommendation: typeof car.match_score_pct === 'number' && car.match_score_pct >= 90 ? 'Najlepsze dopasowanie' : undefined,
+                            standard_equipment: [],
+                            factory_options: [],
+                            dealer_options: [],
+                            calculation_data: car,
+                          });
+                        }}
+                      >
+                        Dodaj do oferty
+                      </Button>
+                    )}
                     {!!car.suggested_discount_pct && (car.suggested_discount_pct as number) > 0 && (
                       <Tooltip title="Sugerowany rabat z bazy dealera">
                         <Chip icon={<LocalOfferIcon />}
                           label={`BD ${car.suggested_discount_pct}%`} size="small"
                           color="success" variant="filled"
-                          sx={{ fontWeight: 700, '& .MuiChip-icon': { fontSize: 14 } }} />
+                          sx={{ fontWeight: 700, '& .MuiChip-icon': { fontSize: 14 }, height: 24 }} />
                       </Tooltip>
                     )}
                     {(!!car.service_cost_type || !!car.tire_class) && (
@@ -570,7 +720,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                             car.tire_class ? `Opony: ${car.tire_class}` : null
                           ].filter(Boolean).join(' | ')}
                           size="small" variant="outlined"
-                          sx={{ fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 14 } }} />
+                          sx={{ fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 14 }, height: 24 }} />
                       </Tooltip>
                     )}
                   </Box>
@@ -578,15 +728,16 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
               </Box>
 
               {/* ── Row 2: Matched features ── */}
-              <Box sx={{ mt: 1.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>Spełnione wymagania ({matchedFeatures.length}):</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-                  {matchedFeatures.length === 0 && <Typography variant="caption" color="textSecondary">- none -</Typography>}
-                  {matchedFeatures.map((f: string) => (
-                    <Chip key={f} label={f.replace(/_/g, ' ')} size="small" color="success" variant="outlined" />
-                  ))}
+              {matchedFeatures.length > 0 && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 'bold' }}>Spełnione wymagania ({matchedFeatures.length}):</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                    {matchedFeatures.map((f: string) => (
+                      <Chip key={f} label={f.replace(/_/g, ' ')} size="small" color="success" variant="outlined" />
+                    ))}
+                  </Box>
                 </Box>
-              </Box>
+              )}
 
               {/* ── Row 3: Missing features ── */}
               {missingFeatures.length > 0 && (
@@ -601,7 +752,10 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
               )}
 
               {/* ── Row 4: Similar vehicles ── */}
-              <SimilarVehiclesSection vehicleId={vehicleId} />
+              <SimilarVehiclesSection 
+                vehicleId={vehicleId} 
+                marginPct={searchContext.margin_pct || 0}
+              />
 
             </CardContent>
           </Card>

@@ -31,14 +31,11 @@ class PDFExtractor:
         logger.info(f"Otwieranie pliku PDF do ekstrakcji hybrydowej: {path_obj}")
 
         try:
-            import fitz
-            # 1. Wyciągnięcie szybkiego tekstu przy użyciu PyMuPDF (bez OCR)
-            markdown_content = ""
-            with fitz.open(str(path_obj)) as doc:
-                for page in doc:
-                    markdown_content += page.get_text("text") + "\n\n"
+            import pymupdf4llm
+            # 1. Wyciągnięcie strukturalnego tekstu (Markdown) przy użyciu pymupdf4llm (bez OCR)
+            markdown_content = pymupdf4llm.to_markdown(str(path_obj))
             
-            logger.info(f"Ekstrakcja PyMuPDF zakończona wygenerowaniem {len(markdown_content)} znaków tekstu.")
+            logger.info(f"Ekstrakcja pymupdf4llm zakończona wygenerowaniem {len(markdown_content)} znaków tekstu.")
             
             # 2. Odczyt surowych bajtów do wysyłki graficznej
             with open(path_obj, "rb") as f:

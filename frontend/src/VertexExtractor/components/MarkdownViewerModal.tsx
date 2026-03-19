@@ -90,7 +90,7 @@ export function MarkdownViewerModal({ isOpen, onClose, documentId, source, title
           ) : error ? (
             <div className="text-center text-red-500 p-10">{error}</div>
           ) : (
-            <div className="prose prose-sm max-w-none bg-white p-8 rounded-lg shadow-sm border border-slate-200" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" }}>
+            <div className="prose prose-sm max-w-none bg-white p-8 rounded-lg shadow-sm border border-slate-200 whitespace-pre-wrap" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" }}>
               <ReactMarkdown>{content || "Brak treści."}</ReactMarkdown>
             </div>
           )}

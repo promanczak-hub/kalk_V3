@@ -1,4 +1,3 @@
-import json
 from core.database import supabase
 res = supabase.schema('reverse_search').table('model_document_sources').select('extraction_error, file_type, document_type').ilike('model_family', '%terramar%').execute()
 for r in res.data:

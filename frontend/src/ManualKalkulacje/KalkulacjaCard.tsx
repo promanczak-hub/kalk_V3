@@ -1,12 +1,16 @@
 import React from 'react';
 import {
   Box, Card, CardContent, Typography, Chip, IconButton,
-  Tooltip, Stack,
+  Tooltip, Stack, Button, CircularProgress
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { KalkulacjaListItem } from './types';
+import { useOfferCartStore } from '../stores/offerCartStore';
+import { apiFetch } from '../lib/api';
+import { useState } from 'react';
 
 const SOURCE_CONFIG = {
   manual: { label: 'MANUALNA', color: 'secondary' as const },
@@ -36,6 +40,41 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
   const srcCfg = SOURCE_CONFIG[src] ?? SOURCE_CONFIG.pdf;
   const statusColor = STATUS_COLOR[item.status] ?? 'default';
   const createdDate = new Date(item.created_at).toLocaleDateString('pl-PL');
+
+  const addToCart = useOfferCartStore(state => state.addItem);
+  const [isLoadingSmart, setIsLoadingSmart] = useState(false);
+
+  const handleAddSmartVariants = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLoadingSmart(true);
+    try {
+      const res = await apiFetch(`/api/kalkulacje/${item.id}/smart-advisor`, { method: 'POST' });
+      const variants = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      variants.forEach((v: any) => {
+        addToCart({
+          id: crypto.randomUUID(),
+          brand: v.brand || item.dane_pojazdu?.split(' ')[0] || 'Nieznane',
+          model: v.model || '',
+          powertrain: v.powertrain || item.fuel_type || '',
+          vin_or_config: v.vin_or_config || item.numer_kalkulacji || 'Brak',
+          term: v.term || 0,
+          mileage: v.mileage || 0,
+          net_installment: v.net_installment || 0,
+          contribution: 0,
+          system_recommendation: `Smart Advisor: ${v.variant_type}`,
+          standard_equipment: [],
+          factory_options: [],
+          dealer_options: [],
+          calculation_data: v.calculation_data || {},
+        });
+      });
+    } catch (error) {
+      console.error("Error fetching smart variants:", error);
+    } finally {
+      setIsLoadingSmart(false);
+    }
+  };
 
   return (
     <Card
@@ -83,6 +122,23 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
 
           {/* Right column — price + actions */}
           <Box sx={{ textAlign: 'right', ml: 2, flexShrink: 0, minWidth: 160 }}>
+            {/* Smart Advisor Widget Button */}
+            <Box sx={{ mb: 1.5 }}>
+              <Tooltip title="Generuje 3 warianty LTR (Baza, Najniższa Rata, Best Value) i dodaje do koszyka">
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="secondary"
+                  onClick={handleAddSmartVariants}
+                  disabled={isLoadingSmart}
+                  startIcon={isLoadingSmart ? <CircularProgress size={14} color="inherit" /> : <AutoAwesomeIcon sx={{ fontSize: '14px !important' }} />}
+                  sx={{ fontSize: '0.65rem', textTransform: 'none', py: 0.25, px: 1, borderRadius: 1.5, boxShadow: 'none' }}
+                >
+                  {isLoadingSmart ? "Analizuję..." : "Smart Pakiet (3 opcje)"}
+                </Button>
+              </Tooltip>
+            </Box>
+
             {item.cena_netto != null && item.cena_netto > 0 && (
               <Box sx={{ mb: 1 }}>
                 <Typography variant="caption" color="text.secondary" display="block">Cena zakupu</Typography>
