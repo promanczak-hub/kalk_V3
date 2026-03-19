@@ -1,28 +1,24 @@
 from typing import Any, Dict, List, cast, Optional
 import io
 import pandas as pd
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 
 from core.database import supabase
 from core.models import ControlCenterSettings
 from api.schemas.control_center import (
-    TyreCost,
-    ServiceRate,
-    ServiceBaseCost,
     EngineType,
     SamarClass,
     SamarServiceCost,
     ReplacementCarRate,
     BrandCorrection,
     DepreciationRate,
-    MileageCorrection,
     BodyType,
-    BodyCorrection,
-    ZabudowaType,
     PaintType,
     VintageCorrection,
 )
+from tasks.matrix_tasks import process_matrix_refresh_task
 
 router = APIRouter(tags=["Control Center"])
 
@@ -48,6 +44,8 @@ async def update_control_center(
     try:
         data = settings.model_dump()
         data["id"] = 1
+        data["last_settings_update"] = datetime.now(timezone.utc).isoformat()
+        
         response = supabase.table("control_center").update(data).eq("id", 1).execute()
 
         if not response.data:
@@ -55,46 +53,14 @@ async def update_control_center(
                 status_code=500, detail="Failed to update control center settings"
             )
 
+        # Trigger background refresh for ALL vehicles
+        process_matrix_refresh_task.apply_async(args=[None])
+
         response_data = cast(Any, response.data[0])
         return ControlCenterSettings(**response_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/tyre-costs")
-async def get_tyre_costs() -> List[TyreCost]:
-    try:
-        response = (
-            supabase.table("tyre_costs").select("*").order("tyre_class").execute()
-        )
-        response_data = cast(Any, response.data)
-        return [TyreCost(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/tyre-costs")
-async def update_tyre_cost(cost: TyreCost) -> TyreCost:
-    try:
-        data = cost.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("tyre_costs").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to update tyre cost")
-        response_data = cast(Any, response.data[0])
-        return TyreCost(**response_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/tyre-costs/{cost_id}")
-async def delete_tyre_cost(cost_id: str) -> Dict[str, str]:
-    try:
-        supabase.table("tyre_costs").delete().eq("id", cost_id).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/engines")
@@ -207,51 +173,7 @@ async def delete_depreciation_rate(rate_id: int) -> Dict[str, str]:
 # --- Mileage Corrections (per engine × samar_class) ---
 
 
-@router.get("/mileage-corrections")
-async def get_mileage_corrections(
-    samar_class_id: Optional[int] = None,
-) -> List[MileageCorrection]:
-    try:
-        query = supabase.table("samar_class_mileage_corrections").select("*")
-        if samar_class_id is not None:
-            query = query.eq("samar_class_id", samar_class_id)
-        response = query.order("samar_class_id").order("fuel_type_id").execute()
-        response_data = cast(Any, response.data)
-        return [MileageCorrection(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/mileage-corrections/bulk")
-async def bulk_upsert_mileage_corrections(
-    corrections: List[MileageCorrection],
-) -> Dict[str, Any]:
-    try:
-        data_list = []
-        for c in corrections:
-            d = c.model_dump(exclude_unset=True)
-            if not d.get("id"):
-                d.pop("id", None)
-            data_list.append(d)
-        response = (
-            supabase.table("samar_class_mileage_corrections")
-            .upsert(data_list)
-            .execute()
-        )
-        return {"status": "success", "count": len(response.data)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/mileage-corrections/{correction_id}")
-async def delete_mileage_correction(correction_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("samar_class_mileage_corrections").delete().eq(
-            "id", correction_id
-        ).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/samar-classes")
@@ -461,84 +383,9 @@ async def import_samar_service_costs(file: UploadFile = File(...)) -> Dict[str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/service-rates")
-async def get_service_rates() -> List[ServiceRate]:
-    try:
-        response = (
-            supabase.table("service_rates_config")
-            .select("*")
-            .order("klasa_id")
-            .execute()
-        )
-        response_data = cast(Any, response.data)
-        return [ServiceRate(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/service-rates")
-async def update_service_rate(rate: ServiceRate) -> ServiceRate:
-    try:
-        data = rate.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("service_rates_config").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to update service rate")
-        response_data = cast(Any, response.data[0])
-        return ServiceRate(**response_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.delete("/service-rates/{rate_id}")
-async def delete_service_rate(rate_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("service_rates_config").delete().eq("id", rate_id).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/service-base-costs")
-async def get_service_base_costs() -> List[ServiceBaseCost]:
-    try:
-        response = (
-            supabase.table("service_base_costs_config")
-            .select("*")
-            .order("klasa_id")
-            .execute()
-        )
-        response_data = cast(Any, response.data)
-        return [ServiceBaseCost(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/service-base-costs")
-async def update_service_base_cost(cost: ServiceBaseCost) -> ServiceBaseCost:
-    try:
-        data = cost.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("service_base_costs_config").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=500, detail="Failed to update service base cost"
-            )
-        response_data = cast(Any, response.data[0])
-        return ServiceBaseCost(**response_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/service-base-costs/{cost_id}")
-async def delete_service_base_cost(cost_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("service_base_costs_config").delete().eq("id", cost_id).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Brand Corrections CRUD (ltr_admin_korekta_wr_markas) ──
@@ -683,94 +530,11 @@ async def delete_replacement_car_rate(item_id: str) -> Dict[str, str]:
 # ── Body Type WR Corrections CRUD (Sparse) ──
 
 
-@router.get("/body-corrections")
-async def get_body_corrections(
-    samar_class_id: Optional[int] = None,
-) -> List[BodyCorrection]:
-    try:
-        q = supabase.table("body_type_wr_corrections").select("*").order("id")
-        if samar_class_id is not None:
-            q = q.eq("samar_class_id", samar_class_id)
-        response = q.execute()
-        response_data = (
-            cast(List[Dict[str, Any]], response.data) if response.data else []
-        )
-        return [BodyCorrection(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/body-corrections")
-async def upsert_body_correction(item: BodyCorrection) -> BodyCorrection:
-    try:
-        data = item.model_dump(exclude_unset=True)
-        data.pop("id", None)
-        # Normalize brand_name
-        if data.get("brand_name"):
-            data["brand_name"] = str(data["brand_name"]).strip().upper()
-        response = supabase.table("body_type_wr_corrections").upsert(data).execute()
-        response_data = (
-            cast(List[Dict[str, Any]], response.data) if response.data else []
-        )
-        if not response_data:
-            raise HTTPException(
-                status_code=500, detail="Failed to upsert body correction"
-            )
-        return BodyCorrection(**response_data[0])
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/body-corrections/{correction_id}")
-async def delete_body_correction(correction_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("body_type_wr_corrections").delete().eq(
-            "id", correction_id
-        ).execute()
-        return {"status": "deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Zabudowa Types Dictionary CRUD ──
 
 
-@router.get("/zabudowa-types")
-async def get_zabudowa_types() -> List[ZabudowaType]:
-    try:
-        response = supabase.table("zabudowa_types").select("*").order("id").execute()
-        response_data = cast(Any, response.data)
-        return [ZabudowaType(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/zabudowa-types")
-async def upsert_zabudowa_type(item: ZabudowaType) -> ZabudowaType:
-    try:
-        data = item.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("zabudowa_types").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=500, detail="Nie udało się zapisać typu zabudowy"
-            )
-        response_data = cast(Any, response.data[0])
-        return ZabudowaType(**response_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/zabudowa-types/{type_id}")
-async def delete_zabudowa_type(type_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("zabudowa_types").delete().eq("id", type_id).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Paint Types WR Correction CRUD ──

@@ -4,7 +4,8 @@ import hashlib
 import json
 import logging
 import uuid
-from typing import Any
+from datetime import datetime
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -29,7 +30,6 @@ from core.models_scoring_search import (
 from core.redis_cache import (
     _get_client,
     _PREFIX,
-    cache_invalidate_pattern,
     get_cache_stats,
 )
 
@@ -66,7 +66,7 @@ def _redis_set(key: str, value: Any, ttl: int) -> None:
     try:
         client.setex(key, ttl, json.dumps(value, default=str))
     except Exception as exc:
-        logger.debug("Redis SET error [%s]: %s", key, exc)
+        logger.debug("Redis SET error [%s]: %s", exc)
 
 
 def _params_hash(payload: str) -> str:
@@ -271,54 +271,64 @@ def get_similar_vehicles(
     "/scoring-search/vehicle/{vehicle_id}/price-for-params",
     response_model=PriceForParamsResponse,
 )
-def get_price_for_params(
+async def get_price_for_params(
     vehicle_id: str,
     duration_months: int,
     annual_mileage: int,
+    margin: float = 0.0,
 ) -> PriceForParamsResponse:
     """Return the LTR price tile closest to the requested duration/mileage."""
     sb = supabase
     try:
+        # 1. Get Control Center Settings for timestamp check
+        settings_response = sb.table("control_center").select("*").eq("id", 1).execute()
+        last_settings_update = None
+        if settings_response.data:
+            cc_data = settings_response.data[0]
+            last_settings_update_str = cc_data.get("last_settings_update")
+            if last_settings_update_str:
+                last_settings_update = datetime.fromisoformat(last_settings_update_str.replace("Z", "+00:00"))
+
+        # 2. Check cache
         resp = (
             sb.table("vehicle_matrix_cache")
-            .select("duration_months, annual_mileage, monthly_price_net")
+            .select("duration_months, annual_mileage, monthly_price_net, calculated_at")
             .eq("vehicle_id", vehicle_id)
             .execute()
         )
         rows = resp.data or []
-        if not rows:
-            return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
-
-        # 1. Sprawdzenie czy jest exact match w BD
+        
+        # Exact match logic
         exact_match = next(
             (r for r in rows if r["duration_months"] == duration_months and r["annual_mileage"] == annual_mileage),
             None
         )
+        
         if exact_match:
-            return PriceForParamsResponse(
-                vehicle_id=vehicle_id,
-                duration_months=duration_months,
-                annual_mileage=annual_mileage,
-                monthly_price_net=float(exact_match["monthly_price_net"]) if exact_match["monthly_price_net"] else None,
-                found=True,
-            )
+            calculated_at_str = exact_match.get("calculated_at")
+            is_fresh = True
+            if last_settings_update and calculated_at_str:
+                calculated_at = datetime.fromisoformat(calculated_at_str.replace("Z", "+00:00"))
+                if calculated_at < last_settings_update:
+                    is_fresh = False
+                    logger.info(f"Cache stale for vehicle {vehicle_id}: {calculated_at} < {last_settings_update}")
 
-        # 2. Sprawdzenie szybkiego cache'a Redisa na live (on-demand) tile
-        live_cache_key = f"ltr:live:{vehicle_id}:{duration_months}:{annual_mileage}"
-        cached_live = _redis_get(live_cache_key)
-        if cached_live is not None:
-            return PriceForParamsResponse(
-                vehicle_id=vehicle_id,
-                duration_months=duration_months,
-                annual_mileage=annual_mileage,
-                monthly_price_net=float(cached_live),
-                found=True,
-            )
+            if is_fresh:
+                base_price = float(exact_match["monthly_price_net"]) if exact_match["monthly_price_net"] else 0.0
+                display_price = base_price / (1.0 - (margin / 100.0))
+                return PriceForParamsResponse(
+                    vehicle_id=vehicle_id,
+                    duration_months=duration_months,
+                    annual_mileage=annual_mileage,
+                    monthly_price_net=round(display_price, 2),
+                    found=True,
+                )
 
-        # 3. Wyliczenie live w ok. ~50ms
-        live_price = calculate_live_ltr_tile(vehicle_id, duration_months, annual_mileage)
+        # 3. Live calculation (either no cache, no exact match, or stale cache)
+        logger.info(f"Running live calculation for vehicle {vehicle_id} (Stale or Missing Cache)")
+        live_price = await calculate_live_ltr_tile(vehicle_id, duration_months, annual_mileage, margin)
+        
         if live_price is not None:
-            _redis_set(live_cache_key, live_price, 86400) # Zapis do Redisa na 24h
             return PriceForParamsResponse(
                 vehicle_id=vehicle_id,
                 duration_months=duration_months,
@@ -327,20 +337,24 @@ def get_price_for_params(
                 found=True,
             )
 
-        # 4. Fallback: Jeśli nawet live script zawiedzie z powodu braku konfiguracji
-        # pokazujemy najbliższy tile. Na froncie isExactMatch == false -> wygeneruje gwiazdkę.
+        # 4. Fallback: Closest tile (if live fails or no data)
+        if not rows:
+            return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
+
         def distance(row: dict) -> float:
             dm_diff = abs(row["duration_months"] - duration_months)
             km_diff = abs(row["annual_mileage"] - annual_mileage)
-            # Normalize: 1 month ≈ 10k km difference in weight
             return dm_diff * 10_000 + km_diff
 
         best = min(rows, key=distance)
+        base_price_best = float(best["monthly_price_net"]) if best["monthly_price_net"] else 0.0
+        display_price_best = base_price_best / (1.0 - (margin / 100.0))
+        
         return PriceForParamsResponse(
             vehicle_id=vehicle_id,
             duration_months=best["duration_months"],
             annual_mileage=best["annual_mileage"],
-            monthly_price_net=float(best["monthly_price_net"]) if best["monthly_price_net"] else None,
+            monthly_price_net=round(display_price_best, 2),
             found=True,
         )
     except Exception as e:
@@ -399,27 +413,12 @@ def get_price_variants(
         raise HTTPException(status_code=500, detail=f"Failed to fetch price variants: {e}")
 
 
-
 # ── Cache management ──────────────────────────────────────────────────────────
 
 @router.get("/scoring-search/cache/stats")
 def get_search_cache_stats() -> dict[str, Any]:
     """Zwraca statystyki Redis (dostępność, liczba kluczy, pamięć)."""
     return get_cache_stats()
-
-
-@router.delete("/scoring-search/cache/invalidate")
-def invalidate_search_cache() -> dict[str, Any]:
-    """Ręczny flush kluczy search, filters i initial_data z Redis."""
-    deleted = 0
-    deleted += cache_invalidate_pattern("search:*")
-    deleted += cache_invalidate_pattern("filters:*")
-    deleted += cache_invalidate_pattern("initial_data")
-    return {
-        "status": "ok",
-        "deleted_keys": deleted,
-        "message": f"Usunięto {deleted} kluczy z Redis.",
-    }
 
 
 # ── Matrix cache management ───────────────────────────────────────────────────
@@ -587,6 +586,7 @@ def readiness_check() -> dict[str, Any]:
     except Exception as e:
         logger.exception("Error in readiness_check: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/scoring-search/cache/progress/{job_id}")
 def get_cache_job_progress(job_id: str) -> dict[str, Any]:
