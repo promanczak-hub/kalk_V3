@@ -59,6 +59,7 @@ export function VehicleTable({
     filteredVehicles,
     setSortKey,
     setDateRange,
+    setShowUnmappedSamarOnly,
     resetFilters,
   } = useVehicleFilters(savedVehicles);
 
@@ -257,6 +258,8 @@ export function VehicleTable({
               dateMax: bounds.dateMax,
             }}
             onDateRangeChange={setDateRange}
+            showUnmappedSamarOnly={filters.showUnmappedSamarOnly}
+            onShowUnmappedSamarChange={setShowUnmappedSamarOnly}
             onResetFilters={resetFilters}
             selectedCount={selectedCount}
             totalVisible={filteredVehicles.length}

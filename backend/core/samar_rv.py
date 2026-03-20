@@ -132,7 +132,7 @@ def check_rv_readiness(
             checks.append(
                 ReadinessItem(
                     "WR bazy (klasa×silnik)",
-                    "warn",
+                    "error",
                     f"{pct:.0f}%, tylko {years_found} lat",
                 )
             )
@@ -227,11 +227,11 @@ def check_rv_readiness(
                     ReadinessItem("Korekta kolor", "ok", f"{name}: {val:+.1%}")
                 )
             else:
-                checks.append(ReadinessItem("Korekta kolor", "warn", "brak wpisu"))
+                checks.append(ReadinessItem("Korekta kolor", "error", "brak wpisu"))
         except Exception:
-            checks.append(ReadinessItem("Korekta kolor", "warn", "brak wpisu"))
+            checks.append(ReadinessItem("Korekta kolor", "error", "brak wpisu"))
     else:
-        checks.append(ReadinessItem("Korekta kolor", "warn", "nie podano typu lakieru"))
+        checks.append(ReadinessItem("Korekta kolor", "error", "nie podano typu lakieru"))
 
     # 6. Korekta nadwozie
     if body_type_id:
@@ -249,15 +249,11 @@ def check_rv_readiness(
                 val = float(res.data[0]["correction_percent"])
                 checks.append(ReadinessItem("Korekta nadwozie", "ok", f"{val:+.1%}"))
             else:
-                checks.append(
-                    ReadinessItem("Korekta nadwozie", "warn", "brak wpisu → 0%")
-                )
+                checks.append(ReadinessItem("Korekta nadwozie", "error", "brak wpisu → 0%"))
         except Exception:
-            checks.append(ReadinessItem("Korekta nadwozie", "warn", "brak wpisu → 0%"))
+            checks.append(ReadinessItem("Korekta nadwozie", "error", "brak wpisu → 0%"))
     else:
-        checks.append(
-            ReadinessItem("Korekta nadwozie", "warn", "nie podano typu nadwozia")
-        )
+        checks.append(ReadinessItem("Korekta nadwozie", "error", "nie podano typu nadwozia"))
 
     # 7. Korekta rocznik
     _vintage_map = {"current": "bieżący", "previous": "bieżący-1"}

@@ -17,6 +17,7 @@ interface FilterState {
   sortDir: SortDir;
   dateRange: [number, number]; // timestamps
   priceRange: [number, number];
+  showUnmappedSamarOnly: boolean;
 }
 
 function extractSamarCategory(v: FleetVehicleView): string {
@@ -86,6 +87,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     sortDir: "desc",
     dateRange: [0, Infinity],
     priceRange: [0, Infinity],
+    showUnmappedSamarOnly: false,
   });
 
   const activeDateRange = useMemo<[number, number]>(
@@ -128,11 +130,20 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       sortDir: "desc",
       dateRange: [0, Infinity],
       priceRange: [0, Infinity],
+      showUnmappedSamarOnly: false,
     });
   }, []);
 
   const filteredVehicles = useMemo(() => {
     let result = [...vehicles];
+
+    // Filter unmapped SAMAR
+    if (filters.showUnmappedSamarOnly) {
+      result = result.filter((v) => {
+        const synth = v.synthesis_data as Record<string, unknown> | undefined;
+        return !synth || !synth.samar_class_id || synth.samar_class_id === "";
+      });
+    }
 
     // Date range filter
     const [dMin, dMax] = activeDateRange;
@@ -187,6 +198,10 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     return result;
   }, [vehicles, filters, activeDateRange, activePriceRange]);
 
+  const setShowUnmappedSamarOnly = useCallback((val: boolean) => {
+    setFilters((prev) => ({ ...prev, showUnmappedSamarOnly: val }));
+  }, []);
+
   return {
     filters,
     bounds,
@@ -196,6 +211,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     setSortKey,
     setDateRange,
     setPriceRange,
+    setShowUnmappedSamarOnly,
     resetFilters,
   };
 }

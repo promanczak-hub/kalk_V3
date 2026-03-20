@@ -49,7 +49,7 @@ export const ScoringSearchPage: React.FC = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       handleSearch();
-    }, 400);
+    }, 600);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKey]);
 

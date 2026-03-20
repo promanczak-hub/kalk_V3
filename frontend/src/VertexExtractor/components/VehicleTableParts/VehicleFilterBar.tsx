@@ -24,6 +24,9 @@ interface VehicleFilterBarProps {
   dateRange: [number, number];
   dateBounds: { dateMin: number; dateMax: number };
   onDateRangeChange: (range: [number, number]) => void;
+  // Unmapped SAMAR
+  showUnmappedSamarOnly: boolean;
+  onShowUnmappedSamarChange: (val: boolean) => void;
   // Reset
   onResetFilters: () => void;
   // Selection
@@ -55,6 +58,8 @@ export function VehicleFilterBar({
   dateRange,
   dateBounds,
   onDateRangeChange,
+  showUnmappedSamarOnly,
+  onShowUnmappedSamarChange,
   onResetFilters,
   selectedCount,
   totalVisible,
@@ -87,6 +92,7 @@ export function VehicleFilterBar({
 
   const hasActiveFilters =
     liveSearchText.length > 0 ||
+    showUnmappedSamarOnly ||
     dateRange[0] > 0 ||
     dateRange[1] < Infinity;
 
@@ -141,6 +147,25 @@ export function VehicleFilterBar({
               <X className="w-3.5 h-3.5" />
             </button>
           )}
+        </div>
+
+        {/* Toggle unmapped SAMAR */}
+        <div className="flex items-center gap-2">
+           <label className="flex items-center gap-2 cursor-pointer outline-none group select-none bg-orange-50 hover:bg-orange-100 border border-orange-200 hover:border-orange-300 transition-colors px-3 py-1.5 rounded-lg shadow-sm">
+             <div
+                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  showUnmappedSamarOnly
+                    ? "bg-orange-500 border-orange-500"
+                    : "bg-white border-orange-300 group-hover:border-orange-400"
+                }`}
+             >
+                {showUnmappedSamarOnly && <Check className="w-3 h-3 text-white" />}
+             </div>
+             <span className="text-xs font-semibold text-orange-700 whitespace-nowrap">
+               Brak Klasy SAMAR (Odznaczone)
+             </span>
+             <input type="checkbox" className="hidden" checked={showUnmappedSamarOnly} onChange={(e) => onShowUnmappedSamarChange(e.target.checked)} />
+           </label>
         </div>
 
         {hasActiveFilters && (

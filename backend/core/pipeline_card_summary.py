@@ -546,9 +546,39 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
             print(f"[BACKFILL] fuel: '{raw_fuel}' z digital_twin")
 
     # --- 6. Power HP & Power Range ---
+    # --- 6. Power HP & Power Range ---
     current_hp = card_summary.get("power_hp")
     if not current_hp:
         hp_val: int | None = None
+
+        def _extract_and_sum_power(text: str) -> int | None:
+            import re
+
+            # Try KM sum: "163 + 14KM" or "163 KM + 14 KM"
+            plus_match = re.search(
+                r"(\d+)\s*(?:KM|HP|PS)?\s*\+\s*(\d+)\s*(?:KM|HP|PS)", text, re.IGNORECASE
+            )
+            if plus_match:
+                return int(plus_match.group(1)) + int(plus_match.group(2))
+
+            # Try kW sum: "120 kW + 10 kW" or "120 + 10kW"
+            kw_plus_match = re.search(
+                r"(\d+)\s*(?:kW)?\s*\+\s*(\d+)\s*kW", text, re.IGNORECASE
+            )
+            if kw_plus_match:
+                return round(
+                    (int(kw_plus_match.group(1)) + int(kw_plus_match.group(2))) * 1.36
+                )
+
+            km_match = re.search(r"(\d+)\s*(?:KM|HP|PS)", text, re.IGNORECASE)
+            if km_match:
+                return int(km_match.group(1))
+
+            kw_match = re.search(r"(\d+)\s*kW", text, re.IGNORECASE)
+            if kw_match:
+                return round(int(kw_match.group(1)) * 1.36)
+
+            return None
 
         # Try to extract from engine_performance max_power (e.g. "150 kW ...")
         max_power = _deep_get(
@@ -556,14 +586,7 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
             "technical_data.engine_performance.max_power",
         )
         if max_power and isinstance(max_power, str):
-            import re
-
-            kw_match = re.search(r"(\d+)\s*kW", max_power, re.IGNORECASE)
-            km_match = re.search(r"(\d+)\s*(?:KM|HP|PS)", max_power, re.IGNORECASE)
-            if km_match:
-                hp_val = int(km_match.group(1))
-            elif kw_match:
-                hp_val = round(int(kw_match.group(1)) * 1.36)
+            hp_val = _extract_and_sum_power(max_power)
 
         # Try model name as fallback (e.g. "150 kW(204 KM)")
         if not hp_val:
@@ -573,14 +596,7 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
                 "model_name",
             )
             if model_name and isinstance(model_name, str):
-                import re
-
-                km_match = re.search(r"(\d+)\s*(?:KM|HP|PS)", model_name, re.IGNORECASE)
-                kw_match = re.search(r"(\d+)\s*kW", model_name, re.IGNORECASE)
-                if km_match:
-                    hp_val = int(km_match.group(1))
-                elif kw_match:
-                    hp_val = round(int(kw_match.group(1)) * 1.36)
+                hp_val = _extract_and_sum_power(model_name)
 
         if hp_val and hp_val > 0:
             card_summary["power_hp"] = hp_val
@@ -598,19 +614,34 @@ def _backfill_from_digital_twin(card_summary: dict, digital_twin: dict) -> dict:
     # --- 8. Power KW ---
     current_kw = card_summary.get("power_kw")
     if not current_kw:
+        def _extract_and_sum_power_kw(text: str) -> int | None:
+            import re
+
+            kw_plus_match = re.search(
+                r"(\d+)\s*(?:kW)?\s*\+\s*(\d+)\s*kW", text, re.IGNORECASE
+            )
+            if kw_plus_match:
+                return int(kw_plus_match.group(1)) + int(kw_plus_match.group(2))
+
+            kw_match = re.search(r"(\d+)\s*kW", text, re.IGNORECASE)
+            if kw_match:
+                return int(kw_match.group(1))
+
+            return None
+
+        kw_val: int | None = None
         # Try to extract from technical_data (if available in DT)
-        kw_val = _deep_get(digital_twin, "technical_data.power_kw")
+        raw_kw = _deep_get(digital_twin, "technical_data.power_kw")
+        if raw_kw:
+            kw_val = int(raw_kw) if str(raw_kw).isdigit() else _extract_and_sum_power_kw(str(raw_kw))
+
         if not kw_val:
             # Try to extract from engine_performance
             max_p_val = _deep_get(
                 digital_twin, "technical_data.engine_performance.max_power"
             )
             if max_p_val and isinstance(max_p_val, str):
-                import re
-
-                kw_match = re.search(r"(\d+)\s*kW", max_p_val, re.IGNORECASE)
-                if kw_match:
-                    kw_val = int(kw_match.group(1))
+                kw_val = _extract_and_sum_power_kw(max_p_val)
 
         if kw_val:
             card_summary["power_kw"] = int(kw_val)
