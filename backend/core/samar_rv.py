@@ -249,11 +249,11 @@ def check_rv_readiness(
                 val = float(res.data[0]["correction_percent"])
                 checks.append(ReadinessItem("Korekta nadwozie", "ok", f"{val:+.1%}"))
             else:
-                checks.append(ReadinessItem("Korekta nadwozie", "error", "brak wpisu → 0%"))
+                checks.append(ReadinessItem("Korekta nadwozie", "warn", "brak wpisu → 0%"))
         except Exception:
-            checks.append(ReadinessItem("Korekta nadwozie", "error", "brak wpisu → 0%"))
+            checks.append(ReadinessItem("Korekta nadwozie", "warn", "brak wpisu → 0%"))
     else:
-        checks.append(ReadinessItem("Korekta nadwozie", "error", "nie podano typu nadwozia"))
+        checks.append(ReadinessItem("Korekta nadwozie", "warn", "brak wpisu → 0%"))
 
     # 7. Korekta rocznik
     _vintage_map = {"current": "bieżący", "previous": "bieżący-1"}

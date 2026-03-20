@@ -1,4 +1,3 @@
-import pytest
 from core.pipeline_card_summary import _backfill_from_digital_twin
 
 def test_power_summation_hp():
