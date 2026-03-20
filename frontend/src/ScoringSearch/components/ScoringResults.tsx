@@ -71,8 +71,10 @@ interface SimilarVehicle {
 
 function useBatchPrices(
   vehicleIds: string[],
-  durationMonths: number,
-  annualMileage: number,
+  durationMonthsMin: number,
+  durationMonthsMax: number,
+  annualMileageMin: number,
+  annualMileageMax: number,
   enabled: boolean
 ): { prices: Record<string, { price_for_params?: PriceForParams, variants?: PriceForParams[] }>; loading: boolean } {
   const [prices, setPrices] = useState<Record<string, { price_for_params?: PriceForParams, variants?: PriceForParams[] }>>({});
@@ -93,8 +95,10 @@ function useBatchPrices(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             vehicle_ids: vehicleIds, 
-            duration_months: durationMonths, 
-            annual_mileage: annualMileage
+            duration_months_min: durationMonthsMin,
+            duration_months_max: durationMonthsMax,
+            annual_mileage_min: annualMileageMin,
+            annual_mileage_max: annualMileageMax
           }),
         });
         const data = await r.json();
@@ -117,7 +121,7 @@ function useBatchPrices(
       window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled]);
+  }, [vehicleIds.join(','), durationMonthsMin, durationMonthsMax, annualMileageMin, annualMileageMax, enabled]);
 
   return { prices, loading };
 }
@@ -385,19 +389,30 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const addToCart = useOfferCartStore(state => state.addItem);
 
-  let targetDuration = Math.round(
-    (searchContext.duration_months_range[0] + searchContext.duration_months_range[1]) / 2
-  );
-  let targetTotalMileage = Math.round(
-    (searchContext.total_mileage_range[0] + searchContext.total_mileage_range[1]) / 2
-  );
+  let searchDurationMin = searchContext.duration_months_range[0];
+  let searchDurationMax = searchContext.duration_months_range[1];
+  const targetDurationForAnnualMin = searchDurationMax;
+  const targetDurationForAnnualMax = searchDurationMin;
+  let searchAnnualMin = Math.max(10000, Math.round((searchContext.total_mileage_range[0] * 12) / targetDurationForAnnualMin));
+  let searchAnnualMax = Math.min(80000, Math.round((searchContext.total_mileage_range[1] * 12) / targetDurationForAnnualMax));
 
   if (searchContext.exact_mode) {
-    targetDuration = searchContext.exact_duration_months;
-    targetTotalMileage = searchContext.exact_total_mileage;
+    const d = searchContext.exact_duration_months;
+    if (d <= 24) { searchDurationMin = 24; searchDurationMax = 24; }
+    else if (d <= 36) { searchDurationMin = 24; searchDurationMax = 36; }
+    else if (d <= 48) { searchDurationMin = 36; searchDurationMax = 48; }
+    else { searchDurationMin = 48; searchDurationMax = 60; }
+    
+    const annual = Math.round((searchContext.exact_total_mileage * 12) / d);
+    const bucket = Math.round(annual / 5000) * 5000;
+    searchAnnualMin = Math.max(10000, bucket - 5000);
+    searchAnnualMax = Math.min(80000, bucket + 5000);
   }
 
-  const targetAnnualMileage = Math.round((targetTotalMileage * 12) / targetDuration);
+  // Calculate generic targets for similar vehicles and fallback scenarios
+  const targetDuration = Math.round((searchDurationMin + searchDurationMax) / 2);
+  const selectedMileage = searchContext.exact_mode ? searchContext.exact_total_mileage : Math.round((searchContext.total_mileage_range[0] + searchContext.total_mileage_range[1]) / 2);
+  const targetAnnualMileage = Math.round((selectedMileage * 12) / targetDuration);
 
   // Zoptymalizowane zbieranie cen w locie używając 1 wsadowego żądania HTTP 
   const vehicleIdsToFetchPrices = useMemo(() => {
@@ -409,7 +424,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   const matrixFiltersActive = searchContext.useMatrixFilters;
 
   const { prices: batchPrices, loading: batchPricesLoading } = useBatchPrices(
-    vehicleIdsToFetchPrices, targetDuration, targetAnnualMileage,
+    vehicleIdsToFetchPrices, searchDurationMin, searchDurationMax, searchAnnualMin, searchAnnualMax,
     results.length > 0 && matrixFiltersActive
   );
   const { similarVehicles: batchSimilar, loading: batchSimilarLoading } = useBatchSimilarVehicles(
@@ -613,14 +628,15 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                           e.stopPropagation();
                           const basePrice = (car.best_monthly_price as number) || 0;
                           const finalPrice = basePrice * (1 + (searchContext.margin_pct || 0) / 100);
+                          const variantPriceData = batchPrices[vehicleId]?.price_for_params;
                           addToCart({
                             id: crypto.randomUUID(),
                             brand: (car.brand as string) || '',
                             model: (car.model as string) || '',
                             powertrain: (car.fuel_type as string) || '',
                             vin_or_config: (car.configuration_code as string) || (car.offer_number as string) || 'Brak',
-                            term: targetDuration,
-                            mileage: targetAnnualMileage,
+                            term: variantPriceData?.duration_months || targetDuration,
+                            mileage: variantPriceData?.annual_mileage || targetAnnualMileage,
                             net_installment: finalPrice,
                             contribution: 0,
                             system_recommendation: typeof car.match_score_pct === 'number' && car.match_score_pct >= 90 ? 'Najlepsze dopasowanie' : undefined,

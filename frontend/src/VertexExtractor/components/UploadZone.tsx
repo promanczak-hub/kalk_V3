@@ -64,7 +64,7 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
               Wybierz plik z komputera
             </span>
             <span className="text-xs text-slate-400 font-normal mt-0.5 hidden sm:inline">
-              lub przeciągnij go tutaj • PDF, XLS, XLSX do 50 MB
+              lub przeciągnij go tutaj • PDF, XLS, XLSX, PNG, JPG do 50 MB
             </span>
           </div>
         </div>
@@ -83,7 +83,7 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
           type="file"
           className="hidden"
           multiple
-          accept=".pdf,.xls,.xlsx"
+          accept=".pdf,.xls,.xlsx,.png,.jpg,.jpeg"
           onChange={handleFileSelect}
         />
       </label>

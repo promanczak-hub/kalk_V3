@@ -23,8 +23,8 @@ async def extract_pdf_async(
     file: UploadFile = File(...),
     file_id: str = Form(...),
 ) -> Dict[str, Any]:
-    # We allow pdf and excel files to be sent to Gemini
-    supported_extensions = (".pdf", ".xls", ".xlsx")
+    # We allow pdf, excel, and image files to be sent to Gemini
+    supported_extensions = (".pdf", ".xls", ".xlsx", ".png", ".jpg", ".jpeg")
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename missing.")
@@ -36,6 +36,14 @@ async def extract_pdf_async(
         # Read the file bytes directly from the UploadFile
         file_bytes = await file.read()
         mime_type = file.content_type or "application/pdf"
+        
+        # Opcjonalne: prosta heurystyka dla obrazków, jeśli content_type jest pusty
+        if not file.content_type:
+            if file.filename.lower().endswith(".png"):
+                mime_type = "image/png"
+            elif file.filename.lower().endswith((".jpg", ".jpeg")):
+                mime_type = "image/jpeg"
+
 
         # Route EVERY document background task
         print(f"Routing {file.filename} to universal extractor V2 (Celery)")
@@ -188,6 +196,9 @@ _MIME_MAP: dict[str, str] = {
     ".pdf": "application/pdf",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".xls": "application/vnd.ms-excel",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg"
 }
 
 

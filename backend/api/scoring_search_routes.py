@@ -327,8 +327,10 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
 
 class BatchPricesRequest(BaseModel):
     vehicle_ids: List[str]
-    duration_months: int
-    annual_mileage: int
+    duration_months_min: int
+    duration_months_max: int
+    annual_mileage_min: int
+    annual_mileage_max: int
     margin: float = 0.0
     discount_mode: str = "custom"  # 'catalog', 'offer', 'custom'
     custom_discount_pct: float = 0.0
@@ -382,47 +384,50 @@ async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                 v_prices.price_for_params = PriceForParamsResponse(
                     vehicle_id=vid, found=False
                 )
-                results[vid] = v_prices
-                continue
-
-            # Group by kalkulacja_id to find the latest
+            # Group by kalkulacja_id for historical variants display
             calc_map = defaultdict(list)
-            kalk_times = {}
             for r in v_rows_all:
                 kid = r.get("kalkulacja_id")
-                # Fallback to empty string if no kalkulacja_id to group legacy
                 kid_str = kid if kid else ""
                 calc_map[kid_str].append(r)
+
+            # Group by parameters to keep only the newest calculation for each variant
+            # This protects against a single-variant manual calculation hiding a full 116-variant matrix
+            param_map = {}
+            for r in v_rows_all:
+                key = (r.get("duration_months"), r.get("annual_mileage"))
+                if not key[0] or not key[1]: continue
+                
+                dt = None
                 if r.get("calculated_at"):
                     dt = datetime.fromisoformat(r["calculated_at"].replace("Z", "+00:00"))
-                    if kid_str not in kalk_times or dt > kalk_times[kid_str]:
-                        kalk_times[kid_str] = dt
+                
+                if key not in param_map:
+                    param_map[key] = (dt, r)
+                else:
+                    existing_dt = param_map[key][0]
+                    if dt and (not existing_dt or dt > existing_dt):
+                        param_map[key] = (dt, r)
+                        
+            latest_rows = [p[1] for p in param_map.values()]
+            variants_count = len(latest_rows)
             
-            # Find the latest kalkulacja_id
-            latest_kid = None
-            if kalk_times:
-                latest_kid = max(kalk_times, key=kalk_times.get)
+            # Find the best match within bounds
+            def is_in_bounds(r: dict) -> bool:
+                return (req.duration_months_min <= r["duration_months"] <= req.duration_months_max and
+                        req.annual_mileage_min <= r["annual_mileage"] <= req.annual_mileage_max)
+                        
+            valid_rows = [r for r in latest_rows if is_in_bounds(r)]
+            
+            best_match = None
+            if valid_rows:
+                best_match = min(valid_rows, key=lambda x: float(x.get("monthly_price_net") or float("inf")))
             else:
-                latest_kid = list(calc_map.keys())[0]
-
-            variants_count = len(calc_map)
-            latest_rows = calc_map[latest_kid]
-            
-            # Find exact match
-            exact_match = next(
-                (
-                    r for r in latest_rows
-                    if r["duration_months"] == req.duration_months
-                    and r["annual_mileage"] == req.annual_mileage
-                ),
-                None,
-            )
-            
-            best_match = exact_match
-            if not best_match:
                 # Fallback to closest
+                target_dm = (req.duration_months_min + req.duration_months_max) / 2
+                target_am = (req.annual_mileage_min + req.annual_mileage_max) / 2
                 def distance(r: dict) -> float:
-                    return abs(r["duration_months"] - req.duration_months) * 10000 + abs(r["annual_mileage"] - req.annual_mileage)
+                    return abs(r["duration_months"] - target_dm) * 10000 + abs(r["annual_mileage"] - target_am)
 
                 best_match = min(latest_rows, key=distance)
                 
@@ -444,16 +449,20 @@ async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
             )
             
             # Process variants for the latest calculation
-            # We want ONE row per kalkulacja_id that matches the passed duration/mileage
+            # We want ONE row per kalkulacja_id within the passed bounds (preferring cheapest)
             variant_responses = []
+            # we consider the 'main' kid as the one from our best_match to exclude it
+            main_kid = best_match.get("kalkulacja_id") if best_match else None
+            
             for kid, rows in calc_map.items():
-                if kid == latest_kid:
+                if kid == main_kid:
                     continue  # already the main price
 
-                kid_match = next(
-                    (r for r in rows if r["duration_months"] == req.duration_months and r["annual_mileage"] == req.annual_mileage),
-                    None
-                )
+                valid_kid_rows = [r for r in rows if is_in_bounds(r)]
+                
+                kid_match = None
+                if valid_kid_rows:
+                    kid_match = min(valid_kid_rows, key=lambda x: float(x.get("monthly_price_net") or float("inf")))
                 
                 if kid_match:
                     variant_responses.append(
