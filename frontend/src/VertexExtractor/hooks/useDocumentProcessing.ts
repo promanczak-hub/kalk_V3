@@ -1,4 +1,4 @@
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 import { useState, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { v4 as uuidv4 } from "uuid";
@@ -129,7 +129,7 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           ),
         );
 
-        const response = await apiFetch(`/api/extract/async`, {
+        const response = await apiClient.fetch(`/api/extract/async`, {
           method: "POST",
           body: formData,
         });

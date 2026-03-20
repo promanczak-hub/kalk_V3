@@ -9,7 +9,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { KalkulacjaListItem } from './types';
 import { useOfferCartStore } from '../stores/offerCartStore';
-import { apiFetch } from '../lib/api';
+import { apiClient } from '../lib/apiClient';
 import { useState } from 'react';
 
 const SOURCE_CONFIG = {
@@ -48,7 +48,7 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
     e.stopPropagation();
     setIsLoadingSmart(true);
     try {
-      const res = await apiFetch(`/api/kalkulacje/${item.id}/smart-advisor`, { method: 'POST' });
+      const res = await apiClient.fetch(`/api/kalkulacje/${item.id}/smart-advisor`, { method: 'POST' });
       const variants = await res.json();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       variants.forEach((v: any) => {

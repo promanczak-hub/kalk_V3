@@ -1,4 +1,4 @@
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 
 export interface FeatureItem {
   feature_key: string;
@@ -55,7 +55,7 @@ export async function fetchFeaturesForCache(vehicleId: string) {
     let cachedCatalog: SuggestedCatalog | null = null;
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const vehicleResp = await apiFetch(`/api/kalkulator/pojazd/${vehicleId}`);
+    const vehicleResp = await apiClient.fetch(`/api/kalkulator/pojazd/${vehicleId}`);
     if (vehicleResp.ok) {
         const vehicleData = await vehicleResp.json();
         const synthDataRaw = vehicleData.synthesis_data || {};
@@ -91,7 +91,7 @@ export async function fetchFeaturesForCache(vehicleId: string) {
         instantFeatures = [...stdEq, ...paidEq];
     }
 
-    const response = await apiFetch(`/api/features/vehicle/${vehicleId}/state`);
+    const response = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/state`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data = await response.json();

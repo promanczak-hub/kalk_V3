@@ -3,7 +3,7 @@ import { Loader2, Database, ExternalLink, History, X } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
-import { apiFetch } from "../../../lib/api";
+import { apiClient } from '../../../lib/apiClient';
 
 interface HistoricalCalculation {
   id: string;
@@ -119,7 +119,7 @@ export function VehicleActionButtons({
   const loadHistory = async () => {
     setIsHistoryLoading(true);
     try {
-      const res = await apiFetch(`/api/kalkulacje/vehicle/${vehicle.id}`);
+      const res = await apiClient.fetch(`/api/kalkulacje/vehicle/${vehicle.id}`);
       if (!res.ok) throw new Error("Błąd pobierania historii");
       const data = await res.json();
       setHistoryItems(data);
@@ -167,7 +167,7 @@ export function VehicleActionButtons({
       const existingCalculatorSetup = ((vehicle.synthesis_data as Record<string, unknown>)?.calculator_setup as Record<string, unknown>) || {};
       const existingFinancialParams = (existingCalculatorSetup.financial_params as Record<string, unknown>) || {};
       const existingToggles = (existingCalculatorSetup.toggles as Record<string, unknown>) || {};
-      const resp = await fetch(`${baseUrl}/api/kalkulacje`, {
+      const resp = await apiClient.fetch(`${baseUrl}/api/kalkulacje`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortControllerRef.current.signal,
@@ -253,7 +253,7 @@ export function VehicleActionButtons({
       const baseUrl = API_BASE_URL;
       const rawText = JSON.stringify(vehicle.synthesis_data || {});
       
-      const brochurePromise = fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {
+      const brochurePromise = apiClient.fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ raw_text: rawText }),
@@ -264,7 +264,7 @@ export function VehicleActionButtons({
 
       const isPdfUrl = vehicle.raw_pdf_url && /\.pdf$/i.test(vehicle.raw_pdf_url);
       const imagesPromise = isPdfUrl
-        ? fetch(`${baseUrl}/api/parse-offer/extract-images`, {
+        ? apiClient.fetch(`${baseUrl}/api/parse-offer/extract-images`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pdf_url: vehicle.raw_pdf_url }),

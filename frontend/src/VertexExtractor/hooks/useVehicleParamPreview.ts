@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 
 export function useVehicleParamPreview(
   classId: number | null | undefined,
@@ -30,7 +30,7 @@ export function useVehicleParamPreview(
       });
       if (rimDiameter) params.set("rim_diameter", String(rimDiameter));
       
-      const res = await apiFetch(`/api/param-preview?${params}`, { signal });
+      const res = await apiClient.fetch(`/api/param-preview?${params}`, { signal });
       if (res.ok) {
         setParamPreview(await res.json());
       }

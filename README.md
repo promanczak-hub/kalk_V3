@@ -151,6 +151,7 @@ Skopiuj i dostosuj poniższy prompt. Wklej go na początku sesji (np. w Cursorze
 > 3. Weryfikacja: Czekaj na moją komendę "Dalej", "Kontynuuj" lub "Popraw", zanim przejdziesz do wykonywania kolejnego punktu planu. Nigdy nie wykonuj kilku kroków naraz.
 > 4. Aktywne Pytanie: Jeśli w starej logice występuje niejasność, brak dokumentacji lub ryzyko błędu zaokrągleń – nie zgaduj. Zatrzymaj się i natychmiast zapytaj mnie o intencję biznesową lub dostarczenie większego kontekstu.
 > 5. Test-First (TDD): Każdy krok logiki musi być poprzedzony stworzeniem testu jednostkowego, który potwierdza zgodność starego wyniku z nowym. Dopiero po przejściu (lub napisaniu) testu, możesz zaimplementować docelowy kod funkcji.
+> 6. Sequential Thinking i Pole Rażenia: Przed wprowadzeniem zmian w jakiejkolwiek funkcji, bezwzględnie zastosuj narzędzie lub podejście `sequential-thinking`. Krok po kroku ustal, jakie będzie "pole rażenia" (blast radius) planowanej zmiany w całym programie. Umiejętnie zaplanuj architekturę i logikę modyfikacji, aby zagwarantować, że będzie ona dobrze i bezpiecznie współpracować z resztą systemu.
 
 ## 🔢 Kolejność Sub-Kalkulatorów (V1 → V3)
 

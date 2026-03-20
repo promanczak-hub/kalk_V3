@@ -22,6 +22,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 import { API_BASE_URL } from "../config/env";
+import { apiClient } from "../lib/apiClient";
 
 const BASE_URL = API_BASE_URL;
 
@@ -58,7 +59,7 @@ export default function BodyTypesCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${BASE_URL}/api/body-types`);
+      const resp = await apiClient.fetch(`${BASE_URL}/api/body-types`);
       if (resp.ok) {
         const json = await resp.json();
         if (Array.isArray(json)) setData(json);
@@ -89,7 +90,7 @@ export default function BodyTypesCrudPanel() {
 
   const handleSave = async () => {
     try {
-      const resp = await fetch(`${BASE_URL}/api/body-types`, {
+      const resp = await apiClient.fetch(`${BASE_URL}/api/body-types`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -109,7 +110,7 @@ export default function BodyTypesCrudPanel() {
   const handleDelete = async (id: number) => {
     if (!confirm("Na pewno usunąć ten typ nadwozia?")) return;
     try {
-      const resp = await fetch(`${BASE_URL}/api/body-types/${id}`, {
+      const resp = await apiClient.fetch(`${BASE_URL}/api/body-types/${id}`, {
         method: "DELETE",
       });
       if (resp.ok) {

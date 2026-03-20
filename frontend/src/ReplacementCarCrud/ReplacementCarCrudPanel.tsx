@@ -21,6 +21,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 import { API_BASE_URL } from "../config/env";
+import { apiClient } from "../lib/apiClient";
 
 interface SamarClass {
   id: number;
@@ -58,7 +59,7 @@ export default function ReplacementCarCrudPanel() {
 
   const fetchDependencies = async () => {
     try {
-      const classesRes = await fetch(
+      const classesRes = await apiClient.fetch(
         `${API_BASE_URL}/api/samar-classes`
       ).catch(() => null);
       if (classesRes?.ok) {
@@ -72,7 +73,7 @@ export default function ReplacementCarCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(
+      const resp = await apiClient.fetch(
         `${API_BASE_URL}/api/replacement-car-rates`
       );
       if (resp.ok) {
@@ -115,7 +116,7 @@ export default function ReplacementCarCrudPanel() {
 
   const handleSave = async () => {
     try {
-      const resp = await fetch(
+      const resp = await apiClient.fetch(
         `${API_BASE_URL}/api/replacement-car-rates`,
         {
           method: "POST",
@@ -138,7 +139,7 @@ export default function ReplacementCarCrudPanel() {
   const handleDelete = async (id: string) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await fetch(
+      const resp = await apiClient.fetch(
         `${API_BASE_URL}/api/replacement-car-rates/${id}`,
         { method: "DELETE" }
       );

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 import { supabase } from "../lib/supabaseClient";
 import type { FleetVehicleView } from "../types";
 
@@ -265,7 +265,7 @@ export function useVehicles() {
     query: string,
   ) => {
     try {
-      const response = await apiFetch(`/api/query-vehicle`, {
+      const response = await apiClient.fetch(`/api/query-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -302,7 +302,7 @@ export function useVehicles() {
 
   const handleCloneVehicle = async (vehicleId: string) => {
     try {
-      const response = await apiFetch(`/api/clone-vehicle`, {
+      const response = await apiClient.fetch(`/api/clone-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_id: vehicleId }),
@@ -324,7 +324,7 @@ export function useVehicles() {
     // Nie pokazuj drugiego confirm - wywołuj delete bezpośrednio.
 
     try {
-      const response = await apiFetch(`/api/delete-vehicle`, {
+      const response = await apiClient.fetch(`/api/delete-vehicle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_id: vehicleId }),
@@ -349,7 +349,7 @@ export function useVehicles() {
 
     setIsSearching(true);
     try {
-      const response = await apiFetch(`/api/search-fleet`, {
+      const response = await apiClient.fetch(`/api/search-fleet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: globalSearchQuery }),

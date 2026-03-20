@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
 
@@ -57,7 +57,7 @@ export function useVehicleReadiness(
       const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
       params.set("paint_type_name", paintTypeName);
 
-      const res = await apiFetch(`/api/readiness-check?${params}`);
+      const res = await apiClient.fetch(`/api/readiness-check?${params}`);
       if (!res.ok) throw new Error("Readiness check failed");
       
       const data: ReadinessResult = await res.json();

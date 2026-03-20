@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { UploadedDocument } from "../types";
 import { API_BASE_URL } from "../../config/env";
+import { apiClient } from "../../lib/apiClient";
 
 // Dodajemy pomocniczy interfejs
 interface JsonViewerModalProps {
@@ -39,7 +40,7 @@ export function JsonViewerModal({
     setIsSendingToKalk(true);
     try {
       const parsedJson = JSON.parse(activeJsonView.jsonResult);
-      const response = await fetch(`${API_BASE_URL}/api/kalkulacje`, {
+      const response = await apiClient.fetch(`${API_BASE_URL}/api/kalkulacje`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stan_json: parsedJson }),

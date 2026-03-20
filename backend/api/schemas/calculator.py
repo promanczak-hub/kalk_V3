@@ -49,6 +49,10 @@ class CalculatorInput(BaseModel):
     pricing_margin_pct: float = Field(
         default=15.0, description="Marża sprzedaży % z poziomu UI (preset/suwak)"
     )
+    calculation_mode: Optional[str] = Field(
+        default="standard",
+        description="Tryb kalkulacji: 'standard' (z marżą) lub 'base_cost_only' (czysty koszt bez marży)",
+    )
     settings: CalculationSettings = Field(
         default_factory=lambda: CalculationSettings(
             settings_version_id=None, overrides=None

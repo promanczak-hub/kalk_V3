@@ -4,7 +4,7 @@ import {
 } from '@mui/material';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { apiFetch } from '../../lib/api';
+import { apiClient } from '../../lib/apiClient';
 
 interface SimilarVehicle {
   vehicle_id: string;
@@ -34,7 +34,7 @@ export const SimilarVehicles: React.FC<SimilarVehiclesProps> = ({ vehicleId }) =
     if (loaded) return;
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/similar?limit=3`);
+      const res = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/similar?limit=3`);
       if (res.ok) {
         const data = await res.json();
         setVehicles(data || []);

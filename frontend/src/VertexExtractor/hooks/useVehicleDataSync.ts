@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
 
@@ -48,7 +48,7 @@ export function useVehicleDataSync(
         // When engine name changes, resolve its category from DB
         if (key === "fuel" && value) {
           try {
-            const engResp = await apiFetch(`/api/engines`);
+            const engResp = await apiClient.fetch(`/api/engines`);
             if (engResp.ok) {
               const engines = await engResp.json();
               const matched = (engines as { name: string; category: string }[]).find(
@@ -74,7 +74,7 @@ export function useVehicleDataSync(
       const rawBodyStyle = (normalizedFields.body_style || "").trim();
       if (rawBodyStyle) {
         try {
-          const resp = await apiFetch(`/api/match-body-type?body_style_raw=${encodeURIComponent(rawBodyStyle)}`);
+          const resp = await apiClient.fetch(`/api/match-body-type?body_style_raw=${encodeURIComponent(rawBodyStyle)}`);
           if (resp.ok) {
             const match = await resp.json();
             if (match?.matched_name) {
@@ -110,7 +110,7 @@ export function useVehicleDataSync(
       onRefresh();
 
       // Trigger cache refresh in background after classification updates
-      await apiFetch(`/api/kalkulacje/matrix-cache/refresh`, {
+      await apiClient.fetch(`/api/kalkulacje/matrix-cache/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_ids: [vehicle.id] }),
@@ -129,7 +129,7 @@ export function useVehicleDataSync(
     if (!vehicle.synthesis_data) return;
     setIsRemappingClassification(true);
     try {
-      const response = await apiFetch(`/api/extract/remap-classification`, {
+      const response = await apiClient.fetch(`/api/extract/remap-classification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ original_json: vehicle.synthesis_data }),
@@ -157,7 +157,7 @@ export function useVehicleDataSync(
       onRefresh();
 
       // Trigger cache refresh
-      await apiFetch(`/api/kalkulacje/matrix-cache/refresh`, {
+      await apiClient.fetch(`/api/kalkulacje/matrix-cache/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle_ids: [vehicle.id] }),

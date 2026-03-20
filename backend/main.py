@@ -1,20 +1,6 @@
 import platform
 
-# Monkeypatch platform WMI queries to prevent freezing on Windows during imports (supabase, torch, etc.)
-from collections import namedtuple
-
-_UnameResult = namedtuple(
-    "uname_result", ["system", "node", "release", "version", "machine", "processor"]
-)
-_fake_uname = _UnameResult("Windows", "localhost", "10", "10.0", "AMD64", "AMD64")
-platform.uname = lambda: _fake_uname
-platform.system = lambda: "Windows"
-platform.machine = lambda: "AMD64"
-platform.version = lambda: "10.0"
-platform.release = lambda: "10"
-platform.platform = lambda *a, **kw: "Windows-10-10.0.19041-SP0"
-platform.win32_ver = lambda *a, **kw: ("10", "10.0.19041", "SP0", "Multiprocessor Free")
-
+import platform
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

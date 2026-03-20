@@ -12,7 +12,7 @@ router = APIRouter()
 @router.post("/calculate-matrix")
 async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
     try:
-        from core.LTRKalkulator import LTRKalkulator
+        from domain.calculations.service import CalculationService
 
         response = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not response.data:
@@ -22,38 +22,12 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
         response_data = cast(Any, response.data[0])
         settings = ControlCenterSettings(**response_data)
 
-        engine = LTRKalkulator(input_data=data, settings=settings)
-        matrix_cells = engine.build_matrix()
-
-        # --- HOT-PATCH: WYPLUCIE KALKULATORA DO TERMINALA ---
-
-        print("\n\n" + "=" * 60)
-        print(" 🔍 TRYB DEBUGOWANIA: NOWE PRZELICZENIE (TRACE)")
-        print("=" * 60)
-
-        try:
-            # Wyszukujemy elementy (Opony i Utrata Wartości) w strukturze cells
-            for cell in matrix_cells:
-                if isinstance(cell, dict) and cell.get("code") == "OPONY":
-                    opony_trace = cell.get("details", {}).get("trace", [])
-                    print("\n[🚜 OPONY] - ŚLAD REWIZYJNY:")
-                    for idx, t in enumerate(opony_trace):
-                        print(f"  [{idx + 1}] {t.get('krok')}")
-                        print(f"      = {t.get('wynik')} PLN")
-
-                if isinstance(cell, dict) and cell.get("code") == "WR":
-                    wr_trace = cell.get("details", {}).get("trace", [])
-                    print("\n[📉 UTRATA WARTOŚCI] - ŚLAD REWIZYJNY:")
-                    for idx, t in enumerate(wr_trace):
-                        print(f"  [{idx + 1}] {t.get('krok')}")
-                        print(f"      (Obliczenia: {t.get('rownanie')})")
-                        print(f"      = {t.get('wynik')} PLN")
-
-        except Exception as deb_err:
-            print(f"Błąd debuggera trace'ów: {deb_err}")
-
-        print("=" * 60 + "\n\n")
-        # ----------------------------------------------------
+        # Wykorzystanie wzorca UseCase/Service z domeny calculations
+        calc_service = CalculationService(data=data, settings=settings)
+        matrix_cells = calc_service.calculate_matrix()
+        
+        # Opcjonalny zrzut do konsoli, izolowany wewnątrz serwisu
+        calc_service.print_terminal_trace(matrix_cells)
 
         return {
             "status": "success",
@@ -72,7 +46,7 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
 async def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
     """Przelicza matrycę i zwraca pełen obiekt ze śladem diagnostycznym."""
     try:
-        from core.LTRKalkulator import LTRKalkulator
+        from domain.calculations.service import CalculationService
 
         response = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not response.data:
@@ -82,32 +56,8 @@ async def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
         response_data = cast(Any, response.data[0])
         settings = ControlCenterSettings(**response_data)
 
-        engine = LTRKalkulator(input_data=data, settings=settings)
-        matrix_cells = engine.build_matrix()
-
-        req_months = int(getattr(data, "okres_bazowy", 48) or 48)
-        req_total_km = int(getattr(data, "przebieg_bazowy", 140000) or 140000)
-
-        trace_data = []
-        for cell in matrix_cells:
-            # Tolerujemy drobne odchylenia zaokrągleń w przebiegach, ew. bierzemy sam Okres jako fallback
-            if (
-                cell.get("Okres") == req_months
-                and cell.get("PrzebiegKontrakt") == req_total_km
-            ):
-                trace_data = cell.get("calculation_trace", [])
-                break
-
-        # Fallback jeśli nie było dokładnego matchu na PrzebiegKontrakt
-        if not trace_data:
-            for cell in matrix_cells:
-                if cell.get("Okres") == req_months:
-                    trace_data = cell.get("calculation_trace", [])
-                    break
-
-        # Ultimate fallback (np. pierwsza dodana komórka z gridu)
-        if not trace_data and matrix_cells:
-            trace_data = matrix_cells[-1].get("calculation_trace", [])
+        calc_service = CalculationService(data=data, settings=settings)
+        matrix_cells, trace_data = calc_service.generate_single_trace()
 
         return {
             "status": "success",

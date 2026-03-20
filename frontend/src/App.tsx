@@ -3,6 +3,7 @@ import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
+import CalculateOutlinedIcon from "@mui/icons-material/CalculateOutlined";
 import {
   ThemeProvider,
   createTheme,
@@ -11,6 +12,7 @@ import {
   Tab,
   Box,
   Typography,
+  Alert,
 } from "@mui/material";
 import {
   Routes,
@@ -39,6 +41,7 @@ const ROUTES = [
   { path: "/control-center", label: "Control Center", icon: <TuneOutlinedIcon fontSize="small" /> },
   { path: "/library", label: "Biblioteka Cenników", icon: <LibraryBooksOutlinedIcon fontSize="small" /> },
   { path: "/search", label: "Wyszukiwarka pojazdów", icon: <SearchOutlinedIcon fontSize="small" /> },
+  { path: "/kalkulacje", label: "Kalkulacje Manualne", icon: <CalculateOutlinedIcon fontSize="small" /> },
 ] as const;
 
 function AppContent() {
@@ -69,7 +72,12 @@ function AppContent() {
 
   // Fetch global settings on mount
   const fetchGlobalSettings = useAppStore((s) => s.fetchGlobalSettings);
+  const globalError = useAppStore((s) => s.globalError);
+  
   useEffect(() => {
+    import("./config/env").then(({ validateEnv }) => {
+      validateEnv();
+    });
     fetchGlobalSettings();
   }, [fetchGlobalSettings]);
 
@@ -79,8 +87,10 @@ function AppContent() {
       <Box
         component="header"
         sx={{
-          position: "sticky",
+          position: "fixed",
           top: 0,
+          left: 0,
+          right: 0,
           zIndex: 1100,
           backdropFilter: "blur(12px)",
           backgroundColor: "rgba(255,255,255,0.85)",
@@ -165,8 +175,17 @@ function AppContent() {
         </Box>
       </Box>
 
+      {/* ── Global Error Banner ── */}
+      {globalError && (
+        <Box sx={{ position: "fixed", top: 56, left: 0, right: 0, zIndex: 1099 }}>
+          <Alert severity="error" variant="filled" sx={{ borderRadius: 0, justifyContent: 'center', fontWeight: 600 }}>
+            {globalError}
+          </Alert>
+        </Box>
+      )}
+
       {/* ── Main Content ── */}
-      <Box sx={{ px: { xs: 2, md: 4 }, py: 3, maxWidth: 1920, mx: "auto" }}>
+      <Box sx={{ px: { xs: 2, md: 4 }, pb: 3, pt: globalError ? "112px" : "80px", maxWidth: 1920, mx: "auto", transition: 'padding-top 0.2s ease' }}>
         <ErrorBoundary fallbackTitle="Błąd ładowania sekcji">
           <Routes>
             <Route path="/" element={<VertexExtractorPage />} />

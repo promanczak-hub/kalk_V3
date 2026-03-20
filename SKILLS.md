@@ -46,6 +46,7 @@ The backend uses a strict set of modern Python tools:
 ## 🤖 Agent Behavior & Workflow
 
 - **Plan First**: Before writing code, describe the planned architecture and file changes. Ask the user for approval.
+- **Sequential Thinking & Blast Radius**: Before modifying any function or structure, use sequential thinking. Step-by-step, determine the exact "blast radius" of the planned change across the entire program. Skillfully plan the implementation architecture to ensure it works well and safely integrates with the rest of the system without causing regressions.
 - **Atomic Commits**: Suggest logical git commits for each completed sub-task.
 - **No Hallucinations**: If a library or API is unknown, ask the user or search the documentation.
 - **Refactoring**: If you see messy code in the project, suggest a refactor before adding new features.

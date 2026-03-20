@@ -13,6 +13,8 @@ celery_app = Celery(
         "tasks.cache_tasks",
         "tasks.enrichment_tasks",
         "tasks.matrix_tasks",
+        "core.celery_tasks",
+        "core.pdf_pipeline.tasks",
     ],
 )
 

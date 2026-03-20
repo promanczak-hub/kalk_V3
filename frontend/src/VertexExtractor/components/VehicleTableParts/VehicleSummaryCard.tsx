@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FleetVehicleView } from "../../types";
-import { Pencil, X, Loader2, RefreshCw, Save, AlertTriangle, CheckCircle, HelpCircle } from "lucide-react";
+import { Pencil, X, Loader2, RefreshCw, Save } from "lucide-react";
+import { apiClient } from "../../../lib/apiClient";
 interface VehicleSummaryCardProps {
   vehicle: FleetVehicleView;
   onDirectSave?: (fields: Record<string, string>) => Promise<void>;
@@ -11,41 +12,7 @@ interface VehicleSummaryCardProps {
 
 const EMPTY = "—";
 
-function ConfidenceBadge({ score, warnings }: { score?: number, warnings?: string[] }) {
-  if (score === undefined) return null;
-  
-  let colorClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
-  let Icon = CheckCircle;
-  let label = "Wysoka pewność (AI)";
-  
-  if (score < 0.7) {
-    colorClass = "bg-rose-100 text-rose-700 border-rose-200";
-    Icon = AlertTriangle;
-    label = "Niska pewność (AI)";
-  } else if (score < 0.95) {
-    colorClass = "bg-amber-100 text-amber-700 border-amber-200";
-    Icon = HelpCircle;
-    label = "Średnia pewność (AI)";
-  }
 
-  const roundedScore = Math.round(score * 100);
-
-  return (
-    <div className={`flex items-center space-x-1.5 px-2 py-0.5 rounded border text-[10px] font-bold cursor-help relative group ${colorClass}`} title={label}>
-      <Icon className="w-3 h-3" />
-      <span>{roundedScore}%</span>
-      
-      {warnings && warnings.length > 0 && (
-        <div className="absolute top-full mt-1 left-0 w-64 p-2 bg-slate-800 rounded shadow-lg border border-slate-700 z-50 hidden group-hover:block">
-          <p className="text-white font-semibold mb-1">Ostrzeżenia AI:</p>
-          <ul className="list-disc pl-4 text-slate-300 font-normal space-y-1">
-            {warnings.map((w, i) => <li key={i}>{w}</li>)}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function extractSeats(vehicle: FleetVehicleView): string {
   if (vehicle.number_of_seats == null) return EMPTY;
@@ -204,7 +171,7 @@ export function VehicleSummaryCard({
       
       // Raportowanie poprawek do pętli sprzężenia zwrotnego AI
       for (const item of feedbackData) {
-        fetch("/api/extract/feedback", {
+        apiClient.fetch("/api/extract/feedback", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -313,10 +280,7 @@ export function VehicleSummaryCard({
           )}
           {!isEditing && (
             <div className="ml-3">
-              <ConfidenceBadge 
-                score={(vehicle.synthesis_data as any)?.card_summary?.confidence_score as number | undefined} 
-                warnings={(vehicle.synthesis_data as any)?.card_summary?.ai_warnings as string[] | undefined} 
-              />
+              
             </div>
           )}
         </h4>

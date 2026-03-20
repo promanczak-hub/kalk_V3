@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import { Save as SaveIcon } from "@mui/icons-material";
 import { API_BASE_URL } from "../config/env";
+import { apiClient } from "../lib/apiClient";
 
 const BASE_URL = API_BASE_URL;
 
@@ -44,7 +45,7 @@ export default function BaseRVCrudPanel({
   const fetchRates = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${BASE_URL}/api/samar-class-base-rv/${samarClassId}`);
+      const resp = await apiClient.fetch(`${BASE_URL}/api/samar-class-base-rv/${samarClassId}`);
       const data = await resp.json();
       setRates(data || []);
       setHasChanges(false);
@@ -77,7 +78,7 @@ export default function BaseRVCrudPanel({
         engine_type_id: r.engine_type_id,
         base_rv_percent: r.base_rv_percent,
       }));
-      await fetch(`${BASE_URL}/api/samar-class-base-rv/${samarClassId}`, {
+      await apiClient.fetch(`${BASE_URL}/api/samar-class-base-rv/${samarClassId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

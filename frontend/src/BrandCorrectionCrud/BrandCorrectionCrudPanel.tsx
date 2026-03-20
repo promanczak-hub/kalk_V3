@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 
-import { apiFetch } from "../lib/api";
+import { apiClient } from '../lib/apiClient';
 
 interface SamarClass {
   id: number;
@@ -79,9 +79,9 @@ export default function BrandCorrectionCrudPanel({ samarClassId }: Props) {
     setLoading(true);
     try {
       const [corRes, clsRes, engRes] = await Promise.all([
-        apiFetch(`/api/brand-corrections`),
-        apiFetch(`/api/samar-classes`),
-        apiFetch(`/api/engines`),
+        apiClient.fetch(`/api/brand-corrections`),
+        apiClient.fetch(`/api/samar-classes`),
+        apiClient.fetch(`/api/engines`),
       ]);
       setCorrections(await corRes.json());
       setSamarClasses(await clsRes.json());
@@ -126,7 +126,7 @@ export default function BrandCorrectionCrudPanel({ samarClassId }: Props) {
 
   const handleSave = async () => {
     try {
-      const res = await apiFetch(`/api/brand-corrections`, {
+      const res = await apiClient.fetch(`/api/brand-corrections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -142,7 +142,7 @@ export default function BrandCorrectionCrudPanel({ samarClassId }: Props) {
   const handleDelete = async (id: number) => {
     if (!confirm("Usunąć tę korektę?")) return;
     try {
-      await apiFetch(`/api/brand-corrections/${id}`, {
+      await apiClient.fetch(`/api/brand-corrections/${id}`, {
         method: "DELETE",
       });
       fetchAll();

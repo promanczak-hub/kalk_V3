@@ -12,7 +12,92 @@ import {
   Chip
 } from '@mui/material';
 import { X, Trash2, FileOutput } from 'lucide-react';
-import { useOfferCartStore } from '../../stores/offerCartStore';
+import { useOfferCartStore, type OfferItem, type OfferVariant } from '../../stores/offerCartStore';
+
+const CartItemRecord: React.FC<{ item: OfferItem; onRemove: (id: string) => void }> = ({ item, onRemove }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Paper sx={{ mb: 2, p: 2, position: 'relative' }} variant="outlined">
+      <IconButton 
+        size="small" 
+        onClick={() => onRemove(item.id)}
+        sx={{ position: 'absolute', top: 8, right: 8, color: 'error.main' }}
+      >
+        <Trash2 size={18} />
+      </IconButton>
+      
+      <Typography variant="subtitle2" fontWeight="bold" sx={{ pr: 4 }}>
+        {item.brand} {item.model}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {item.powertrain}
+      </Typography>
+      
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+        <Chip size="small" label={`${item.term} m-cy`} />
+        <Chip size="small" label={`${Math.round((item.term / 12) * item.mileage)} km na kontrakt`} />
+        <Chip size="small" label={`Wpłata ${item.contribution}%`} />
+        {typeof item.margin_pct === 'number' && (
+           <Chip size="small" variant="outlined" color="primary" label={`Marża ${item.margin_pct}%`} />
+        )}
+        {item.system_recommendation && (
+          <Chip size="small" color="success" label={item.system_recommendation} />
+        )}
+      </Box>
+      
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+        <Typography variant="h6" color="primary.main">
+          {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(item.net_installment)} netto/mc
+        </Typography>
+        
+        {item.variants && item.variants.length > 1 && (
+          <Button size="small" onClick={() => setExpanded(!expanded)}>
+            {expanded ? 'Ukryj warianty' : 'Pokaż warianty'}
+          </Button>
+        )}
+      </Box>
+
+      {expanded && item.variants && item.variants.length > 0 && (
+        <Box sx={{ mt: 2, pt: 1, borderTop: '1px dashed', borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary" gutterBottom display="block">
+            Alternatywne parametry (marża {item.margin_pct || 0}%):
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+            {item.variants
+              .filter((v: OfferVariant) => v.monthly_price_net != null && v.found)
+              .sort((a: OfferVariant, b: OfferVariant) => ((a.duration_months || 0) - (b.duration_months || 0)) || ((a.annual_mileage || 0) - (b.annual_mileage || 0)))
+              .map((v: OfferVariant, idx: number) => {
+              const isCurrent = v.duration_months === item.term && v.annual_mileage === item.mileage;
+              return (
+                <Box 
+                  key={idx} 
+                  sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    p: 0.5,
+                    bgcolor: isCurrent ? 'primary.50' : 'transparent',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: isCurrent ? 'primary.main' : 'divider'
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: isCurrent ? 'bold' : 'normal' }}>
+                    {v.duration_months} m-cy / {v.annual_mileage} km
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: isCurrent ? 'bold' : 'normal', color: isCurrent ? 'primary.main' : 'text.primary' }}>
+                    {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(v.monthly_price_net || 0)}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+       )}
+    </Paper>
+  );
+};
 
 const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { items, clientData, removeItem, clearCart, setClientData } = useOfferCartStore();
@@ -51,7 +136,7 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
         clearCart();
         onClose();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       setErrorMsg('Wystąpił błąd podczas generowania oferty.');
     } finally {
@@ -74,35 +159,7 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
           ) : (
             <List>
               {items.map((item) => (
-                <Paper key={item.id} sx={{ mb: 2, p: 2, position: 'relative' }} variant="outlined">
-                  <IconButton 
-                    size="small" 
-                    onClick={() => removeItem(item.id)}
-                    sx={{ position: 'absolute', top: 8, right: 8, color: 'error.main' }}
-                  >
-                    <Trash2 size={18} />
-                  </IconButton>
-                  
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    {item.brand} {item.model}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    {item.powertrain}
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
-                    <Chip size="small" label={`${item.term} m-cy`} />
-                    <Chip size="small" label={`${Math.round((item.term / 12) * item.mileage)} km na kontrakt`} />
-                    <Chip size="small" label={`Wpłata ${item.contribution}%`} />
-                    {item.system_recommendation && (
-                      <Chip size="small" color="success" label={item.system_recommendation} />
-                    )}
-                  </Box>
-                  
-                  <Typography variant="h6" color="primary.main" sx={{ mt: 1 }}>
-                    {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(item.net_installment)} netto/mc
-                  </Typography>
-                </Paper>
+                <CartItemRecord key={item.id} item={item} onRemove={removeItem} />
               ))}
             </List>
           )}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "../../config/env";
+import { apiClient } from "../../lib/apiClient";
 import {
   Loader2,
   GitMerge,
@@ -77,7 +78,7 @@ export function CatalogCrossRefPanel({
       let url = `${API}/api/catalogs?`;
       if (vehicleBrand) url += `brand=${encodeURIComponent(vehicleBrand)}&`;
       if (vehicleModel) url += `model_family=${encodeURIComponent(vehicleModel)}&`;
-      const res = await fetch(url);
+      const res = await apiClient.fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       // Only show catalogs with extracted variants
@@ -107,7 +108,7 @@ export function CatalogCrossRefPanel({
     let cancelled = false;
     const prefetch = async () => {
       try {
-        const res = await fetch(`${API}/api/catalogs/suggest?vehicle_id=${vehicleId}`);
+        const res = await apiClient.fetch(`${API}/api/catalogs/suggest?vehicle_id=${vehicleId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) {
@@ -137,7 +138,7 @@ export function CatalogCrossRefPanel({
     setResult(null);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiClient.fetch(
         `${API}/api/features/vehicle/${vehicleId}/cross-reference`,
         {
           method: "POST",
@@ -167,7 +168,7 @@ export function CatalogCrossRefPanel({
     setResult(null);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiClient.fetch(
         `${API}/api/features/vehicle/${vehicleId}/evidence`,
         { method: "DELETE" }
       );
@@ -192,7 +193,7 @@ export function CatalogCrossRefPanel({
     setResult(null);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiClient.fetch(
         `${API}/api/features/vehicle/${vehicleId}/enrich`,
         { method: "POST" }
       );
@@ -226,7 +227,7 @@ export function CatalogCrossRefPanel({
     // Otherwise fetch now (fallback)
     setSuggestLoading(true);
     try {
-      const res = await fetch(`${API}/api/catalogs/suggest?vehicle_id=${vehicleId}`);
+      const res = await apiClient.fetch(`${API}/api/catalogs/suggest?vehicle_id=${vehicleId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const catalogs = data.catalogs || [];

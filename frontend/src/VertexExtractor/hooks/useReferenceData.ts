@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { API_BASE_URL } from "../../config/env";
+import { apiClient } from "../../lib/apiClient";
 
 export interface SamarClassRef {
   id: number;
@@ -50,9 +51,9 @@ export function useReferenceData(): ReferenceData {
     const fetchAll = async () => {
       try {
         const [samarRes, enginesRes, bodyTypesRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/samar-classes`),
-          fetch(`${API_BASE_URL}/api/engines`),
-          fetch(`${API_BASE_URL}/api/body-types`),
+          apiClient.fetch(`${API_BASE_URL}/api/samar-classes`),
+          apiClient.fetch(`${API_BASE_URL}/api/engines`),
+          apiClient.fetch(`${API_BASE_URL}/api/body-types`),
         ]);
 
         if (cancelled) return;

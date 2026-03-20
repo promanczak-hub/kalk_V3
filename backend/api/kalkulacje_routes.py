@@ -111,8 +111,10 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
         row = res.data[0]
         row["source"] = req.source
         
+        trace_id = uuid.uuid4().hex
+        logger.info("Triggering matrix calculation for new PDF kalkulacja %s [Trace: %s]", row["id"], trace_id)
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
-        process_kalkulacja_matrix_task.apply_async(args=[row["id"]])
+        process_kalkulacja_matrix_task.apply_async(args=[row["id"], trace_id])
         
         return row
     except Exception as e:
@@ -168,8 +170,10 @@ def create_manual_kalkulacja(req: CreateManualRequest):
         row = res.data[0]
         row["source"] = "manual"
         
+        trace_id = uuid.uuid4().hex
+        logger.info("Triggering matrix calculation for manual kalkulacja %s [Trace: %s]", row["id"], trace_id)
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
-        process_kalkulacja_matrix_task.apply_async(args=[row["id"]])
+        process_kalkulacja_matrix_task.apply_async(args=[row["id"], trace_id])
         
         return row
     except Exception as e:
@@ -340,8 +344,11 @@ def duplicate_kalkulacja(kalk_id: str):
             raise HTTPException(status_code=500, detail="Błąd duplikacji")
         
         new_row = insert_res.data[0]
+        
+        trace_id = uuid.uuid4().hex
+        logger.info("Triggering matrix calculation for duplicated kalkulacja %s [Trace: %s]", new_row["id"], trace_id)
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
-        process_kalkulacja_matrix_task.apply_async(args=[new_row["id"]])
+        process_kalkulacja_matrix_task.apply_async(args=[new_row["id"], trace_id])
         
         return new_row
     except Exception as e:
@@ -400,8 +407,10 @@ def patch_kalkulacja_pricing(kalk_id: str, patch: PricingPatch):
         if not upd.data:
             raise HTTPException(status_code=500, detail="Błąd aktualizacji cen")
             
+        trace_id = uuid.uuid4().hex
+        logger.info("Triggering recalculation for pricing patch %s [Trace: %s]", kalk_id, trace_id)
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
-        process_kalkulacja_matrix_task.apply_async(args=[kalk_id])
+        process_kalkulacja_matrix_task.apply_async(args=[kalk_id, trace_id])
             
         return result
     except HTTPException:
@@ -424,10 +433,12 @@ def recalculate_kalkulacja(kalk_id: str):
         if not res.data:
             raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
 
+        trace_id = uuid.uuid4().hex
+        logger.info("Triggering explicit recalculation for %s [Trace: %s]", kalk_id, trace_id)
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
-        process_kalkulacja_matrix_task.apply_async(args=[kalk_id])
+        process_kalkulacja_matrix_task.apply_async(args=[kalk_id, trace_id])
         
-        return {"status": "queued", "kalk_id": kalk_id}
+        return {"status": "queued", "kalk_id": kalk_id, "trace_id": trace_id}
     except HTTPException:
         raise
     except Exception as e:

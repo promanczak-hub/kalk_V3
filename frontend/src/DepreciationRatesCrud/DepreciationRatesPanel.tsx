@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import { Save } from "lucide-react";
 
-import { apiFetch } from "../lib/api";
+import { apiClient } from '../lib/apiClient';
 
 interface SamarClass {
   id: number;
@@ -77,8 +77,8 @@ export default function DepreciationRatesPanel({ samarClassId }: { samarClassId?
     const fetchMeta = async () => {
       try {
         const [classResp, engineResp] = await Promise.all([
-          apiFetch(`/api/samar-classes`),
-          apiFetch(`/api/engines`),
+          apiClient.fetch(`/api/samar-classes`),
+          apiClient.fetch(`/api/engines`),
         ]);
         const classData: SamarClass[] = classResp.ok ? await classResp.json() : [];
         const engineData: EngineType[] = engineResp.ok ? await engineResp.json() : [];
@@ -109,7 +109,7 @@ export default function DepreciationRatesPanel({ samarClassId }: { samarClassId?
     if (selectedClassId === null) return;
     setLoading(true);
     try {
-      const resp = await apiFetch(`/api/depreciation-rates?samar_class_id=${selectedClassId}`);
+      const resp = await apiClient.fetch(`/api/depreciation-rates?samar_class_id=${selectedClassId}`);
       const data: DepreciationRate[] = resp.ok ? await resp.json() : [];
       setRates(Array.isArray(data) ? data : []);
       setEditedRates(new Map());
@@ -177,7 +177,7 @@ export default function DepreciationRatesPanel({ samarClassId }: { samarClassId?
         uniqueMap.set(dedupKey, { ...(prev || {}), ...rate });
       }
       const payload = Array.from(uniqueMap.values());
-      await apiFetch(`/api/depreciation-rates/bulk`, {
+      await apiClient.fetch(`/api/depreciation-rates/bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

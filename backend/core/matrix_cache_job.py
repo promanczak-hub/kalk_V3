@@ -262,14 +262,16 @@ def build_calculator_input(
 def process_single_kalkulacja_matrix_task(
     kalkulacja_id: str,
     celery_task_id: str | None = None,
+    trace_id: str | None = None,
 ) -> None:
     """Calculate and cache 116 matrix cells for a given kalkulacja."""
-    logger.info("Starting process_single_kalkulacja_matrix_task for kalkulacja_id=%s", kalkulacja_id)
+    task_trace_id = trace_id or celery_task_id or "UNKNOWN_TRACE"
+    logger.info("Starting process_single_kalkulacja_matrix_task for kalkulacja_id=%s [Trace: %s]", kalkulacja_id, task_trace_id)
 
     # 1. Fetch kalkulacja
     res = supabase.table("ltr_kalkulacje").select("*").eq("id", kalkulacja_id).execute()
     if not res.data:
-        logger.error("process_single_kalkulacja_matrix_task: Kalkulacja %s not found", kalkulacja_id)
+        logger.error("process_single_kalkulacja_matrix_task: Kalkulacja %s not found [Trace: %s]", kalkulacja_id, task_trace_id)
         return
 
     kalk_row = res.data[0]
@@ -303,11 +305,11 @@ def process_single_kalkulacja_matrix_task(
 
     # 4. Generate Matrix
     try:
-        engine = LTRKalkulator(input_data=calc_input, settings=settings)
+        engine = LTRKalkulator(input_data=calc_input, settings=settings, trace_id=task_trace_id)
         all_cells = engine.build_matrix()
     except Exception as e:
         msg = str(e)[:500]
-        logger.error("Failed matrix build for kalkulacja %s: %s", kalkulacja_id, e)
+        logger.error("Failed matrix build for kalkulacja %s: %s [Trace: %s]", kalkulacja_id, e, task_trace_id)
         _upsert_job(vehicle_id, "failed", error_code="CALC_ERROR", error_detail=msg)
         return
 

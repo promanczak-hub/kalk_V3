@@ -20,7 +20,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Edit, Trash2, Plus, Download, Upload } from "lucide-react";
-import { apiFetch } from "../lib/api";
+import { apiClient } from '../lib/apiClient';
 import { useRef } from "react";
 
 interface SamarClass {
@@ -78,10 +78,10 @@ export default function ServiceCostsCrudPanel() {
   const fetchDependencies = async () => {
     try {
       const [enginesRes, classesRes] = await Promise.all([
-        apiFetch(`/api/engines`),
+        apiClient.fetch(`/api/engines`),
         // Endpoint dla klas SAMAR jest z RV lub z backendu, jeśli nie ma, omijamy błąd
         // Jeśli posiadamy classes z RV:
-        apiFetch(`/api/samar-classes`).catch(() => null)
+        apiClient.fetch(`/api/samar-classes`).catch(() => null)
       ]);
       
       if (enginesRes?.ok) {
@@ -102,7 +102,7 @@ export default function ServiceCostsCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await apiFetch(`/api/samar-service-costs`);
+      const resp = await apiClient.fetch(`/api/samar-service-costs`);
       if (resp.ok) {
         const json = await resp.json();
         setData(json);
@@ -196,7 +196,7 @@ export default function ServiceCostsCrudPanel() {
 
   const handleSave = async () => {
     try {
-      const resp = await apiFetch(`/api/samar-service-costs`, {
+      const resp = await apiClient.fetch(`/api/samar-service-costs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -216,7 +216,7 @@ export default function ServiceCostsCrudPanel() {
   const handleDelete = async (id: string) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await apiFetch(`/api/samar-service-costs/${id}`, {
+      const resp = await apiClient.fetch(`/api/samar-service-costs/${id}`, {
         method: "DELETE",
       });
       if (resp.ok) {
@@ -230,7 +230,7 @@ export default function ServiceCostsCrudPanel() {
   const handleExportExcel = async () => {
     setExporting(true);
     try {
-      const response = await apiFetch(`/api/samar-service-costs/export`);
+      const response = await apiClient.fetch(`/api/samar-service-costs/export`);
       if (!response.ok) throw new Error("Błąd przy eksporcie");
       
       const blob = await response.blob();
@@ -258,7 +258,7 @@ export default function ServiceCostsCrudPanel() {
     formData.append("file", file);
 
     try {
-      const response = await apiFetch(`/api/samar-service-costs/import`, {
+      const response = await apiClient.fetch(`/api/samar-service-costs/import`, {
         method: "POST",
         body: formData,
       });

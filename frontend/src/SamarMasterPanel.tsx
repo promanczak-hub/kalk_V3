@@ -21,7 +21,7 @@ import ReplacementCarCrudPanel from "./ReplacementCarCrud/ReplacementCarCrudPane
 import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
 import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
 
-import { apiFetch } from "./lib/api";
+import { apiClient } from './lib/apiClient';
 
 interface SamarClass {
   id: number;
@@ -239,7 +239,7 @@ export default function SamarMasterPanel() {
 
 
   useEffect(() => {
-    apiFetch(`/api/samar-classes`)
+    apiClient.fetch(`/api/samar-classes`)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Błąd HTTP: ${res.status}`);

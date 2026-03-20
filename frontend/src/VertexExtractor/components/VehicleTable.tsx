@@ -9,7 +9,7 @@ import { VehicleComparisonModal } from "./VehicleComparisonModal";
 import { useVehicleFilters } from "../hooks/useVehicleFilters";
 import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 import type { ControlCenterSettings } from "../../hooks/useCalculator";
 import Pagination from "@mui/material/Pagination";
 
@@ -124,7 +124,7 @@ export function VehicleTable({
     if (!confirmed) return;
 
     try {
-      const response = await apiFetch(`/api/delete-vehicles-batch`, {
+      const response = await apiClient.fetch(`/api/delete-vehicles-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

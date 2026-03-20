@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
-import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
+import type { FleetVehicleView } from "../../types";
 import { parsePriceToNumber } from "./PriceDualFormat";
 import { VehicleBaseInfo } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
@@ -12,7 +12,7 @@ import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { supabase } from "../../../lib/supabaseClient";
-import { apiFetch } from "../../../lib/api";
+import { apiClient } from '../../../lib/apiClient';
 import type { ControlCenterSettings } from "../../../hooks/useCalculator";
 
 // Custom Hooks
@@ -21,6 +21,9 @@ import { useVehicleDataSync } from "../../hooks/useVehicleDataSync";
 import { useVehicleReadiness } from "../../hooks/useVehicleReadiness";
 import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
 import { useReferenceData } from "../../hooks/useReferenceData";
+import { useVehicleOptionsManager } from "../../hooks/useVehicleOptionsManager";
+import { useVehicleMetaManager } from "../../hooks/useVehicleMetaManager";
+import { useVehiclePricingManager } from "../../hooks/useVehiclePricingManager";
 import { queuePreloadVehicleFeatures } from "../../hooks/useVehicleFeaturesCache";
 
 // Extracted UI Components
@@ -279,427 +282,37 @@ export function VehicleRowCard({
 
 
 
-  // Determine price domain from deterministic backend detection
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const priceDomain: string = ((vehicle.synthesis_data as any)?.card_summary?._price_domain) || "unknown";
-
-  /** Convert a parsed price to netto, respecting the option's price_type or global domain. */
-  const toNettoAware = (rawPrice: number, priceStr?: string, optPriceType?: string): number => {
-    if (rawPrice === 0) return 0;
-    // Priority: option-level price_type > detected string label > global domain
-    const type = optPriceType && optPriceType !== "unknown"
-      ? optPriceType
-      : priceStr?.toLowerCase().includes("brutto")
-        ? "brutto"
-        : priceStr?.toLowerCase().includes("netto")
-          ? "netto"
-          : priceDomain;
-    return type === "brutto" ? Math.round((rawPrice / 1.23) * 100) / 100 : rawPrice;
-  };
-
-  // Local state for CRUD operations on Service Options
-  const initialServiceOptions = useMemo(() => {
-    return vehicle.paid_options?.filter(
-      (o) => o.category && !o.category.includes("Fabryczna")
-    ).map(o => ({
-       id: crypto.randomUUID(),
-       name: o.name,
-       price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
-       category: o.category || "Opcja Serwisowa",
-       // @ts-expect-error - compatibility with older data model
-       include_in_wr: o.include_in_wr || false
-    })) || [];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.paid_options, priceDomain]);
-
-  const initialFactoryOptions = useMemo(() => {
-    const opts = vehicle.paid_options?.filter(
-      (o) => o.category?.includes("Fabryczna") || !o.category
-    ).map(o => ({
-       id: crypto.randomUUID(),
-       name: o.name,
-       price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
-       category: o.category || "Fabryczna",
-       no_discount: (o as any).no_discount === true
-    })) || [];
-
-    if (vehicle.exterior_color && vehicle.exterior_color !== "Brak") {
-      const isAlreadyAdded = opts.some(
-        (opt) =>
-          opt.name.toLowerCase().includes("lakier") ||
-          vehicle.exterior_color!.toLowerCase().includes(opt.name.toLowerCase())
-      );
-      if (!isAlreadyAdded) {
-        let name = `Lakier: ${vehicle.exterior_color}`;
-        let priceNet = 0;
-        const match =
-          vehicle.exterior_color.match(
-            /\((?:dopłata\s*)?([\d\s,.]+\s*(?:PLN|zł|pln|ZŁ).*?)\)/i,
-          ) ||
-          vehicle.exterior_color.match(/-\s*([\d\s,.]+\s*(?:PLN|zł|pln|ZŁ).*?)/i) ||
-          vehicle.exterior_color.match(/(\d[\d\s]*\s*(?:PLN|zł|pln|ZŁ))/i);
-
-        if (match) {
-          const priceStr = match[1] || match[0];
-          priceNet = toNettoAware(parsePriceToNumber(priceStr), priceStr);
-          name = `Lakier: ${vehicle.exterior_color
-            .replace(match[0], "")
-            .replace(/\(\s*\)/, "")
-            .trim()}`;
-        }
-        opts.unshift({ id: crypto.randomUUID(), name, price_net: priceNet, category: "Fabryczna", no_discount: false });
-      }
-    }
-    return opts;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.paid_options, vehicle.exterior_color, priceDomain]);
-
-   const [customServiceOptions, setCustomServiceOptions] = useState<{id: string, name: string, price_net: number, category: string, effects?: ModificationEffect, include_in_wr?: boolean}[]>([]);
-   const [customFactoryOptions, setCustomFactoryOptions] = useState<{id: string, name: string, price_net: number, category: string, no_discount: boolean, effects?: ModificationEffect}[]>([]);
-  
-  // Set initial state only once or when vehicle completely changes
-  useEffect(() => {
-     setCustomServiceOptions(initialServiceOptions);
-     setCustomFactoryOptions(initialFactoryOptions);
-  }, [initialServiceOptions, initialFactoryOptions]);
-
-  const handleUpdateServiceOptionName = (id: string, newName: string) => {
-    setCustomServiceOptions(prev => prev.map(opt => opt.id === id ? { ...opt, name: newName } : opt));
-  };
-
-  const handleUpdateServiceOptionPrice = (id: string, newPrice: number) => {
-    setCustomServiceOptions(prev => prev.map(opt => opt.id === id ? { ...opt, price_net: newPrice } : opt));
-  };
-
-  const handleUpdateServiceOptionIncludeInWr = (id: string, include: boolean) => {
-    setCustomServiceOptions(prev => prev.map(opt => opt.id === id ? { ...opt, include_in_wr: include } : opt));
-  };
-
-  const handleRemoveServiceOption = (id: string) => {
-     setCustomServiceOptions(prev => prev.filter(opt => opt.id !== id));
-  };
-
-  const handleAddManualServiceOption = () => {
-     setCustomServiceOptions(prev => [
-       ...prev, 
-       { id: crypto.randomUUID(), name: "Nowa Usługa", price_net: 0, category: "Opcja Serwisowa", include_in_wr: false }
-     ]);
-  };
-
-  const handleUpdateFactoryOptionName = (id: string, newName: string) => {
-    setCustomFactoryOptions(prev => prev.map(opt => opt.id === id ? { ...opt, name: newName } : opt));
-  };
-
-  const handleUpdateFactoryOptionPrice = (id: string, newPrice: number) => {
-    setCustomFactoryOptions(prev => prev.map(opt => opt.id === id ? { ...opt, price_net: newPrice } : opt));
-  };
-
-  const handleRemoveFactoryOption = (id: string) => {
-     setCustomFactoryOptions(prev => prev.filter(opt => opt.id !== id));
-  };
-
-  const handleUpdateFactoryOptionNoDiscount = (id: string, noDiscount: boolean) => {
-     setCustomFactoryOptions(prev => prev.map(opt => opt.id === id ? { ...opt, no_discount: noDiscount } : opt));
-  };
-
-  const handleAddManualFactoryOption = () => {
-     setCustomFactoryOptions(prev => [
-       ...prev, 
-       { id: crypto.randomUUID(), name: "Nowa Opcja Fabryczna", price_net: 0, category: "Fabryczna", no_discount: false }
-     ]);
-  };
-
-  const handleRestoreAllOptions = () => {
-    if (window.confirm("Czy na pewno chcesz przywrócić oryginalne usługi serwisowe i opcje fabryczne wyekstrahowane z dokumentu bazy? Bieżące niezapisane modyfikacje zostaną utracone.")) {
-      setCustomServiceOptions(initialServiceOptions);
-       setCustomFactoryOptions(initialFactoryOptions);
-    }
-  };
-
-  // Store full homologation response temporarily
-  const [, setHomologationResult] = useState<HomologationResponse | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    const controller = new AbortController();
-
-    const verifyHomologation = async () => {
-      try {
-        const mappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
-        // Default base payload if missing (for now using 1000kg as fallback or extracting from real schema later)
-        const basePayload = (vehicle.synthesis_data as any)?.card_summary?.technical_details?.payload_capacity_kg || 1500;
-        
-        const payload = {
-          vehicle_id: vehicle.id,
-          base_samar_category: mappedData?.samar_category,
-          base_vehicle_type: mappedData?.vehicle_type,
-          base_payload_kg: basePayload,
-          service_options: customServiceOptions.map(opt => ({
-             name: opt.name,
-             category: opt.category,
-             price_net: opt.price_net,
-             effects: opt.effects
-          }))
-        };
-
-        const res = await apiFetch(`/api/homologation/verify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        });
-
-        if (!res.ok) return;
-        const data = await res.json();
-        if (mounted) {
-          console.log("HOMO Response raw:", Array.isArray(data) ? data[0] : data);
-          setHomologationResult(Array.isArray(data) ? data[0] : data);
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          // silently fail verification
-        }
-      }
-    };
-
-    const timeout = setTimeout(verifyHomologation, 600);
-    return () => {
-      mounted = false;
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [customServiceOptions, vehicle.id, vehicle.synthesis_data]);
-
-  const [isSavingServices, setIsSavingServices] = useState(false);
-
-
-  const handleSaveAllOptions = async () => {
-    setIsSavingServices(true);
-    try {
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-      
-      if (!updatedJson.card_summary) updatedJson.card_summary = {};
-      
-      updatedJson.card_summary.paid_options = [
-        ...customFactoryOptions.map(opt => ({
-           name: opt.name,
-           category: opt.category,
-           price: String(opt.price_net) + " PLN netto",
-           price_net: opt.price_net,
-           no_discount: opt.no_discount
-        })),
-        ...customServiceOptions.map(opt => ({
-           name: opt.name,
-           category: opt.category,
-           price: String(opt.price_net) + " PLN netto",
-           price_net: opt.price_net,
-           include_in_wr: opt.include_in_wr || false
-        }))
-      ];
-
-      // Temporary native API call for update instead of hook to avoid refactoring whole component scope for this simple update right now
-      // This will be properly separated in a future refactor step
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-      
-      // Optymalizacja UX: Po zapisaniu opcji, automatycznie wyzwalamy weryfikację cech w tle,
-      // żeby sekcja "Cechy Użytkowe" nadążyła za ewentualnymi zmianami w opcjach (np. polem Hak Holowniczy)
-      try {
-        apiFetch(`/api/features/vehicle/${vehicle.id}/enrich-background`, { method: "POST" })
-          .catch(e => console.error("Silent err on bg-enrich:", e));
-      } catch {
-        // silently ignore error
-      }
-
-      onRefresh();
-    } catch (err) {
-      console.error("Error saving options", err);
-      // alert("Błąd podczas zapisu opcji");
-    } finally {
-      setIsSavingServices(false);
-    }
-  };
-
-  const [isMapping, setIsMapping] = useState(false);
-
-
-
-  // Extract SAMAR candidates for reranking dropdown
-  const samarCandidates: { klasa: string; confidence: number }[] =
-    ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { samar_candidates?: { klasa: string; confidence: number }[] })?.samar_candidates) || [];
-
-  // Extract Engine candidates for reranking dropdown
-  const engineCandidates: { klasa: string; confidence: number }[] =
-    ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
-
-
-
-  // Extract drive type from card_summary
-  const DRIVE_TYPE_MAP: Record<string, string> = {
-    "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
-    "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
-  };
-  const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
-    ?.card_summary?.drive_type as string | undefined;
-  const detectedDriveType = rawDriveType
-    ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
-    : "";
-  const driveType = mappedData?.drive_type || detectedDriveType;
-
-  const handleSamarCategoryChange = async (newCategory: string) => {
-    try {
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-
-      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      updatedJson.mapped_ai_data.samar_category = newCategory;
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-
-      // Update local state so UI reflects immediately
-      setLocalMappedData((prev) => ({
-        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
-        samar_category: newCategory,
-      }));
-    } catch (err) {
-      console.error("Error updating SAMAR category", err);
-      alert("Błąd zapisu kategorii SAMAR: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
-    }
-  };
-
-  const handleEngineCategoryChange = async (newCategory: string) => {
-    try {
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-
-      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      updatedJson.mapped_ai_data.fuel = newCategory;
-
-      // Optimistically fetch category for immediate UI update
-      const enginesResp = await supabase.from('engines').select('category').eq('name', newCategory);
-      const newCategoryClass = enginesResp.data?.[0]?.category;
-      if (newCategoryClass) {
-         updatedJson.mapped_ai_data.engine_class = newCategoryClass;
-      }
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-
-      // Update local state so UI reflects immediately
-      setLocalMappedData((prev) => ({
-        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
-        fuel: newCategory,
-        engine_class: newCategoryClass || prev?.engine_class || serverMappedData?.engine_class,
-      }));
-    } catch (err) {
-      console.error("Error updating Engine category", err);
-      alert("Błąd zapisu kategorii Silnika: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
-    }
-  };
-
-  const handleDriveTypeChange = async (newDriveType: string) => {
-    try {
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-
-      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      updatedJson.mapped_ai_data.drive_type = newDriveType;
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-
-      setLocalMappedData((prev) => ({
-        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
-        drive_type: newDriveType,
-      }));
-    } catch (err) {
-      console.error("Error updating drive type", err);
-      alert("Błąd zapisu napędu: " + (err instanceof Error ? err.message : "Nieznany b\u0142\u0105d"));
-    }
-  };
-
-  const handleBodyTypeChange = async (newBodyType: string) => {
-    const rawCandidate = (newBodyType || "").trim();
-    if (!rawCandidate) return;
-
-    try {
-      let canonicalBodyType = rawCandidate;
-
-      const matchResp = await apiFetch(`/api/match-body-type?body_style_raw=${encodeURIComponent(rawCandidate)}`);
-      if (matchResp.ok) {
-        const match = await matchResp.json();
-        if (match?.matched_name) {
-          canonicalBodyType = match.matched_name;
-        } else {
-          console.warn("Body type not found in dictionary, keeping manual value:", rawCandidate);
-        }
-      }
-
-      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
-      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
-
-      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      updatedJson.mapped_ai_data.body_type = canonicalBodyType;
-
-      const { error } = await supabase
-        .from("vehicle_synthesis")
-        .update({ synthesis_data: updatedJson })
-        .eq("id", vehicle.id);
-
-      if (error) throw error;
-
-      setLocalMappedData((prev) => ({
-        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
-        body_type: canonicalBodyType,
-      }));
-    } catch (err) {
-      console.error("Error updating body type", err);
-      alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany błąd"));
-    }
-  };
-
-  const handleMapDataSilent = async () => {
-    if (!vehicle.synthesis_data) return;
-    setIsMapping(true);
-    try {
-      const response = await apiFetch(`/api/extract/map-vehicle-data`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          original_json: vehicle.synthesis_data,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Błąd podczas wywołania API mapowania danych.");
-      }
-
-      const data = await response.json();
-      setLocalMappedData(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsMapping(false);
-    }
-  };
+  const {
+    customServiceOptions,
+    customFactoryOptions,
+    isSavingServices,
+    handleUpdateServiceOptionName,
+    handleUpdateServiceOptionPrice,
+    handleUpdateServiceOptionIncludeInWr,
+    handleRemoveServiceOption,
+    handleAddManualServiceOption,
+    handleUpdateFactoryOptionName,
+    handleUpdateFactoryOptionPrice,
+    handleUpdateFactoryOptionNoDiscount,
+    handleRemoveFactoryOption,
+    handleAddManualFactoryOption,
+    handleRestoreAllOptions,
+    handleSaveAllOptions,
+  } = useVehicleOptionsManager(vehicle, onRefresh);
+
+  const {
+    isMapping,
+    handleSamarCategoryChange,
+    handleEngineCategoryChange,
+    handleDriveTypeChange,
+    handleBodyTypeChange,
+    handleMapDataSilent,
+  } = useVehicleMetaManager(
+    vehicle,
+    serverMappedData,
+    localMappedData,
+    setLocalMappedData
+  );
 
   useEffect(() => {
     if (isExpanded && vehicle.synthesis_data && !mappedData && !isMapping) {
@@ -717,7 +330,7 @@ export function VehicleRowCard({
       setHasAttemptedAutoLoadHistory(true);
       const fetchLatestCalc = async () => {
         try {
-          const res = await apiFetch(`/api/kalkulacje/vehicle/${vehicle.id}`, {
+          const res = await apiClient.fetch(`/api/kalkulacje/vehicle/${vehicle.id}`, {
             signal: controller.signal
           });
           if (res.ok) {
@@ -791,123 +404,34 @@ export function VehicleRowCard({
     "generating_summary", "matching_discounts", "mapping_data", "enriching_features",
   ]);
 
-  const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
-    const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
-    const offerPct = Number(cs?.offer_discount_pct ?? 0);
-    const suggestedPct = Number(vehicle.suggested_discount_pct ?? 0);
-
-    if (Number.isFinite(offerPct) && offerPct > 0) return "offer";
-    if (Number.isFinite(suggestedPct) && suggestedPct > 0) return "suggested";
-    return "offer";
+  const {
+    discountMode,
+    setDiscountMode,
+    customDiscountPctRaw,
+    setCustomDiscountPctRaw,
+    aiExtractedBasePrice,
+    aiBasePriceDeltaPln,
+    requireManualPriceReview,
+    calculationBlockReason,
+    dynamicTotalOptionsPrice,
+    totalCatalogPriceNet,
+    discountableOptionsTotal,
+    nonDiscountableOptionsTotal,
+    customServiceOptionsPriceTotal,
+    isDealerOffer,
+    offerDiscountPercentage,
+    suggestedDiscountPct,
+    suggestedDiscountConfidence,
+    activeDiscountPct,
+    activeFinalPriceNet,
+    formatCalculatedPrice,
+    AI_PRICE_ALERT_THRESHOLD_PLN,
+  } = useVehiclePricingManager({
+    vehicle,
+    catalogBasePriceNet,
+    customFactoryOptions,
+    customServiceOptions,
   });
-  const [customDiscountPctRaw, setCustomDiscountPctRaw] = useState<string | number>("");
-
-  const customDiscountPct = Number(customDiscountPctRaw) || 0;
-
-
-
-  // AI-extracted raw string for comparison display
-  const aiExtractedBasePrice = vehicle.base_price || null;
-  const AI_PRICE_ALERT_THRESHOLD_PLN = 10;
-  const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
-  const aiBasePriceNet = aiExtractedBasePrice?.toLowerCase().includes("netto")
-    ? aiBasePriceRaw
-    : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
-  const aiBasePriceDeltaPln = Math.abs(catalogBasePriceNet - aiBasePriceNet);
-  const requireManualPriceReview = Boolean(
-    aiExtractedBasePrice && aiBasePriceNet > 0 && aiBasePriceDeltaPln > AI_PRICE_ALERT_THRESHOLD_PLN
-  );
-  const calculationBlockReason = requireManualPriceReview
-    ? `Różnica ceny bazowej względem AI wynosi ${aiBasePriceDeltaPln.toFixed(2)} PLN (limit ${AI_PRICE_ALERT_THRESHOLD_PLN} PLN). Zweryfikuj ręcznie i skoryguj cenę.`
-    : null;
-
-  // ── Dynamic option splits (must come BEFORE totalCatalogPriceNet) ──
-  // These are the source of truth for option prices, not raw vehicle.options_price.
-  const factoryOptionsPriceTotal = customFactoryOptions.reduce((acc, curr) => acc + curr.price_net, 0);
-  const customServiceOptionsPriceTotal = customServiceOptions.reduce((acc, curr) => acc + curr.price_net, 0);
-
-  const dynamicTotalOptionsPrice = factoryOptionsPriceTotal + customServiceOptionsPriceTotal;
-
-  // Split factory options into discountable / non-discountable (always Netto)
-  const discountableOptionsTotal = customFactoryOptions
-    .filter(opt => !opt.no_discount)
-    .reduce((acc, curr) => acc + curr.price_net, 0);
-  const nonDiscountableOptionsTotal = customFactoryOptions
-    .filter(opt => opt.no_discount)
-    .reduce((acc, curr) => acc + curr.price_net, 0);
-
-  // totalCatalogPriceNet = base + ALL factory options (netto, from managed options — NOT raw vehicle.options_price)
-  const totalCatalogPriceNet = catalogBasePriceNet + factoryOptionsPriceTotal;
-
-  const offerFinalPriceRaw = parsePriceToNumber(vehicle.final_price_pln);
-  // Detect source price domain (netto vs brutto) ONLY for offer check
-  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
-  const offerFinalPriceNet = isSourceNetto ? offerFinalPriceRaw : offerFinalPriceRaw / 1.23;
-
-  const hasOfferFinalPrice = Boolean(
-    vehicle.final_price_pln &&
-    vehicle.final_price_pln !== "Brak" &&
-    vehicle.final_price_pln !== vehicle.base_price
-  );
-  
-  // To avoid false positives on dealer offer detection, check if offer is less than total catalog netto
-  const isDealerOffer = Boolean(
-    hasOfferFinalPrice && offerFinalPriceNet > 0 && offerFinalPriceNet < totalCatalogPriceNet - 1.0
-  );
-  
-  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
-  const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
-
-  const hasValidOfferDiscount = Boolean(parsedOfferDiscountPct && Number(parsedOfferDiscountPct) > 0);
-  
-  // Extend isDealerOffer to include cases where we have an explicitly provided discount percentage
-  const isDealerOfferExtended = isDealerOffer || hasValidOfferDiscount;
-
-  const offerDiscountPercentage = parsedOfferDiscountPct
-    ? Number(parsedOfferDiscountPct)
-    : isDealerOffer && totalCatalogPriceNet > 0
-      ? Number((((totalCatalogPriceNet - offerFinalPriceNet) / totalCatalogPriceNet) * 100).toFixed(1))
-      : 0;
-
-  const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
-  const suggestedDiscountConfidence = vehicle.suggested_discount_confidence || 0;
-
-  // discountableBaseNet = base + discountable factory options
-  const discountableBaseNet = catalogBasePriceNet + discountableOptionsTotal;
-
-  let activeDiscountPct = 0;
-  // Default final price: base + all factory options + service options (no discount)
-  let activeFinalPriceNet = totalCatalogPriceNet + customServiceOptionsPriceTotal;
-
-  if (discountMode === "offer" && isDealerOfferExtended) {
-    activeDiscountPct = offerDiscountPercentage;
-    if (parsedOfferDiscountPct && !hasOfferFinalPrice) {
-      activeFinalPriceNet = 
-        discountableBaseNet * (1 - offerDiscountPercentage / 100)
-        + nonDiscountableOptionsTotal
-        + customServiceOptionsPriceTotal;
-    } else {
-      activeFinalPriceNet = offerFinalPriceNet;
-    }
-  } else if (discountMode === "suggested") {
-    activeDiscountPct = suggestedDiscountPct;
-    // Discount only the discountable portion (base + discountable opts)
-    activeFinalPriceNet =
-      discountableBaseNet * (1 - suggestedDiscountPct / 100)
-      + nonDiscountableOptionsTotal
-      + customServiceOptionsPriceTotal;
-  } else if (discountMode === "custom") {
-    activeDiscountPct = customDiscountPct;
-    activeFinalPriceNet =
-      discountableBaseNet * (1 - customDiscountPct / 100)
-      + nonDiscountableOptionsTotal
-      + customServiceOptionsPriceTotal;
-  }
-
-  const formatCalculatedPrice = (val: number) => {
-      if (val === 0) return "Brak";
-      return `${val.toFixed(2)} PLN netto`;
-  };
 
 
 
@@ -979,7 +503,7 @@ export function VehicleRowCard({
     const handleCancel = async () => {
       if (!window.confirm("Czy na pewno chcesz anulować przetwarzanie tego dokumentu?")) return;
       try {
-        const response = await apiFetch(`/api/cancel-processing`, {
+        const response = await apiClient.fetch(`/api/cancel-processing`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ vehicle_id: vehicle.id }),
@@ -1068,6 +592,26 @@ export function VehicleRowCard({
       </div>
     );
   }
+
+  // Extract SAMAR candidates for reranking dropdown
+  const samarCandidates: { klasa: string; confidence: number }[] =
+    ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { samar_candidates?: { klasa: string; confidence: number }[] })?.samar_candidates) || [];
+
+  // Extract Engine candidates for reranking dropdown
+  const engineCandidates: { klasa: string; confidence: number }[] =
+    ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
+
+  // Extract drive type from card_summary
+  const DRIVE_TYPE_MAP: Record<string, string> = {
+    "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
+    "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
+  };
+  const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
+    ?.card_summary?.drive_type as string | undefined;
+  const detectedDriveType = rawDriveType
+    ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
+    : "";
+  const driveType = mappedData?.drive_type || detectedDriveType;
 
   return (
     <div

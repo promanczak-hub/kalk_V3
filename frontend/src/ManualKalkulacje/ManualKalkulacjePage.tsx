@@ -11,7 +11,7 @@ import { CreateManualModal } from './CreateManualModal';
 import { PricingPanel } from './PricingPanel';
 import type { KalkulacjaListItem, PricingState } from './types';
 import { DEFAULT_PRICING_COMPONENTS } from './types';
-import { apiFetch } from '../lib/api';
+import { apiClient } from '../lib/apiClient';
 
 type FilterSource = 'all' | 'manual' | 'clone' | 'pdf';
 
@@ -39,7 +39,7 @@ export function ManualKalkulacjePage() {
   const loadItems = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await apiFetch('/api/kalkulacje');
+      const resp = await apiClient.fetch('/api/kalkulacje');
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data: KalkulacjaListItem[] = await resp.json();
       setItems(Array.isArray(data) ? data : []);
@@ -61,7 +61,7 @@ export function ManualKalkulacjePage() {
 
   const handleClone = useCallback(async (id: string) => {
     try {
-      await apiFetch(`/api/kalkulacje/${id}/duplicate`, { method: 'POST' });
+      await apiClient.fetch(`/api/kalkulacje/${id}/duplicate`, { method: 'POST' });
       await loadItems();
     } catch (err) {
       console.error('Clone failed', err);
@@ -72,7 +72,7 @@ export function ManualKalkulacjePage() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      await apiFetch(`/api/kalkulacje/${deleteId}`, { method: 'DELETE' });
+      await apiClient.fetch(`/api/kalkulacje/${deleteId}`, { method: 'DELETE' });
       setDeleteId(null);
       await loadItems();
     } finally {

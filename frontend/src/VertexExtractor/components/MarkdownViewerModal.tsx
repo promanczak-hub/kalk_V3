@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, FileCode, Loader2, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 
 interface MarkdownViewerModalProps {
   isOpen: boolean;
@@ -27,7 +27,7 @@ export function MarkdownViewerModal({ isOpen, onClose, documentId, source, title
             ? `/api/catalogs/${documentId}/markdown`
             : `/api/extract/${documentId}/markdown`;
           
-        const res = await apiFetch(url);
+        const res = await apiClient.fetch(url);
         if (!res.ok) throw new Error("Nie udało się pobrać pliku markdown.");
         const data = await res.json();
         setContent(data.markdown || "Brak treści markdown dla tego dokumentu.");

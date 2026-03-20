@@ -29,11 +29,11 @@ class LTRSubCalculatorUtrataWartosciNew:
         self.input = calc_input
 
         # Resolve SAMAR class + engine_id
-        class_name = self.vehicle.get("Segment", "") or ""
-        self.samar_class_id = get_samar_class_id(class_name) or int(
-            self.vehicle.get("samar_class_id", 0) or 0
+        class_name = getattr(self.vehicle, "Segment", "") or ""
+        self.samar_class_id = get_samar_class_id(str(class_name)) or int(
+            getattr(self.vehicle, "samar_class_id", 0) or 0
         )
-        self.engine_id = int(self.vehicle.get("engine_type_id", 0) or 0)
+        self.engine_id = int(getattr(self.vehicle, "engine_type_id", 0) or 0)
 
         if self.samar_class_id <= 0:
             raise ValueError(
@@ -46,51 +46,51 @@ class LTRSubCalculatorUtrataWartosciNew:
 
         # Brand
         self.brand_name = (
-            (self.vehicle.get("brand") or self.vehicle.get("Marka") or "")
+            (getattr(self.vehicle, "brand", None) or getattr(self.vehicle, "Marka", None) or "")
             .strip()
             .upper()
         )
 
         # Model
         self.model_name = (
-            (self.vehicle.get("model") or self.vehicle.get("Model") or "")
+            (getattr(self.vehicle, "model", None) or getattr(self.vehicle, "Model", None) or "")
             .strip()
             .upper()
         )
 
         # Paint type ID
         self.paint_type_id: Optional[int] = None
-        raw_paint = self.vehicle.get("paint_type_id")
+        raw_paint = getattr(self.vehicle, "paint_type_id", None)
         if raw_paint:
             self.paint_type_id = int(raw_paint)
 
         # Body type ID
         self.body_type_id: Optional[int] = None
-        raw_body = self.vehicle.get("body_type_id")
+        raw_body = getattr(self.vehicle, "body_type_id", None)
         if raw_body:
             self.body_type_id = int(raw_body)
 
         # Zabudowa flag + type
-        self.zabudowa_apr_wr = bool(self.vehicle.get("zabudowa_apr_wr", False))
+        self.zabudowa_apr_wr = bool(getattr(self.vehicle, "zabudowa_apr_wr", False))
         self.zabudowa_type_id: Optional[int] = None
-        raw_zab = self.vehicle.get("zabudowa_type_id")
+        raw_zab = getattr(self.vehicle, "zabudowa_type_id", None)
         if raw_zab:
             self.zabudowa_type_id = int(raw_zab)
 
         # Rocznik — priority: calc_input.vehicle_vintage → vehicle dict
         vintage_raw = getattr(self.input, "vehicle_vintage", None)
-        if not vintage_raw and isinstance(self.input, dict):
+        if not vintage_raw and getattr(self.input, "get", None):
             vintage_raw = self.input.get("vehicle_vintage")
         if not vintage_raw:
-            vintage_raw = self.vehicle.get("rocznik", "current")
+            vintage_raw = getattr(self.vehicle, "rocznik", "current")
         self.rocznik = str(vintage_raw or "current")
 
         # Is metalic — priority: calc_input.is_metalic → vehicle dict
         is_meta = getattr(self.input, "is_metalic", None)
-        if is_meta is None and isinstance(self.input, dict):
+        if is_meta is None and getattr(self.input, "get", None):
             is_meta = self.input.get("is_metalic")
         if is_meta is None:
-            is_meta = bool(self.vehicle.get("is_metalic", True))
+            is_meta = bool(getattr(self.vehicle, "is_metalic", True))
         self.is_metalic = bool(is_meta)
 
         # VAT

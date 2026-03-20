@@ -698,6 +698,8 @@ def reverse_search_vehicles(
 
                 if target_cell:
                     pmt = target_cell["price_net"]
+                    if request.price_margin_pct is not None:
+                        pmt = pmt / (1 - request.price_margin_pct / 100)
                     if min_p <= pmt <= max_p:
                         # Map extra info
                         v["_pmt"] = pmt

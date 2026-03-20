@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { apiFetch } from "../../../lib/api";
+import { apiClient } from '../../../lib/apiClient';
 import { ChevronDown, ChevronRight, Loader2, Package, Settings, FileText, AlertTriangle, ExternalLink } from "lucide-react";
 import VehicleFeaturesCrud from "../VehicleFeaturesCrud";
 import { CatalogFeatureSelectorModal } from "./CatalogFeatureSelectorModal";
@@ -111,7 +111,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const handleEnrichment = async () => {
     setEnriching(true);
     try {
-      const res = await apiFetch(`/api/features/vehicle/${vehicleId}/enrich-background`, { method: "POST" });
+      const res = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/enrich-background`, { method: "POST" });
       if (!res.ok) throw new Error("Wystąpił błąd podczas zlecania zadania do Celery.");
       alert("Rozpoczęto w pełni zautomatyzowaną analizę dokumentów w tle (100% match). Cechy pojawią się po zakończeniu.");
     } catch (err) {
@@ -198,7 +198,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
     // Fetch matched catalogs for this vehicle
     (async () => {
       try {
-        const res = await apiFetch(`/api/catalogs/match?vehicle_id=${vehicleId}`);
+        const res = await apiClient.fetch(`/api/catalogs/match?vehicle_id=${vehicleId}`);
         if (res.ok) {
           const data = await res.json();
           setMatchedCatalogs(data.catalogs || []);

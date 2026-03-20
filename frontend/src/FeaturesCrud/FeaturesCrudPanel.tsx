@@ -33,6 +33,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
 import { API_BASE_URL } from "../config/env";
+import { apiClient } from "../lib/apiClient";
 
 const API = API_BASE_URL;
 
@@ -94,8 +95,8 @@ export default function FeaturesCrudPanel() {
     setLoading(true);
     try {
       const [catsRes, featsRes] = await Promise.all([
-        fetch(`${API}/api/features/admin/categories`),
-        fetch(`${API}/api/features/admin/features`),
+        apiClient.fetch(`${API}/api/features/admin/categories`),
+        apiClient.fetch(`${API}/api/features/admin/features`),
       ]);
       setCategories(await catsRes.json());
       setFeatures(await featsRes.json());
@@ -113,7 +114,7 @@ export default function FeaturesCrudPanel() {
   // ── Handlers ──
   const handleDownload = async (type: "categories" | "features") => {
     const url = `${API}/api/features/admin/${type}/export-xlsx`;
-    const res = await fetch(url);
+    const res = await apiClient.fetch(url);
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -126,7 +127,7 @@ export default function FeaturesCrudPanel() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const res = await fetch(url, { method: "POST", body: fd });
+      const res = await apiClient.fetch(url, { method: "POST", body: fd });
       const data = await res.json();
       if (res.ok) {
         setSuccessMsg(`Import: ${data.inserted} wstawionych, ${data.errors?.length || 0} błędów`);
@@ -142,7 +143,7 @@ export default function FeaturesCrudPanel() {
   const saveCat = async () => {
     if (!editingCat) return;
     try {
-      await fetch(`${API}/api/features/admin/categories`, {
+      await apiClient.fetch(`${API}/api/features/admin/categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingCat),
@@ -157,14 +158,14 @@ export default function FeaturesCrudPanel() {
 
   const deleteCat = async (id: number) => {
     if (!confirm("Usunąć kategorię?")) return;
-    await fetch(`${API}/api/features/admin/categories/${id}`, { method: "DELETE" });
+    await apiClient.fetch(`${API}/api/features/admin/categories/${id}`, { method: "DELETE" });
     fetchData();
   };
 
   const saveFeat = async () => {
     if (!editingFeat) return;
     try {
-      await fetch(`${API}/api/features/admin/features`, {
+      await apiClient.fetch(`${API}/api/features/admin/features`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingFeat),
@@ -179,7 +180,7 @@ export default function FeaturesCrudPanel() {
 
   const deleteFeat = async (id: number) => {
     if (!confirm("Usunąć cechę?")) return;
-    await fetch(`${API}/api/features/admin/features/${id}`, { method: "DELETE" });
+    await apiClient.fetch(`${API}/api/features/admin/features/${id}`, { method: "DELETE" });
     fetchData();
   };
 

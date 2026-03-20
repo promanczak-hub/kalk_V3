@@ -228,6 +228,9 @@ class FeatureSearchRequest(BaseModel):
     price_deposit_pct: float | None = Field(
         default=0.0, description="Initial deposit % for price calc"
     )
+    price_margin_pct: float | None = Field(
+        default=None, description="Sales margin % to apply on calculated lease rate"
+    )
 
 
 class FeatureSearchResultItem(BaseModel):

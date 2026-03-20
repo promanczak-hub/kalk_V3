@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiFetch } from "../../../lib/api";
+import { apiClient } from '../../../lib/apiClient';
 import { X, Loader2, Plus, Check } from "lucide-react";
 
 interface FeaturePreview {
@@ -47,7 +47,7 @@ export function CatalogFeatureSelectorModal({
   useEffect(() => {
     async function loadPreview() {
       try {
-        const res = await apiFetch(`/api/features/vehicle/${vehicleId}/catalog-preview?catalog_id=${catalogId}`);
+        const res = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/catalog-preview?catalog_id=${catalogId}`);
         if (!res.ok) throw new Error("Błąd podczas ładowania podglądu z cennika");
         
         const json: PreviewResponse = await res.json();
@@ -115,7 +115,7 @@ export function CatalogFeatureSelectorModal({
         features: featuresToSave
       };
 
-      const res = await apiFetch(`/api/features/vehicle/${vehicleId}/add-selected-catalog-features`, {
+      const res = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/add-selected-catalog-features`, {
         method: "POST",
         body: JSON.stringify(payload),
       });

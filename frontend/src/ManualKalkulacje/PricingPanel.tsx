@@ -7,6 +7,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveIcon from '@mui/icons-material/Save';
 import type { PricingComponent, PricingState, PricingResult } from './types';
+import { apiClient } from "../lib/apiClient";
 
 const VAT_RATE = 0.23;
 
@@ -93,7 +94,7 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
     setSaving(true);
     try {
       const { apiFetch } = await import('../lib/api');
-      await apiFetch(`/api/kalkulacje/${kalkulacjaId}/pricing`, {
+      await apiClient.fetch(`/api/kalkulacje/${kalkulacjaId}/pricing`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

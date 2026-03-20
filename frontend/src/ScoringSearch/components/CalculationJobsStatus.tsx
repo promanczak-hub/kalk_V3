@@ -9,7 +9,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import { apiFetch } from '../../lib/api';
+import { apiClient } from '../../lib/apiClient';
 
 interface JobStatus {
   vehicle_id: string;
@@ -52,7 +52,7 @@ const CalculationJobsStatus: React.FC = () => {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await apiFetch('/kalkulacje/jobs-status');
+      const res = await apiClient.fetch('/kalkulacje/jobs-status');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: JobsStatusResponse = await res.json();
       setData(json);

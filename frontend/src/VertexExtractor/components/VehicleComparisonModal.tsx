@@ -2,6 +2,7 @@
 import { X, Loader2, GitCompareArrows } from "lucide-react";
 import type { FleetVehicleView } from "../types";
 import { API_BASE_URL } from "../../config/env";
+import { apiClient } from "../../lib/apiClient";
 
 interface VehicleComparisonModalProps {
   vehicles: FleetVehicleView[];
@@ -23,7 +24,7 @@ export function VehicleComparisonModal({
     try {
       const baseUrl =
         API_BASE_URL;
-      const response = await fetch(`${baseUrl}/api/compare-vehicles`, {
+      const response = await apiClient.fetch(`${baseUrl}/api/compare-vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

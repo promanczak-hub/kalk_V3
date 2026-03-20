@@ -27,6 +27,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DownloadIcon from '@mui/icons-material/Download';
 import { API_BASE_URL } from "../config/env";
+import { apiClient } from "../lib/apiClient";
 
 const API_BASE = API_BASE_URL;
 
@@ -79,7 +80,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
   const handleDownload = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/config/${tableName}/export-xlsx`);
+      const resp = await apiClient.fetch(`${API_BASE}/api/config/${tableName}/export-xlsx`);
       if (!resp.ok) throw new Error(await resp.text());
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -105,7 +106,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
-      const resp = await fetch(`${API_BASE}/api/config/${tableName}/import-xlsx`, {
+      const resp = await apiClient.fetch(`${API_BASE}/api/config/${tableName}/import-xlsx`, {
         method: 'POST',
         body: formData,
       });
@@ -133,7 +134,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
   const fetchVersions = useCallback(async () => {
     setVersionsLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/config/${tableName}/versions`);
+      const resp = await apiClient.fetch(`${API_BASE}/api/config/${tableName}/versions`);
       if (!resp.ok) throw new Error(await resp.text());
       const data: VersionInfo[] = await resp.json();
       setVersions(data);
@@ -149,7 +150,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
   const handleSnapshot = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/config/${tableName}/snapshot`, {
+      const resp = await apiClient.fetch(`${API_BASE}/api/config/${tableName}/snapshot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: snapshotLabel || 'Ręczny snapshot' }),
@@ -176,7 +177,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
     if (!window.confirm(`Przywrócić dane z wersji v${versionNum}? Obecne dane zostaną nadpisane (automatyczny backup zostanie utworzony).`)) return;
     setLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/config/${tableName}/restore/${versionId}`, {
+      const resp = await apiClient.fetch(`${API_BASE}/api/config/${tableName}/restore/${versionId}`, {
         method: 'POST',
       });
       if (!resp.ok) throw new Error(await resp.text());
@@ -199,7 +200,7 @@ export default function ConfigTableToolbar({ tableName, tableLabel, onDataChange
   // ── Download version XLSX ──
   const handleDownloadVersion = useCallback(async (versionId: number, versionNum: number) => {
     try {
-      const resp = await fetch(`${API_BASE}/api/config/${tableName}/versions/${versionId}/export-xlsx`);
+      const resp = await apiClient.fetch(`${API_BASE}/api/config/${tableName}/versions/${versionId}/export-xlsx`);
       if (!resp.ok) throw new Error(await resp.text());
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);

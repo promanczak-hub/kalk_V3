@@ -49,6 +49,7 @@ services:
     environment:
       - APP_ENV=production
       - AUTH_ENABLED=true
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
     restart: unless-stopped

@@ -127,7 +127,7 @@ class PipelineDebugger(LTRKalkulator):
         )
 
         # KROK 3: Samochód Zastępczy (SZst)
-        klasa_id = str(self.vehicle.get("samar_class_id", "")) if self.vehicle else ""
+        klasa_id = str(getattr(self.vehicle, "samar_class_id", "")) if self.vehicle else ""
         rc_rate = get_replacement_car_rate_from_db(klasa_id)
         rc_calc = ReplacementCarCalculator(rc_rate)  # type: ignore
         rc_res = rc_calc.calculate_cost(
@@ -174,13 +174,13 @@ class PipelineDebugger(LTRKalkulator):
             z_serwisem=True,
             opcja_serwisowa=self._opcja_serwisowa,
             normatywny_przebieg_mc=normatywny_przebieg,
-            samar_class_id=int(self.vehicle.get("samar_class_id", 0))
+            samar_class_id=int(getattr(self.vehicle, "samar_class_id", 0))
             if self.vehicle
             else 0,
-            engine_type_id=int(self.vehicle.get("engine_type_id", 1))
+            engine_type_id=int(getattr(self.vehicle, "engine_type_id", 1))
             if self.vehicle
             else 1,
-            power_kw=float(self.vehicle.get("power_kw", 100))
+            power_kw=float(getattr(self.vehicle, "power_kw", 100))
             if self.vehicle
             else 100.0,
             przebieg=total_km,

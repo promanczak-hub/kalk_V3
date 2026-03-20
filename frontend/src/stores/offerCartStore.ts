@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface OfferVariant {
+  duration_months: number | null;
+  annual_mileage: number | null;
+  monthly_price_net: number | null;
+  found: boolean;
+  variants_count?: number;
+  tire_class?: string;
+  service_type?: string;
+  kalkulacja_id?: string;
+}
+
 export interface OfferItem {
   id: string; // Unique combination of kalk_id_months_mileage
   brand: string;
@@ -11,11 +22,13 @@ export interface OfferItem {
   mileage: number;
   net_installment: number;
   contribution: number;
+  margin_pct?: number;
   system_recommendation?: string; // e.g. "Low Monthly", "Best Value"
-  calculation_data: any; // Raw JSON cell
+  calculation_data: unknown; // Raw JSON cell
   standard_equipment: string[];
   factory_options: string[];
   dealer_options: string[];
+  variants?: OfferVariant[];
 }
 
 export interface ClientData {

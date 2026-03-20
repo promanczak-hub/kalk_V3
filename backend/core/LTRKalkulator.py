@@ -533,11 +533,13 @@ def get_damage_coefficients_from_db(samar_class_id: str) -> Dict[str, Any]:
 class LTRKalkulator:
     """RdzeĹ„ budujÄ…cy Matrix dla zadanego CalculatorInput"""
 
-    def __init__(self, input_data: Any, settings: Any):
+    def __init__(self, input_data: Any, settings: Any, pipeline_dto: Any = None, trace_id: str | None = None):
         self.input_data = input_data
         self.settings = settings
+        self.pipeline_dto = pipeline_dto
+        self.trace_id = trace_id or "UNKNOWN_TRACE_ID"
 
-        # Inicjalizacja subkalkulatorĂłw
+        # Inicjalizacja subkalkulatorów
         self.tires_calc = LTRSubCalculatorOpony(
             z_oponami=getattr(self.input_data, "z_oponami", True),
             klasa_opony_string=getattr(self.input_data, "klasa_opony_string", ""),
@@ -551,20 +553,40 @@ class LTRKalkulator:
         )
 
         # Load vehicle if needed
-        vid = getattr(self.input_data, "vehicle_id", "")
-        if isinstance(self.input_data, dict):
-            vid = self.input_data.get("vehicle_id", "")
-        self.vehicle = get_vehicle_from_db(vid) if vid else {}
+        from domain.calculations.dto import VehicleDataDTO
 
-        self.samar_id = self.vehicle.get("samar_class_id", 0)
-        self.vehicle["samar_class_id"] = self.samar_id
+        if self.pipeline_dto:
+            self.vehicle = self.pipeline_dto.vehicle
+            self.samar_id = self.vehicle.samar_class_id
+            self.samar_klasa = self.pipeline_dto.samar_class.model_dump()
+        else:
+            vid = getattr(self.input_data, "vehicle_id", "")
+            if isinstance(self.input_data, dict):
+                vid = self.input_data.get("vehicle_id", "")
+            raw_v = get_vehicle_from_db(vid) if vid else {}
 
-        samar_id_str = str(self.samar_id)
-        self.samar_klasa = (
-            get_samar_klasa_from_db(samar_id_str)
-            if samar_id_str and samar_id_str != "0"
-            else {}
-        )
+            self.samar_id = raw_v.get("samar_class_id", 0)
+            raw_v["samar_class_id"] = self.samar_id
+
+            samar_id_str = str(self.samar_id)
+            raw_s = (
+                get_samar_klasa_from_db(samar_id_str)
+                if samar_id_str and samar_id_str != "0"
+                else {}
+            )
+            
+            if raw_v:
+                self.vehicle = VehicleDataDTO(
+                    id=str(raw_v.get("id", "0")),
+                    brand=str(raw_v.get("brand", "UNKNOWN")),
+                    model=str(raw_v.get("model", "UNKNOWN")),
+                    engine_type_id=int(raw_v.get("engine_type_id", 0)),
+                    samar_class_id=int(self.samar_id),
+                    **{k: v for k, v in raw_v.items() if k not in ["id", "brand", "model", "engine_type_id", "samar_class_id"]}
+                )
+            else:
+                self.vehicle = VehicleDataDTO(id="0", brand="UNKNOWN", model="UNKNOWN", engine_type_id=0, samar_class_id=0)
+            self.samar_klasa = raw_s
 
         # Override synthesized vehicle data with explicit dropdown input values.
         self._apply_explicit_input_overrides()
@@ -591,7 +613,10 @@ class LTRKalkulator:
 
     def _apply_explicit_input_overrides(self) -> None:
         if not self.vehicle:
-            self.vehicle = {}
+            from domain.calculations.dto import VehicleDataDTO
+            self.vehicle = VehicleDataDTO(
+                id="0", brand="UNKNOWN", model="UNKNOWN", engine_type_id=0, samar_class_id=0
+            )
 
         input_samar = str(getattr(self.input_data, "samar_category", "") or "").strip()
         if input_samar:
@@ -600,37 +625,37 @@ class LTRKalkulator:
                 raise ValueError(
                     f"Nie rozpoznano klasy SAMAR z dropdownu: '{input_samar}'."
                 )
-            self.vehicle["Segment"] = input_samar
-            self.vehicle["samar_class_id"] = int(resolved_samar_id)
+            self.vehicle.Segment = input_samar
+            self.vehicle.samar_class_id = int(resolved_samar_id)
             self.samar_id = int(resolved_samar_id)
 
         # Nadpisanie mocy z UI payload
         if getattr(self.input_data, "power_kw", None):
-            self.vehicle["power_kw"] = float(self.input_data.power_kw)
+            self.vehicle.power_kw = float(self.input_data.power_kw)
         elif getattr(self.input_data, "power_hp", None):
-            self.vehicle["power_kw"] = float(round(self.input_data.power_hp / 1.36))
+            self.vehicle.power_kw = float(round(self.input_data.power_hp / 1.36))
             self.samar_klasa = get_samar_klasa_from_db(str(self.samar_id))
 
         input_engine = str(getattr(self.input_data, "engine_name", "") or "").strip()
         if input_engine:
             resolved_engine_id = _resolve_engine_type_id(input_engine)
-            self.vehicle["engine_type_id"] = int(resolved_engine_id)
+            self.vehicle.engine_type_id = int(resolved_engine_id)
 
         input_body = str(getattr(self.input_data, "body_type_name", "") or "").strip()
         if input_body:
             resolved_body_id = _resolve_body_type_id_from_name(input_body)
             if resolved_body_id:
-                self.vehicle["body_type_id"] = int(resolved_body_id)
+                self.vehicle.body_type_id = int(resolved_body_id)
             else:
                 logging.warning(
                     "Nie rozpoznano typu nadwozia z dropdownu: '%s'; zapis manualny bez body_type_id.",
                     input_body,
                 )
-            self.vehicle["body_type_name"] = input_body
-            if not self.vehicle.get("zabudowa_type_id"):
+            self.vehicle.body_type_name = input_body
+            if not getattr(self.vehicle, "zabudowa_type_id", None):
                 inferred_zabudowa = _resolve_zabudowa_type_id_from_name(input_body)
                 if inferred_zabudowa:
-                    self.vehicle["zabudowa_type_id"] = int(inferred_zabudowa)
+                    self.vehicle.zabudowa_type_id = int(inferred_zabudowa)
 
         input_paint = str(getattr(self.input_data, "paint_type_name", "") or "").strip()
         if input_paint:
@@ -639,32 +664,32 @@ class LTRKalkulator:
                 raise ValueError(
                     f"Nie rozpoznano typu lakieru z dropdownu: '{input_paint}'."
                 )
-            self.vehicle["paint_type_id"] = int(resolved_paint_id)
+            self.vehicle.paint_type_id = int(resolved_paint_id)
 
         input_drive = str(getattr(self.input_data, "drive_type", "") or "").strip()
         if input_drive:
-            self.vehicle["drive_type"] = input_drive
+            self.vehicle.drive_type = input_drive
 
         input_zab_type = getattr(self.input_data, "zabudowa_type_id", None)
         if input_zab_type not in (None, ""):
-            self.vehicle["zabudowa_type_id"] = int(input_zab_type)
-        elif not self.vehicle.get("zabudowa_type_id"):
+            self.vehicle.zabudowa_type_id = int(input_zab_type)
+        elif getattr(self.vehicle, "zabudowa_type_id", None) is None:
             for opt in getattr(self.input_data, "service_options", []) or []:
                 opt_name = str(getattr(opt, "name", "") or "")
                 inferred_zabudowa = _resolve_zabudowa_type_id_from_name(opt_name)
                 if inferred_zabudowa:
-                    self.vehicle["zabudowa_type_id"] = int(inferred_zabudowa)
+                    self.vehicle.zabudowa_type_id = int(inferred_zabudowa)
                     break
 
-        self.vehicle["zabudowa_apr_wr"] = bool(
-            self.vehicle.get("zabudowa_apr_wr", False)
-            or self.vehicle.get("zabudowa_type_id")
+        self.vehicle.zabudowa_apr_wr = bool(
+            getattr(self.vehicle, "zabudowa_apr_wr", False)
+            or getattr(self.vehicle, "zabudowa_type_id", None)
         )
 
         if hasattr(self.input_data, "vehicle_vintage"):
-            self.vehicle["rocznik"] = getattr(self.input_data, "vehicle_vintage")
+            self.vehicle.rocznik = getattr(self.input_data, "vehicle_vintage")
         if hasattr(self.input_data, "is_metalic"):
-            self.vehicle["is_metalic"] = bool(getattr(self.input_data, "is_metalic"))
+            self.vehicle.is_metalic = bool(getattr(self.input_data, "is_metalic"))
 
     def _calculate_capex(self) -> Tuple[float, float, Any]:
         """Kalkuluje wejĹ›ciowÄ… sumÄ™ finansowanÄ… (CAPEX) autorskim kalkulatorem (V3)"""
@@ -696,7 +721,7 @@ class LTRKalkulator:
         tires_capex = (
             self.tires_calc.tire_set_price if self.tires_calc.z_oponami else 0.0
         )
-        brand = self.vehicle.get("brand", "").strip()
+        brand = getattr(self.vehicle, "brand", "").strip()
         transport_fee_net = float(getattr(self.input_data, "transport_fee_net", 0.0))
         if brand and transport_fee_net == 0.0:
             try:
@@ -761,7 +786,10 @@ class LTRKalkulator:
             LTRSubCalculatorUtrataWartosciNew,
         )
 
-        rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
+        rv_calc = LTRSubCalculatorUtrataWartosciNew(
+            self.vehicle, 
+            self.input_data
+        )
 
         # Opcje pod WartoĹ›Ä‡ RezydualnÄ… (Zawsze Fabryczne + Serwisowe z include_in_wr)
         base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
@@ -771,8 +799,13 @@ class LTRKalkulator:
             if getattr(opt, "include_in_wr", False)
         )
 
-        # Raw margin percentage (e.g. 2.0%)
-        margin_pct = self.input_data.pricing_margin_pct / 100.0
+        # Tryb kalkulacji biznesowej (standard vs bez marży w Reverse Lookup)
+        calc_mode = getattr(self.input_data, "calculation_mode", "standard")
+        if calc_mode == "base_cost_only":
+            margin_pct = 0.0001
+        else:
+            margin_pct = self.input_data.pricing_margin_pct / 100.0
+            
         if margin_pct >= 1.0:
             margin_pct = 0.9999  # Prevention of division by zero
 
@@ -917,7 +950,7 @@ class LTRKalkulator:
                     "Brak `samar_class_id` dla pojazdu. Uzupelnij klase SAMAR w danych wejsciowych."
                 )
 
-            engine_type_id = int(self.vehicle.get("engine_type_id", 0) or 0)
+            engine_type_id = int(getattr(self.vehicle, "engine_type_id", 0) or 0)
             if engine_type_id <= 0:
                 engine_name_input = getattr(self.input_data, "engine_name", None)
                 if engine_name_input:
@@ -935,11 +968,12 @@ class LTRKalkulator:
             if power_kw_input and float(power_kw_input) > 0:
                 power_kw = float(power_kw_input)
             else:
-                power_kw = float(self.vehicle.get("power_kw", 0.0) or 0.0)
+                power_kw_val = getattr(self.vehicle, "power_kw", 0.0)
+                power_kw = float(power_kw_val if power_kw_val is not None else 0.0)
 
             if power_kw <= 0.0:
                 raise ValueError(
-                    f"Brak poprawnej mocy `power_kw` pojazdu. power_kw_input={power_kw_input}, self.vehicle_power_kw={self.vehicle.get('power_kw')}"
+                    f"Brak poprawnej mocy `power_kw` pojazdu. power_kw_input={power_kw_input}, self.vehicle_power_kw={getattr(self.vehicle, 'power_kw', None)}"
                 )
 
             pakiet_serwisowy_val = float(
@@ -974,8 +1008,8 @@ class LTRKalkulator:
                 service_fallback_used = True
                 raise ValueError(
                     f"Brak stawek serwisowych (ServiceCalculator zwrocil 0) dla "
-                    f"okres={months}, klasa={self.vehicle.get('samar_class_id', '?')}, "
-                    f"silnik={self.vehicle.get('engine_type_id', '?')}. "
+                    f"okres={months}, klasa={getattr(self.vehicle, 'samar_class_id', '?')}, "
+                    f"silnik={getattr(self.vehicle, 'engine_type_id', '?')}. "
                     f"Uzupelnij brakujace dane w tabeli `samar_service_costs`."
                 )
 
@@ -1189,7 +1223,8 @@ class LTRKalkulator:
                     "ReportHtml": report_html,
                     # 9. Ĺšlad rewizyjny (Calculation Trace)
                     "calculation_trace": (
-                        capex_res.trace
+                        [f"=== LTR MATRIX TILE TRACE. TRACE_ID: {self.trace_id} ==="]
+                        + capex_res.trace
                         + rv_res.get("trace", [])
                         + (amort_result.trace if "amort_result" in locals() else [])
                         + tires_res.get("trace", [])

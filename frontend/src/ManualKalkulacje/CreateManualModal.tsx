@@ -7,7 +7,7 @@ import {
 import { PricingPanel } from './PricingPanel';
 import type { PricingState, PricingResult } from './types';
 import { DEFAULT_PRICING_COMPONENTS } from './types';
-import { apiFetch } from '../lib/api';
+import { apiClient } from '../lib/apiClient';
 
 const STEPS = ['Dane pojazdu', 'Panel cenowy'];
 
@@ -72,7 +72,7 @@ export const CreateManualModal: React.FC<CreateManualModalProps> = ({ open, onCl
         przebieg_bazowy: parseInt(vehicle.przebieg_bazowy, 10) || 140000,
         pricing: { components: pricing.components, discount_pct: pricing.discount_pct },
       };
-      const res = await apiFetch('/api/kalkulacje/manual', {
+      const res = await apiClient.fetch('/api/kalkulacje/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

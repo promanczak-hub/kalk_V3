@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE_URL } from "./config/env";
 import { supabase } from "./VertexExtractor/lib/supabaseClient";
+import { apiClient } from "./lib/apiClient";
 
 interface ControlCenterData {
   id: number;
@@ -90,7 +91,7 @@ export default function GlobalSettingsPanel() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const resp = await fetch(`${baseUrl}/api/control-center`);
+      const resp = await apiClient.fetch(`${baseUrl}/api/control-center`);
       if (resp.ok) {
         const json = await resp.json();
         setData(json);
@@ -176,7 +177,7 @@ export default function GlobalSettingsPanel() {
       const { id, updated_at, ...payload } = data as ControlCenterData & { updated_at?: string };
       void id; void updated_at;
 
-      const resp = await fetch(`${baseUrl}/api/control-center`, {
+      const resp = await apiClient.fetch(`${baseUrl}/api/control-center`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

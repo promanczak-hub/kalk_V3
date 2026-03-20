@@ -30,7 +30,7 @@ interface DocumentLibraryItem {
 
 /* ── Constants ────────────────────────────────────────────────── */
 
-import { apiFetch } from "../../lib/api";
+import { apiClient } from '../../lib/apiClient';
 
 const DOC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   catalog: { label: "Katalog", color: "bg-indigo-100 text-indigo-700" },
@@ -60,7 +60,7 @@ export function CatalogLibraryPage() {
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/catalogs`);
+      const res = await apiClient.fetch(`/api/catalogs`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setDocuments(data.catalogs || []);
@@ -84,7 +84,7 @@ export function CatalogLibraryPage() {
     
     try {
       // Fetch the file as a Blob to handle specific JSON error responses directly
-      const res = await fetch(`http://localhost:8000/api/catalogs/${doc.id}/file`);
+      const res = await apiClient.fetch(`http://localhost:8000/api/catalogs/${doc.id}/file`);
       if (!res.ok) {
         let errorMsg = `HTTP ${res.status} ${res.statusText}`;
         try {
@@ -122,7 +122,7 @@ export function CatalogLibraryPage() {
   const deleteDocument = async (id: string) => {
     if (!confirm("Czy na pewno usunąć ten dokument z biblioteki?")) return;
     try {
-      await apiFetch(`/api/catalogs/${id}`, { method: "DELETE" });
+      await apiClient.fetch(`/api/catalogs/${id}`, { method: "DELETE" });
       await fetchDocuments();
       if (previewId === id) closePreview();
     } catch (err) {
@@ -134,7 +134,7 @@ export function CatalogLibraryPage() {
   const reprocessDocument = async (id: string) => {
     if (!confirm("Czy na pewno chcesz przetworzyć ten dokument jako Ofertę (pojedyncze auta)? Zostanie on usunięty z tej biblioteki i trafi do głównej tabeli uwzględniając twarde wypisane ceny i wyposażenie unikalne.")) return;
     try {
-      const res = await apiFetch(`/api/catalogs/${id}/reprocess`, { method: "POST" });
+      const res = await apiClient.fetch(`/api/catalogs/${id}/reprocess`, { method: "POST" });
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(`HTTP ${res.status}: ${errText}`);

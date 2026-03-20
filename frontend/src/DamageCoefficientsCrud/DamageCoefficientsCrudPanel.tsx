@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import { Edit, Trash2, Plus } from "lucide-react";
 
-import { apiFetch } from "../lib/api";
+import { apiClient } from '../lib/apiClient';
 
 interface SamarClass {
   id: number;
@@ -58,7 +58,7 @@ export default function DamageCoefficientsCrudPanel() {
 
   const fetchDependencies = async () => {
     try {
-      const res = await apiFetch(`/api/samar-classes`).catch(
+      const res = await apiClient.fetch(`/api/samar-classes`).catch(
         () => null,
       );
       if (res?.ok) {
@@ -72,7 +72,7 @@ export default function DamageCoefficientsCrudPanel() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const resp = await apiFetch(
+      const resp = await apiClient.fetch(
         `/api/admin/damage-coefficients`,
       );
       if (resp.ok) {
@@ -112,7 +112,7 @@ export default function DamageCoefficientsCrudPanel() {
     try {
       const payload = { ...formData };
 
-      const resp = await apiFetch(
+      const resp = await apiClient.fetch(
         `/api/admin/damage-coefficients`,
         {
           method: "POST",
@@ -135,7 +135,7 @@ export default function DamageCoefficientsCrudPanel() {
   const handleDelete = async (id: number) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
-      const resp = await apiFetch(
+      const resp = await apiClient.fetch(
         `/api/admin/damage-coefficients/${id}`,
         { method: "DELETE" },
       );

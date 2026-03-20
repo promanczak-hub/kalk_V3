@@ -1,6 +1,7 @@
 ﻿import { useState } from "react";
 import { Search, TrendingUp, Loader2, Info } from "lucide-react";
 import { API_BASE_URL } from "../config/env";
+import { apiClient } from "../lib/apiClient";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -98,7 +99,7 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
         pricing_margin_pct: 0.001, // near-zero to avoid division issues
       };
 
-      const resp = await fetch(`${baseUrl}/api/calculate-matrix`, {
+      const resp = await apiClient.fetch(`${baseUrl}/api/calculate-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(zeroMarginPayload),

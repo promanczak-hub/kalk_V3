@@ -1,0 +1,100 @@
+﻿During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 473, in receive
+    ready, req = _receive(1.0)
+                 ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 445, in _recv
+    return True, loads(get_payload())
+                       ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\queues.py", line 394, in get_payload
+    with self._rlock:
+         ^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\synchronize.py", line 118, in __exit__
+    return self._semlock.__exit__(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError 6] Nieprawidłowe dojście
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 351, in workloop
+    req = wait_for_job()
+          ^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 480, in receive
+    raise SystemExit(EX_FAILURE)
+SystemExit: 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 292, in __call__
+    sys.exit(self.workloop(pid=pid))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 396, in workloop
+    self._ensure_messages_consumed(completed=completed)
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 406, in _ensure_messages_consumed
+    if self.on_ready_counter.value >= completed:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 3, in getvalue
+PermissionError: [WinError 5] Odmowa dostępu
+[2026-03-20 05:53:50,376: ERROR/SpawnPoolWorker-35] Pool process <billiard.pool.Worker object at 0x00000206AE0E7CE0> error: PermissionError(13, 'Odmowa dostępu', None, 5, None)
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\queues.py", line 395, in get_payload
+    return self._reader.recv_bytes()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\connection.py", line 240, in recv_bytes
+    buf = self._recv_bytes(maxlength)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\connection.py", line 353, in _recv_bytes
+    result = self._get_more_data(ov, maxsize)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\connection.py", line 377, in _get_more_data
+    assert left > 0
+           ^^^^^^^^
+AssertionError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 473, in receive
+    ready, req = _receive(1.0)
+                 ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 445, in _recv
+    return True, loads(get_payload())
+                       ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\queues.py", line 394, in get_payload
+    with self._rlock:
+         ^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\synchronize.py", line 118, in __exit__
+    return self._semlock.__exit__(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError 6] Nieprawidłowe dojście
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 351, in workloop
+    req = wait_for_job()
+          ^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 480, in receive
+    raise SystemExit(EX_FAILURE)
+SystemExit: 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 292, in __call__
+    sys.exit(self.workloop(pid=pid))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 396, in workloop
+    self._ensure_messages_consumed(completed=completed)
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 406, in _ensure_messages_consumed
+    if self.on_ready_counter.value >= completed:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 3, in getvalue
+PermissionError: [WinError 5] Odmowa dostępu
+[2026-03-20 05:53:50,622: ERROR/MainProcess] Process 'SpawnPoolWorker-40' pid:46740 exited with 'exitcode 1'
+[2026-03-20 05:53:50,623: ERROR/MainProcess] Process 'SpawnPoolWorker-35' pid:48248 exited with 'exitcode 1'
+[2026-03-20 05:53:51,491: INFO/SpawnPoolWorker-41] child process 49448 calling self.run()
+[2026-03-20 05:53:51,493: INFO/SpawnPoolWorker-42] child process 43064 calling self.run()

@@ -3,6 +3,7 @@ import { Box, Tabs, Tab, CircularProgress, Typography } from "@mui/material";
 import DynamicGridEditor from "./DynamicGridEditor";
 import { API_BASE_URL } from "../config/env";
 import PaintTypesCrudPanel from "../PaintTypesCrud/PaintTypesCrudPanel";
+import { apiClient } from "../lib/apiClient";
 
 export default function ExcelDraftsPanel() {
   const [activeTab, setActiveTab] = useState(0);
@@ -12,7 +13,7 @@ export default function ExcelDraftsPanel() {
   useEffect(() => {
     const fetchSheets = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/excel-drafts`);
+        const res = await apiClient.fetch(`${API_BASE_URL}/api/excel-drafts`);
         if (res.ok) {
           const data = await res.json();
           setSheets(data);

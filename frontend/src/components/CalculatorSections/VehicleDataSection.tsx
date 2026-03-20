@@ -18,6 +18,7 @@ import axios from "axios";
 import type { V1DataOption } from "../../types";
 import { Calendar, Tag } from "lucide-react";
 import { API_BASE_URL } from "../../config/env";
+import { apiClient } from "../../lib/apiClient";
 
 interface EngineOption {
   id: number;
@@ -63,7 +64,7 @@ export default function VehicleDataSection({
       .then((res) => setEngines(res.data))
       .catch((err) => console.error("Failed to load engines:", err));
 
-    fetch(`${API_BASE_URL}/api/body-types`)
+    apiClient.fetch(`${API_BASE_URL}/api/body-types`)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setBodyTypes(data); })
       .catch((err) => console.error("Failed to load body types:", err));
