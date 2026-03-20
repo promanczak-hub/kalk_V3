@@ -12,6 +12,7 @@ import type {
   TrimsAndOptionsResponse, OptionItem,
 } from '../types';
 import { AdaptiveSliderField } from './AdaptiveSliderField';
+import CalculationJobsStatus from './CalculationJobsStatus';
 
 interface ScoringFiltersProps {
   searchContext: SearchContext;
@@ -361,6 +362,11 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
 
   return (
     <Box ref={scrollContainerRef} sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+
+      {/* ── Calculation Jobs Status ── */}
+      <Box sx={{ px: 1.5, pt: 1, pb: 0.5 }}>
+        <CalculationJobsStatus />
+      </Box>
 
       {/* ══ LEVEL 1 — Primary filters ══ */}
 

@@ -667,3 +667,66 @@ BÄ…dĹş techniczny, przyjazny i konkretnie diagnozuj wynik. UĹĽywaj format
 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Calculation Jobs Status ──────────────────────────────────────────────────
+
+
+class JobStatus(BaseModel):
+    vehicle_id: str
+    status: str
+    error_code: Optional[str] = None
+    error_detail: Optional[str] = None
+    queued_at: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    monthly_price_net: Optional[float] = None
+
+
+class JobsStatusResponse(BaseModel):
+    total: int
+    done: int
+    failed: int
+    running: int
+    queued: int
+    failed_jobs: List[JobStatus]
+
+
+@router.get("/jobs-status", response_model=JobsStatusResponse)
+def get_jobs_status() -> JobsStatusResponse:
+    """Status wszystkich jobów kalkulacyjnych Celery.
+
+    Każdy failed job zawiera error_code wskazujący przyczynę
+    (NO_BASE_PRICE, CALC_ERROR, NO_SAMAR_CLASS, itp.) bez fallbacków.
+    """
+    try:
+        res = (
+            supabase.table("calculation_jobs")
+            .select("*")
+            .order("queued_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+        rows = res.data or []
+
+        stats: dict[str, int] = {"done": 0, "failed": 0, "running": 0, "queued": 0}
+        failed_jobs: list[JobStatus] = []
+
+        for row in rows:
+            s = str(row.get("status", "queued"))
+            if s in stats:
+                stats[s] += 1
+            if s == "failed":
+                failed_jobs.append(JobStatus(**row))
+
+        return JobsStatusResponse(
+            total=len(rows),
+            done=stats["done"],
+            failed=stats["failed"],
+            running=stats["running"],
+            queued=stats["queued"],
+            failed_jobs=failed_jobs,
+        )
+    except Exception as e:
+        logger.exception("GET /kalkulacje/jobs-status failed")
+        raise HTTPException(status_code=500, detail=str(e))
