@@ -13,9 +13,10 @@ from api.schemas.calculator import CalculatorInput
 from core.models import ControlCenterSettings
 from core.database import supabase
 
+
 def run():
     print("Fetching settings...")
-    response = supabase.table('control_center').select('*').eq('id', 1).execute()
+    response = supabase.table("control_center").select("*").eq("id", 1).execute()
     settings = ControlCenterSettings(**response.data[0])
 
     data = CalculatorInput(
@@ -31,7 +32,7 @@ def run():
         klasa_opony_string="Premium",
         srednica_felgi=18,
         replacement_car_enabled=True,
-        service_cost_type="ASO"
+        service_cost_type="ASO",
     )
 
     print("Running calculations...")
@@ -40,22 +41,32 @@ def run():
 
     print("Searching for 48m, 160k km (40k/yr) cell...")
     for c in cells:
-        if c['Okres'] == 48 and c['Przebieg'] == 160000:
+        if c["Okres"] == 48 and c["Przebieg"] == 160000:
             print("CELL FOUND:")
             important_keys = [
-                'LacznaStawka', 'CenaZakupu', 'WartoscPoczatkowa', 'UtrataWartosci',
-                'KosztyOgolem', 'LacznyKosztCzesciOdsetkowejRaty',
-                'koszty_finansowe_netto', 'koszty_ubezpieczenie_netto', 'koszty_serwis_netto', 'koszty_opony_netto'
+                "LacznaStawka",
+                "CenaZakupu",
+                "WartoscPoczatkowa",
+                "UtrataWartosci",
+                "KosztyOgolem",
+                "LacznyKosztCzesciOdsetkowejRaty",
+                "koszty_finansowe_netto",
+                "koszty_ubezpieczenie_netto",
+                "koszty_serwis_netto",
+                "koszty_opony_netto",
             ]
             dump = {k: c.get(k) for k in important_keys}
-            dump['CenaZakupu_WartoscPoczatkowa'] = (c.get('CenaZakupu', {}).get('WartoscPoczatkowa'),) 
+            dump["CenaZakupu_WartoscPoczatkowa"] = (
+                c.get("CenaZakupu", {}).get("WartoscPoczatkowa"),
+            )
             print(json.dumps(dump, indent=2, default=str))
-            
+
             # Print breakdown
-            breakdown = c.get('breakdown', {})
+            breakdown = c.get("breakdown", {})
             print("\nBREAKDOWN:")
             print(json.dumps(breakdown, indent=2))
             break
-            
+
+
 if __name__ == "__main__":
     run()

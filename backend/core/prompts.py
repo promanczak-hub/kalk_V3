@@ -164,10 +164,10 @@ WAŻNE: Chodzi o technologię lakieru, NIE o cenę. Darmowy metalik (w cenie baz
 
 DETEKCJA HAKA (has_tow_hook):
 Sprawdź, czy w dokumencie WPROST wymieniono hak holowniczy. Stosuj poniższe zasady:
-- True: TYLKO jeśli hak holowniczy (lub przygotowanie pod hak, zaczep holowniczy, "Anhängevorrichtung", "Towbar", "Tow hook") jest WPROST wymieniony w wyposażeniu standardowym, opcjach płatnych lub specyfikacji technicznej pojazdu.
+- True: TYLKO jeśli fizyczny hak holowniczy (zaczep holowniczy, "Anhängevorrichtung", "Towbar", "Tow hook") jest WPROST wymieniony w wyposażeniu standardowym, opcjach płatnych lub specyfikacji technicznej pojazdu. UWAGA: "Przygotowanie do montażu haka" / "przygotowanie pod hak" to NIE JEST HAK i nie wolno z tego powodu ustawiać True.
 - False: Jeśli dokument WPROST wyklucza hak (np. "bez haka") lub jest to kompletna specyfikacja pojazdu bez wzmianki o haku.
-- null: Jeśli dokument nie wspomina o haku w żaden sposób (ani pozytywnie, ani negatywnie).
-KRYTYCZNE: NIE zgaduj! Jeśli nie widzisz dosłownie słowa "hak" / "hook" / "holowniczy" / "Anhänger" w liście wyposażenia lub opcji — ustaw null, NIGDY True.
+- null: Jeśli dokument nie wspomina o haku w żaden sposób (ani pozytywnie, ani negatywnie) lub wspomina JEDYNIE o PRZYGOTOWANIU pod hak.
+KRYTYCZNE: NIE zgaduj! Jeśli nie widzisz dosłownie słowa "hak" / "hook" / "holowniczy" / "Anhänger" oznaczającego fizyczny sprzęt w liście wyposażenia lub opcji, a jedynie samo przygotowanie — ustaw null, NIGDY True.
 
 DETEKCJA ROCZNIKA (is_current_year_vehicle):
 Na podstawie daty waznosci oferty, roku modelowego, roku produkcji, daty dokumentu lub innych wskazowek ocen:
@@ -188,6 +188,11 @@ Znajdź w sekcjach danych technicznych (Technical Data lub w dowolnych tabelach 
 - Wypisz je wszystkie na listę obiektów zachowując oryginalną nazwę atrybutu (jeśli brak etykiety tekstowej, wymyśl ją precyzyjnie na podstawie rysunku, np. "Długość przestrzeni ładunkowej (rzut)") i jego wartość z jednostką (np. "400 l", "1500 kg", "4500 mm", "14.4 m3").
 - Bądź odważny! Wyciągaj absolutnie każdą fizyczną, mierzalną cechę techniczną z jednostką, jaką tylko znajdziesz w zestawieniach oraz na obrazkach.
 UWAGA KRYTYCZNA: Jeśli dokument to oferta na JEDEN KONKRETNY SAMOCHÓD (np. L3H3), a na końcu dokumentu znajduje się ogólna tabela/cennik z dziesiątkami innych wariantów (np. L2H2, L4H3) - BEZWZGLĘDNIE ODCZYTAJ WYMIARY TYLKO Z KOLUMNY/WIERSZA PASUJĄCEGO DO TWOJEGO KONKRETNEGO POJAZDU. Nie wypisuj wymiarów dla innych wersji nadwozia czy silnika.
+
+SAMOOCENA I PEWNOŚĆ (confidence_score i ai_warnings):
+Na sam koniec, oceń krytycznie jakość wyciągniętych przez siebie danych. Zwróć ludzko uwagę na spójność między ceną bazową, opcjami a ceną całkowitą, oraz czy w dokumencie mogły być pomyłki (np. wykluczające się informacje o roczniku, niejasna waluta). 
+- 'confidence_score': Wynik od 0.0 do 1.0. Jeśli wszystko jest klarowne, a wyliczenia "do grosza" poprawne = 1.0. Gdy musiałeś dużo zgadywać albo kwoty się nie zgadzają = obniż wynik (np. 0.60-0.85).
+- 'ai_warnings': Jeśli 'confidence_score' < 1.0, opisz krótko co jest nie tak (np. "Cena opcji matematycznie nie współgra z sumą", "Niejasny napęd", "Konflikt brutto/netto"). Rzucaj ostre ostrzeżenia.
 """
 
 BROCHURE_SUMMARY_PROMPT = """

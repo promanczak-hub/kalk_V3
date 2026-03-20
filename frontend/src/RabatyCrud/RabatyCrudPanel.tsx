@@ -80,7 +80,10 @@ export default function RabatyCrudPanel() {
   const handleOpenDialog = (record?: RabatyRecord) => {
     if (record) {
       setEditingRecord(record);
-      setFormData(record);
+      setFormData({
+        ...record,
+        rabat: record.rabat !== undefined && record.rabat !== null ? Number((record.rabat * 100).toFixed(2)) : 0
+      });
     } else {
       setEditingRecord(null);
       setFormData({
@@ -110,11 +113,16 @@ export default function RabatyCrudPanel() {
   };
 
   const handleSave = async () => {
+    const dataToSave = {
+      ...formData,
+      rabat: formData.rabat !== undefined && formData.rabat !== null ? formData.rabat / 100 : 0
+    };
+
     if (editingRecord?.id) {
       // Update
       const { error } = await supabase
         .from("tabela_rabaty")
-        .update(formData)
+        .update(dataToSave)
         .eq("id", editingRecord.id);
 
       if (error) {
@@ -125,7 +133,7 @@ export default function RabatyCrudPanel() {
       }
     } else {
       // Create
-      const { error } = await supabase.from("tabela_rabaty").insert([formData]);
+      const { error } = await supabase.from("tabela_rabaty").insert([dataToSave]);
 
       if (error) {
         console.error("Error creating record:", error);
@@ -263,10 +271,10 @@ export default function RabatyCrudPanel() {
             rows={2}
           />
           <TextField
-            label="Rabat (jako ułamek dziesiętny np. 0.15 dla 15%)"
+            label="Rabat (%)"
             name="rabat"
             type="number"
-            inputProps={{ step: "0.01" }}
+            inputProps={{ step: "0.1" }}
             value={formData.rabat}
             onChange={handleChange}
             fullWidth

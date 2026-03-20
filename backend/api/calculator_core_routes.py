@@ -24,13 +24,13 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
 
         engine = LTRKalkulator(input_data=data, settings=settings)
         matrix_cells = engine.build_matrix()
-        
+
         # --- HOT-PATCH: WYPLUCIE KALKULATORA DO TERMINALA ---
-        
-        print("\n\n" + "="*60)
+
+        print("\n\n" + "=" * 60)
         print(" 🔍 TRYB DEBUGOWANIA: NOWE PRZELICZENIE (TRACE)")
-        print("="*60)
-        
+        print("=" * 60)
+
         try:
             # Wyszukujemy elementy (Opony i Utrata Wartości) w strukturze cells
             for cell in matrix_cells:
@@ -38,21 +38,21 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
                     opony_trace = cell.get("details", {}).get("trace", [])
                     print("\n[🚜 OPONY] - ŚLAD REWIZYJNY:")
                     for idx, t in enumerate(opony_trace):
-                        print(f"  [{idx+1}] {t.get('krok')}")
+                        print(f"  [{idx + 1}] {t.get('krok')}")
                         print(f"      = {t.get('wynik')} PLN")
-                
+
                 if isinstance(cell, dict) and cell.get("code") == "WR":
                     wr_trace = cell.get("details", {}).get("trace", [])
                     print("\n[📉 UTRATA WARTOŚCI] - ŚLAD REWIZYJNY:")
                     for idx, t in enumerate(wr_trace):
-                        print(f"  [{idx+1}] {t.get('krok')}")
+                        print(f"  [{idx + 1}] {t.get('krok')}")
                         print(f"      (Obliczenia: {t.get('rownanie')})")
                         print(f"      = {t.get('wynik')} PLN")
-                        
+
         except Exception as deb_err:
             print(f"Błąd debuggera trace'ów: {deb_err}")
-            
-        print("="*60 + "\n\n")
+
+        print("=" * 60 + "\n\n")
         # ----------------------------------------------------
 
         return {
@@ -91,17 +91,20 @@ async def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
         trace_data = []
         for cell in matrix_cells:
             # Tolerujemy drobne odchylenia zaokrągleń w przebiegach, ew. bierzemy sam Okres jako fallback
-            if cell.get("Okres") == req_months and cell.get("PrzebiegKontrakt") == req_total_km:
+            if (
+                cell.get("Okres") == req_months
+                and cell.get("PrzebiegKontrakt") == req_total_km
+            ):
                 trace_data = cell.get("calculation_trace", [])
                 break
-        
+
         # Fallback jeśli nie było dokładnego matchu na PrzebiegKontrakt
         if not trace_data:
             for cell in matrix_cells:
                 if cell.get("Okres") == req_months:
                     trace_data = cell.get("calculation_trace", [])
                     break
-        
+
         # Ultimate fallback (np. pierwsza dodana komórka z gridu)
         if not trace_data and matrix_cells:
             trace_data = matrix_cells[-1].get("calculation_trace", [])
@@ -175,6 +178,7 @@ async def readiness_check(
     brand_name: str = "",
     body_type_name: str = "",
     paint_type_name: str = "",
+    vehicle_id: str = "",
 ) -> Dict[str, Any]:
     from core.samar_rv import check_rv_readiness, get_samar_class_id
 
@@ -296,6 +300,73 @@ async def readiness_check(
     ]
     error_count = sum(1 for c in checks if c.status == "error")
     warn_count = sum(1 for c in checks if c.status == "warn")
+
+    # ── Walidacja danych pojazdu (synthesis_data) ──────────────────────────
+    # Jeśli przekazano vehicle_id, sprawdzamy czy pojazd ma wypełnione
+    # kluczowe składowe: marka, model, cena bazowa.
+    synthesis_errors: list[Dict[str, str]] = []
+    if vehicle_id.strip():
+        try:
+            v_res = (
+                supabase.table("vehicle_synthesis")
+                .select("brand, model, synthesis_data")
+                .eq("id", vehicle_id.strip())
+                .execute()
+            )
+            if v_res.data:
+                vrow = v_res.data[0]
+                sd: Dict[str, Any] = vrow.get("synthesis_data") or {}
+                cs: Dict[str, Any] = sd.get("card_summary") or {}
+                setup: Dict[str, Any] = sd.get("calculator_setup") or {}
+                parsed_prices: Dict[str, Any] = cs.get("parsed_prices") or {}
+
+                # Sprawdz czy marka/model wypelnione
+                if not vrow.get("brand"):
+                    synthesis_errors.append(
+                        {"param": "Marka pojazdu", "status": "error", "value": "NIE"}
+                    )
+                    error_count += 1
+                else:
+                    items.append(
+                        {"param": "Marka pojazdu", "status": "ok", "value": vrow["brand"]}
+                    )
+
+                if not vrow.get("model"):
+                    synthesis_errors.append(
+                        {"param": "Model pojazdu", "status": "error", "value": "NIE"}
+                    )
+                    error_count += 1
+                else:
+                    items.append(
+                        {"param": "Model pojazdu", "status": "ok", "value": vrow["model"]}
+                    )
+
+                # Sprawdz cene bazowa (sciezka identyczna jak w build_calculator_input)
+                base_price = (
+                    setup.get("catalog_base_price_net")
+                    or cs.get("base_price")
+                    or parsed_prices.get("base")
+                    or (sd.get("universal_features") or {}).get("cena_pojazdu")
+                    or (sd.get("computed") or {}).get("estimated_price")
+                )
+                if not base_price:
+                    synthesis_errors.append(
+                        {"param": "Cena bazowa (katalogowa)", "status": "error", "value": "BRAK"}
+                    )
+                    error_count += 1
+                else:
+                    items.append(
+                        {"param": "Cena bazowa (katalogowa)", "status": "ok", "value": str(base_price)}
+                    )
+            else:
+                synthesis_errors.append(
+                    {"param": "Pojazd w bazie", "status": "error", "value": "Nie znaleziono ID"}
+                )
+                error_count += 1
+        except Exception as exc:
+            logging.warning("Blad walidacji synthesis_data dla %s: %s", vehicle_id, exc)
+
+    items.extend(synthesis_errors)
 
     if error_count > 0:
         overall = "not_ready"

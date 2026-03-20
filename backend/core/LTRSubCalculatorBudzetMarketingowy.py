@@ -8,6 +8,7 @@ Wynik = WR * StawkaVAT * BudzetMarketingowyLtr
 from dataclasses import dataclass, field
 from typing import Any
 
+
 @dataclass
 class BudzetMarketingowyInput:
     """Dane wejściowe sub-kalkulatora budżetu marketingowego."""
@@ -43,11 +44,13 @@ class BudzetMarketingowyCalculator:
             * self.input.stawka_vat
             * self.input.budzet_marketingowy_ltr
         )
-        
-        trace.append({
-            "krok": "Budżet Marketingowy",
-            "rownanie": f"WR Netto ({self.input.wr_przewidywana_cena_sprzedazy:.2f}) * VAT ({self.input.stawka_vat:.2f}) * Budżet% ({self.input.budzet_marketingowy_ltr*100:.2f}%)",
-            "wynik": korekta
-        })
+
+        trace.append(
+            {
+                "krok": "Budżet Marketingowy",
+                "rownanie": f"WR Netto ({self.input.wr_przewidywana_cena_sprzedazy:.2f}) * VAT ({self.input.stawka_vat:.2f}) * Budżet% ({self.input.budzet_marketingowy_ltr * 100:.2f}%)",
+                "wynik": korekta,
+            }
+        )
 
         return BudzetMarketingowyResult(korekta_wr_maks=korekta, trace=trace)

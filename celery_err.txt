@@ -1,0 +1,176 @@
+[2026-03-19 23:23:30,821: INFO/MainProcess] Connected to redis://localhost:6379/0
+[2026-03-19 23:23:30,881: INFO/MainProcess] mingle: searching for neighbors
+[2026-03-19 23:23:31,341: INFO/SpawnPoolWorker-7] child process 55752 calling self.run()
+[2026-03-19 23:23:31,342: INFO/SpawnPoolWorker-2] child process 69808 calling self.run()
+[2026-03-19 23:23:31,350: INFO/SpawnPoolWorker-8] child process 89728 calling self.run()
+[2026-03-19 23:23:31,352: INFO/SpawnPoolWorker-1] child process 46496 calling self.run()
+[2026-03-19 23:23:31,358: INFO/SpawnPoolWorker-4] child process 92044 calling self.run()
+[2026-03-19 23:23:31,364: INFO/SpawnPoolWorker-5] child process 49648 calling self.run()
+[2026-03-19 23:23:31,392: INFO/SpawnPoolWorker-3] child process 46176 calling self.run()
+[2026-03-19 23:23:31,402: INFO/SpawnPoolWorker-6] child process 90412 calling self.run()
+[2026-03-19 23:23:32,019: INFO/MainProcess] mingle: all alone
+[2026-03-19 23:23:32,465: INFO/MainProcess] celery@CZACZEK_WIN ready.
+[2026-03-19 23:23:35,548: ERROR/SpawnPoolWorker-1] Pool process <billiard.pool.Worker object at 0x000001766E7940E0> error: PermissionError(13, 'Odmowa dostêpu', None, 5, None)
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 473, in receive
+    ready, req = _receive(1.0)
+                 ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 445, in _recv
+    return True, loads(get_payload())
+                       ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\queues.py", line 394, in get_payload
+    with self._rlock:
+         ^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\synchronize.py", line 115, in __enter__
+    return self._semlock.__enter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Odmowa dostêpu
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 351, in workloop
+    req = wait_for_job()
+          ^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 480, in receive
+    raise SystemExit(EX_FAILURE)
+SystemExit: 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 292, in __call__
+    sys.exit(self.workloop(pid=pid))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 396, in workloop
+    self._ensure_messages_consumed(completed=completed)
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 406, in _ensure_messages_consumed
+    if self.on_ready_counter.value >= completed:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 3, in getvalue
+PermissionError: [WinError 5] Odmowa dostêpu
+[2026-03-19 23:23:35,548: ERROR/SpawnPoolWorker-1] Pool process <billiard.pool.Worker object at 0x000001766E7940E0> error: PermissionError(13, 'Odmowa dostêpu', None, 5, None)
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 473, in receive
+    ready, req = _receive(1.0)
+                 ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 445, in _recv
+    return True, loads(get_payload())
+                       ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\queues.py", line 394, in get_payload
+    with self._rlock:
+         ^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\synchronize.py", line 115, in __enter__
+    return self._semlock.__enter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Odmowa dostêpu
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 351, in workloop
+    req = wait_for_job()
+          ^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 480, in receive
+    raise SystemExit(EX_FAILURE)
+SystemExit: 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 292, in __call__
+    sys.exit(self.workloop(pid=pid))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 396, in workloop
+    self._ensure_messages_consumed(completed=completed)
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 406, in _ensure_messages_consumed
+    if self.on_ready_counter.value >= completed:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 3, in getvalue
+PermissionError: [WinError 5] Odmowa dostêpu
+[2026-03-19 23:23:35,826: ERROR/MainProcess] Process 'SpawnPoolWorker-1' pid:87188 exited with 'exitcode 1'
+[2026-03-19 23:23:36,265: INFO/SpawnPoolWorker-9] child process 58052 calling self.run()
+[2026-03-19 23:23:40,083: INFO/MainProcess] Task process_document_task[05122e77-db23-47ec-aa12-dccd6b06505c] received
+[2026-03-19 23:23:40,116: ERROR/SpawnPoolWorker-3] Pool process <billiard.pool.Worker object at 0x00000177D93F99D0> error: OSError(9, 'Nieprawid³owe dojœcie', None, 6, None)
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 351, in workloop
+    req = wait_for_job()
+          ^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 473, in receive
+    ready, req = _receive(1.0)
+                 ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 445, in _recv
+    return True, loads(get_payload())
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\common.py", line 88, in pickle_loads
+    return load(BytesIO(s))
+           ^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x94 in position 0: invalid start byte
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 292, in __call__
+    sys.exit(self.workloop(pid=pid))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 396, in workloop
+    self._ensure_messages_consumed(completed=completed)
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 406, in _ensure_messages_consumed
+    if self.on_ready_counter.value >= completed:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 7, in getvalue
+OSError: [WinError 6] Nieprawid³owe dojœcie
+[2026-03-19 23:23:40,116: ERROR/SpawnPoolWorker-3] Pool process <billiard.pool.Worker object at 0x00000177D93F99D0> error: OSError(9, 'Nieprawid³owe dojœcie', None, 6, None)
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 351, in workloop
+    req = wait_for_job()
+          ^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 473, in receive
+    ready, req = _receive(1.0)
+                 ^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 445, in _recv
+    return True, loads(get_payload())
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\common.py", line 88, in pickle_loads
+    return load(BytesIO(s))
+           ^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x94 in position 0: invalid start byte
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 292, in __call__
+    sys.exit(self.workloop(pid=pid))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 396, in workloop
+    self._ensure_messages_consumed(completed=completed)
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\billiard\pool.py", line 406, in _ensure_messages_consumed
+    if self.on_ready_counter.value >= completed:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 7, in getvalue
+OSError: [WinError 6] Nieprawid³owe dojœcie
+[2026-03-19 23:23:40,649: ERROR/MainProcess] Process 'SpawnPoolWorker-3' pid:95208 exited with 'exitcode 1'
+[2026-03-19 23:23:41,024: INFO/SpawnPoolWorker-10] child process 38792 calling self.run()
+[2026-03-19 23:26:02,016: ERROR/MainProcess] Received unregistered task of type 'tasks.matrix_tasks.process_matrix_refresh_task'.
+The message has been ignored and discarded.
+
+Did you remember to import the module containing this task?
+Or maybe you're using relative imports?
+
+Please see
+https://docs.celeryq.dev/en/latest/internals/protocol.html
+for more information.
+
+The full contents of the message body was:
+b'[[["7868e787-406e-4b30-8509-7a1d929879dd", "e22f1b98-a47e-42c2-b7ea-1494d3fd8975", "9a3be189-cc8d-4de1-9b33-fa3f4f449836", "9401ed64-ee1a-4334-be66-307220b3fcae", "5c175bca-cf0f-4d87-91c7-1316a58f2e35", "51a611da-b5e9-40bb-8873-ddd156052b04", "fe386d3e-a804-4e88-86ce-073bf871f1e3", "5702edb9-14c9-4aa3-85a8-f67692799986", "2a016435-f3a5-4092-9b4f-a73ccce14a01", "fb35304a-29ac-440f-8de9-d0f8a4ffc143", "e2da7cd1-2a4a-43a4-a8a0-2b2aeb242664", "2cd091ed-b2e6-4e76-951a-1ff55bc8e61a", "845c2851-6e04-4cdf-a12e-7a34679a9e89", "7f242b4a-ac61-4595-ba89-c137bcb07be5", "f176456b-af27-4445-92be-cd88246ae83a", "1357b28c-e358-4742-a807-18930d8f3949", "3ff072e6-72c5-426c-969b-c82fa6875927", "ae3da627-2336-4ebf-bacc-772450c3bc24", "8cf315d2-cfed-4c43-9124-4da67ba0b3fc", "f12cba0e-35a5-49f0-ac6d-6ea0f0f615d7", "d9c09990-6827-471c-b257-e4314d0ec251", "4f59bfc0-fe34-4277-9137-ec142f1fd2af", "a773b7c8-6d6d-4ca5-b17a-a11000fd8ecb", "4d3e0719-7a4d-4f27-95bb-d4d738fdbab5", "68914bd6-bdb2-4d6c-8a9c-c5cc518df35d",... (3637b)
+
+The full contents of the message headers:
+{'lang': 'py', 'task': 'tasks.matrix_tasks.process_matrix_refresh_task', 'id': 'c4b5bfe3-0eb5-478e-99f4-99f7c89279ac', 'shadow': None, 'eta': None, 'expires': None, 'group': None, 'group_index': None, 'retries': 0, 'timelimit': [None, None], 'root_id': 'c4b5bfe3-0eb5-478e-99f4-99f7c89279ac', 'parent_id': None, 'argsrepr': "[['7868e787-406e-4b30-8509-7a1d929879dd', 'e22f1b98-a47e-42c2-b7ea-1494d3fd8975', '9a3be189-cc8d-4de1-9b33-fa3f4f449836', '9401ed64-ee1a-4334-be66-307220b3fcae', '5c175bca-cf0f-4d87-91c7-1316a58f2e35', '51a611da-b5e9-40bb-8873-ddd156052b04', 'fe386d3e-a804-4e88-86ce-073bf871f1e3', '5702edb9-14c9-4aa3-85a8-f67692799986', '2a016435-f3a5-4092-9b4f-a73ccce14a01', 'fb35304a-29ac-440f-8de9-d0f8a4ffc143', 'e2da7cd1-2a4a-43a4-a8a0-2b2aeb242664', '2cd091ed-b2e6-4e76-951a-1ff55bc8e61a', '845c2851-6e04-4cdf-a12e-7a34679a9e89', '7f242b4a-ac61-4595-ba89-c137bcb07be5', 'f176456b-af27-4445-92be-cd88246ae83a', '1357b28c-e358-4742-a807-18930d8f3949', '3ff072e6-72c5-426c-969b-c82fa6875927', 'ae3da627-2336-4ebf-bacc-772450c3bc24', '8cf315d2-cfed-4c43-9124-4da67ba0b3fc', 'f12cba0e-35a5-49f0-ac6d-6ea0f0f615d7', 'd9c09990-6827-471c-b257-e4314d0ec251', '4f59bfc0-fe34-4277-9137-ec142f1fd2af', 'a773b7c8-6d6d-4ca5-b17a-a11000fd8ecb', '4d3e0719-7a4d-4f27-95bb-d4d738fdbab5', '68914bd6-bdb2-4d6c-8a9c-c5cc518df35d', '5dd2bdbd-8732-4110-b05...', ...]]", 'kwargsrepr': '{}', 'origin': 'gen52408@CZACZEK_WIN', 'ignore_result': False, 'replaced_task_nesting': 0, 'stamped_headers': None, 'stamps': {}}
+
+The delivery info for this task is:
+{'exchange': '', 'routing_key': 'celery'}
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\.venv\Lib\site-packages\celery\worker\consumer\consumer.py", line 668, in on_task_received
+    strategy = strategies[type_]
+               ~~~~~~~~~~^^^^^^^
+KeyError: 'tasks.matrix_tasks.process_matrix_refresh_task'

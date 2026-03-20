@@ -6,7 +6,13 @@ vehicle_id = "3ec82f6d-1b43-4967-b511-8bfd65266fcc"
 
 sb = create_client(url, key)
 try:
-    res = sb.schema("reverse_search").table("vehicle_feature_state").select("feature_key, value_numeric").eq("vehicle_id", vehicle_id).execute()
+    res = (
+        sb.schema("reverse_search")
+        .table("vehicle_feature_state")
+        .select("feature_key, value_numeric")
+        .eq("vehicle_id", vehicle_id)
+        .execute()
+    )
     print(f"Features for vehicle {vehicle_id}:")
     for r in res.data:
         val = r.get("value_numeric")

@@ -60,9 +60,7 @@ class TestFindExactVariantMatch:
 
     def test_match_by_price_gross_fallback(self) -> None:
         """Falls back to gross price when net doesn't match."""
-        variants = [
-            _make_variant("B", price_net=60000.0, price_gross=50000.0)
-        ]
+        variants = [_make_variant("B", price_net=60000.0, price_gross=50000.0)]
         spec = _make_spec(base_price=50000.0)
         result = find_exact_variant_match(spec, variants)
         assert result is not None
@@ -74,9 +72,7 @@ class TestFindExactVariantMatch:
             _make_variant("Basic 100KM", price_net=50000.0),
             _make_variant("Comfort 150KM", price_net=50000.0),
         ]
-        spec = _make_spec(
-            base_price=50000.0, trim_level="Comfort"
-        )
+        spec = _make_spec(base_price=50000.0, trim_level="Comfort")
         result = find_exact_variant_match(spec, variants)
         assert result is not None
         assert result["variant_name"] == "Comfort 150KM"
@@ -97,9 +93,7 @@ class TestFindExactVariantMatch:
 
     def test_unparsable_price_skipped_gracefully(self) -> None:
         """Variant with 'N/A' price is skipped, not crashed."""
-        variants = [
-            {"variant_name": "Bad", "price_net": "N/A", "price_gross": None}
-        ]
+        variants = [{"variant_name": "Bad", "price_net": "N/A", "price_gross": None}]
         spec = _make_spec(base_price=50000.0)
         result = find_exact_variant_match(spec, variants)
         assert result is None
@@ -114,9 +108,7 @@ class TestClassifyDimension:
     """Tests for dimension key classification."""
 
     def test_polish_cargo_length(self) -> None:
-        result = _classify_dimension(
-            "długość_przestrzeni_ładunkowej_w_mm"
-        )
+        result = _classify_dimension("długość_przestrzeni_ładunkowej_w_mm")
         assert result is not None
         dim, is_overall = result
         assert dim == "length_mm"
@@ -172,27 +164,16 @@ class TestCreateEvidenceBatch:
         feature_id_map = {"f1": "uuid-1", "f2": "uuid-2"}
 
         with patch("core.cross_ref_evidence.sb_client") as mock_sb:
-            mock_chain = (
-                mock_sb.schema.return_value
-                .table.return_value
-                .upsert.return_value
-                .execute
-            )
+            mock_chain = mock_sb.schema.return_value.table.return_value.upsert.return_value.execute
             mock_chain.return_value = MagicMock()
 
             from core.cross_ref_evidence import create_evidence_batch
 
-            count = create_evidence_batch(
-                "vehicle-1", match_result, feature_id_map
-            )
+            count = create_evidence_batch("vehicle-1", match_result, feature_id_map)
 
         assert count == 2  # 2 valid, 1 below threshold
         # Verify upsert called exactly ONCE (batch, not N+1)
-        assert (
-            mock_sb.schema.return_value
-            .table.return_value
-            .upsert.call_count == 1
-        )
+        assert mock_sb.schema.return_value.table.return_value.upsert.call_count == 1
 
 
 # ══════════════════════════════════════════════════════════════
@@ -257,13 +238,8 @@ class TestCrossReferenceVehicle:
         mock_resolve: MagicMock,
     ) -> None:
         """LLM returns match with confidence 0.85."""
-        mock_sb.table.return_value.select.return_value \
-            .eq.return_value.limit.return_value \
-            .execute.return_value = self._mock_vehicle_response()
-        mock_sb.schema.return_value.table.return_value \
-            .select.return_value.eq.return_value \
-            .eq.return_value.limit.return_value \
-            .execute.return_value = self._mock_catalog_response()
+        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = self._mock_vehicle_response()
+        mock_sb.schema.return_value.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = self._mock_catalog_response()
 
         mock_catalog.return_value = (
             ("f1",),
@@ -300,13 +276,8 @@ class TestCrossReferenceVehicle:
         mock_catalog: MagicMock,
     ) -> None:
         """LLM infrastructure failure returns error, not no_match."""
-        mock_sb.table.return_value.select.return_value \
-            .eq.return_value.limit.return_value \
-            .execute.return_value = self._mock_vehicle_response()
-        mock_sb.schema.return_value.table.return_value \
-            .select.return_value.eq.return_value \
-            .eq.return_value.limit.return_value \
-            .execute.return_value = self._mock_catalog_response()
+        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = self._mock_vehicle_response()
+        mock_sb.schema.return_value.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = self._mock_catalog_response()
 
         mock_catalog.return_value = (("f1",), (("f1", "uuid-1"),))
         mock_exact.return_value = None

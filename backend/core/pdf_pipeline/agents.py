@@ -64,13 +64,14 @@ class PricingAgent:
         )
 
         from google.genai import types
+
         try:
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[
                     prompt,
                     f"Dane w Markdown:\n\n{markdown_content}",
-                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
                 ],
                 config={
                     "response_mime_type": "application/json",
@@ -85,5 +86,7 @@ class PricingAgent:
             return ParsedPriceList(**data_dict)
 
         except Exception as e:
-            logger.error(f"Błąd podczas natywnej analizy PDF przez model Gemini: {str(e)}")
+            logger.error(
+                f"Błąd podczas natywnej analizy PDF przez model Gemini: {str(e)}"
+            )
             raise

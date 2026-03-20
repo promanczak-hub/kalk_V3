@@ -6,14 +6,15 @@ from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
 
 logger = logging.getLogger(__name__)
 
+
 def format_markdown_with_llm(raw_markdown: str) -> str:
     """Passes raw Markdown through Gemini Flash to restore structural elements like lists."""
     if not raw_markdown or len(raw_markdown.strip()) == 0:
         return raw_markdown
-        
+
     try:
         client = get_gemini_client()
-        
+
         prompt = (
             "Jesteś profesjonalnym asystentem formatowania Markdown. Twoim zadaniem jest przekształcić "
             "poniższy surowy tekst (wyciągnięty z PDF, który zgubił wizualne wypunktowania) "
@@ -35,7 +36,7 @@ def format_markdown_with_llm(raw_markdown: str) -> str:
                 safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             ),
         )
-        
+
         if response and response.text:
             text = response.text.strip()
             # Remove markdown code block markers if the model ignored instruction #4
@@ -46,9 +47,9 @@ def format_markdown_with_llm(raw_markdown: str) -> str:
             if text.endswith("```"):
                 text = text[:-3].strip()
             return text
-            
+
         return raw_markdown
-        
+
     except Exception as e:
         logger.error(f"Error formatting markdown with LLM: {e}")
         return raw_markdown

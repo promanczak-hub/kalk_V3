@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
 import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
@@ -47,6 +47,7 @@ export function useVehicleReadiness(
         samar_class_name: samarName,
         engine_name: engineName,
         brand_name: vehicle.brand || "",
+        vehicle_id: vehicle.id || "",
       });
 
       if (vehicle.body_style) {
@@ -65,7 +66,7 @@ export function useVehicleReadiness(
       console.error("Readiness check error:", err);
       setReadinessResult(null);
     }
-  }, [mappedData?.samar_category, mappedData?.fuel, vehicle.brand, vehicle.body_style, isMetalic]);
+  }, [mappedData?.samar_category, mappedData?.fuel, vehicle.brand, vehicle.body_style, vehicle.id, isMetalic]);
 
   useEffect(() => {
     fetchReadiness();

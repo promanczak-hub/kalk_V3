@@ -43,14 +43,20 @@ class InsuranceCalculator:
             )
 
         if not self.damage_coefficients:
-            raise ValueError("Brak współczynników szkodowych (Pusta tabela ltr_admin_wspolczynniki_szkodowe dla tej klasy pojazdu). Kalkulacja przerwana.")
-            
+            raise ValueError(
+                "Brak współczynników szkodowych (Pusta tabela ltr_admin_wspolczynniki_szkodowe dla tej klasy pojazdu). Kalkulacja przerwana."
+            )
+
         if "WspSredniPrzebieg" not in self.damage_coefficients:
-            raise ValueError("Brak parametru 'WspSredniPrzebieg' we współczynnikach szkodowych. Skonfiguruj ltr_admin_wspolczynniki_szkodowe.")
+            raise ValueError(
+                "Brak parametru 'WspSredniPrzebieg' we współczynnikach szkodowych. Skonfiguruj ltr_admin_wspolczynniki_szkodowe."
+            )
         wsp_sredni_przebieg = float(self.damage_coefficients["WspSredniPrzebieg"])
 
         if "WspWartoscSzkody" not in self.damage_coefficients:
-            raise ValueError("Brak parametru 'WspWartoscSzkody' we współczynnikach szkodowych. Skonfiguruj ltr_admin_wspolczynniki_szkodowe.")
+            raise ValueError(
+                "Brak parametru 'WspWartoscSzkody' we współczynnikach szkodowych. Skonfiguruj ltr_admin_wspolczynniki_szkodowe."
+            )
         wsp_wartosc_szkody = float(self.damage_coefficients["WspWartoscSzkody"])
 
         if average_damage_mileage > 0:
@@ -59,11 +65,13 @@ class InsuranceCalculator:
                 * wsp_sredni_przebieg
                 * wsp_wartosc_szkody
             )
-            trace.append({
-                "krok": "Ubezpieczenie: Szacowana Szkoda Całkowita",
-                "rownanie": f"Baza {average_damage_value_base:.2f} * ({self.total_km}km / {average_damage_mileage}km * Współ.Przebiegu {wsp_sredni_przebieg:.4f} * Współ.Wartości {wsp_wartosc_szkody:.4f})",
-                "wynik": srednia_szkoda_calosc
-            })
+            trace.append(
+                {
+                    "krok": "Ubezpieczenie: Szacowana Szkoda Całkowita",
+                    "rownanie": f"Baza {average_damage_value_base:.2f} * ({self.total_km}km / {average_damage_mileage}km * Współ.Przebiegu {wsp_sredni_przebieg:.4f} * Współ.Wartości {wsp_wartosc_szkody:.4f})",
+                    "wynik": srednia_szkoda_calosc,
+                }
+            )
         else:
             srednia_szkoda_calosc = 0.0
 
@@ -133,24 +141,28 @@ class InsuranceCalculator:
 
             # Add to total cost ONLY if the months span overlaps this year
             if months > v2:
-                trace.append({
-                    "krok": f"Ubezpieczenie (Rok {year})",
-                    "rownanie": f"DepSkala {depreciation_factor:.4f} -> AC {skladka_ac_kwota:.2f} + OC {skladka_oc_kwota:.2f} (Składka prorata {skladka_roczna:.2f}) + Szkoda prorata {szkoda_rocznie:.2f}",
-                    "wynik": skladka_laczna_rok
-                })
+                trace.append(
+                    {
+                        "krok": f"Ubezpieczenie (Rok {year})",
+                        "rownanie": f"DepSkala {depreciation_factor:.4f} -> AC {skladka_ac_kwota:.2f} + OC {skladka_oc_kwota:.2f} (Składka prorata {skladka_roczna:.2f}) + Szkoda prorata {szkoda_rocznie:.2f}",
+                        "wynik": skladka_laczna_rok,
+                    }
+                )
                 total_cost_period += skladka_laczna_rok
 
         total_cost_net = total_cost_period
         monthly_cost_net = total_cost_net / months if months > 0 else 0.0
 
-        trace.append({
-            "krok": "Ubezpieczenie: Razem za cały okres",
-            "rownanie": f"Suma z loopa rat dla {months} miesięcy",
-            "wynik": total_cost_net
-        })
+        trace.append(
+            {
+                "krok": "Ubezpieczenie: Razem za cały okres",
+                "rownanie": f"Suma z loopa rat dla {months} miesięcy",
+                "wynik": total_cost_net,
+            }
+        )
 
         return {
             "monthly_insurance": monthly_cost_net,
             "total_insurance": total_cost_net,
-            "trace": trace
+            "trace": trace,
         }

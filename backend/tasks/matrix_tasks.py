@@ -1,25 +1,21 @@
 import logging
-from typing import List, Optional
 
 from core.celery_app import celery_app
-from core.matrix_cache_job import refresh_matrix_cache_for_vehicles
+
+from core.matrix_cache_job import process_single_kalkulacja_matrix_task
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True)
-def process_matrix_refresh_task(
-    self, vehicle_ids: List[str], job_id: Optional[str] = None
-) -> str:
+def process_kalkulacja_matrix_task(self, kalkulacja_id: str) -> str:
     """
-    Celery task that refreshes matrix calculations for a given chunk of vehicles.
+    Celery task that computes and caches the matrix for a single historical calculation.
     """
-    logger.info("Executing Celery batch matrix refresh for %s vehicles, job_id: %s", len(vehicle_ids), job_id)
+    logger.info("Executing Celery task for kalkulacja_id: %s", kalkulacja_id)
     try:
-        # Pasa the task ID as the job_id if not provided
-        effective_job_id = job_id or self.request.id
-        refresh_matrix_cache_for_vehicles(vehicle_ids, effective_job_id)
-        return "Cache refreshed successfully"
+        process_single_kalkulacja_matrix_task(kalkulacja_id)
+        return f"Cache refreshed for kalkulacja {kalkulacja_id}"
     except Exception as e:
-        logger.error(f"Failed to process matrix refresh in Celery task: {e}")
+        logger.error(f"Failed to process kalkulacja matrix in Celery task: {e}")
         raise

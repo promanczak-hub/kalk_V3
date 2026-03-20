@@ -1,4 +1,5 @@
 """Root conftest — adds backend root to sys.path so tests can import core/api."""
+
 import sys
 from pathlib import Path
 

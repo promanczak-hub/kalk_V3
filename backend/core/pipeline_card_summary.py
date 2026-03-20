@@ -728,6 +728,46 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
         if doc_type_str == "Oferta na samochód":
             chosen_schema = CardSummary
             instruction = CARD_SUMMARY_PROMPT
+
+            # Wstrzyknięcie historii poprawek (Few-Shot Prompting)
+            brand = pro_data.get("brand")
+            model = pro_data.get("model")
+
+            if brand:
+                try:
+                    from core.database import supabase
+
+                    query = (
+                        supabase.table("extraction_corrections")
+                        .select("*")
+                        .eq("brand", brand)
+                    )
+                    if model:
+                        query = query.eq("model", model)
+
+                    corrections_res = (
+                        query.order("created_at", desc=True).limit(5).execute()
+                    )
+
+                    if corrections_res.data:
+                        injection = "\n\n=== HISTORICAL USER CORRECTIONS ===\n"
+                        injection += "To help prevent repeated mistakes, here are previous corrections made by human verifiers for this brand/model:\n"
+                        for c in corrections_res.data:
+                            field = c.get("field_name", "Unknown")
+                            old_v = str(c.get("old_value") or "None")
+                            new_v = str(c.get("new_value") or "None")
+                            notes = c.get("context_notes")
+
+                            notes_str = f" Context/Notes: {notes}" if notes else ""
+                            injection += f"- Field '{field}': AI previously extracted '{old_v}', but human corrected it to '{new_v}'.{notes_str}\n"
+
+                        injection += "\nPlease keep these past mistakes in mind and DO NOT repeat them for similar documents. If you see the same ambiguous pattern in the text, assume the human's 'new_value' logic.\n"
+                        instruction += injection
+                except Exception as e:
+                    logger.warning(
+                        f"Could not load historical corrections for prompt injection: {e}"
+                    )
+
         else:
             chosen_schema = OtherDocumentSummary
             instruction = OTHER_DOC_SUMMARY_PROMPT

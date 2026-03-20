@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import anyio
 from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, BackgroundTasks
@@ -158,7 +159,8 @@ async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
         "transmission": card.get("transmission", ""),
         "vehicle_class": card.get("vehicle_class", ""),
         "trim_level": card.get("trim_level", ""),
-        "base_price": card.get("base_price") or synthesis.get("pricing", {}).get("base_price"),
+        "base_price": card.get("base_price")
+        or synthesis.get("pricing", {}).get("base_price"),
     }
 
     # Simple score: exact model match = 1.0, same brand = 0.5
@@ -176,7 +178,7 @@ async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
         if extracted:
             variants = extracted.get("variants", [])
             exact_variant = find_exact_variant_match(vehicle_spec, variants)
-        
+
         # Obcięcie wyniku (kara) jeśli cena bazowa pojazdu istnieje, ale brak idealnego wariantu cenowego w cenniku
         has_base_price = bool(vehicle_spec.get("base_price"))
         if has_base_price and not exact_variant:
@@ -187,6 +189,7 @@ async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
 
     catalogs.sort(key=lambda x: x.get("score", 0), reverse=True)
     return {"catalogs": catalogs}
+
 
 @router.get("/suggest")
 async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
@@ -217,7 +220,8 @@ async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
         "transmission": card_summary.get("transmission", ""),
         "vehicle_class": card_summary.get("vehicle_class", ""),
         "trim_level": card_summary.get("trim_level", ""),
-        "base_price": card_summary.get("base_price") or synthesis.get("pricing", {}).get("base_price"),
+        "base_price": card_summary.get("base_price")
+        or synthesis.get("pricing", {}).get("base_price"),
     }
 
     # 2. Fetch all ready textual catalogs
@@ -294,12 +298,11 @@ async def upload_catalog(
     storage_path = f"{brand}/{model_family}/{doc_id}.{file_type}"
 
     try:
-        sb_client.storage.from_(_STORAGE_BUCKET).upload(
-            path=storage_path,
-            file=content,
-            file_options={
-                "content-type": file.content_type or "application/octet-stream"
-            },
+        await anyio.to_thread.run_sync(
+            sb_client.storage.from_(_STORAGE_BUCKET).upload,
+            storage_path,
+            content,
+            {"content-type": file.content_type or "application/octet-stream"},
         )
     except Exception as exc:
         logger.error("Storage upload failed: %s", exc)
@@ -376,12 +379,21 @@ async def get_catalog_file(catalog_id: str):
     row = resp.data[0]
     storage_path = row["storage_path"]
 
+    from urllib.parse import quote
+
     try:
-        file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(storage_path)
+        encoded_path = quote(storage_path, safe="/")
+        file_bytes = await anyio.to_thread.run_sync(
+            sb_client.storage.from_(_STORAGE_BUCKET).download,
+            encoded_path
+        )
     except Exception as exc:
         exc_str = str(exc)
         if "404" in exc_str or "Object not found" in exc_str:
-            raise HTTPException(404, f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}") from exc
+            raise HTTPException(
+                404,
+                f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}",
+            ) from exc
         raise HTTPException(500, f"File download failed: {exc}") from exc
 
     from fastapi.responses import Response
@@ -424,14 +436,21 @@ async def get_catalog_xlsx_data(catalog_id: str) -> dict[str, Any]:
     if row["file_type"] != "xlsx":
         raise HTTPException(400, "Only XLSX files can be previewed as spreadsheet")
 
+    from urllib.parse import quote
+
     try:
-        file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(
-            row["storage_path"]
+        encoded_path = quote(row["storage_path"], safe="/")
+        file_bytes = await anyio.to_thread.run_sync(
+            sb_client.storage.from_(_STORAGE_BUCKET).download,
+            encoded_path
         )
     except Exception as exc:
         exc_str = str(exc)
         if "404" in exc_str or "Object not found" in exc_str:
-            raise HTTPException(404, f"Plik fizycznie nie istnieje w magazynie danych (Storage): {row['storage_path']}") from exc
+            raise HTTPException(
+                404,
+                f"Plik fizycznie nie istnieje w magazynie danych (Storage): {row['storage_path']}",
+            ) from exc
         raise HTTPException(500, f"File download failed: {exc}") from exc
 
     from core.catalog_xlsx_parser import parse_xlsx_for_viewer
@@ -501,6 +520,7 @@ async def trigger_extraction(catalog_id: str) -> dict[str, Any]:
 
 # ── REPROCESS AS OFFER ──────────────────────────────────────────
 
+
 @router.post("/{catalog_id}/reprocess")
 async def reprocess_catalog_as_offer(
     catalog_id: str, background_tasks: BackgroundTasks
@@ -515,20 +535,30 @@ async def reprocess_catalog_as_offer(
     )
     if not resp.data:
         raise HTTPException(404, "Catalog not found")
-        
+
     row = resp.data[0]
     storage_path = row["storage_path"]
     filename = row.get("original_filename") or f"document.{row['file_type']}"
 
+    from urllib.parse import quote
+
     try:
-        file_bytes = sb_client.storage.from_(_STORAGE_BUCKET).download(storage_path)
+        encoded_path = quote(storage_path, safe="/")
+        file_bytes = await anyio.to_thread.run_sync(
+            sb_client.storage.from_(_STORAGE_BUCKET).download,
+            encoded_path
+        )
     except Exception as exc:
         exc_str = str(exc)
         if "404" in exc_str or "Object not found" in exc_str:
-            raise HTTPException(404, f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}") from exc
+            raise HTTPException(
+                404,
+                f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}",
+            ) from exc
         raise HTTPException(500, f"File download failed: {exc}") from exc
-        
+
     import hashlib
+
     md5_hash = hashlib.md5(file_bytes).hexdigest()
 
     content_type_map = {
@@ -539,14 +569,12 @@ async def reprocess_catalog_as_offer(
     mime_type = content_type_map.get(row["file_type"], "application/octet-stream")
 
     from core.background_jobs import process_and_save_document_bg
-    
+
     # We create a new synthesis row for the file upload (like the regular upload does)
     new_id = str(uuid.uuid4())
-    sb_client.table("vehicle_synthesis").insert({
-        "id": new_id,
-        "verification_status": "processing",
-        "file_hash": md5_hash
-    }).execute()
+    sb_client.table("vehicle_synthesis").insert(
+        {"id": new_id, "verification_status": "processing", "file_hash": md5_hash}
+    ).execute()
 
     background_tasks.add_task(
         process_and_save_document_bg,
@@ -561,12 +589,20 @@ async def reprocess_catalog_as_offer(
     # Optional: Delete the original from model_document_sources
     # Delete from DB (cascade deletes vehicle_catalog_matches)
     _rs().table("model_document_sources").delete().eq("id", catalog_id).execute()
+    from urllib.parse import quote
+
     try:
-        sb_client.storage.from_(_STORAGE_BUCKET).remove([storage_path])
+        encoded_path = quote(storage_path, safe="/")
+        sb_client.storage.from_(_STORAGE_BUCKET).remove([encoded_path])
     except Exception as exc:
         logger.warning("Storage delete failed (continuing): %s", exc)
 
-    return {"status": "processing", "vehicle_id": new_id, "message": "Rozpoczęto przetwarzanie jako Oferta."}
+    return {
+        "status": "processing",
+        "vehicle_id": new_id,
+        "message": "Rozpoczęto przetwarzanie jako Oferta.",
+    }
+
 
 # ── ACTIVATE / DEACTIVATE ───────────────────────────────────────
 
@@ -607,9 +643,12 @@ async def delete_catalog(catalog_id: str) -> dict[str, Any]:
 
     storage_path = resp.data[0]["storage_path"]
 
+    from urllib.parse import quote
+
     # Delete from storage
     try:
-        sb_client.storage.from_(_STORAGE_BUCKET).remove([storage_path])
+        encoded_path = quote(storage_path, safe="/")
+        sb_client.storage.from_(_STORAGE_BUCKET).remove([encoded_path])
     except Exception as exc:
         logger.warning("Storage delete failed (continuing): %s", exc)
 

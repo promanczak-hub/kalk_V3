@@ -9,7 +9,7 @@ try:
         host="aws-0-eu-central-1.pooler.supabase.com",
         port="5432",
         connect_timeout=5,
-        sslmode="require"
+        sslmode="require",
     )
     print("Connected!")
     with conn.cursor() as cur:

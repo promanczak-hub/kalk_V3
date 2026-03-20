@@ -3,25 +3,20 @@ import tempfile
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
-from core.pdf_pipeline.schemas import ExtractorPipelineResult, ParsedPriceList
-from core.pdf_pipeline.extractor import PDFExtractor
-from core.pdf_pipeline.agents import PricingAgent
-from core.pdf_pipeline.resolver import FootnoteResolver
-from core.pdf_pipeline.normalizer import StrictNormalizer
+from celery.result import AsyncResult
+
+from core.pdf_pipeline.tasks import extract_pdf_pricelist_task
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pdf-pipeline", tags=["PDF Extraction Pipeline"])
 
 
-@router.post("/extract", response_model=ExtractorPipelineResult)
+@router.post("/extract")
 async def extract_pdf_pricelist(file: UploadFile = File(...)):
     """
-    Endpoint that accepts a PDF file and runs it through the full pipeline:
-    1. Docling deterministic markdown extraction
-    2. Gemini AI structured mapping to ParsedPriceList
-    3. Deterministic cross-footnote resolver
-    4. Strict Normalization (enforce 0.0 on None, clean strings)
+    Endpoint that accepts a PDF file and triggers extraction pipeline in Celery.
+    Returns a task_id for frontend to poll status.
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
@@ -40,67 +35,57 @@ async def extract_pdf_pricelist(file: UploadFile = File(...)):
                 f.write(chunk)
 
         logger.info(
-            f"Otrzymano plik {file.filename}, uruchamiam rurociąg PDF na {temp_file_path}"
+            f"Otrzymano plik {file.filename}, przekazuję ścieżkę {temp_file_path} do zadania w tle (Celery)"
         )
 
-        # Pipeline Steps Initiation
-        extractor = PDFExtractor()
-        agent = PricingAgent()
-        resolver = FootnoteResolver()
-        normalizer = StrictNormalizer()
+        # Trigger background task
+        task = extract_pdf_pricelist_task.delay(temp_file_path)
 
-        # Step 1: Deterministic Docling Extraction
-        raw_markdown = extractor.extract_to_markdown(temp_file_path)
-
-        if not raw_markdown.strip():
-            logger.warning("Docling zwrócił pusty Markdown")
-            return ExtractorPipelineResult(
-                is_successful=False,
-                error_message="Z pliku PDF nie udało się wyciągnąć czytelnego tekstu. Format prawdopodobnie jest chroniony lub nieczytelny.",
-                raw_markdown="",
-            )
-
-        # Step 2: Agentic Schema Parsing via LLM
-        logger.info("Faza 2: Przekazuję markwodn do modelu językowego")
-        parsed_data = agent.extract_data(raw_markdown)
-
-        if not isinstance(parsed_data, ParsedPriceList):
-            logger.error("Rozpoznano krytyczny błąd formatu wynikowego od Agenta")
-            return ExtractorPipelineResult(
-                is_successful=False,
-                error_message="Agent zwrócił nieprawidłowy schemat.",
-                raw_markdown=raw_markdown,
-            )
-
-        # Step 3: Footnote Resolution
-        logger.info(
-            f"Faza 3: Rozwiązywanie przypisów ({len(parsed_data.footnotes)} znaleziono)"
-        )
-        resolved_data = resolver.resolve(parsed_data)
-
-        # Step 4: Strict Normalization
-        logger.info("Faza 4: Ścisła normalizacja danych (Zeroing, Cleaning)")
-        final_normalized_data = normalizer.normalize(resolved_data)
-
-        # Success result formulation
-        logger.info("Rurociąg PDF zakończony sukcesem.")
-        return ExtractorPipelineResult(
-            is_successful=True,
-            parsed_data=final_normalized_data,
-            raw_markdown=raw_markdown,
-        )
+        return {"task_id": task.id, "status": "processing"}
 
     except Exception as e:
-        logger.exception("Błąd w trakcie przetwarzania pliku PDF:")
-        return ExtractorPipelineResult(
-            is_successful=False,
-            error_message=f"Wewnętrzny błąd serwera podczas ekstrakcji: {str(e)}",
-        )
-
-    finally:
-        # Clean up temp file
+        logger.exception("Błąd podczas inicjacji taska PDF:")
+        # Cleanup in case of failure before task starts
         if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.remove(temp_file_path)
-            except Exception as e:
-                logger.error(f"Nie udało się oczyścić pliku tymczasowego: {e}")
+            os.remove(temp_file_path)
+        return {
+            "is_successful": False,
+            "error_message": f"Błąd inicjacji procesu ekstrakcji: {str(e)}",
+        }
+
+
+@router.get("/extract/status/{task_id}")
+async def get_extraction_status(task_id: str):
+    """
+    Sprawdza status zadania Celery. Zwraca aktualny stan przetwarzania
+    lub ustrukturyzowane wyniki w przypadku sukcesu.
+    """
+    task_result = AsyncResult(task_id)
+
+    if task_result.state == "PENDING":
+        return {
+            "task_id": task_id,
+            "state": task_result.state,
+            "status": "Zadanie w kolejce...",
+        }
+    elif task_result.state == "PROCESSING":
+        return {
+            "task_id": task_id,
+            "state": task_result.state,
+            "info": task_result.info,
+        }
+    elif task_result.state == "SUCCESS":
+        # Result is already a dict (model_dumped ExtractorPipelineResult from tasks.py)
+        return {
+            "task_id": task_id,
+            "state": task_result.state,
+            "result": task_result.result,
+        }
+    elif task_result.state == "FAILURE":
+        return {
+            "task_id": task_id,
+            "state": task_result.state,
+            "error": str(task_result.info),
+        }
+    else:
+        return {"task_id": task_id, "state": task_result.state}

@@ -1,0 +1,292 @@
+Reading row 1682 from sheet 'KALKULATOR DH (dubel)'...
+--------------------------------------------------
+[B] None:
+  Formula: Csuv
+
+[C] None:
+  Formula: =B1682&G1682
+  Value:   CsuvPB
+
+[D] None:
+  Formula: =B1682&E1682&G1682
+  Value:   CsuvCUPRAPB
+
+[E] None:
+  Formula: CUPRA
+
+[F] None:
+  Formula: Terramar
+
+[G] None:
+  Formula: PB
+
+[H] None:
+  Formula: metalik
+
+[I] None:
+  Formula: ND
+
+[J] None:
+  Formula: bieżący
+
+[K] None:
+  Formula: 2026-03-18 00:00:00
+
+[L] None:
+  Formula: 199700
+
+[M] None:
+  Formula: 18432
+
+[N] None:
+  Formula: 0
+
+[O] None:
+  Formula: =M1682+N1682
+  Value:   18432
+
+[P] None:
+  Formula: =L1682+O1682
+  Value:   218132
+
+[Q] DANE:
+  Formula: 48
+
+[R] None:
+  Formula: 140
+
+[S] ZAPYTANIE:
+  Formula: 48
+
+[T] None:
+  Formula: 120
+
+[U] None:
+  Formula: =K1682+(S1682*30.5)
+  Value:   2030-03-21 00:00:00
+
+[V] None:
+  Formula: =MONTH(U1682)
+  Value:   3
+
+[W] None:
+  Formula: = S1682+AA1682
+  Value:   50
+
+[X] None:
+  Formula: =K1682+(W1682*30.5)
+  Value:   2030-05-21 00:00:00
+
+[Y] None:
+  Formula: =YEAR(K1682)
+  Value:   2026
+
+[Z] None:
+  Formula: =YEAR(X1682)
+  Value:   2030
+
+[AA] None:
+  Formula: 2
+
+[AB] None:
+  Formula: =Z1682-Y1682
+  Value:   4
+
+[AC] PRZEBIEG:
+  Formula: =T1682-R1682
+  Value:   -20
+
+[AD] None:
+  Formula: =T1682-R1682-AF1682
+  Value:   -20
+
+[AE] None:
+  Formula: =AC1682-50
+  Value:   -70
+
+[AF] None:
+  Formula: =IF(AC1682-50<0,0,AE1682)
+  Value:   0
+
+[AG] None:
+  Formula: =VLOOKUP(B1682,'TAB. PRZEBIEG'!$A:$C,2,FALSE)
+  Value:   0.0175
+
+[AH] None:
+  Formula: =VLOOKUP(B1682,'TAB. PRZEBIEG'!$A:$C,3,FALSE)
+  Value:   0.035
+
+[AI] None:
+  Formula: =AG1682*BR1682
+  Value:   1723.1725000000001
+
+[AJ] None:
+  Formula: =AH1682*BR1682
+  Value:   3446.3450000000003
+
+[AK] None:
+  Formula: =AI1682*(AD1682/10)+AJ1682*(AF1682/10)
+  Value:   -3446.3450000000003
+
+[AL] OKRES:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,2,FALSE)
+  Value:   0.05
+
+[AM] None:
+  Formula: =AR1682*AL1682
+  Value:   6246.31645
+
+[AN] None:
+  Formula: =AR1682+AM1682
+  Value:   131172.64545
+
+[AO] None:
+  Formula: =AN1682/L1682
+  Value:   0.6568485000000001
+
+[AP] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,3,FALSE)
+  Value:   0.1
+
+[AQ] None:
+  Formula: =AV1682*AP1682
+  Value:   11356.939
+
+[AR] None:
+  Formula: =AV1682+AQ1682
+  Value:   124926.329
+
+[AS] None:
+  Formula: =AR1682/L1682
+  Value:   0.62557
+
+[AT] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,4,FALSE)
+  Value:   0.1
+
+[AU] None:
+  Formula: =AZ1682*AT1682
+  Value:   10324.49
+
+[AV] None:
+  Formula: =AZ1682+AU1682
+  Value:   113569.39
+
+[AW] None:
+  Formula: =AV1682/L1682
+  Value:   0.5687
+
+[AX] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,5,FALSE)
+  Value:   0.1
+
+[AY] None:
+  Formula: =BC1682*AX1682
+  Value:   9385.9
+
+[AZ] None:
+  Formula: =BC1682+AY1682
+  Value:   103244.9
+
+[BA] None:
+  Formula: =AZ1682/L1682
+  Value:   0.517
+
+[BB] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,6,FALSE)
+  Value:   0
+
+[BC] None:
+  Formula: =BS1682
+  Value:   93859
+
+[BD] None:
+  Formula: =BC1682/L1682
+  Value:   0.47
+
+[BE] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,7,FALSE)
+  Value:   0.05
+
+[BF] None:
+  Formula: =BE1682*BS1682
+  Value:   4692.95
+
+[BG] None:
+  Formula: =BS1682-BF1682
+  Value:   89166.05
+
+[BH] None:
+  Formula: =BG1682/L1682
+  Value:   0.4465
+
+[BI] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,7,FALSE)
+  Value:   0.05
+
+[BJ] None:
+  Formula: =BG1682*BI1682
+  Value:   4458.302500000001
+
+[BK] None:
+  Formula: =BG1682-BJ1682
+  Value:   84707.7475
+
+[BL] None:
+  Formula: =BK1682/L1682
+  Value:   0.42417499999999997
+
+[BM] None:
+  Formula: =VLOOKUP(C1682,'TAB. OKRES FINAL'!$A:$I,8,FALSE)
+  Value:   0.05
+
+[BN] None:
+  Formula: =BK1682*BM1682
+  Value:   4235.387375
+
+[BO] None:
+  Formula: =BK1682-BN1682
+  Value:   80472.36012499999
+
+[BP] None:
+  Formula: =BO1682/L1682
+  Value:   0.40296624999999997
+
+[BQ] None:
+  Formula: =IF(AB1682<=0,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,2,FALSE),IF(AB1682=1,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,3,FALSE),IF(AB1682=2,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,4,FALSE),IF(AB1682=3,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,5,FALSE),IF(AB1682=4,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,6,FALSE),IF(AB1682=5,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,7,FALSE),IF(AB1682=6,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,8,FALSE),IF(AB1682=7,VLOOKUP(C1682,'TAB. DOPOSAŻENIA'!$A:$I,9,FALSE)))))))))
+  Value:   0.25
+
+[BR] None:
+  Formula: =IF(AB1682=0,AN1682+O1682*BQ1682,IF(AB1682=1,AR1682+O1682*BQ1682,IF(AB1682=2,AV1682+O1682*BQ1682,IF(AB1682=3,AZ1682+O1682*BQ1682,IF(AB1682=4,BC1682+O1682*BQ1682,IF(AB1682=5,BG1682+O1682*BQ1682,IF(AB1682=6,BK1682+O1682*BQ1682,IF(AB1682=7,BO1682+O1682*BQ1682))))))))
+  Value:   98467
+
+[BS] RV 48/140:
+  Formula: =L1682*BT1682
+  Value:   93859
+
+[BT] None:
+  Formula: =VLOOKUP(C1682,'TAB.WR KLASA'!A:B,2,FALSE)+BU1682
+  Value:   0.47
+
+[BU] Korekta:
+  Formula: =IFERROR(VLOOKUP(D1682,'KOR. MARKA'!$D:$E,2,0),"0")
+  Value:   0.05
+
+[BV] RV (po korektach):
+  Formula: =BR1682+(VLOOKUP(H1682,KOLOR!$A:$B,2,FALSE)*L1682+(VLOOKUP(I1682,NADWOZIE!$A:$B,2,FALSE)*P1682+(VLOOKUP(J1682,ROCZNIK!$A:$B,2,FALSE)*L1682))-AK1682)
+  Value:   101913.345
+
+[BW] None:
+  Formula: 0
+
+[BX] None:
+  Formula: =BV1682+BW1682
+  Value:   101913.345
+
+[BY] None:
+  Formula: =BX1682/P1682
+  Value:   0.4672095107549557
+
+[CC] None:
+  Formula: 0.4806
+

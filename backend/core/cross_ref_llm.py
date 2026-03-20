@@ -80,6 +80,7 @@ def find_exact_variant_match(
             # Handle string prices like "222800 PLN brutto" or "222 800,50"
             price_str = str(base_price).replace(" ", "").replace(",", ".")
             import re
+
             match = re.search(r"[\d.]+", price_str)
             base_price_float = float(match.group(0)) if match else 0.0
         else:
@@ -100,9 +101,7 @@ def find_exact_variant_match(
 
         try:
             p_net = float(v_price_net) if v_price_net is not None else 0.0
-            p_gross = (
-                float(v_price_gross) if v_price_gross is not None else 0.0
-            )
+            p_gross = float(v_price_gross) if v_price_gross is not None else 0.0
         except (ValueError, TypeError):
             continue
 
@@ -113,13 +112,9 @@ def find_exact_variant_match(
             is_price_match = True
 
         if is_price_match:
-            variant_name = str(
-                variant.get("variant_name") or ""
-            ).strip().lower()
+            variant_name = str(variant.get("variant_name") or "").strip().lower()
             is_trim_match = bool(trim_level and trim_level in variant_name)
-            is_power_match = bool(
-                power_hp and str(power_hp) in variant_name
-            )
+            is_power_match = bool(power_hp and str(power_hp) in variant_name)
 
             if is_trim_match or is_power_match:
                 return variant  # Perfect match with name or power
@@ -197,9 +192,7 @@ def rank_catalogs_for_vehicle(
         return []
 
     if types is None:
-        logger.error(
-            "google.genai not available. Returning unsorted catalogs."
-        )
+        logger.error("google.genai not available. Returning unsorted catalogs.")
         return catalogs
 
     client = get_gemini_client()
@@ -265,7 +258,7 @@ def rank_catalogs_for_vehicle(
                 score = rank_data.relevance_score
                 reasoning = rank_data.reasoning
                 has_base_price = bool(vehicle_spec.get("base_price"))
-                
+
                 if has_base_price and score > 0.5:
                     penalty = min(score, 0.5)
                     reasoning = (

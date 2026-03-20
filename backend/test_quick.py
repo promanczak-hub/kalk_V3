@@ -49,7 +49,9 @@ try:
         if cells:
             print("First cell keys:", list(cells[0].keys())[:12])
             c = cells[0]
-            print(f"  Okres={c.get('Okres')} Przebieg={c.get('Przebieg')} LacznaStawka={c.get('LacznaStawka')}")
+            print(
+                f"  Okres={c.get('Okres')} Przebieg={c.get('Przebieg')} LacznaStawka={c.get('LacznaStawka')}"
+            )
             # Check for old V3 keys
             if "months" in c:
                 print("  WARNING: Old V3 key 'months' found!")

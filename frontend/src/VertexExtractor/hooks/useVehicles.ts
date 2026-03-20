@@ -320,13 +320,8 @@ export function useVehicles() {
 
   const handleDeleteVehicle = async (vehicleId: string) => {
     console.log("handleDeleteVehicle called with", vehicleId);
-    const confirmed = window.confirm(
-      "Czy na pewno chcesz usunąć ten rekord? Tej operacji nie można cofnąć.",
-    );
-    console.log("window.confirm result:", confirmed);
-    if (!confirmed) {
-      return;
-    }
+    // Potwierdzenie jest już w VehicleActionButtons.tsx przed dispatchem CustomEvent.
+    // Nie pokazuj drugiego confirm - wywołuj delete bezpośrednio.
 
     try {
       const response = await apiFetch(`/api/delete-vehicle`, {

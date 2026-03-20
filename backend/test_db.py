@@ -29,9 +29,16 @@ payload = {
 
 try:
     print("Testing insert...")
-    response = supabase.schema("reverse_search").table("model_document_sources").insert(payload).execute()
+    response = (
+        supabase.schema("reverse_search")
+        .table("model_document_sources")
+        .insert(payload)
+        .execute()
+    )
     print("Success:", response)
     # Clean up
-    supabase.schema("reverse_search").table("model_document_sources").delete().eq("id", "11111111-1111-1111-1111-111111111111").execute()
+    supabase.schema("reverse_search").table("model_document_sources").delete().eq(
+        "id", "11111111-1111-1111-1111-111111111111"
+    ).execute()
 except Exception as e:
     print("Error:", e)

@@ -128,6 +128,9 @@ def validate_card_summary_prices(
     # ── Rule 7: Flag unparseable paid_option prices ──
     _check_unparseable_options(report, paid_options)
 
+    # ── Rule 8: Power consistency (kW vs HP) ──
+    _check_power_consistency(report, card_summary)
+
     _log_report(report)
     return report
 
@@ -234,6 +237,47 @@ def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) 
                 ValidationWarning(
                     rule="AUTO_FIX_APPLIED",
                     message=f"Automatycznie wyliczono brakujące options_price jako {int(corrected_options_val)} aby zbilansować sumę.",
+                    severity="INFO",
+                )
+            )
+        elif report.parsed_base > report.parsed_total and report.parsed_options is not None:
+            # AI extracted the discounted final price as total_price
+            corrected_total_val = report.parsed_base + report.parsed_options
+
+            original_total = str(card_summary.get("total_price", ""))
+
+            # Determine currency and suffix from base_price
+            base_str = str(card_summary.get("base_price", ""))
+            domain_suffix = ""
+            if "netto" in base_str.lower():
+                domain_suffix = " netto"
+            elif "brutto" in base_str.lower():
+                domain_suffix = " brutto"
+
+            currency = " PLN" if "PLN" in base_str.upper() else ""
+
+            # Update card_summary
+            card_summary["total_price"] = (
+                f"{int(corrected_total_val)}{currency}{domain_suffix}".strip()
+            )
+
+            logger.info(
+                "[PRICE VALIDATOR] Auto-fix: Nadpisano total_price z '%s' na '%s' "
+                "poniewaz oryginalny total_price zawieral kwote zrabatowana.",
+                original_total,
+                card_summary["total_price"],
+            )
+
+            # Update report so the summary reflects the fix
+            report.warnings.remove(sum_warning)
+            report.is_valid = not any(w.severity == "ERROR" for w in report.warnings)
+            report.parsed_total = corrected_total_val
+
+            # Add an INFO note about the fix
+            report.add(
+                ValidationWarning(
+                    rule="AUTO_FIX_APPLIED",
+                    message=f"Automatycznie nadpisano total_price (zrabatowana kwota) na sume bazy i opcji: {int(corrected_total_val)}.",
                     severity="INFO",
                 )
             )
@@ -410,22 +454,68 @@ def _check_sum_consistency(
     diff = abs(expected_total - total.value)
     diff_pct = (diff / expected_total) * 100
 
-    if diff_pct > _SUM_TOLERANCE_PCT:
-        severity = "ERROR" if diff_pct > 1.0 else "WARNING"
+    if diff_pct <= _SUM_TOLERANCE_PCT:
+        return
+
+    # Check if this is a netto/brutto mismatch (base + options was Netto, total was Brutto)
+    expected_total_brutto = expected_total * _VAT_RATE
+    diff_brutto = abs(expected_total_brutto - total.value)
+    if (
+        expected_total_brutto > 0
+        and (diff_brutto / expected_total_brutto) * 100 <= _SUM_TOLERANCE_PCT
+    ):
         report.add(
             ValidationWarning(
-                rule="BASE_PLUS_OPTIONS_VS_TOTAL",
+                rule="SUM_CONSISTENCY_NETTO_BRUTTO_MISMATCH",
                 message=(
-                    f"baza({base.value:.0f}) + opcje({options_val:.0f}) "
-                    f"= {expected_total:.0f}, ale total = {total.value:.0f} "
-                    f"(Δ {diff:.0f} / {diff_pct:.1f}%)"
+                    f"Suma (baza {base.value:.0f} + opcje {options_val:.0f}) * {_VAT_RATE} ≈ "
+                    f"{expected_total_brutto:.0f}, co odpowiada total = {total.value:.0f}. "
+                    "Wykryto pomieszanie kwot netto i brutto."
                 ),
-                severity=severity,
-                expected=expected_total,
+                severity="WARNING",
+                expected=expected_total_brutto,
                 actual=total.value,
-                diff_pct=diff_pct,
             )
         )
+        return
+
+    # Check if base + options was Brutto, total was Netto
+    expected_total_netto = expected_total / _VAT_RATE
+    diff_netto = abs(expected_total_netto - total.value)
+    if (
+        expected_total_netto > 0
+        and (diff_netto / expected_total_netto) * 100 <= _SUM_TOLERANCE_PCT
+    ):
+        report.add(
+            ValidationWarning(
+                rule="SUM_CONSISTENCY_BRUTTO_NETTO_MISMATCH",
+                message=(
+                    f"Suma (baza {base.value:.0f} + opcje {options_val:.0f}) / {_VAT_RATE} ≈ "
+                    f"{expected_total_netto:.0f}, co odpowiada total = {total.value:.0f}. "
+                    "Wykryto pomieszanie kwot netto i brutto."
+                ),
+                severity="WARNING",
+                expected=expected_total_netto,
+                actual=total.value,
+            )
+        )
+        return
+
+    severity = "ERROR" if diff_pct > 1.0 else "WARNING"
+    report.add(
+        ValidationWarning(
+            rule="BASE_PLUS_OPTIONS_VS_TOTAL",
+            message=(
+                f"baza({base.value:.0f}) + opcje({options_val:.0f}) "
+                f"= {expected_total:.0f}, ale total = {total.value:.0f} "
+                f"(Δ {diff:.0f} / {diff_pct:.1f}%)"
+            ),
+            severity=severity,
+            expected=expected_total,
+            actual=total.value,
+            diff_pct=diff_pct,
+        )
+    )
 
 
 def _check_options_cross_sum(
@@ -624,5 +714,38 @@ def _check_unparseable_options(
                     f"wymaga weryfikacji: {', '.join(unparseable)}"
                 ),
                 severity="WARNING",
+            )
+        )
+
+
+def _check_power_consistency(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Validate mathematically if power_kw * 1.36 == power_hp."""
+    power_kw = card_summary.get("power_kw")
+    power_hp = card_summary.get("power_hp")
+
+    if not isinstance(power_kw, (int, float)) or not isinstance(power_hp, (int, float)):
+        return
+
+    if power_kw <= 0 or power_hp <= 0:
+        return
+
+    expected_hp = round(power_kw * 1.36)
+    diff = abs(expected_hp - power_hp)
+
+    # Allow a small tolerance for rounding differences (e.g., 2 HP)
+    if diff > 2:
+        report.add(
+            ValidationWarning(
+                rule="POWER_KW_HP_MISMATCH",
+                message=(
+                    f"Moc niespójna: {power_kw} kW * 1.36 ≈ {expected_hp} KM, "
+                    f"ale wyodrębniono {power_hp} KM"
+                ),
+                severity="WARNING",
+                expected=expected_hp,
+                actual=float(power_hp),
             )
         )

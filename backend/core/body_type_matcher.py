@@ -178,6 +178,3 @@ def match_body_type(raw_body_style: str) -> BodyTypeMatch:
         match_method="none",
         raw_input=raw_body_style,
     )
-
-
-

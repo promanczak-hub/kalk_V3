@@ -102,8 +102,7 @@ def map_to_engine_class(
 
     # Build a compact representation for the prompt
     dict_text = "\n".join(
-        f"- {row['name']}: {row['description']}"
-        for row in engine_dict
+        f"- {row['name']}: {row['description']}" for row in engine_dict
     )
 
     prompt = f"""Jesteś ekspertem motoryzacyjnym. Twoim zadaniem jest klasyfikacja układu napędowego.

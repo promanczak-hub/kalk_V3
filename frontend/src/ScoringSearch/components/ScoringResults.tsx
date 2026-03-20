@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, Chip, FormControl, Select, MenuItem,
-  Tooltip, Button, CircularProgress, IconButton, Skeleton,
+  Tooltip, Button, IconButton, Skeleton
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
@@ -10,12 +10,10 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import CalculateIcon from '@mui/icons-material/Calculate';
 import BuildIcon from '@mui/icons-material/Build';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import { apiFetch } from '../../lib/api';
 import type { SearchContext } from '../types';
 import { useOfferCartStore } from '../../stores/offerCartStore';
@@ -55,6 +53,10 @@ interface PriceForParams {
   monthly_price_net: number | null;
   calculated_at: string | null;
   found: boolean;
+  variants_count?: number;
+  tire_class?: string;
+  service_type?: string;
+  kalkulacja_id?: string;
 }
 
 interface SimilarVehicle {
@@ -67,27 +69,38 @@ interface SimilarVehicle {
 
 /* ── Sub-hooks ── */
 
-function usePriceForParams(
-  vehicleId: string,
-  hasCache: boolean,
+function useBatchPrices(
+  vehicleIds: string[],
   durationMonths: number,
   annualMileage: number,
-): { price: PriceForParams | null; loading: boolean } {
-  const [price, setPrice] = useState<PriceForParams | null>(null);
+  enabled: boolean
+): { prices: Record<string, { price_for_params?: PriceForParams, variants?: PriceForParams[] }>; loading: boolean } {
+  const [prices, setPrices] = useState<Record<string, { price_for_params?: PriceForParams, variants?: PriceForParams[] }>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!hasCache) return;
+    if (!enabled || !vehicleIds.length) {
+      setPrices({});
+      return;
+    }
     let cancelled = false;
 
     const doFetch = async () => {
       setLoading(true);
       try {
-        const r = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/price-for-params?duration_months=${durationMonths}&annual_mileage=${annualMileage}`);
-        const data: PriceForParams = await r.json();
-        if (!cancelled) setPrice(data);
+        const r = await apiFetch(`/api/scoring-search/cache/batch-prices`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            vehicle_ids: vehicleIds, 
+            duration_months: durationMonths, 
+            annual_mileage: annualMileage
+          }),
+        });
+        const data = await r.json();
+        if (!cancelled) setPrices(data.prices || {});
       } catch {
-        if (!cancelled) setPrice(null);
+        if (!cancelled) setPrices({});
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -96,7 +109,6 @@ function usePriceForParams(
     const handleRefreshEvent = () => {
       if (!cancelled) doFetch();
     };
-
     window.addEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     
     doFetch();
@@ -104,121 +116,99 @@ function usePriceForParams(
       cancelled = true; 
       window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
-  }, [vehicleId, hasCache, durationMonths, annualMileage]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled]);
 
-  return { price, loading };
+  return { prices, loading };
 }
 
-function usePriceVariants(
-  vehicleId: string,
-  hasCache: boolean,
+function useBatchSimilarVehicles(
+  vehicleIds: string[],
+  durationMonths: number,
   annualMileage: number,
-): { variants: PriceForParams[] | null; loading: boolean } {
-  const [variants, setVariants] = useState<PriceForParams[] | null>(null);
+  enabled: boolean
+): { similarVehicles: Record<string, SimilarVehicle[]>; loading: boolean } {
+  const [similarVehicles, setSimilarVehicles] = useState<Record<string, SimilarVehicle[]>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!hasCache) return;
+    if (!enabled || !vehicleIds.length) {
+      setSimilarVehicles({});
+      return;
+    }
     let cancelled = false;
-
     const doFetch = async () => {
       setLoading(true);
       try {
-        const r = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/price-variants?annual_mileage=${annualMileage}`);
-        const data: PriceForParams[] = await r.json();
-        if (!cancelled) setVariants(data);
+        const r = await apiFetch(`/api/scoring-search/cache/batch-similar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            vehicle_ids: vehicleIds, 
+            duration_months: durationMonths, 
+            annual_mileage: annualMileage,
+            limit: 3
+          }),
+        });
+        const data = await r.json();
+        if (!cancelled) setSimilarVehicles(data.results || {});
       } catch {
-        if (!cancelled) setVariants(null);
+        if (!cancelled) setSimilarVehicles({});
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
-    doFetch();
-    return () => { cancelled = true; };
-  }, [vehicleId, hasCache, annualMileage]);
-
-  return { variants, loading };
-}
-
-function useSimilarVehicles(vehicleId: string, durationMonths?: number, annualMileage?: number): {
-  similar: SimilarVehicle[];
-  loading: boolean;
-} {
-  const [similar, setSimilar] = useState<SimilarVehicle[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
+    const handleRefreshEvent = () => {
+      if (!cancelled) doFetch();
+    };
+    window.addEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     
-    const doFetch = async () => {
-      setLoading(true);
-      const params = new URLSearchParams({ limit: '3' });
-      if (durationMonths) params.append('duration_months', durationMonths.toString());
-      if (annualMileage) params.append('annual_mileage', annualMileage.toString());
-      
-      try {
-        const r = await apiFetch(`/api/scoring-search/vehicle/${vehicleId}/similar?${params.toString()}`);
-        const data: SimilarVehicle[] = await r.json();
-        if (!cancelled) setSimilar(Array.isArray(data) ? data : []);
-      } catch {
-        if (!cancelled) setSimilar([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
     doFetch();
-    return () => { cancelled = true; };
-  }, [vehicleId, durationMonths, annualMileage]);
+    return () => { 
+      cancelled = true; 
+      window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled]);
 
-  return { similar, loading };
+  return { similarVehicles, loading };
 }
-
-/* ── Card sub-components ── */
 
 interface LtrPriceBlockProps {
-  vehicleId: string;
   hasCache: boolean;
   bestMonthlyPrice: number | null;
-  durationMonths: number;
-  annualMileage: number;
-  isCalculating: boolean;
-  onCalculate: (id: string) => void;
-  suggestedDiscountPct?: number | null;
   marginPct?: number;
+  priceData?: { price_for_params?: PriceForParams, variants?: PriceForParams[] };
+  loading?: boolean;
 }
 
 const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
-  vehicleId, hasCache, bestMonthlyPrice, durationMonths, annualMileage,
-  isCalculating, onCalculate, suggestedDiscountPct, marginPct = 0,
+  hasCache, bestMonthlyPrice,
+  marginPct = 0,
+  priceData, loading = false
 }) => {
-  const { price, loading } = usePriceForParams(
-    vehicleId, !!hasCache, durationMonths, annualMileage
-  );
-  const { variants } = usePriceVariants(
-    vehicleId, !!hasCache, annualMileage
-  );
+  const price = priceData?.price_for_params;
+  const variants = priceData?.variants;
+  const [expanded, setExpanded] = useState(false);
 
-  if (!hasCache || !bestMonthlyPrice) {
+  // Jeśli backend zwrócił found=true — pokaż cenę ZAWSZE (priorytet nad hasCache)
+  const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
+
+  // "Brak kalkulacji" tylko gdy: jest hasCache, dane załadowane, ale found=false i NIE ma ceny z API
+  const isDataLoadedAndMissing = !loading && hasCache && !hasPriceFromAPI && !bestMonthlyPrice;
+
+  // Gdy filtry Matrix nieaktywne priceData jest undefined — nie renderuj bloku w ogóle
+  if (!priceData && !bestMonthlyPrice) return null;
+
+  if (!hasPriceFromAPI && !bestMonthlyPrice) {
     return (
       <Box sx={{ mt: 0.75 }}>
-        {isCalculating ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-            <CircularProgress size={16} />
-            <Typography variant="caption" color="textSecondary">Przeliczanie…</Typography>
-          </Box>
-        ) : (
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<CalculateIcon />}
-            onClick={() => onCalculate(vehicleId)}
-            sx={{ fontSize: '0.72rem', textTransform: 'none' }}
-          >
-            Przelicz LTR
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Typography variant="caption" color={isDataLoadedAndMissing ? 'error' : 'textSecondary'} sx={{ fontWeight: isDataLoadedAndMissing ? 'bold' : 'normal' }}>
+            {isDataLoadedAndMissing ? 'Brak kalkulacji pasujących do tych parametrów' : 'Oczekuje na pierwszą kalkulację...'}
+          </Typography>
+        </Box>
       </Box>
     );
   }
@@ -237,32 +227,22 @@ const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
     <Box sx={{ mt: 0.75, textAlign: 'right', bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 1, borderRadius: 1 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>Rata LTR:</Typography>
-        {suggestedDiscountPct !== undefined && suggestedDiscountPct !== null && (
-          <Box
-            sx={{
-              display: 'inline-block',
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              bgcolor: 'rgba(255,255,255,0.2)',
-              px: 0.75,
-              py: 0.25,
-              borderRadius: 1,
-            }}
-          >
-            {suggestedDiscountPct > 0 ? `Rabat: ${suggestedDiscountPct}%` : 'Cena katalogowa'}
-          </Box>
-        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {price?.variants_count != null && price.variants_count > 0 && (
+             <Chip label={`Warianty zdefiniowane: ${price.variants_count}`} size="small" color="secondary" sx={{ height: 16, fontSize: '0.6rem' }} />
+          )}
+        </Box>
       </Box>
       {loading ? (
         <Skeleton variant="text" width={80} sx={{ ml: 'auto', bgcolor: 'rgba(255,255,255,0.2)' }} />
       ) : (
         <Typography variant="body1" sx={{ fontWeight: 'bold', mt: 0.5 }}>
-          {Number(displayPrice).toLocaleString('pl-PL')} PLN
+          {Number(displayPrice).toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
         </Typography>
       )}
       {paramLabel && !loading && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-          <Tooltip title="Cena dla wybranych parametrów">
+          <Tooltip title="Cena dla najlepszego dopasowania w historii kalkulacji">
             <Typography
               variant="caption"
               sx={{ opacity: 0.85, fontSize: '0.68rem', cursor: 'default' }}
@@ -271,19 +251,13 @@ const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
             </Typography>
           </Tooltip>
 
-          {/* Cache Date & Refresh */}
           {price?.calculated_at && (
             <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5, borderLeft: '1px solid rgba(255,255,255,0.3)', pl: 0.5 }}>
-              <Tooltip title={`Ostatnia aktualizacja: ${new Date(price.calculated_at).toLocaleString('pl-PL')}. Kliknij, aby odświeżyć.`}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', '&:hover': { opacity: 1 } }} onClick={() => onCalculate(vehicleId)}>
+              <Tooltip title={`Data ostatniej wykonanej na Vertex kalkulacji: ${new Date(price.calculated_at).toLocaleString('pl-PL')}`}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', '&:hover': { opacity: 1 } }}>
                   <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.7 }}>
-                    {new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })} {new Date(price.calculated_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })}
                   </Typography>
-                  {isCalculating ? (
-                    <CircularProgress size={10} color="inherit" thickness={6} />
-                  ) : (
-                    <RefreshIcon sx={{ fontSize: 10, opacity: 0.7 }} />
-                  )}
                 </Box>
               </Tooltip>
             </Box>
@@ -293,32 +267,28 @@ const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
       {!paramLabel && !loading && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
           <Typography variant="caption" sx={{ opacity: 0.9 }}>netto / mc</Typography>
-          
-          {/* Cache Date & Refresh (Small fallback) */}
-          {price?.calculated_at && (
-            <Tooltip title={`Ostatnia aktualizacja: ${new Date(price.calculated_at).toLocaleString('pl-PL')}. Kliknij, aby odświeżyć.`}>
-              <IconButton 
-                size="small" 
-                onClick={() => onCalculate(vehicleId)} 
-                sx={{ color: 'inherit', p: 0.25, ml: 0.5, opacity: 0.6, '&:hover': { opacity: 1 } }}
-                disabled={isCalculating}
-              >
-                {isCalculating ? <CircularProgress size={10} color="inherit" /> : <RefreshIcon sx={{ fontSize: 10 }} />}
-              </IconButton>
-            </Tooltip>
-          )}
         </Box>
       )}
 
-      {/* Rendering price variants */}
       {variants && variants.length > 0 && (
         <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {variants.filter(v => v.duration_months !== durationMonths).map(v => {
+          <Button 
+            size="small" 
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} 
+            sx={{ fontSize: '0.65rem', textTransform: 'none', color: 'rgba(255,255,255,0.8)', py: 0, justifyContent: 'flex-end', '&:hover': { bgcolor: 'transparent', color: 'white' } }}
+          >
+            {expanded ? 'Pomiń warianty ▲' : `Inne warianty z historii (${variants.length}) ▼`}
+          </Button>
+          {expanded && variants.map((v, i) => {
             const variantPrice = v.monthly_price_net != null && m < 1.0 ? v.monthly_price_net / (1.0 - m) : 0;
+            const uniqueKey = `kalk-${v.kalkulacja_id || i}`;
+            const dateStr = v.calculated_at ? new Date(v.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' }) : '';
+            const paramsStr = [v.tire_class, v.service_type].filter(Boolean).join(' | ');
+            
             return (
-              <Typography key={v.duration_months} variant="caption" sx={{ fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', opacity: 0.85 }}>
-                <span>{v.duration_months}mc/{( (v.annual_mileage || 0) * (v.duration_months || 0) / 12 / 1000).toFixed(0)}k:</span>
-                <span style={{ fontWeight: 600 }}>{Number(variantPrice).toLocaleString('pl-PL')} PLN</span>
+              <Typography key={uniqueKey} variant="caption" sx={{ fontSize: '0.65rem', display: 'flex', justifyContent: 'space-between', opacity: 0.85 }}>
+                <span>{paramsStr} {dateStr ? `(${dateStr})` : ''}:</span>
+                <span style={{ fontWeight: 600 }}>{Number(variantPrice).toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN</span>
               </Typography>
             );
           })}
@@ -329,15 +299,12 @@ const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
 };
 
 interface SimilarVehiclesSectionProps {
-  vehicleId: string;
-  durationMonths?: number;
-  annualMileage?: number;
+  similar: SimilarVehicle[];
+  loading: boolean;
   marginPct?: number;
 }
 
-const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicleId, durationMonths, annualMileage, marginPct = 0 }) => {
-  const { similar, loading } = useSimilarVehicles(vehicleId, durationMonths, annualMileage);
-
+const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ similar = [], loading, marginPct = 0 }) => {
   if (loading) {
     return (
       <Box sx={{ mt: 1.5 }}>
@@ -351,7 +318,7 @@ const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicle
     );
   }
 
-  if (!similar.length) return null;
+  if (!similar.length) return <Box sx={{ mt: 1.5 }} />;
 
   return (
     <Box sx={{ mt: 1.5 }}>
@@ -364,7 +331,7 @@ const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicle
           const label = [
             `${s.brand ?? ''} ${s.model ?? ''}`.trim(),
             sPrice != null
-              ? `${Number(sPrice).toLocaleString('pl-PL')} PLN/mc`
+              ? `${Number(sPrice).toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN/mc`
               : null,
             s.similarity_score_pct != null ? `${s.similarity_score_pct}%` : null,
           ]
@@ -416,7 +383,6 @@ interface ScoringResultsProps {
 
 export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext }) => {
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
-  const [calculatingIds, setCalculatingIds] = useState<Set<string>>(new Set());
   const addToCart = useOfferCartStore(state => state.addItem);
 
   let targetDuration = Math.round(
@@ -433,58 +399,27 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
   const targetAnnualMileage = Math.round((targetTotalMileage * 12) / targetDuration);
 
-  const handleCalculateSingle = useCallback(async (vehicleId: string) => {
-    setCalculatingIds(prev => new Set(prev).add(vehicleId));
-    try {
-      const res = await apiFetch('/api/scoring-search/cache/refresh-matrix', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicle_ids: [vehicleId] }),
-      });
-      const data = await res.json();
-      const jobId = data.job_id;
-      
-      if (jobId) {
-        const pollTimer = setInterval(async () => {
-          try {
-            const pollRes = await apiFetch(`/api/scoring-search/cache/progress/${jobId}`);
-            if (!pollRes.ok) throw new Error('Poll failed');
-            const pollData = await pollRes.json();
-            if (pollData.status === 'done' || pollData.status === 'error' || pollData.status === 'unknown') {
-              clearInterval(pollTimer);
-              setCalculatingIds(prev => {
-                const next = new Set(prev);
-                next.delete(vehicleId);
-                return next;
-              });
-              // Refresh triggering on window
-              window.dispatchEvent(new CustomEvent('SCORING_SEARCH_REFRESH'));
-            }
-          } catch {
-            clearInterval(pollTimer);
-            setCalculatingIds(prev => {
-              const next = new Set(prev);
-              next.delete(vehicleId);
-              return next;
-            });
-          }
-        }, 1500);
-      } else {
-        setCalculatingIds(prev => {
-          const next = new Set(prev);
-          next.delete(vehicleId);
-          return next;
-        });
-      }
-    } catch (err) {
-      console.error('Failed to trigger calculation for', vehicleId, err);
-      setCalculatingIds(prev => {
-        const next = new Set(prev);
-        next.delete(vehicleId);
-        return next;
-      });
-    }
-  }, []);
+  // Zoptymalizowane zbieranie cen w locie używając 1 wsadowego żądania HTTP 
+  const vehicleIdsToFetchPrices = useMemo(() => {
+    return results.map(r => r.vehicle_id as string).filter(Boolean);
+  }, [results]);
+
+  // Pobieramy ceny TYLKO gdy filtry Matrix są aktywne — efekt celowy,
+  // by nie pokazywać losowej ceny dla arbitralnych parametrów
+  const matrixFiltersActive = searchContext.useMatrixFilters;
+
+  const { prices: batchPrices, loading: batchPricesLoading } = useBatchPrices(
+    vehicleIdsToFetchPrices, targetDuration, targetAnnualMileage,
+    results.length > 0 && matrixFiltersActive
+  );
+  const { similarVehicles: batchSimilar, loading: batchSimilarLoading } = useBatchSimilarVehicles(
+    vehicleIdsToFetchPrices,
+    targetDuration,
+    targetAnnualMileage,
+    results.length > 0 && matrixFiltersActive
+  );
+
+
 
   const sortedResults = useMemo(() => {
     const sorted = [...results];
@@ -548,7 +483,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
       {sortedResults.map((car) => {
         const vehicleId = car.vehicle_id as string;
         const hasSpecs = car.fuel_type || car.power_hp || car.transmission || car.body_style || car.drive_type;
-        const isCalculating = calculatingIds.has(vehicleId);
         const matchedFeatures = (car.matched_features || []) as string[];
         const missingFeatures = (car.missing_features || []) as string[];
 
@@ -659,15 +593,11 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
                   {/* LTR Price Block — price for selected params */}
                   <LtrPriceBlock
-                    vehicleId={vehicleId}
                     hasCache={!!(car.has_ltr_cache)}
                     bestMonthlyPrice={(car.best_monthly_price as number) || null}
-                    durationMonths={targetDuration}
-                    annualMileage={targetAnnualMileage}
-                    isCalculating={isCalculating}
-                    onCalculate={handleCalculateSingle}
-                    suggestedDiscountPct={(car.suggested_discount_pct as number) || 0}
                     marginPct={searchContext.margin_pct || 0}
+                    priceData={batchPrices[vehicleId]}
+                    loading={batchPricesLoading}
                   />
 
                   {/* Business badges row */}
@@ -753,7 +683,8 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
               {/* ── Row 4: Similar vehicles ── */}
               <SimilarVehiclesSection 
-                vehicleId={vehicleId} 
+                similar={batchSimilar[vehicleId] || []}
+                loading={batchSimilarLoading}
                 marginPct={searchContext.margin_pct || 0}
               />
 

@@ -1,15 +1,16 @@
 import os
 from openpyxl import load_workbook
 
+
 def create_offers_from_template(template_path: str, out_path: str):
     # Wczytaj szablon
     wb = load_workbook(template_path)
     ws = wb.active
-    
+
     # Przykładowe dane 3 aut dopasowane do kolumn zdefiniowanych w szablonie
     # Z poprzedniego odczytu wiemy, że nagłówki są w wierszu 5 (A5:H5)
     # Piszemy od wiersza 6.
-    
+
     cars = [
         {
             "brand": "Toyota",
@@ -19,7 +20,7 @@ def create_offers_from_template(template_path: str, out_path: str):
             "term": 36,
             "mileage": 20000,
             "installment": 1500.0,
-            "recommendation": "Szczególnie polecane"
+            "recommendation": "Szczególnie polecane",
         },
         {
             "brand": "Skoda",
@@ -29,7 +30,7 @@ def create_offers_from_template(template_path: str, out_path: str):
             "term": 48,
             "mileage": 30000,
             "installment": 1800.0,
-            "recommendation": "Dobry wybór flotowy"
+            "recommendation": "Dobry wybór flotowy",
         },
         {
             "brand": "Porsche",
@@ -39,12 +40,12 @@ def create_offers_from_template(template_path: str, out_path: str):
             "term": 24,
             "mileage": 15000,
             "installment": 4500.0,
-            "recommendation": "Premium"
-        }
+            "recommendation": "Premium",
+        },
     ]
-    
+
     start_row = 6
-    
+
     for i, car in enumerate(cars):
         row = start_row + i
         ws.cell(row=row, column=1, value=car["brand"])
@@ -55,9 +56,10 @@ def create_offers_from_template(template_path: str, out_path: str):
         ws.cell(row=row, column=6, value=car["mileage"])
         ws.cell(row=row, column=7, value=car["installment"])
         ws.cell(row=row, column=8, value=car["recommendation"])
-        
+
     wb.save(out_path)
     print(f"Zapisano plik Excel: {out_path} na bazie szablonu {template_path}")
+
 
 if __name__ == "__main__":
     template_path = os.path.join(os.getcwd(), "templates", "template_oferta.xlsx")

@@ -26,7 +26,7 @@ from core.json_utils import clean_json_response
 
 logger = logging.getLogger(__name__)
 
-_STORAGE_BUCKET = "raw-vehicle-pdfs"
+_STORAGE_BUCKET = "catalog-documents"
 
 # ── Catalog extraction prompt ────────────────────────────────────
 
@@ -238,39 +238,46 @@ def _extract_pricelist_hybrid(
     catalog_meta: dict[str, Any],
 ) -> dict[str, Any]:
     """Extract variants using the hybrid PricingAgent for Price Lists."""
-    logger.info("Extracting price list via PricingAgent (Hybrid): %s", catalog_meta.get("display_name", "unknown"))
-    
+    logger.info(
+        "Extracting price list via PricingAgent (Hybrid): %s",
+        catalog_meta.get("display_name", "unknown"),
+    )
+
     from core.pdf_pipeline.agents import PricingAgent
+
     agent = PricingAgent()
-    
+
     parsed = agent.extract_data(markdown_content, file_bytes)
-    
+
     variants = []
     for engine in parsed.engines:
         for trim in engine.prices_by_trim:
             if trim.price_netto or trim.price_brutto:
-                variants.append({
-                    "variant_name": f"{engine.engine_name} {trim.trim_name}".strip(),
-                    "body_type": None,
-                    "engine_power_hp": engine.power_hp,
-                    "fuel_type": engine.fuel_type,
-                    "price_net": trim.price_netto,
-                    "price_gross": trim.price_brutto,
-                    "transmission": engine.transmission,
-                    "standard_equipment": [],
-                })
-                
+                variants.append(
+                    {
+                        "variant_name": f"{engine.engine_name} {trim.trim_name}".strip(),
+                        "body_type": None,
+                        "engine_power_hp": engine.power_hp,
+                        "fuel_type": engine.fuel_type,
+                        "price_net": trim.price_netto,
+                        "price_gross": trim.price_brutto,
+                        "transmission": engine.transmission,
+                        "standard_equipment": [],
+                    }
+                )
+
     logger.info("Mapped PricingAgent output to %d flat variants", len(variants))
-    
+
     return {
         "extracted_data": {
             "brand": parsed.brand or catalog_meta.get("brand", ""),
             "model_family": parsed.model or catalog_meta.get("model_family", ""),
             "year": parsed.model_year,
-            "variants": variants
+            "variants": variants,
         },
-        "variant_count": len(variants)
+        "variant_count": len(variants),
     }
+
 
 # ── Main entry point ─────────────────────────────────────────────
 
@@ -300,8 +307,12 @@ def extract_catalog_variants(
         if document_type == "price_list":
             markdown_content = catalog.get("document_markdown", "")
             if not markdown_content:
-                logger.warning("No markdown found for hybrid processing, passing empty string")
-            return _extract_pricelist_hybrid(file_bytes, markdown_content or "", catalog)
+                logger.warning(
+                    "No markdown found for hybrid processing, passing empty string"
+                )
+            return _extract_pricelist_hybrid(
+                file_bytes, markdown_content or "", catalog
+            )
         return _extract_pdf_catalog(file_bytes, catalog)
     if file_type in ("xlsx", "csv"):
         return _extract_xlsx_catalog(file_bytes, catalog)

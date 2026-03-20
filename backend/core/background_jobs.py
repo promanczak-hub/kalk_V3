@@ -1,6 +1,5 @@
 import json
 import datetime
-import threading
 import uuid
 from supabase import create_client, Client, ClientOptions
 from dotenv import load_dotenv
@@ -15,35 +14,7 @@ from services.ai_mapper_service import map_vehicle_data_flash
 load_dotenv()
 load_dotenv("../frontend/.env.local")
 
-# ───── Cancel registry ─────
-# Thread-safe dict of file_id → threading.Event
-# When event is set, the background job should stop ASAP.
-_cancel_events: dict[str, threading.Event] = {}
-_cancel_lock = threading.Lock()
-
-
-def register_cancel_event(file_id: str) -> threading.Event:
-    """Create and register a cancellation event for a file."""
-    event = threading.Event()
-    with _cancel_lock:
-        _cancel_events[file_id] = event
-    return event
-
-
-def trigger_cancel(file_id: str) -> bool:
-    """Signal cancellation for a running job. Returns True if event was found."""
-    with _cancel_lock:
-        event = _cancel_events.get(file_id)
-    if event:
-        event.set()
-        return True
-    return False
-
-
-def _cleanup_cancel_event(file_id: str) -> None:
-    """Remove cancel event after job finishes."""
-    with _cancel_lock:
-        _cancel_events.pop(file_id, None)
+# ───── Cancel registry (Moved to DB for Celery compatibility) ─────
 
 
 # ───── Progress helpers ─────
@@ -63,9 +34,20 @@ def _update_progress(supabase: Client, file_id: str, status: str) -> None:
         print(f"[PROGRESS ERROR] Failed to update status to '{status}': {e}")
 
 
-def _is_cancelled(cancel_event: threading.Event) -> bool:
-    """Check if cancellation was requested (non-blocking)."""
-    return cancel_event.is_set()
+def _is_cancelled(file_id: str, supabase: Client) -> bool:
+    """Check DB if cancellation was requested."""
+    try:
+        resp = (
+            supabase.table("vehicle_synthesis")
+            .select("verification_status")
+            .eq("id", file_id)
+            .execute()
+        )
+        if resp.data and resp.data[0].get("verification_status") == "cancelled":
+            return True
+        return False
+    except Exception:
+        return False
 
 
 def get_supabase_client() -> Client:
@@ -88,7 +70,7 @@ def _finalize_vehicle(
     vehicle_id: str,
     parsed_data: dict,
     raw_pdf_url: str | None,
-    cancel_event: threading.Event,
+    parent_file_id: str,
     document_markdown: str | None = None,
 ) -> None:
     """
@@ -102,7 +84,7 @@ def _finalize_vehicle(
     if not offer_number and "metadata" in parsed_data:
         offer_number = parsed_data["metadata"].get("offer_number")
 
-    if _is_cancelled(cancel_event):
+    if _is_cancelled(parent_file_id, supabase):
         _update_progress(supabase, vehicle_id, "cancelled")
         return
 
@@ -183,7 +165,7 @@ def _finalize_vehicle(
     except Exception as map_err:
         print(f"[BG TASK] Błąd mapowania danych AI: {map_err}")
 
-    if _is_cancelled(cancel_event):
+    if _is_cancelled(parent_file_id, supabase):
         _update_progress(supabase, vehicle_id, "cancelled")
         return
 
@@ -192,14 +174,16 @@ def _finalize_vehicle(
         "model": model,
         "offer_number": offer_number,
         "synthesis_data": parsed_data,
-        "verification_status": "completed",
+        "verification_status": "enriching_features",
         "raw_pdf_url": raw_pdf_url,
         "document_category": parsed_data.get("card_summary", {}).get("vehicle_class"),
     }
     if document_markdown is not None:
         update_payload["document_markdown"] = document_markdown
 
-    print(f"[BG TASK] Zapisuję wyniki do DB dla {vehicle_id}")
+    print(
+        f"[BG TASK] Zapisuję wyniki do DB dla {vehicle_id} (stan: enriching_features)"
+    )
     supabase.table("vehicle_synthesis").update(update_payload).eq(
         "id", vehicle_id
     ).execute()
@@ -221,41 +205,63 @@ def _finalize_vehicle(
             "transmission": card_summary.get("transmission", ""),
             "vehicle_class": card_summary.get("vehicle_class", ""),
             "trim_level": card_summary.get("trim_level", ""),
-            "base_price": card_summary.get("base_price") or parsed_data.get("pricing", {}).get("base_price"),
+            "base_price": card_summary.get("base_price")
+            or parsed_data.get("pricing", {}).get("base_price"),
         }
 
         if vehicle_spec.get("brand"):
-            c_resp = supabase.schema("reverse_search").table("model_document_sources").select(
-                "id, brand, model_family, document_type, display_name, version_tag, file_type, extraction_status, variant_count, extracted_data"
-            ).eq("extraction_status", "ready").ilike("brand", f"%{vehicle_spec['brand']}%").execute()
-            
+            c_resp = (
+                supabase.schema("reverse_search")
+                .table("model_document_sources")
+                .select(
+                    "id, brand, model_family, document_type, display_name, version_tag, file_type, extraction_status, variant_count, extracted_data"
+                )
+                .eq("extraction_status", "ready")
+                .ilike("brand", f"%{vehicle_spec['brand']}%")
+                .execute()
+            )
+
             from typing import cast, Any
+
             catalogs = cast(list[dict[str, Any]], c_resp.data) if c_resp.data else []
             if catalogs:
                 ranked = rank_catalogs_for_vehicle(vehicle_spec, catalogs)
                 if ranked:
                     best_cat = ranked[0]
-                    best_score = best_cat.get('_ranking', {}).get('score', 0.0)
-                    
+                    best_score = best_cat.get("_ranking", {}).get("score", 0.0)
+
                     if best_score > 0.0:
-                        print(f"[BG TASK] Najlepszy katalog: {best_cat['id']} (score: {best_score}). Zapisuję jako sugestię.")
-                        
+                        print(
+                            f"[BG TASK] Najlepszy katalog: {best_cat['id']} (score: {best_score}). Zapisuję jako sugestię."
+                        )
+
                         # Pobieramy aktualne synthesis_data, żeby zaktualizować (jest to konieczne w background jobs)
-                        current_synth_resp = supabase.table("vehicle_synthesis").select("synthesis_data").eq("id", vehicle_id).execute()
+                        current_synth_resp = (
+                            supabase.table("vehicle_synthesis")
+                            .select("synthesis_data")
+                            .eq("id", vehicle_id)
+                            .execute()
+                        )
                         if current_synth_resp.data:
-                            current_synth = current_synth_resp.data[0].get("synthesis_data") or {}
+                            current_synth = (
+                                current_synth_resp.data[0].get("synthesis_data") or {}
+                            )
                             current_synth["suggested_catalog"] = {
                                 "catalog_id": best_cat["id"],
                                 "score": best_score,
-                                "display_name": best_cat.get("display_name", "Nieznany cennik"),
+                                "display_name": best_cat.get(
+                                    "display_name", "Nieznany cennik"
+                                ),
                             }
                             # Zapisujemy zasugerowany cennik (bez automatycznego mergowania)
-                            supabase.table("vehicle_synthesis").update({
-                                "synthesis_data": current_synth
-                            }).eq("id", vehicle_id).execute()
-                            
+                            supabase.table("vehicle_synthesis").update(
+                                {"synthesis_data": current_synth}
+                            ).eq("id", vehicle_id).execute()
+
                     else:
-                        print(f"[BG TASK] Brak sensownego dopasowania katalogu (najlepszy score: {best_score}).")
+                        print(
+                            f"[BG TASK] Brak sensownego dopasowania katalogu (najlepszy score: {best_score})."
+                        )
     except Exception as cr_err:
         print(f"[BG TASK] Błąd przy próbie zapisania zasugerowanego katalogu: {cr_err}")
 
@@ -276,10 +282,13 @@ def _finalize_vehicle(
         refresh_matrix_cache_for_vehicles([vehicle_id])
         print(f"[BG TASK] Auto-kalkulacja LTR zakończona dla {vehicle_id}")
     except Exception as calc_err:
-        print(
-            f"[BG TASK] Auto-kalkulacja pominięta "
-            f"(dane niekompletne): {calc_err}"
-        )
+        print(f"[BG TASK] Auto-kalkulacja pominięta (dane niekompletne): {calc_err}")
+
+    # ── 5. Final Completed Status ──
+    print(f"[BG TASK] Oznaczam gotowość (stan: completed) dla {vehicle_id}")
+    supabase.table("vehicle_synthesis").update({"verification_status": "completed"}).eq(
+        "id", vehicle_id
+    ).execute()
 
     print(f"[BG TASK] Gotowe dla {vehicle_id}")
 
@@ -301,7 +310,6 @@ def process_and_save_document_bg(
 
     Supports real-time progress tracking and cancellation between stages.
     """
-    cancel_event = register_cancel_event(file_id)
     print(f"[BG TASK] Zaczynam przetwarzanie pliku {file_name} (ID: {file_id})")
     tmp_pdf_path = None
 
@@ -333,7 +341,9 @@ def process_and_save_document_bg(
             )
             print(f"[BG TASK] Sukces uploadu HTTP do Supabase dla {file_id}.")
         except Exception as upload_err:
-            print(f"[BG TASK] Upload pominęty (plik może już istnieć lub błąd RLS): {upload_err}")
+            print(
+                f"[BG TASK] Upload pominęty (plik może już istnieć lub błąd RLS): {upload_err}"
+            )
 
         raw_pdf_url = None
         if hasattr(res, "error") and res.error:
@@ -350,7 +360,7 @@ def process_and_save_document_bg(
                 raw_pdf_url = url_info.public_url
 
         # ── Cancel check before AI ──
-        if _is_cancelled(cancel_event):
+        if _is_cancelled(file_id, supabase):
             _update_progress(supabase, file_id, "cancelled")
             print(f"[BG TASK] Anulowano przed ekstrakcją AI: {file_name}")
             return
@@ -383,20 +393,25 @@ def process_and_save_document_bg(
                     f"[BG TASK] Ekstrakcja z PDF do natywnych bajtów..."
                 )
                 pdf_extractor = PDFExtractor()
-                
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(pdf_extractor.extract_hybrid, tmp_pdf_path)
                     markdown_content, pdf_bytes = future.result(timeout=300)
 
                 # Formatuj otrzymany tekst w poprawny Markdown z wypunktowaniami
                 from core.markdown_formatter import format_markdown_with_llm
-                print(f"[BG TASK] Reformatowanie Markdown ({len(markdown_content)} znaków) przez Gemini Flash...")
+
+                print(
+                    f"[BG TASK] Reformatowanie Markdown ({len(markdown_content)} znaków) przez Gemini Flash..."
+                )
                 markdown_content = format_markdown_with_llm(markdown_content)
 
                 router_data = markdown_content
                 router_mime = "text/plain"
             except concurrent.futures.TimeoutError:
-                print(f"[BG TASK CRITICAL] Docling extraction timeout (300s) dla {file_name}! Nastąpi zrzut na docelowe bajty PDF.")
+                print(
+                    f"[BG TASK CRITICAL] Docling extraction timeout (300s) dla {file_name}! Nastąpi zrzut na docelowe bajty PDF."
+                )
                 router_data = gemini_data
                 router_mime = gemini_mime
             except Exception as docling_err:
@@ -419,7 +434,7 @@ def process_and_save_document_bg(
         else:
             doc_type, doc_meta = classify_document(router_data, router_mime)
 
-        if _is_cancelled(cancel_event):
+        if _is_cancelled(file_id, supabase):
             _update_progress(supabase, file_id, "cancelled")
             return
 
@@ -429,10 +444,9 @@ def process_and_save_document_bg(
             )
             _update_progress(supabase, file_id, "processing_library_document")
 
-            if _is_cancelled(cancel_event):
+            if _is_cancelled(file_id, supabase):
                 _update_progress(supabase, file_id, "cancelled")
                 return
-
 
             # Zapis tylko do tabeli model_document_sources (Globalne Cenniki)
             try:
@@ -443,12 +457,18 @@ def process_and_save_document_bg(
                     ext = "pdf"
 
                 cat_doc_id = str(uuid.uuid4())
-                
+
                 brand_val = _normalize_brand(doc_meta.get("brand", "") or "Unknown")
-                model_family_val = _normalize_brand(doc_meta.get("model", "") or "Unknown")
-                catalog_storage_path = f"{brand_val}/{model_family_val}/{cat_doc_id}.{ext}"
-                
-                print(f"[BG TASK] Uploading routed document to catalog-documents: {catalog_storage_path}")
+                model_family_val = _normalize_brand(
+                    doc_meta.get("model", "") or "Unknown"
+                )
+                catalog_storage_path = (
+                    f"{brand_val}/{model_family_val}/{cat_doc_id}.{ext}"
+                )
+
+                print(
+                    f"[BG TASK] Uploading routed document to catalog-documents: {catalog_storage_path}"
+                )
                 try:
                     supabase.storage.from_("catalog-documents").upload(
                         path=catalog_storage_path,
@@ -456,7 +476,9 @@ def process_and_save_document_bg(
                         file_options={"content-type": mime_type},
                     )
                 except Exception as u_err:
-                    print(f"[BG TASK ERROR] Failed to upload to catalog-documents: {u_err}")
+                    print(
+                        f"[BG TASK ERROR] Failed to upload to catalog-documents: {u_err}"
+                    )
 
                 _DOC_TYPE_MAP = {
                     "PRICE_LIST": "price_list",
@@ -477,8 +499,18 @@ def process_and_save_document_bg(
                     "file_size_bytes": len(file_bytes),
                     "extraction_status": "extracting",
                     "variant_count": 0,
-                    "document_markdown": router_data if isinstance(router_data, str) else None,
+                    "document_markdown": router_data
+                    if isinstance(router_data, str)
+                    else None,
                 }
+                # Delete any existing document for the same brand and model to avoid unique constraint duplicates
+                try:
+                    supabase.schema("reverse_search").table("model_document_sources").delete().eq(
+                        "brand", brand_val
+                    ).eq("model_family", model_family_val).execute()
+                except Exception as del_err:
+                    print(f"[BG TASK WARNING] Could not replace existing catalog: {del_err}")
+
                 supabase.schema("reverse_search").table(
                     "model_document_sources"
                 ).insert(mds_payload).execute()
@@ -491,7 +523,7 @@ def process_and_save_document_bg(
 
                 try:
                     cat_result = extract_catalog_variants(mds_payload)
-                    
+
                     extracted_data = cat_result.get("extracted_data", {})
                     update_payload = {
                         "extraction_status": "ready",
@@ -499,13 +531,21 @@ def process_and_save_document_bg(
                         "variant_count": cat_result.get("variant_count", 0),
                         "extracted_at": "now()",
                     }
-                    
+
                     ex_brand = extracted_data.get("brand")
-                    if ex_brand and str(ex_brand).strip() and str(ex_brand).strip().lower() != "unknown":
+                    if (
+                        ex_brand
+                        and str(ex_brand).strip()
+                        and str(ex_brand).strip().lower() != "unknown"
+                    ):
                         update_payload["brand"] = str(ex_brand).strip().upper()
-                        
+
                     ex_model = extracted_data.get("model_family")
-                    if ex_model and str(ex_model).strip() and str(ex_model).strip().lower() != "unknown":
+                    if (
+                        ex_model
+                        and str(ex_model).strip()
+                        and str(ex_model).strip().lower() != "unknown"
+                    ):
                         update_payload["model_family"] = str(ex_model).strip()
 
                     supabase.schema("reverse_search").table(
@@ -523,9 +563,13 @@ def process_and_save_document_bg(
                     ).eq("id", cat_doc_id).execute()
                 # Oznaczamy rekord w synthesis jako przeniesiony TYLKO JEŚLI SIĘ UDAŁO
                 _update_progress(supabase, file_id, "moved_to_library")
-                print(f"[BG TASK SUCCESS] Dokument {file_id} przeniesiony do biblioteki.")
+                print(
+                    f"[BG TASK SUCCESS] Dokument {file_id} przeniesiony do biblioteki."
+                )
             except Exception as mds_err:
-                print(f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}")
+                print(
+                    f"[BG TASK ERROR] Nie udało się przetworzyć do model_document_sources: {mds_err}"
+                )
                 _update_progress(supabase, file_id, f"error: {str(mds_err)[:100]}")
             return
 
@@ -542,7 +586,7 @@ def process_and_save_document_bg(
             f"{'multi (' + str(len(multi_vehicles)) + ' pojazdów)' if multi_vehicles else 'single vehicle'}"
         )
 
-        if _is_cancelled(cancel_event):
+        if _is_cancelled(file_id, supabase):
             _update_progress(supabase, file_id, "cancelled")
             return
 
@@ -567,7 +611,7 @@ def process_and_save_document_bg(
             parent_hash = parent_row.data.get("file_hash") if parent_row.data else None
 
             for idx, vehicle_twin in enumerate(multi_vehicles):
-                if _is_cancelled(cancel_event):
+                if _is_cancelled(file_id, supabase):
                     _update_progress(supabase, file_id, "cancelled")
                     return
 
@@ -608,8 +652,8 @@ def process_and_save_document_bg(
                 def _child_progress(status: str, vid: str = current_id) -> None:
                     _update_progress(supabase, vid, status)
 
-                def _child_cancel(evt: threading.Event = cancel_event) -> bool:
-                    return _is_cancelled(evt)
+                def _child_cancel(fid: str = file_id, sup: Client = supabase) -> bool:
+                    return _is_cancelled(fid, sup)
 
                 twin_json = process_single_twin(
                     vehicle_twin,
@@ -617,7 +661,7 @@ def process_and_save_document_bg(
                     is_cancelled=_child_cancel,
                 )
 
-                if _is_cancelled(cancel_event):
+                if _child_cancel():
                     _update_progress(supabase, current_id, "cancelled")
                     return
 
@@ -629,7 +673,7 @@ def process_and_save_document_bg(
                     current_id,
                     parsed_data,
                     raw_pdf_url,
-                    cancel_event,
+                    file_id,
                     router_data if isinstance(router_data, str) else None,
                 )
 
@@ -647,8 +691,8 @@ def process_and_save_document_bg(
         def _pipeline_progress(status: str) -> None:
             _update_progress(supabase, file_id, status)
 
-        def _pipeline_cancel_check() -> bool:
-            return _is_cancelled(cancel_event)
+        def _pipeline_cancel_check(fid: str = file_id, sup: Client = supabase) -> bool:
+            return _is_cancelled(fid, sup)
 
         json_response = extract_vehicle_data_v2(
             gemini_data,
@@ -658,7 +702,7 @@ def process_and_save_document_bg(
             text_data=router_data if isinstance(router_data, str) else None,
         )
 
-        if _is_cancelled(cancel_event):
+        if _is_cancelled(file_id, supabase):
             _update_progress(supabase, file_id, "cancelled")
             print(f"[BG TASK] Anulowano po ekstrakcji AI: {file_name}")
             return
@@ -671,7 +715,7 @@ def process_and_save_document_bg(
             file_id,
             parsed_data,
             raw_pdf_url,
-            cancel_event,
+            file_id,
             router_data if isinstance(router_data, str) else None,
         )
 
@@ -699,7 +743,6 @@ def process_and_save_document_bg(
                 f"statusu błędu w DB: {str(nest_e)}"
             )
     finally:
-        _cleanup_cancel_event(file_id)
         if tmp_pdf_path and os.path.exists(tmp_pdf_path):
             try:
                 os.remove(tmp_pdf_path)

@@ -87,6 +87,7 @@ def build_calculator_input(
     vehicle_row: Dict[str, Any],
     margin_pct: float,
     settings: ControlCenterSettings,
+    override_discount_pct: Optional[float] = None,
 ) -> Optional[CalculatorInput]:
     """Build CalculatorInput from a vehicle_synthesis row.
 
@@ -116,9 +117,7 @@ def build_calculator_input(
         base_price_net = float(base_price_raw)
     else:
         parsed_prices = cs.get("parsed_prices") or {}
-        base_price_raw = (
-            cs.get("base_price") or parsed_prices.get("base") or 0.0
-        )
+        base_price_raw = cs.get("base_price") or parsed_prices.get("base") or 0.0
         if not base_price_raw:
             univ = sd.get("universal_features") or {}
             comp = sd.get("computed") or {}
@@ -136,12 +135,15 @@ def build_calculator_input(
         return None
 
     # ── Discount extraction ──
-    # Priority: calculator_setup > card_summary
-    discount_pct = float(
-        setup.get("discount", {}).get("active_discount_pct")
-        or cs.get("suggested_discount_pct")
-        or 0.0
-    )
+    # Priority: override > calculator_setup > card_summary
+    if override_discount_pct is not None:
+        discount_pct = float(override_discount_pct)
+    else:
+        discount_pct = float(
+            setup.get("discount", {}).get("active_discount_pct")
+            or cs.get("suggested_discount_pct")
+            or 0.0
+        )
 
     # ── Metalic paint ──
     # Priority: calculator_setup > card_summary
@@ -162,13 +164,9 @@ def build_calculator_input(
         opt_is_brutto = opt_price_type == "brutto" or (
             opt_price_type == "unknown" and is_brutto
         )
-        opt_price_net = _parse_price_to_net(
-            opt.get("price", 0.0), opt_is_brutto
-        )
+        opt_price_net = _parse_price_to_net(opt.get("price", 0.0), opt_is_brutto)
 
-        is_service = (
-            "serwis" in category.lower() or "akcesor" in category.lower()
-        )
+        is_service = "serwis" in category.lower() or "akcesor" in category.lower()
 
         option_item = VehicleOptions(
             name=name,
@@ -236,220 +234,179 @@ def build_calculator_input(
     return calc_input
 
 
-def refresh_matrix_cache_for_vehicles(
-    vehicle_ids: list[str],
-    job_id: Optional[str] = None,
-) -> None:
-    """Synchronously refresh the matrix cache for a list of vehicle IDs."""
-    if not vehicle_ids:
+def process_single_kalkulacja_matrix_task(kalkulacja_id: str) -> None:
+    """Calculate and cache 116 matrix cells for a given kalkulacja."""
+    logger.info("Starting process_single_kalkulacja_matrix_task for kalkulacja_id=%s", kalkulacja_id)
+    
+    # 1. Fetch kalkulacja
+    res = supabase.table("ltr_kalkulacje").select("*").eq("id", kalkulacja_id).execute()
+    if not res.data:
+        logger.error("process_single_kalkulacja_matrix_task: Kalkulacja %s not found", kalkulacja_id)
+        return
+        
+    kalk_row = res.data[0]
+    stan_json = kalk_row.get("stan_json") or {}
+    vehicle_id = stan_json.get("vehicle_id")
+    
+    if not vehicle_id:
+        logger.error("Kalkulacja %s has no vehicle_id. Skipping matrix generation.", kalkulacja_id)
         return
 
-    logger.info(
-        "Refreshing matrix cache for %d vehicles (job=%s)",
-        len(vehicle_ids),
-        job_id,
-    )
+    # 2. Build CalculatorInput directly
+    try:
+        calc_input = CalculatorInput(**stan_json)
+    except Exception as e:
+        logger.error("Failed to parse stan_json into CalculatorInput for %s: %s", kalkulacja_id, e)
+        return
 
-    settings_res = (
-        supabase.table("control_center").select("*").eq("id", 1).execute()
-    )
+    # 3. Load CC settings
+    settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
     if not settings_res.data:
-        logger.error("Control center settings not found")
+        logger.error("process_single_kalkulacja_matrix_task: Control center settings not found")
         return
     settings_dict = cast(dict[str, Any], settings_res.data[0])
     settings = ControlCenterSettings(**settings_dict)
 
-    # Fetch vehicles
-    v_res = (
-        supabase.table("vehicle_synthesis")
-        .select("id, synthesis_data")
-        .in_("id", vehicle_ids)
-        .execute()
-    )
-    vehicles = v_res.data or []
+    # 4. Generate Matrix
+    try:
+        engine = LTRKalkulator(input_data=calc_input, settings=settings)
+        all_cells = engine.build_matrix()
+    except Exception as e:
+        logger.error("Failed matrix build for kalkulacja %s: %s", kalkulacja_id, e)
+        return
 
+    # 5. Upsert vehicle matrix cache
     records_to_upsert: list[dict[str, Any]] = []
-    total_vehicles = len(vehicles)
+    
+    # Config tags
+    tire_class = calc_input.klasa_opony_string
+    service_type = calc_input.service_cost_type
+    margin = calc_input.pricing_margin_pct
+    discount_val = calc_input.discount_pct
+    base_price_net = float(calc_input.base_price_net)
 
-    for v_idx, v in enumerate(vehicles):
-        vid = str(v["id"])
+    seen_keys: set[tuple[int, int]] = set()
+    for cell in all_cells:
+        duration_months = int(cell.get("Okres", 0))
+        annual_mileage = int(cell.get("Przebieg", 0))
+        monthly_price_net = float(cell.get("LacznaStawka", 0.0))
 
-        # ── Progress update ──
-        if job_id:
-            _cache_progress[job_id] = {
-                "total": total_vehicles,
-                "done": v_idx,
-                "current_vehicle": str(vid),
-                "status": "running",
-            }
-
-        # ──────────────────────────────────────────────
-        # KEY OPTIMISATION: build input ONCE per vehicle
-        # ──────────────────────────────────────────────
-        base_input = build_calculator_input(v, 0.0, settings)
-        if not base_input:
+        cell_key = (duration_months, annual_mileage)
+        if cell_key in seen_keys:
             continue
+        seen_keys.add(cell_key)
 
-        for margin in CACHE_MARGINS_PCT:
-            # Clone with new margin (no re-parsing of prices/options)
-            calc_input = base_input.model_copy(
-                update={"pricing_margin_pct": margin}
+        if duration_months > 0 and annual_mileage > 0 and monthly_price_net > 0:
+            records_to_upsert.append(
+                {
+                    "vehicle_id": str(vehicle_id),
+                    "kalkulacja_id": kalkulacja_id,
+                    "duration_months": duration_months,
+                    "annual_mileage": annual_mileage,
+                    "margin_pct": margin,
+                    "discount_pct": discount_val,
+                    "base_price_net": base_price_net,
+                    "monthly_price_net": monthly_price_net,
+                    "tire_class": tire_class,
+                    "service_type": service_type
+                }
             )
 
-            # Collect cells from all mileage variants
-            all_cells: list[dict[str, Any]] = []
-
-            try:
-                # 1. Default grid (40k-80k + base point 35k)
-                engine = LTRKalkulator(
-                    input_data=calc_input, settings=settings
-                )
-                all_cells.extend(engine.build_matrix())
-            except Exception as e:
-                logger.error(
-                    "Failed default matrix for %s at margin %.1f%%: %s",
-                    vid,
-                    margin,
-                    e,
-                )
-                continue
-
-
-            # Deduplicate by (Okres, Przebieg)
-            seen_keys: set[tuple[int, int]] = set()
-            for cell in all_cells:
-                duration_months = int(cell.get("Okres", 0))
-                annual_mileage = int(cell.get("Przebieg", 0))
-                monthly_price_net = float(cell.get("LacznaStawka", 0.0))
-
-                cell_key = (duration_months, annual_mileage)
-                if cell_key in seen_keys:
-                    continue
-                seen_keys.add(cell_key)
-
-                if (
-                    duration_months > 0
-                    and annual_mileage > 0
-                    and monthly_price_net > 0
-                ):
-                    records_to_upsert.append(
-                        {
-                            "vehicle_id": str(vid),
-                            "duration_months": duration_months,
-                            "annual_mileage": annual_mileage,
-                            "margin_pct": margin,
-                            "base_price_net": float(calc_input.base_price_net),
-                            "monthly_price_net": monthly_price_net,
-                        }
-                    )
-
     if records_to_upsert:
-        logger.info(
-            "Upserting %d matrix cells into cache", len(records_to_upsert)
-        )
-        chunk_size = 1000
+        logger.info("Upserting %d matrix cells for kalkulacja %s", len(records_to_upsert), kalkulacja_id)
+        chunk_size = 500
         for i in range(0, len(records_to_upsert), chunk_size):
             chunk = records_to_upsert[i : i + chunk_size]
             try:
+                # Based on the new UNIQUE(kalkulacja_id, duration_months, annual_mileage) Constraint
                 supabase.table("vehicle_matrix_cache").upsert(
                     chunk,
-                    on_conflict="vehicle_id,duration_months,annual_mileage,margin_pct",
+                    on_conflict="kalkulacja_id,duration_months,annual_mileage",
                 ).execute()
             except Exception as e:
-                logger.error("Failed to upsert cache chunk: %s", e)
-
-    # ── Final progress ──
-    if job_id:
-        _cache_progress[job_id] = {
-            "total": total_vehicles,
-            "done": total_vehicles,
-            "current_vehicle": None,
-            "status": "done",
-        }
-
-    logger.info("Matrix cache refresh complete")
-
-
-
-def trigger_all_vehicles_cache_refresh() -> None:
-    """Fetches all verified vehicles and refreshes their matrix cache."""
-    try:
-        v_res = (
-            supabase.table("vehicle_synthesis")
-            .select("id")
-            .eq("verification_status", "completed")
-            .execute()
-        )
-        vehicles_list = cast(list[dict[str, Any]], v_res.data or [])
-        ids = [str(v["id"]) for v in vehicles_list]
-        if ids:
-            refresh_matrix_cache_for_vehicles(ids)
-    except Exception as e:
-        logger.error("Failed to trigger bulk matrix cache refresh: %s", e)
-
-
-def calculate_live_ltr_tile(
-    vehicle_id: str,
-    duration_months: int,
-    annual_mileage: int,
-) -> Optional[float]:
-    """
-    On-demand calculation of a single LTR tile for a chosen duration/mileage.
-    Returns the monthly_price_net if successful, otherwise None.
-    """
-    try:
-        # 1. Load settings and vehicle data
-        settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not settings_res.data:
-            logger.error("calculate_live_ltr_tile: Settings not found")
-            return None
-        settings_dict = cast(dict[str, Any], settings_res.data[0])
-        settings = ControlCenterSettings(**settings_dict)
-
-        v_res = (
-            supabase.table("vehicle_synthesis")
-            .select("id, synthesis_data")
-            .eq("id", vehicle_id)
-            .execute()
-        )
-        if not v_res.data:
-            return None
+                logger.error("Failed to upsert cache chunk %s: %s", kalkulacja_id, e)
         
-        vehicle_row = cast(dict[str, Any], v_res.data[0])
-        
-        # 2. Build input parameters (margin = 0.0, to be applied later or here)
-        # Note: In cache we store margin=0.0. We should return the 0.0 margin price 
-        # so that rpc_reverse_search or get_price_for_params can apply the active margin from the frontend payload.
-        # Actually, get_price_for_params just returns whatever is there, wait!
-        # The frontend expects the RAW price from cache (margin 0.0), and the exact tile margin will be added by RPC... wait, `get_price_for_params` currently is called from frontend without margin input, and it just returns the cache value (which is margin=0.0). Oh wait, no!
-        # Let's see what get_price_for_params returns.
-        base_input = build_calculator_input(vehicle_row, 0.0, settings)
-        if not base_input:
-            return None
+        # 6. Delete old history if needed, but per requirement we keep it
+        logger.info("Matrix cache refresh complete for kalkulacja %s", kalkulacja_id)
+
+
+def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
+    """Generate default LTR matrix cache for newly extracted/updated vehicles.
+    
+    Creates a system-generated record in ltr_kalkulacje and runs the matrix calculation.
+    """
+    logger.info("Auto-refreshing matrix cache for vehicles: %s", vehicle_ids)
+    
+    # 1. Fetch vehicles
+    v_res = supabase.table("vehicle_synthesis").select("*").in_("id", vehicle_ids).execute()
+    vehicles = v_res.data or []
+    
+    # 2. Fetch CC settings
+    settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
+    if not settings_res.data:
+        logger.error("refresh_matrix_cache_for_vehicles: Control center settings not found")
+        return
+    settings_dict = cast(dict[str, Any], settings_res.data[0])
+    settings = ControlCenterSettings(**settings_dict)
+    
+    import uuid
+    from datetime import datetime
+    
+    for row in vehicles:
+        vid = row["id"]
+        # Default margin is taken from CC settings
+        try:
+            calc_input = build_calculator_input(row, margin_pct=float(settings.default_ltr_margin), settings=settings)
+        except Exception as e:
+            logger.error("Error building calculator input for %s: %s", vid, e)
+            continue
             
-        calc_input = base_input.model_copy()
-        calc_input.pricing_margin_pct = 0.0
+        if not calc_input:
+            logger.warning("Failed to build CalculatorInput for vehicle %s. Skipping auto-cache.", vid)
+            continue
+            
+        stan_json = calc_input.model_dump()
+        stan_json["source"] = "auto_extract"
         
-        # Inject the exact pair we want
-        req_total_km = int(round((annual_mileage / 12) * duration_months))
-        calc_input.okres_bazowy = duration_months
-        calc_input.przebieg_bazowy = req_total_km
+        # UI metadata often required by front/routes
+        stan_json["brand"] = row.get("brand", "")
+        stan_json["model"] = row.get("model", "")
+        stan_json["samar_category"] = row.get("synthesis_data", {}).get("mapped_ai_data", {}).get("samar_category", "")
+        stan_json["engine_name"] = row.get("synthesis_data", {}).get("mapped_ai_data", {}).get("engine_class", "")
         
-        # 3. Calculate grid
-        engine = LTRKalkulator(input_data=calc_input, settings=settings)
-        matrix_cells = engine.build_matrix()
+        brand = stan_json["brand"]
+        model = stan_json["model"]
+        dane_pojazdu = f"{brand} {model}".strip() if brand or model else "System Auto-Extract"
         
-        # 4. Find the exact cell
-        for cell in matrix_cells:
-            months = int(cell.get("Okres", 0))
-            km_py = int(cell.get("Przebieg", 0))
-            if months == duration_months and km_py == annual_mileage:
-                price = float(cell.get("LacznaStawka", 0.0))
-                if price > 0:
-                    return price
-                    
-        return None
-    except Exception as e:
-        logger.error("Failed live LTR calculation for %s: %s", vehicle_id, e)
-        return None
-
+        now = datetime.now()
+        short_uuid = uuid.uuid4().hex[:6].upper()
+        numer_kalkulacji = f"AUTO/{now.year}/{now.month:02d}/{short_uuid}"
+        
+        kalk_data = {
+            "numer_kalkulacji": numer_kalkulacji,
+            "status": "szkic_vertex",
+            "stan_json": stan_json,
+            "dane_pojazdu": dane_pojazdu,
+            "cena_netto": float(calc_input.base_price_net),
+        }
+        
+        try:
+            # Avoid spamming the calculation table by checking if an auto_extract already exists
+            exist_res = supabase.table("ltr_kalkulacje").select("id").eq("stan_json->>vehicle_id", vid).eq("stan_json->>source", "auto_extract").execute()
+            if exist_res.data:
+                new_kalk_id = exist_res.data[0]["id"]
+                kalk_data["updated_at"] = now.isoformat()
+                supabase.table("ltr_kalkulacje").update(kalk_data).eq("id", new_kalk_id).execute()
+                logger.info("Updated exiting auto-kalkulacja %s for vehicle %s", new_kalk_id, vid)
+            else:
+                ins_res = supabase.table("ltr_kalkulacje").insert(kalk_data).execute()
+                if not ins_res.data:
+                    logger.error("Failed to insert auto-kalkulacja for vehicle %s", vid)
+                    continue
+                new_kalk_id = ins_res.data[0]["id"]
+                logger.info("Created new auto-kalkulacja %s for vehicle %s", new_kalk_id, vid)
+            
+            # Generate matrices synchronously
+            process_single_kalkulacja_matrix_task(new_kalk_id)
+        except Exception as e:
+            logger.error("Error inserting/generating matrix for auto-kalkulacja of %s: %s", vid, e)

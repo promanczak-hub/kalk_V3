@@ -385,6 +385,15 @@ class CardSummary(BaseModel):
     key_technologies: list[str] = Field(
         description="Kluczowe nowinki technologiczne uwypuklone w broszurze, np. ['Reflektory Matrix LED', 'System AI MIB4']"
     )
+    confidence_score: float = Field(
+        default=1.0,
+        description="Ocena pewności AI (0.00-1.00) względem poprawności wyodrębnionych danych, zwłaszcza cen i specyfikacji technicznej. Bądź krytyczny!",
+    )
+    ai_warnings: list[str] = Field(
+        default_factory=list,
+        description="Lista potencjalnych nieścisłości zauważonych przez AI (np. 'Niepewność co do przynależności opcji do pakietu', 'Dwie różne ceny w tekście').",
+    )
+
 
 class OtherDocumentSummary(BaseModel):
     summary: str = Field(description="Ogólne podsumowanie zawartego dokumentu.")

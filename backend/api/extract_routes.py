@@ -4,7 +4,8 @@ from typing import Any, Dict
 from pydantic import BaseModel
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.responses import Response
-from core.background_jobs import process_and_save_document_bg, trigger_cancel
+import base64
+from core.celery_tasks import process_document_task
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.database import supabase as supabase_client
 
@@ -37,11 +38,11 @@ async def extract_pdf_async(
         mime_type = file.content_type or "application/pdf"
 
         # Route EVERY document background task
-        print(f"Routing {file.filename} to universal extractor V2 (Background)")
-        background_tasks.add_task(
-            process_and_save_document_bg,
+        print(f"Routing {file.filename} to universal extractor V2 (Celery)")
+        file_b64 = base64.b64encode(file_bytes).decode("utf-8")
+        process_document_task.delay(
             file_id=file_id,
-            file_bytes=file_bytes,
+            file_b64=file_b64,
             file_name=file.filename,
             mime_type=mime_type,
             md5_hash="",
@@ -54,12 +55,6 @@ async def extract_pdf_async(
             status_code=500,
             detail=f"An error occurred during extraction initialization: {str(e)}",
         )
-
-
-
-
-
-
 
 
 class MapDataRequest(BaseModel):
@@ -196,9 +191,6 @@ _MIME_MAP: dict[str, str] = {
 }
 
 
-
-
-
 class DeleteVehicleRequest(BaseModel):
     vehicle_id: str
 
@@ -229,7 +221,7 @@ async def cancel_processing(request: CancelProcessingRequest) -> Dict[str, Any]:
     """
     Immediately cancels document processing:
     1. Sets DB status to 'cancelled' → triggers Supabase Realtime → instant UI update
-    2. Signals the background thread to stop before next LLM call
+    2. Celery task polls DB status and stops gracefully
     """
     try:
         # 1. Immediately update DB — frontend sees this via Realtime
@@ -237,13 +229,7 @@ async def cancel_processing(request: CancelProcessingRequest) -> Dict[str, Any]:
             {"verification_status": "cancelled"}
         ).eq("id", request.vehicle_id).execute()
 
-        # 2. Signal the background thread to stop
-        was_running = trigger_cancel(request.vehicle_id)
-
-        print(
-            f"[CANCEL] Vehicle {request.vehicle_id} cancelled. "
-            f"Thread was {'running' if was_running else 'not found (already finished)'}"
-        )
+        print(f"[CANCEL] Vehicle {request.vehicle_id} DB status updated to cancelled.")
 
         return {
             "status": "cancelled",
@@ -465,3 +451,36 @@ async def get_vehicle_markdown(vehicle_id: str) -> Dict[str, Any]:
         return {"markdown": response.data[0].get("document_markdown") or ""}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class FeedbackRequest(BaseModel):
+    vehicle_id: str
+    brand: str
+    model: str
+    field_name: str
+    old_value: str | None
+    new_value: str | None
+    context_notes: str | None = None
+
+
+@router.post("/extract/feedback")
+async def extract_feedback(req: FeedbackRequest) -> Dict[str, Any]:
+    """Zapisuje poprawki manualne użytkownika naniesione w formularzu do tabeli extraction_corrections."""
+    try:
+        supabase_client.table("extraction_corrections").insert(
+            {
+                "vehicle_id": req.vehicle_id,
+                "brand": req.brand,
+                "model": req.model,
+                "field_name": req.field_name,
+                "old_value": req.old_value,
+                "new_value": req.new_value,
+                "context_notes": req.context_notes,
+            }
+        ).execute()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Error saving extraction feedback: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save feedback: {str(e)}"
+        )

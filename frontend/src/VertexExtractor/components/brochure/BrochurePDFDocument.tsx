@@ -257,7 +257,7 @@ export function BrochurePDFDocument({
           {/* ── HEADER ── */}
           <Text style={styles.brandName}>{vn.brand ? String(vn.brand) : "Marka"}</Text>
           <Text style={styles.modelName}>{vn.model ? String(vn.model) : "Model"}</Text>
-          {Boolean(vn.edition) && <Text style={styles.editionName}>{String(vn.edition)}</Text>}
+          {Boolean(vn.edition) ? <Text style={styles.editionName}>{String(vn.edition)}</Text> : null}
 
           {/* ── HERO IMAGE ── */}
           {mainImage ? (
@@ -283,7 +283,7 @@ export function BrochurePDFDocument({
           </View>
 
           {/* ── WYPOSAŻENIE ── */}
-          {categories.length > 0 && (
+          {categories.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>Wyposażenie</Text>
               <View style={styles.equipmentGrid}>
@@ -310,15 +310,15 @@ export function BrochurePDFDocument({
                 })}
               </View>
             </>
-          )}
+          ) : null}
 
           {/* ── NOTATKI ── */}
-          {Boolean(notes && notes.trim() !== "") && (
+          {Boolean(notes && notes.trim() !== "") ? (
             <View style={styles.notesBox}>
               <Text style={styles.notesTitle}>Dodatkowe informacje</Text>
               <Text style={styles.notesContent}>{notes}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* ── FOOTER ── */}

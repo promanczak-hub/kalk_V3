@@ -106,11 +106,13 @@ class ServiceCalculator:
 
         if not self.data.z_serwisem:
             logger.info("Service costs skipped (z_serwisem=False).")
-            trace.append({
-                "krok": "Serwis (Wyłączony)",
-                "rownanie": "z_serwisem = False",
-                "wynik": 0.0
-            })
+            trace.append(
+                {
+                    "krok": "Serwis (Wyłączony)",
+                    "rownanie": "z_serwisem = False",
+                    "wynik": 0.0,
+                }
+            )
             return {"monthly_service": 0.0, "trace": trace}
 
         if self.data.okres <= 0:
@@ -122,19 +124,23 @@ class ServiceCalculator:
 
         monthly_extra = self.data.inne_koszty_serwisowania_netto
         if monthly_extra > 0:
-            trace.append({
-                "krok": "Serwis: Inne Koszty Serwisowania (miesięcznie)",
-                "rownanie": f"Kwota z konfiguracji ręcznej: {monthly_extra:.2f}",
-                "wynik": monthly_extra
-            })
+            trace.append(
+                {
+                    "krok": "Serwis: Inne Koszty Serwisowania (miesięcznie)",
+                    "rownanie": f"Kwota z konfiguracji ręcznej: {monthly_extra:.2f}",
+                    "wynik": monthly_extra,
+                }
+            )
 
         total_monthly = monthly_base + monthly_extra
 
-        trace.append({
-            "krok": "Serwis: Razem Miesięcznie",
-            "rownanie": f"{monthly_base:.2f} (Baza) + {monthly_extra:.2f} (Koszty Dodatkowe)",
-            "wynik": total_monthly
-        })
+        trace.append(
+            {
+                "krok": "Serwis: Razem Miesięcznie",
+                "rownanie": f"{monthly_base:.2f} (Baza) + {monthly_extra:.2f} (Koszty Dodatkowe)",
+                "wynik": total_monthly,
+            }
+        )
 
         logger.info(
             f"Service monthly: base={monthly_base:.2f}, "
@@ -152,11 +158,13 @@ class ServiceCalculator:
         trace: list[dict[str, Any]] = []
         if self.data.pakiet_serwisowy > 0:
             monthly = self.data.pakiet_serwisowy / self.data.okres
-            trace.append({
-                "krok": "Serwis: Pakiet Serwisowy (Nadpisanie)",
-                "rownanie": f"Całkowity pakiet {self.data.pakiet_serwisowy:.2f} PLN / {self.data.okres} msc",
-                "wynik": monthly
-            })
+            trace.append(
+                {
+                    "krok": "Serwis: Pakiet Serwisowy (Nadpisanie)",
+                    "rownanie": f"Całkowity pakiet {self.data.pakiet_serwisowy:.2f} PLN / {self.data.okres} msc",
+                    "wynik": monthly,
+                }
+            )
             logger.info(
                 f"PakietSerwisowy override: "
                 f"{self.data.pakiet_serwisowy:.2f} / "
@@ -174,28 +182,34 @@ class ServiceCalculator:
         floor_km = self.data.normatywny_przebieg_mc * self.data.okres
         effective_km = max(self.data.przebieg, floor_km)
 
-        trace.append({
-            "krok": "Serwis: Efektywny przebieg (km-ówka)",
-            "rownanie": f"MAX( {self.data.przebieg} km, (Normatywny {self.data.normatywny_przebieg_mc} * {self.data.okres} = {floor_km}) )",
-            "wynik": effective_km
-        })
+        trace.append(
+            {
+                "krok": "Serwis: Efektywny przebieg (km-ówka)",
+                "rownanie": f"MAX( {self.data.przebieg} km, (Normatywny {self.data.normatywny_przebieg_mc} * {self.data.okres} = {floor_km}) )",
+                "wynik": effective_km,
+            }
+        )
 
         service_total = effective_km * self._rate_per_km
-        trace.append({
-            "krok": "Serwis: Wynik przed korektą",
-            "rownanie": f"{effective_km:.2f} km * Stawka Baza {self._rate_per_km:.5f} PLN/km",
-            "wynik": service_total
-        })
+        trace.append(
+            {
+                "krok": "Serwis: Wynik przed korektą",
+                "rownanie": f"{effective_km:.2f} km * Stawka Baza {self._rate_per_km:.5f} PLN/km",
+                "wynik": service_total,
+            }
+        )
 
         # Korekta serwis ±% (V1: KorektaSerwisProcent = 5% admin)
         if self.data.korekta_serwis_procent != 0.0:
             korekta_kwota = service_total * self.data.korekta_serwis_procent
             service_total += korekta_kwota
-            trace.append({
-                "krok": "Serwis: Korekta Serwis Procent",
-                "rownanie": f"Korekta o {self.data.korekta_serwis_procent * 100:.2f}% ({korekta_kwota:+.2f} PLN)",
-                "wynik": service_total
-            })
+            trace.append(
+                {
+                    "krok": "Serwis: Korekta Serwis Procent",
+                    "rownanie": f"Korekta o {self.data.korekta_serwis_procent * 100:.2f}% ({korekta_kwota:+.2f} PLN)",
+                    "wynik": service_total,
+                }
+            )
             logger.info(
                 f"Service correction: {self.data.korekta_serwis_procent:+.2%} "
                 f"= {korekta_kwota:+.2f} PLN"
@@ -208,11 +222,13 @@ class ServiceCalculator:
         )
 
         monthly = service_total / self.data.okres
-        trace.append({
-            "krok": "Serwis: Miesięczna rata (km-ówka)",
-            "rownanie": f"{service_total:.2f} PLN / {self.data.okres} msc",
-            "wynik": monthly
-        })
+        trace.append(
+            {
+                "krok": "Serwis: Miesięczna rata (km-ówka)",
+                "rownanie": f"{service_total:.2f} PLN / {self.data.okres} msc",
+                "wynik": monthly,
+            }
+        )
 
         return {"monthly": monthly, "trace": trace}
 

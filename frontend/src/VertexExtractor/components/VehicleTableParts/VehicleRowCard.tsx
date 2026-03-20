@@ -778,6 +778,7 @@ export function VehicleRowCard({
     { key: "generating_summary", label: "Generowanie podsumowania" },
     { key: "matching_discounts", label: "Dopasowywanie rabatów" },
     { key: "mapping_data", label: "Mapowanie danych AI" },
+    { key: "enriching_features", label: "Wzbogacanie cech i kalkulacja LTR" },
   ];
 
   // Match multi-vehicle dynamic statuses like "extracting_twin_2_of_5"
@@ -787,7 +788,7 @@ export function VehicleRowCard({
 
   const processingStatuses = new Set([
     "processing", "uploading", "detecting_vehicles", "extracting_twin",
-    "generating_summary", "matching_discounts", "mapping_data",
+    "generating_summary", "matching_discounts", "mapping_data", "enriching_features",
   ]);
 
   const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
@@ -917,7 +918,7 @@ export function VehicleRowCard({
     return null;
   }
 
-  if (vehicle.verification_status === "error") {
+  if (vehicle.verification_status?.startsWith("error")) {
     const handleDeleteError = async () => {
       if (!window.confirm("Czy na pewno chcesz usunąć ten wpis z błędem?")) return;
       try {

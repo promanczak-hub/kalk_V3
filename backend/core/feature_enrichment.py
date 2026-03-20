@@ -33,9 +33,15 @@ _CONFIDENCE_THRESHOLD = 0.70
 _PACKAGE_CONFIDENCE_THRESHOLD = 0.75
 
 # Heuristic keywords to detect package names in paid_options.
-_PACKAGE_KEYWORDS: frozenset[str] = frozenset({
-    "pakiet", "pack", "package", "edition", "paket",
-})
+_PACKAGE_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "pakiet",
+        "pack",
+        "package",
+        "edition",
+        "paket",
+    }
+)
 
 # Direct card_summary field → feature_key mappings (text/bool).
 _DIRECT_FIELD_MAP: dict[str, str] = {
@@ -156,9 +162,21 @@ def _normalize_drive_type(raw: str) -> str:
 # Known canonical body type names (used to suppress spurious warnings).
 _CANONICAL_BODY_TYPE_NAMES: frozenset[str] = frozenset(
     {
-        "Hatchback", "Sedan", "Kombi", "SUV", "Liftback", "Coupe", "Cabrio",
-        "Minivan", "Wieloosobowy", "Pickup", "Furgon", "Podwozie",
-        "Furgon Brygadowy", "Podwozie z kabiną", "Van",
+        "Hatchback",
+        "Sedan",
+        "Kombi",
+        "SUV",
+        "Liftback",
+        "Coupe",
+        "Cabrio",
+        "Minivan",
+        "Wieloosobowy",
+        "Pickup",
+        "Furgon",
+        "Podwozie",
+        "Furgon Brygadowy",
+        "Podwozie z kabiną",
+        "Van",
     }
 )
 
@@ -610,12 +628,13 @@ def enrich_vehicle_features(
             "Masa własna": "curb_weight_kg",
             "Ładowność": "payload_kg",
         }
-        
+
         for item in utility_features_list:
-            if not isinstance(item, dict): continue
+            if not isinstance(item, dict):
+                continue
             name = item.get("name", "")
             value = item.get("value", "")
-            
+
             for key_match, cs_target in utility_to_cs_map.items():
                 if key_match.lower() == name.strip().lower():
                     # Only populate if not already present in card_summary
@@ -623,7 +642,12 @@ def enrich_vehicle_features(
                         parsed = _safe_parse_num(value)
                         if parsed is not None:
                             card_summary[cs_target] = parsed
-                            logger.info("Flattened utility feature '%s' -> %s: %s", name, cs_target, parsed)
+                            logger.info(
+                                "Flattened utility feature '%s' -> %s: %s",
+                                name,
+                                cs_target,
+                                parsed,
+                            )
 
     # ── 1. Standard equipment → LLM match → boolean "present" evidence ──
     std_equipment: list[str] = card_summary.get("standard_equipment", [])
@@ -684,13 +708,9 @@ def enrich_vehicle_features(
     ) or ""
 
     # Collect package names from paid_options & standard equipment
-    package_names: list[str] = [
-        name for name in opt_names if _is_package_name(name)
-    ]
+    package_names: list[str] = [name for name in opt_names if _is_package_name(name)]
     # Also check standard equipment for package names
-    package_names.extend(
-        item for item in std_items if _is_package_name(item)
-    )
+    package_names.extend(item for item in std_items if _is_package_name(item))
 
     pkg_evidence_count = 0
     if package_names and brand:
@@ -718,12 +738,8 @@ def enrich_vehicle_features(
                         "source_type": "package_decomposition",
                         "evidence_status": "inferred",
                         "value_bool": True,
-                        "value_text": (
-                            f"{match['item']} (z: {pkg_origin})"
-                        ),
-                        "confidence": round(
-                            match["confidence"] * 0.9, 4
-                        ),
+                        "value_text": (f"{match['item']} (z: {pkg_origin})"),
+                        "confidence": round(match["confidence"] * 0.9, 4),
                     }
                 )
                 pkg_evidence_count += 1
@@ -861,9 +877,11 @@ def enrich_vehicle_features(
         unique_evidence_map: dict[tuple[str, str, str], dict[str, Any]] = {}
         for ev in evidence_batch:
             key = (ev["source_vehicle_id"], ev["feature_id"], ev["source_type"])
-            if key not in unique_evidence_map or ev.get("confidence", 0) > unique_evidence_map[key].get("confidence", 0):
+            if key not in unique_evidence_map or ev.get(
+                "confidence", 0
+            ) > unique_evidence_map[key].get("confidence", 0):
                 unique_evidence_map[key] = ev
-        
+
         deduped_batch = list(unique_evidence_map.values())
 
         try:

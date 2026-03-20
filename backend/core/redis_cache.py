@@ -115,8 +115,7 @@ def redis_cache(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             client = _get_client()
             cache_key = (
-                f"{_PREFIX}{prefix}{func.__name__}:"
-                f"{':'.join(str(a) for a in args)}"
+                f"{_PREFIX}{prefix}{func.__name__}:{':'.join(str(a) for a in args)}"
             )
 
             # Try read from cache

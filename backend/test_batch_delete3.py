@@ -12,14 +12,15 @@ try:
     if not res.data:
         print("No vehicles to delete")
         sys.exit(0)
-    
+
     vehicle_id = res.data[0]["id"]
     print(f"Trying to delete vehicle {vehicle_id}...")
-    
-    response = supabase.table("vehicle_synthesis").delete().in_(
-        "id", [vehicle_id]
-    ).execute()
+
+    response = (
+        supabase.table("vehicle_synthesis").delete().in_("id", [vehicle_id]).execute()
+    )
     print("Success:", response)
 except Exception:
     import traceback
+
     traceback.print_exc()

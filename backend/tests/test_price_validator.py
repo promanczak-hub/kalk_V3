@@ -96,6 +96,38 @@ class TestSumConsistency:
         report = validate_card_summary_prices(card)
         assert report.is_valid is True
 
+    def test_netto_brutto_mismatch_detected(self) -> None:
+        """base_price is Netto, total_price is Brutto → detected as VAT mismatch."""
+        card = {
+            "base_price": "100 000 PLN",
+            "options_price": "0 PLN",
+            "total_price": "123 000 PLN",
+        }
+        report = validate_card_summary_prices(card)
+        warnings = [
+            w
+            for w in report.warnings
+            if w.rule == "SUM_CONSISTENCY_NETTO_BRUTTO_MISMATCH"
+        ]
+        assert len(warnings) == 1
+        assert warnings[0].severity == "WARNING"
+
+    def test_brutto_netto_mismatch_detected(self) -> None:
+        """base_price is Brutto, total_price is Netto → detected as VAT mismatch."""
+        card = {
+            "base_price": "123 000 PLN",
+            "options_price": "0 PLN",
+            "total_price": "100 000 PLN",  # Notice the price value order reversed
+        }
+        report = validate_card_summary_prices(card)
+        warnings = [
+            w
+            for w in report.warnings
+            if w.rule == "SUM_CONSISTENCY_BRUTTO_NETTO_MISMATCH"
+        ]
+        assert len(warnings) == 1
+        assert warnings[0].severity == "WARNING"
+
 
 class TestSumConsistencyEdge:
     """Edge cases for base + options ≈ total rule."""
@@ -761,9 +793,9 @@ class TestPipelineIntegration:
         """Empty card_summary dict {} now gets validation flags (fix #V3)."""
         pro_data: dict = {"card_summary": {}}
         result = validate_and_flag_prices(pro_data)
-        # Empty dict is now validated — should get _validation with is_valid=True
+        # Empty dict is now validated — should get _validation with is_valid=False (due to unknown domain)
         assert "_validation" in result["card_summary"]
-        assert result["card_summary"]["_validation"]["is_valid"] is True
+        assert result["card_summary"]["_validation"]["is_valid"] is False
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -823,6 +855,52 @@ class TestRealWorldScenarios:
         report = validate_card_summary_prices(card)
         assert report.is_valid is True
         assert len(report.warnings) == 0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Rule 8: Power consistency
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestPowerConsistency:
+    """Rule: power_kw * 1.36 ≈ power_hp."""
+
+    def test_power_consistent(self) -> None:
+        """110 kW * 1.36 = 149.6 ≈ 150 KM."""
+        card = {
+            "power_kw": 110,
+            "power_hp": 150,
+            "base_price": "100 000 PLN brutto",
+            "total_price": "100 000 PLN brutto",
+        }
+        report = validate_card_summary_prices(card)
+        warnings = [w for w in report.warnings if w.rule == "POWER_KW_HP_MISMATCH"]
+        assert len(warnings) == 0
+
+    def test_power_mismatch(self) -> None:
+        """110 kW * 1.36 != 130 KM."""
+        card = {
+            "power_kw": 110,
+            "power_hp": 130,
+            "base_price": "100 000 PLN brutto",
+            "total_price": "100 000 PLN brutto",
+        }
+        report = validate_card_summary_prices(card)
+        warnings = [w for w in report.warnings if w.rule == "POWER_KW_HP_MISMATCH"]
+        assert len(warnings) == 1
+        assert warnings[0].expected == 150
+
+    def test_power_missing(self) -> None:
+        """If power is missing, no warning."""
+        card = {
+            "power_kw": None,
+            "power_hp": 150,
+            "base_price": "100 000 PLN brutto",
+            "total_price": "100 000 PLN brutto",
+        }
+        report = validate_card_summary_prices(card)
+        warnings = [w for w in report.warnings if w.rule == "POWER_KW_HP_MISMATCH"]
+        assert len(warnings) == 0
 
     def test_hallucinated_prices_all_rules_fire(self) -> None:
         """Worst-case AI hallucination — multiple rules trigger."""

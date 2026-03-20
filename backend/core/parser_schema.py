@@ -84,3 +84,11 @@ class MappedOffer(BaseModel):
         None,
         description="Cykl przeglądowy, interwał serwisowy wyrażony w miesiącach (np. 12 lub 24). Ustala LLM na podstawie dokumentu lub wyszukiwania. None jeśli nieznany.",
     )
+    confidence_score: float = Field(
+        default=1.0,
+        description="Ocena pewności AI (0.00-1.00) względem poprawności wyodrębnionych danych, zwłaszcza cen i specyfikacji technicznej. Bądź krytyczny!",
+    )
+    ai_warnings: list[str] = Field(
+        default_factory=list,
+        description="Lista potencjalnych nieścisłości zauważonych przez AI (np. 'Niepewność co do przynależności opcji do pakietu', 'Dwie różne ceny w tekście').",
+    )

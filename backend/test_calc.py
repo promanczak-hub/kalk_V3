@@ -2,14 +2,27 @@ import asyncio
 from core.LTRKalkulator import LTRKalkulator
 from api.schemas.calculator import CalculatorInput
 
+
 async def main():
     payload = {
         "vehicle_id": "f176456b-af27-4445-92be-cd88246ae83a",
-        "base_price_net": 247850.00 - 34500.00 - 200.00,  # Base might be 247850 total before discount? Wait, CenaCennikowa = 247850.
+        "base_price_net": 247850.00
+        - 34500.00
+        - 200.00,  # Base might be 247850 total before discount? Wait, CenaCennikowa = 247850.
         "discount_pct": 24.0,
         "factory_options": [
-            {"name": "Opcje", "price_net": 34500.00, "price_gross": 34500 * 1.23, "is_discountable": True},
-            {"name": "Opcje z WR", "price_net": 200.00, "price_gross": 200 * 1.23, "is_discountable": True}
+            {
+                "name": "Opcje",
+                "price_net": 34500.00,
+                "price_gross": 34500 * 1.23,
+                "is_discountable": True,
+            },
+            {
+                "name": "Opcje z WR",
+                "price_net": 200.00,
+                "price_gross": 200 * 1.23,
+                "is_discountable": True,
+            },
         ],
         "service_options": [],
         "okres_bazowy": 36,
@@ -27,24 +40,22 @@ async def main():
         "replacement_car_enabled": True,
         "service_cost_type": "ASO",
         "matrix_km_mode": "contract",
-        "settings": {
-            "settings_version_id": None,
-            "overrides": None
-        }
+        "settings": {"settings_version_id": None, "overrides": None},
     }
-    
+
     calc_input = CalculatorInput(**payload)
-    
+
     from core.database import supabase
     from core.models import ControlCenterSettings
-    
+
     response = supabase.table("control_center").select("*").eq("id", 1).execute()
     settings = ControlCenterSettings(**response.data[0])
-    
+
     kalk = LTRKalkulator(calc_input, settings)
     data = kalk.build_matrix()
-    
+
     import json
+
     found = False
     for cell in data:
         if cell.get("Okres") == 36 and cell.get("Przebieg") == 50000:
@@ -60,10 +71,10 @@ async def main():
             print(f"Koszty Dodatkowe: {cell['KosztyDodatkowe']}")
             with open("test.json", "w", encoding="utf-8") as f:
                 json.dump(cell, f, indent=2, ensure_ascii=False)
-                
+
     if not found:
         print("Nie znaleziono Przebieg = 50000 dla Okres = 36")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-

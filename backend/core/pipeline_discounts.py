@@ -49,7 +49,6 @@ def match_fleet_discount(pro_data: dict) -> dict:
         if not discount_rows:
             return pro_data
 
-
         # Build explicit pricing for the prompt to easily do the math (hide total_price to strictly prevent LLM calculation)
         extracted_pricing = {
             "base_price": flash_data.get("base_price"),

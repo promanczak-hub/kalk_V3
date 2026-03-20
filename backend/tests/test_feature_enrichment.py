@@ -187,8 +187,20 @@ def test_normalize_body_style_sportstourer() -> None:
 
 def test_normalize_body_style_kombi_aliases() -> None:
     """All Kombi aliases must resolve correctly."""
-    for alias in ["Touring", "Avant", "Wagon", "Estate", "Variant", "Sportswagon", "Break", "SW", "Alltrack"]:
-        assert _normalize_body_style(alias) == "Kombi", f"Expected Kombi for alias '{alias}'"
+    for alias in [
+        "Touring",
+        "Avant",
+        "Wagon",
+        "Estate",
+        "Variant",
+        "Sportswagon",
+        "Break",
+        "SW",
+        "Alltrack",
+    ]:
+        assert _normalize_body_style(alias) == "Kombi", (
+            f"Expected Kombi for alias '{alias}'"
+        )
 
 
 def test_normalize_body_style_suv_aliases() -> None:

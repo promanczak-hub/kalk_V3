@@ -33,9 +33,7 @@ class VariantMatchResult(BaseModel):
         "(np. 'L3H3 FWD 177KM', 'Ducato 35 MH2 3.0')"
     )
     confidence: float = Field(description="Pewność dopasowania 0.0-1.0")
-    reasoning: str = Field(
-        description="Krótkie uzasadnienie dopasowania (1-2 zdania)"
-    )
+    reasoning: str = Field(description="Krótkie uzasadnienie dopasowania (1-2 zdania)")
     features: list[MatchedFeature] = Field(
         default_factory=list,
         description="Lista cech wyekstrahowanych z dopasowanego wariantu",
@@ -56,8 +54,7 @@ class CatalogRankingResult(BaseModel):
     """List of ranked catalogs."""
 
     rankings: list[CatalogRanking] = Field(
-        description="Lista katalogów posortowana od najbardziej "
-        "do najmniej pasującego",
+        description="Lista katalogów posortowana od najbardziej do najmniej pasującego",
     )
 
 

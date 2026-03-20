@@ -13,11 +13,12 @@ import pytest
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture()
 def mock_redis_client():
     """Return a MagicMock pretending to be a Redis client."""
     client = MagicMock()
-    client.get.return_value = None          # default: cache miss
+    client.get.return_value = None  # default: cache miss
     client.setex.return_value = True
     client.ping.return_value = True
     return client
@@ -34,10 +35,16 @@ def initial_data_payload() -> dict[str, Any]:
 
 # ── cache_invalidate_pattern / get_cache_stats ────────────────────────────────
 
+
 class TestCacheHelpers:
-    def test_invalidate_pattern_deletes_keys(self, mock_redis_client: MagicMock) -> None:
+    def test_invalidate_pattern_deletes_keys(
+        self, mock_redis_client: MagicMock
+    ) -> None:
         """cache_invalidate_pattern removes all matching keys."""
-        mock_redis_client.scan_iter.return_value = ["kalk_v3:search:abc", "kalk_v3:search:def"]
+        mock_redis_client.scan_iter.return_value = [
+            "kalk_v3:search:abc",
+            "kalk_v3:search:def",
+        ]
 
         with patch("core.redis_cache._get_client", return_value=mock_redis_client):
             from core.redis_cache import cache_invalidate_pattern
@@ -82,6 +89,7 @@ class TestCacheHelpers:
 
 # ── initial-data caching ──────────────────────────────────────────────────────
 
+
 class TestInitialDataCache:
     def test_cache_hit_skips_rpc(self, mock_redis_client: MagicMock) -> None:
         """When Redis has cached data, the Supabase RPC is NOT called."""
@@ -97,7 +105,9 @@ class TestInitialDataCache:
 
         with (
             patch("core.redis_cache._get_client", return_value=mock_redis_client),
-            patch("api.scoring_search_routes._get_client", return_value=mock_redis_client),
+            patch(
+                "api.scoring_search_routes._get_client", return_value=mock_redis_client
+            ),
             patch("api.scoring_search_routes.supabase") as mock_sb,
         ):
             from api.scoring_search_routes import get_initial_data
@@ -107,7 +117,9 @@ class TestInitialDataCache:
         mock_sb.rpc.assert_not_called()
         assert result.brands == ["Toyota"]
 
-    def test_cache_miss_calls_rpc_and_stores(self, mock_redis_client: MagicMock) -> None:
+    def test_cache_miss_calls_rpc_and_stores(
+        self, mock_redis_client: MagicMock
+    ) -> None:
         """On cache miss, RPC is called and the result is stored in Redis."""
         mock_redis_client.get.return_value = None
         rpc_data = {
@@ -124,7 +136,9 @@ class TestInitialDataCache:
 
         with (
             patch("core.redis_cache._get_client", return_value=mock_redis_client),
-            patch("api.scoring_search_routes._get_client", return_value=mock_redis_client),
+            patch(
+                "api.scoring_search_routes._get_client", return_value=mock_redis_client
+            ),
             patch("api.scoring_search_routes.supabase", mock_sb),
         ):
             from api.scoring_search_routes import get_initial_data
@@ -137,6 +151,7 @@ class TestInitialDataCache:
 
 
 # ── search caching ────────────────────────────────────────────────────────────
+
 
 class TestSearchCache:
     def _make_request(self) -> Any:

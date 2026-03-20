@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Box, Typography, CircularProgress,
   FormGroup, FormControlLabel, Checkbox, Button, TextField, Autocomplete, Chip, Slider,
-  IconButton, Tooltip, Tabs, Tab
+  IconButton, Tooltip, Switch, Collapse, Tabs, Tab
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -314,6 +314,19 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     }
   };
 
+  const updateRangeFeature = (key: string, val: [number, number], minLimit: number, maxLimit: number) => {
+    const clone = [...selectedFeatures].filter(f => !(f.feature_key === key && (f.operator === 'gte' || f.operator === 'lte')));
+    
+    if (val[0] > minLimit) {
+      clone.push({ feature_key: key, operator: 'gte', value: val[0], requirement: 'MUST_HAVE', weight: 1 });
+    }
+    if (val[1] < maxLimit) {
+      clone.push({ feature_key: key, operator: 'lte', value: val[1], requirement: 'MUST_HAVE', weight: 1 });
+    }
+    
+    onFeaturesChange(clone);
+  };
+
   const isOptionSelected = (prefix: string, name: string) =>
     selectedFeatures.some(f => f.feature_key === `${prefix}${name}`);
 
@@ -335,9 +348,15 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     }
   };
 
-  const l2SelectedCount = selectedFeatures.filter(
-    f => !['duration_months', 'annual_mileage', 'margin_pct', 'monthly_price_net', 'body_style'].includes(f.feature_key)
-      && data?.boolean_filters?.some(bf => bf.feature_key === f.feature_key)
+  const l2SelectedKeys = new Set(
+    selectedFeatures
+      .filter(f => !['duration_months', 'annual_mileage', 'margin_pct', 'monthly_price_net', 'body_style'].includes(f.feature_key))
+      .map(f => f.feature_key)
+  );
+
+  const l2SelectedCount = Array.from(l2SelectedKeys).filter(key => 
+    data?.boolean_filters?.some(bf => bf.feature_key === key) ||
+    data?.range_filters?.some(rf => rf.feature_key === key)
   ).length;
 
   return (
@@ -453,119 +472,85 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
 
       {/* Section: Numeric params */}
       <Section>
-        <Box sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0 }}>
           <SectionLabel label="Kalkulacje (Matrix)" />
-          <Tabs
-            value={!searchContext.useMatrixFilters ? 'off' : searchContext.exact_mode ? 'exact' : 'ranges'}
-            onChange={(_, val) => {
-              if (val === 'off') {
-                onContextChange({ ...searchContext, useMatrixFilters: false });
-              } else if (val === 'ranges') {
-                onContextChange({ ...searchContext, useMatrixFilters: true, exact_mode: false });
-              } else if (val === 'exact') {
-                onContextChange({ ...searchContext, useMatrixFilters: true, exact_mode: true });
-              }
-            }}
-            variant="fullWidth"
-            sx={{ 
-               minHeight: 36, 
-               bgcolor: '#f1f5f9', 
-               borderRadius: 2, 
-               p: 0.5,
-               '& .MuiTab-root': { minHeight: 32, py: 0.5, fontSize: '0.7rem', fontWeight: 600, textTransform: 'none', borderRadius: 1.5, color: '#64748b' },
-               '& .Mui-selected': { bgcolor: '#ffffff', color: '#1e40af', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
-               '& .MuiTabs-indicator': { display: 'none' }
-            }}
-          >
-            <Tab label="Wyłączone" value="off" disableRipple />
-            <Tab label="Zakresy" value="ranges" disableRipple />
-            <Tab label={
-              <Tooltip title="Oblicz dokładną ratę 'w locie' dla każdego auta (Live LTR)" placement="top">
-                <span>Live LTR</span>
-              </Tooltip>
-            } value="exact" disableRipple />
-          </Tabs>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={!!searchContext.useMatrixFilters}
+                onChange={(e) => onContextChange({ ...searchContext, useMatrixFilters: e.target.checked, exact_mode: false })}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#1e40af' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#3b82f6' },
+                }}
+              />
+            }
+            label={
+              <Typography variant="caption" sx={{ color: searchContext.useMatrixFilters ? '#1e40af' : '#94a3b8', fontWeight: 600, fontSize: '0.68rem' }}>
+                {searchContext.useMatrixFilters ? 'Włączone' : 'Wyłączone'}
+              </Typography>
+            }
+            labelPlacement="start"
+            sx={{ m: 0, gap: 0.5 }}
+          />
         </Box>
 
-        <Box sx={{ opacity: searchContext.useMatrixFilters ? 1 : 0.4, pointerEvents: searchContext.useMatrixFilters ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+        <Collapse in={!!searchContext.useMatrixFilters} timeout={200}>
+        <Box sx={{ pt: 1.5 }}>
 
-          {searchContext.exact_mode ? (
-            <Box sx={{ display: 'flex', gap: 2, mb: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-              <TextField
-                label="Dokładny okres (m-ce)"
-                type="number"
-                size="small"
-                fullWidth
-                value={searchContext.exact_duration_months || ''}
-                onChange={(e) => onContextChange({ ...searchContext, exact_duration_months: parseInt(e.target.value) || 0 })}
-                InputProps={{ inputProps: { min: 1, max: 120 } }}
-              />
-              <TextField
-                label="Dokładny łączny przebieg (km)"
-                type="number"
-                size="small"
-                fullWidth
-                value={searchContext.exact_total_mileage || ''}
-                onChange={(e) => onContextChange({ ...searchContext, exact_total_mileage: parseInt(e.target.value) || 0 })}
-                InputProps={{ inputProps: { min: 1000, step: 1000 } }}
-              />
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Okres (m-ce)</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                {searchContext.duration_months_range[0]}–{searchContext.duration_months_range[1]} mc
+              </Typography>
             </Box>
-          ) : (
-            <>
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Okres (m-ce)</Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {searchContext.duration_months_range[0]}–{searchContext.duration_months_range[1]} mc
-                  </Typography>
-                </Box>
-                <Slider
-                  value={searchContext.duration_months_range}
-                  onChange={(_, val) => onContextChange({ ...searchContext, duration_months_range: val as [number, number] })}
-                  min={24} max={60} step={12}
-                  marks={[24, 36, 48, 60].map(v => ({ value: v, label: String(v) }))}
-                  valueLabelDisplay="auto" disableSwap
-                  sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
-                />
-              </Box>
+            <Slider
+              value={searchContext.duration_months_range}
+              onChange={(_, val) => onContextChange({ ...searchContext, duration_months_range: val as [number, number] })}
+              min={24} max={60} step={12}
+              marks={[24, 36, 48, 60].map(v => ({ value: v, label: String(v) }))}
+              valueLabelDisplay="auto" disableSwap
+              sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
+            />
+          </Box>
 
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Łączny przebieg na kontrakt (km)</Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {(searchContext.total_mileage_range[0] / 1000).toFixed(0)}k–{(searchContext.total_mileage_range[1] / 1000).toFixed(0)}k km
-                  </Typography>
-                </Box>
-                <Slider
-                  value={searchContext.total_mileage_range}
-                  onChange={(_, val) => onContextChange({ ...searchContext, total_mileage_range: val as [number, number] })}
-                  min={20000} max={200000} step={5000}
-                  marks={[20000, 60000, 100000, 140000, 200000].map(v => ({ value: v, label: `${(v / 1000).toFixed(0)}k` }))}
-                  valueLabelDisplay="auto" valueLabelFormat={(v) => `${(v / 1000).toFixed(0)}k`}
-                  disableSwap
-                  sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
-                />
-              </Box>
-            </>
-          )}
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Łączny przebieg na kontrakt (km)</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                {(searchContext.total_mileage_range[0] / 1000).toFixed(0)}k–{(searchContext.total_mileage_range[1] / 1000).toFixed(0)}k km
+              </Typography>
+            </Box>
+            <Slider
+              value={searchContext.total_mileage_range}
+              onChange={(_, val) => onContextChange({ ...searchContext, total_mileage_range: val as [number, number] })}
+              min={20000} max={200000} step={5000}
+              marks={[20000, 60000, 100000, 140000, 200000].map(v => ({ value: v, label: `${(v / 1000).toFixed(0)}k` }))}
+              valueLabelDisplay="auto" valueLabelFormat={(v) => `${(v / 1000).toFixed(0)}k`}
+              disableSwap
+              sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
+            />
+          </Box>
 
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 2 }}>
-          <AdaptiveSliderField
-            label="Marża min (%)"
-            min={0}
-            max={100}
-            value={searchContext.margin_pct || 0}
-            onChange={(val) => onContextChange({ ...searchContext, margin_pct: val })}
-          />
-          <TextField
-            label="Max Rata (Netto)" type="number" size="small"
-            value={searchContext.monthly_budget || ''}
-            onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
-            sx={{ flex: 1 }}
-          />
-        </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 2 }}>
+            <AdaptiveSliderField
+              label="Marża min (%)"
+              min={0}
+              max={100}
+              value={searchContext.margin_pct || 0}
+              onChange={(val) => onContextChange({ ...searchContext, margin_pct: val })}
+            />
+            <TextField
+              label="Max Rata (Netto)" type="number" size="small"
+              value={searchContext.monthly_budget || ''}
+              onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
+              sx={{ flex: 1 }}
+            />
+          </Box>
+          </Box>
+        </Collapse>
       </Section>
 
       {/* Search Button */}
@@ -666,6 +651,45 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
                   onChange={e => setUniversalSearch(e.target.value)}
                   sx={{ mb: 2, bgcolor: '#ffffff' }}
                 />
+
+                {/* ── Range Filters ── */}
+                {data?.range_filters && data.range_filters.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    {data.range_filters.map(filter => {
+                      if (universalSearch && !filter.feature_name.toLowerCase().includes(universalSearch.toLowerCase()) && !filter.feature_key.toLowerCase().includes(universalSearch.toLowerCase())) return null;
+
+                      const currentMin = selectedFeatures.find(f => f.feature_key === filter.feature_key && f.operator === 'gte')?.value as number ?? filter.min_val;
+                      const currentMax = selectedFeatures.find(f => f.feature_key === filter.feature_key && f.operator === 'lte')?.value as number ?? filter.max_val;
+
+                      // Display the default step appropriately depending on the range spread 
+                      // e.g., if max - min > 1000 => step=10, else step=1
+                      const spread = filter.max_val - filter.min_val;
+                      const rangeStep = spread > 1000 ? 10 : (spread > 100 ? 5 : 1);
+
+                      return (
+                        <Box key={filter.feature_key} sx={{ mb: 2, pl: 0.5, pr: 1.5 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+                              {filter.feature_name || filter.feature_key.replace(/_/g, ' ')}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                              {currentMin} – {currentMax}
+                            </Typography>
+                          </Box>
+                          <Slider
+                            value={[currentMin, currentMax]}
+                            onChange={(_, val) => updateRangeFeature(filter.feature_key, val as [number, number], filter.min_val, filter.max_val)}
+                            min={filter.min_val}
+                            max={filter.max_val}
+                            step={rangeStep}
+                            disableSwap
+                            sx={{ mt: 1, '& .MuiSlider-thumb': { width: 16, height: 16 } }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
                 
                 {sortedBooleanGroups.map(({ groupName, filters }) => {
                   const filteredFilters = filters.filter(f => 

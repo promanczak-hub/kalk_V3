@@ -110,6 +110,10 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
             raise HTTPException(status_code=500, detail="Błąd przy zapisie do bazy.")
         row = res.data[0]
         row["source"] = req.source
+        
+        from tasks.matrix_tasks import process_kalkulacja_matrix_task
+        process_kalkulacja_matrix_task.apply_async(args=[row["id"]])
+        
         return row
     except Exception as e:
         logger.exception("POST /kalkulacje failed")
@@ -158,9 +162,15 @@ def create_manual_kalkulacja(req: CreateManualRequest):
             .execute()
         )
         if not res.data:
-            raise HTTPException(status_code=500, detail="Błąd przy zapisie manualnej kalkulacji.")
+            raise HTTPException(
+                status_code=500, detail="Błąd przy zapisie manualnej kalkulacji."
+            )
         row = res.data[0]
         row["source"] = "manual"
+        
+        from tasks.matrix_tasks import process_kalkulacja_matrix_task
+        process_kalkulacja_matrix_task.apply_async(args=[row["id"]])
+        
         return row
     except Exception as e:
         logger.exception("POST /kalkulacje/manual failed")
@@ -195,12 +205,8 @@ def _extract_list_fields(row: Dict[str, Any]) -> KalkulacjaListItem:
 
 def _compute_purchase_price_net(pricing: PricingPatch) -> float:
     """Deterministyczne obliczenie ceny zakupu netto z panelu cenowego."""
-    discountable = sum(
-        c.amount_net for c in pricing.components if not c.no_discount
-    )
-    non_discountable = sum(
-        c.amount_net for c in pricing.components if c.no_discount
-    )
+    discountable = sum(c.amount_net for c in pricing.components if not c.no_discount)
+    non_discountable = sum(c.amount_net for c in pricing.components if c.no_discount)
     after_discount = discountable * (1 - pricing.discount_pct / 100)
     return round(after_discount + non_discountable, 2)
 
@@ -258,7 +264,6 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
         logger.exception("GET /kalkulacje/vehicle/%s failed", vehicle_id)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/{kalk_id}", response_model=KalkulacjaResponse)
 def get_kalkulacja(kalk_id: str):
     try:
@@ -309,8 +314,13 @@ def duplicate_kalkulacja(kalk_id: str):
 
         insert_res = supabase.table("ltr_kalkulacje").insert(new_data).execute()
         if not insert_res.data:
-            raise HTTPException(status_code=500, detail="BĹ‚Ä…d duplikacji")
-        return insert_res.data[0]
+            raise HTTPException(status_code=500, detail="Błąd duplikacji")
+        
+        new_row = insert_res.data[0]
+        from tasks.matrix_tasks import process_kalkulacja_matrix_task
+        process_kalkulacja_matrix_task.apply_async(args=[new_row["id"]])
+        
+        return new_row
     except Exception as e:
         logger.exception("DUPLICATE /kalkulacje/%s failed", kalk_id)
         raise HTTPException(status_code=500, detail=str(e))
@@ -344,7 +354,12 @@ def update_kalkulacja_status(kalk_id: str, req: StatusUpdateRequest):
 def patch_kalkulacja_pricing(kalk_id: str, patch: PricingPatch):
     """Aktualizuje sekcję cenową kalkulacji i zwraca obliczony wynik."""
     try:
-        res = supabase.table("ltr_kalkulacje").select("stan_json").eq("id", kalk_id).execute()
+        res = (
+            supabase.table("ltr_kalkulacje")
+            .select("stan_json")
+            .eq("id", kalk_id)
+            .execute()
+        )
         if not res.data:
             raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
 
@@ -361,6 +376,10 @@ def patch_kalkulacja_pricing(kalk_id: str, patch: PricingPatch):
         )
         if not upd.data:
             raise HTTPException(status_code=500, detail="Błąd aktualizacji cen")
+            
+        from tasks.matrix_tasks import process_kalkulacja_matrix_task
+        process_kalkulacja_matrix_task.apply_async(args=[kalk_id])
+            
         return result
     except HTTPException:
         raise
@@ -372,22 +391,20 @@ def patch_kalkulacja_pricing(kalk_id: str, patch: PricingPatch):
 @router.post("/{kalk_id}/recalculate")
 def recalculate_kalkulacja(kalk_id: str):
     """Wyzwala przeliczenie matrycy LTR na podstawie bieżącego stan_json."""
-    from api.calculator_core_routes import _trigger_matrix_background
-
     try:
-        res = supabase.table("ltr_kalkulacje").select("stan_json").eq("id", kalk_id).execute()
+        res = (
+            supabase.table("ltr_kalkulacje")
+            .select("stan_json", "id")
+            .eq("id", kalk_id)
+            .execute()
+        )
         if not res.data:
             raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
 
-        stan = res.data[0].get("stan_json") or {}
-        vehicle_id = stan.get("vehicle_id")
-        if not vehicle_id:
-            raise HTTPException(
-                status_code=422,
-                detail="Kalkulacja manualna nie ma przypisanego vehicle_id. Przeliczenie LTR niemożliwe bez powiązania z pojazdem.",
-            )
-        _trigger_matrix_background(vehicle_id=vehicle_id)
-        return {"status": "queued", "vehicle_id": vehicle_id, "kalk_id": kalk_id}
+        from tasks.matrix_tasks import process_kalkulacja_matrix_task
+        process_kalkulacja_matrix_task.apply_async(args=[kalk_id])
+        
+        return {"status": "queued", "kalk_id": kalk_id}
     except HTTPException:
         raise
     except Exception as e:
@@ -401,66 +418,75 @@ def get_smart_variants(kalk_id: str):
     from api.schemas.calculator import CalculatorInput
     from core.models import ControlCenterSettings
     from core.LTRKalkulator import LTRKalkulator
-    
+
     try:
-        res = supabase.table("ltr_kalkulacje").select("stan_json", "numer_kalkulacji").eq("id", kalk_id).execute()
+        res = (
+            supabase.table("ltr_kalkulacje")
+            .select("stan_json", "numer_kalkulacji")
+            .eq("id", kalk_id)
+            .execute()
+        )
         if not res.data:
             raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
 
         row = res.data[0]
         stan = row.get("stan_json") or {}
         numer_kalkulacji = row.get("numer_kalkulacji", kalk_id)
-        
+
         try:
             calc_input = CalculatorInput(**stan)
         except Exception as e:
-             logger.warning(f"Failed to parse stan_json directly: {e}")
-             raise HTTPException(status_code=400, detail="Nie mozna odtworzyc danych wejsciowych z kalkulacji.")
+            logger.warning(f"Failed to parse stan_json directly: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail="Nie mozna odtworzyc danych wejsciowych z kalkulacji.",
+            )
 
         cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
         cc_settings = ControlCenterSettings(**cc_res.data[0])
 
         engine = LTRKalkulator(input_data=calc_input, settings=cc_settings)
         matrix_cells = engine.build_matrix()
-        
+
         base_months = calc_input.okres_bazowy or 48
         base_mileage = calc_input.przebieg_bazowy or 80000
-        
+
         base_variant = None
         low_monthly = None
         best_value = None
-        
-        lowest_inst = float('inf')
-        
+
+        lowest_inst = float("inf")
+
         for cell in matrix_cells:
             m = cell.get("Okres", 0)
             km = cell.get("PrzebiegKontrakt", 0)
             inst = float(cell.get("RataNetto", 0))
-            
+
             if m == base_months and km == base_mileage:
                 base_variant = cell
-                
+
             if 0 < inst < lowest_inst:
                 lowest_inst = inst
                 low_monthly = cell
-                
+
             if m == 48 and km == 80000:
                 best_value = cell
-                
+
         if not base_variant and matrix_cells:
             base_variant = matrix_cells[0]
         if not best_value and matrix_cells:
-            best_value = matrix_cells[len(matrix_cells)//2]
-            
+            best_value = matrix_cells[len(matrix_cells) // 2]
+
         car_info = {
             "brand": stan.get("brand", ""),
             "model": stan.get("model", ""),
             "powertrain": stan.get("engine_name", ""),
-            "vin_or_config": numer_kalkulacji
+            "vin_or_config": numer_kalkulacji,
         }
 
         def _map_to_offer(cell, reco):
-            if not cell: return None
+            if not cell:
+                return None
             return {
                 "id": f"{kalk_id}_{cell.get('Okres')}_{cell.get('PrzebiegKontrakt')}",
                 "brand": car_info["brand"],
@@ -474,10 +500,14 @@ def get_smart_variants(kalk_id: str):
                 "system_recommendation": reco,
                 "calculation_data": cell,
                 "standard_equipment": [],
-                "factory_options": [o.name for o in calc_input.factory_options] if calc_input.factory_options else [],
-                "dealer_options": [o.name for o in calc_input.service_options] if calc_input.service_options else []
+                "factory_options": [o.name for o in calc_input.factory_options]
+                if calc_input.factory_options
+                else [],
+                "dealer_options": [o.name for o in calc_input.service_options]
+                if calc_input.service_options
+                else [],
             }
-            
+
         variants = []
         if base_variant:
             variants.append(_map_to_offer(base_variant, "Twój Wybór"))
@@ -485,15 +515,14 @@ def get_smart_variants(kalk_id: str):
             variants.append(_map_to_offer(low_monthly, "Najniższa Rata"))
         if best_value and best_value not in [base_variant, low_monthly]:
             variants.append(_map_to_offer(best_value, "Optymalny Okres/Przebieg"))
-            
+
         return {"status": "success", "variants": variants}
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("POST /kalkulacje/%s/smart-advisor failed", kalk_id)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post("/debug-pipeline/{vehicle_id}")
@@ -638,4 +667,3 @@ BÄ…dĹş techniczny, przyjazny i konkretnie diagnozuj wynik. UĹĽywaj format
 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-

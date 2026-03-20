@@ -157,10 +157,10 @@ def _call_gemini_flash(client, contents) -> dict:
         return {}
 
 
-
-
 def extract_digital_twin_from_pdf(
-    document_data: Union[str, bytes], mime_type: str = "application/pdf", text_data: Optional[str] = None
+    document_data: Union[str, bytes],
+    mime_type: str = "application/pdf",
+    text_data: Optional[str] = None,
 ) -> dict:
     """
     Extracts a raw JSON digital twin representation of the document using Gemini 2.5 Pro.
@@ -171,7 +171,11 @@ def extract_digital_twin_from_pdf(
     contents: list[types.Part] = []
 
     if text_data:
-        contents.append(types.Part.from_text(text=f"--- EXTRACTED TEXT (MARKDOWN) ---\n{text_data}\n--- END EXTRACTED TEXT ---\n\nThe original document is attached below. Use BOTH the markdown text and the visual document to extract all features, dimensions, weights, and packages. Pay special attention to visual diagrams with measurements."))
+        contents.append(
+            types.Part.from_text(
+                text=f"--- EXTRACTED TEXT (MARKDOWN) ---\n{text_data}\n--- END EXTRACTED TEXT ---\n\nThe original document is attached below. Use BOTH the markdown text and the visual document to extract all features, dimensions, weights, and packages. Pay special attention to visual diagrams with measurements."
+            )
+        )
 
     if isinstance(document_data, bytes):
         contents.append(types.Part.from_bytes(data=document_data, mime_type=mime_type))

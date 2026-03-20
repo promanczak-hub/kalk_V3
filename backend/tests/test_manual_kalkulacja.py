@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 @pytest.fixture
 def client():
     from main import app
+
     return TestClient(app)
 
 
@@ -25,7 +26,9 @@ def _mock_insert(data: dict):
     """Helper: returns supabase insert mock that yields the input as inserted row."""
     now_str = "2026-01-01T00:00:00+00:00"
     mock_res = MagicMock()
-    mock_res.data = [{**data, "id": "test-uuid-001", "created_at": now_str, "updated_at": now_str}]
+    mock_res.data = [
+        {**data, "id": "test-uuid-001", "created_at": now_str, "updated_at": now_str}
+    ]
     return mock_res
 
 
@@ -83,8 +86,14 @@ class TestPricingDeterministic:
 
         patch_data = PricingPatch(
             components=[
-                PricingComponent(label="Cena katalogowa netto", amount_net=100_000.0, no_discount=False),
-                PricingComponent(label="Transport netto", amount_net=1_500.0, no_discount=True),
+                PricingComponent(
+                    label="Cena katalogowa netto",
+                    amount_net=100_000.0,
+                    no_discount=False,
+                ),
+                PricingComponent(
+                    label="Transport netto", amount_net=1_500.0, no_discount=True
+                ),
             ],
             discount_pct=5.0,
         )
@@ -108,7 +117,9 @@ class TestPricingDeterministic:
         from api.schemas.pricing import PricingPatch, PricingComponent
 
         patch_data = PricingPatch(
-            components=[PricingComponent(label="Cena", amount_net=50_000.0, no_discount=False)],
+            components=[
+                PricingComponent(label="Cena", amount_net=50_000.0, no_discount=False)
+            ],
             discount_pct=0.0,
         )
         result = _compute_pricing_result(patch_data)
@@ -121,7 +132,11 @@ class TestPricingDeterministic:
         from api.schemas.pricing import PricingPatch, PricingComponent
 
         patch_data = PricingPatch(
-            components=[PricingComponent(label="Transport", amount_net=10_000.0, no_discount=True)],
+            components=[
+                PricingComponent(
+                    label="Transport", amount_net=10_000.0, no_discount=True
+                )
+            ],
             discount_pct=10.0,
         )
         result = _compute_pricing_result(patch_data)

@@ -1,13 +1,19 @@
 from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
+
 class ScoringRequirement(BaseModel):
     feature_key: str
     operator: str = Field(description="'eq', 'gte', 'lte', 'in'")
     value: Any = Field(description="The target value to match against")
     requirement: str = Field(description="'MUST_HAVE' or 'NICE_TO_HAVE'")
-    weight: float = Field(default=1.0, description="Weight of the requirement for scoring")
-    values: Optional[List[Any]] = Field(default=None, description="List of values for 'in' operator")
+    weight: float = Field(
+        default=1.0, description="Weight of the requirement for scoring"
+    )
+    values: Optional[List[Any]] = Field(
+        default=None, description="List of values for 'in' operator"
+    )
+
 
 class ScoringSearchRequest(BaseModel):
     brands: Optional[List[str]] = None
@@ -17,6 +23,7 @@ class ScoringSearchRequest(BaseModel):
     requirements: List[ScoringRequirement]
     limit: int = 50
     offset: int = 0
+
 
 class ScoringSearchMatch(BaseModel):
     vehicle_id: str
@@ -47,9 +54,11 @@ class ScoringSearchMatch(BaseModel):
     offer_number: Optional[str] = None
     configuration_code: Optional[str] = None
 
+
 class ScoringSearchResponse(BaseModel):
     results: List[ScoringSearchMatch]
     total_count: int
+
 
 class AvailableFiltersRequest(BaseModel):
     brands: Optional[List[str]] = None
@@ -58,9 +67,11 @@ class AvailableFiltersRequest(BaseModel):
     samar_class_ids: Optional[List[int]] = None
     current_filters: Optional[dict[str, Any]] = None
 
+
 class BodyTypeItem(BaseModel):
     name: str
     count: int
+
 
 class InitialDataResponse(BaseModel):
     brands: List[str]
@@ -71,18 +82,22 @@ class InitialDataResponse(BaseModel):
     samar_classes: List[dict[str, Any]]
     body_types: List[BodyTypeItem] = []
 
+
 class OptionItem(BaseModel):
     name: str
     count: int
+
 
 class TrimsAndOptionsRequest(BaseModel):
     brands: Optional[List[str]] = None
     models: Optional[List[str]] = None
 
+
 class TrimsAndOptionsResponse(BaseModel):
     trim_levels: List[OptionItem] = []
     standard_options: List[OptionItem] = []
     paid_options: List[OptionItem] = []
+
 
 class SimilarVehicleMatch(BaseModel):
     vehicle_id: str
@@ -104,3 +119,22 @@ class PriceForParamsResponse(BaseModel):
     monthly_price_net: Optional[float] = None
     calculated_at: Optional[str] = None
     found: bool = False
+    variants_count: Optional[int] = None
+    tire_class: Optional[str] = None
+    service_type: Optional[str] = None
+    kalkulacja_id: Optional[str] = None
+
+
+class SimilarBatchRequest(BaseModel):
+    vehicle_ids: list[str]
+    limit: int = 5
+    duration_months: Optional[int] = None
+    annual_mileage: Optional[int] = None
+
+
+class SimilarBatchItem(SimilarVehicleMatch):
+    source_vehicle_id: str
+
+
+class SimilarBatchResponse(BaseModel):
+    results: dict[str, list[SimilarVehicleMatch]]

@@ -2,13 +2,16 @@ from core.database import supabase
 import json
 
 try:
-    resp = supabase.rpc("rpc_get_available_filters", {"p_segment": "Premium-Sport", "p_current_filters": {}}).execute()
+    resp = supabase.rpc(
+        "rpc_get_available_filters",
+        {"p_segment": "Premium-Sport", "p_current_filters": {}},
+    ).execute()
     result = {"status": "SUCCESS", "data": resp.data}
 except Exception as e:
     result = {
         "status": "ERROR",
         "message": getattr(e, "message", str(e)),
-        "details": getattr(e, "details", None)
+        "details": getattr(e, "details", None),
     }
 
 with open("rpc_err.json", "w", encoding="utf-8") as f:

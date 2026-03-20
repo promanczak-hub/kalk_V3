@@ -42,7 +42,12 @@ def _parse_net_price(value: Any) -> float:
     if isinstance(value, (int, float)):
         return round(float(value), 2)
     if isinstance(value, str):
-        cleaned = value.replace(" ", "").replace("PLN", "").replace("zl", "").replace(",", ".")
+        cleaned = (
+            value.replace(" ", "")
+            .replace("PLN", "")
+            .replace("zl", "")
+            .replace(",", ".")
+        )
         out = ""
         for ch in cleaned:
             if ch.isdigit() or ch in {".", "-"}:
@@ -224,9 +229,7 @@ def extract_service_option_from_pdf(
             model_id=model_id,
             contents=contents,
             system_instruction=(
-                SERVICE_OPTION_DIGITAL_TWIN_PROMPT
-                + "\n\n"
-                + SECOND_PASS_BODYWORK_HINT
+                SERVICE_OPTION_DIGITAL_TWIN_PROMPT + "\n\n" + SECOND_PASS_BODYWORK_HINT
             ),
         )
         second_options = second_pass.get("service_options") or []

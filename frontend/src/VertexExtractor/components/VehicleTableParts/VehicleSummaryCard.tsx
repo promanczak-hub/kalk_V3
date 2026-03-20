@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FleetVehicleView } from "../../types";
-import { Pencil, X, Loader2, RefreshCw, Save } from "lucide-react";
+import { Pencil, X, Loader2, RefreshCw, Save, AlertTriangle, CheckCircle, HelpCircle } from "lucide-react";
 interface VehicleSummaryCardProps {
   vehicle: FleetVehicleView;
   onDirectSave?: (fields: Record<string, string>) => Promise<void>;
@@ -10,6 +10,42 @@ interface VehicleSummaryCardProps {
 }
 
 const EMPTY = "—";
+
+function ConfidenceBadge({ score, warnings }: { score?: number, warnings?: string[] }) {
+  if (score === undefined) return null;
+  
+  let colorClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
+  let Icon = CheckCircle;
+  let label = "Wysoka pewność (AI)";
+  
+  if (score < 0.7) {
+    colorClass = "bg-rose-100 text-rose-700 border-rose-200";
+    Icon = AlertTriangle;
+    label = "Niska pewność (AI)";
+  } else if (score < 0.95) {
+    colorClass = "bg-amber-100 text-amber-700 border-amber-200";
+    Icon = HelpCircle;
+    label = "Średnia pewność (AI)";
+  }
+
+  const roundedScore = Math.round(score * 100);
+
+  return (
+    <div className={`flex items-center space-x-1.5 px-2 py-0.5 rounded border text-[10px] font-bold cursor-help relative group ${colorClass}`} title={label}>
+      <Icon className="w-3 h-3" />
+      <span>{roundedScore}%</span>
+      
+      {warnings && warnings.length > 0 && (
+        <div className="absolute top-full mt-1 left-0 w-64 p-2 bg-slate-800 rounded shadow-lg border border-slate-700 z-50 hidden group-hover:block">
+          <p className="text-white font-semibold mb-1">Ostrzeżenia AI:</p>
+          <ul className="list-disc pl-4 text-slate-300 font-normal space-y-1">
+            {warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function extractSeats(vehicle: FleetVehicleView): string {
   if (vehicle.number_of_seats == null) return EMPTY;
@@ -123,10 +159,13 @@ export function VehicleSummaryCard({
     if (!onDirectSave) return;
     
     const fields: Record<string, string> = {};
+    const feedbackData: { old_value: string, new_value: string, field_name: string }[] = [];
+    
     const collectIfChanged = (label: string, original: string, dbKey: string) => {
       const edited = editValues[label] ?? "";
       if (edited !== original && edited !== EMPTY) {
         fields[dbKey] = edited;
+        feedbackData.push({ old_value: original, new_value: edited, field_name: dbKey });
       }
     };
 
@@ -146,6 +185,7 @@ export function VehicleSummaryCard({
     const editedWheels = editValues["Koła"] ?? "";
     if (editedWheels !== currentWheels && editedWheels !== EMPTY) {
       fields["wheels"] = editedWheels.replace('"', '');
+      feedbackData.push({ old_value: currentWheels, new_value: editedWheels.replace('"', ''), field_name: "wheels" });
     }
     
     collectIfChanged("Emisja WLTP", val(vehicle.emissions), "emissions");
@@ -159,7 +199,28 @@ export function VehicleSummaryCard({
       return;
     }
 
-    await onDirectSave(fields);
+    try {
+      await onDirectSave(fields);
+      
+      // Raportowanie poprawek do pętli sprzężenia zwrotnego AI
+      for (const item of feedbackData) {
+        fetch("/api/extract/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vehicle_id: vehicle.id,
+                brand: val(vehicle.brand),
+                model: val(vehicle.model),
+                field_name: item.field_name,
+                old_value: item.old_value,
+                new_value: item.new_value,
+            })
+        }).catch(e => console.error("Nie udało się wysłać feedbacku ekstrakcji", e));
+      }
+    } catch (e) {
+      console.error("Błąd podczas zapisu", e);
+    }
+    
     setIsEditing(false);
   };
 
@@ -246,9 +307,17 @@ export function VehicleSummaryCard({
         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center">
           Karta podsumowania pojazdu
           {isEditing && (
-            <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">
+            <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
               TRYB EDYCJI
             </span>
+          )}
+          {!isEditing && (
+            <div className="ml-3">
+              <ConfidenceBadge 
+                score={(vehicle.synthesis_data as any)?.card_summary?.confidence_score as number | undefined} 
+                warnings={(vehicle.synthesis_data as any)?.card_summary?.ai_warnings as string[] | undefined} 
+              />
+            </div>
           )}
         </h4>
         <div className="flex items-center space-x-2">

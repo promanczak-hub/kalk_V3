@@ -43,7 +43,7 @@ type NormalizedOption = {
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
 function fmtPLN(val: number): string {
-  return val.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return val.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function parsePriceToNumber(value: unknown): number {
@@ -1247,7 +1247,7 @@ export function VehicleRowCalculations({
                 type="number"
                 step={500}
                 value={globalWrCorrection}
-                onChange={(e) => setGlobalWrCorrection(parseFloat(e.target.value) || 0)}
+                onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalWrCorrection(isNaN(parsed) ? globalWrCorrection : parsed); }}
                 className="w-24 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
                 placeholder="np. -1500"
               />

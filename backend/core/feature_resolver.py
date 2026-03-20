@@ -247,6 +247,7 @@ def resolve_vehicle_features(
 
     # Invalidate Redis cache for feature state
     from core.redis_cache import _get_client, _PREFIX
+
     client = _get_client()
     if client is not None:
         try:

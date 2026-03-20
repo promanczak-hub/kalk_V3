@@ -1,7 +1,11 @@
 import platform
+
 # Monkeypatch platform WMI queries to prevent freezing on Windows during imports (supabase, torch, etc.)
 from collections import namedtuple
-_UnameResult = namedtuple("uname_result", ["system", "node", "release", "version", "machine", "processor"])
+
+_UnameResult = namedtuple(
+    "uname_result", ["system", "node", "release", "version", "machine", "processor"]
+)
 _fake_uname = _UnameResult("Windows", "localhost", "10", "10.0", "AMD64", "AMD64")
 platform.uname = lambda: _fake_uname
 platform.system = lambda: "Windows"
@@ -39,6 +43,7 @@ from api.vehicle_features_crud_routes import router as vehicle_features_crud_rou
 from api.pdf_parser_routes import router as pdf_parser_router
 from api.scoring_search_routes import router as scoring_search_router
 from api.oferty_routes import router as oferty_router
+from api.brochure_routes import router as brochure_router
 from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
@@ -71,6 +76,7 @@ async def health_check() -> dict[str, str]:
         "redis_status": "connected" if is_redis_available() else "unavailable",
     }
 
+
 app.include_router(samar_rv_router)
 app.include_router(parser_router, prefix="/api")
 app.include_router(extract_router, prefix="/api")
@@ -92,6 +98,7 @@ app.include_router(vehicle_features_crud_router, prefix="/api")
 app.include_router(pdf_parser_router, prefix="/api")
 app.include_router(scoring_search_router, prefix="/api")
 app.include_router(oferty_router, prefix="/api/offers", tags=["Oferty"])
+app.include_router(brochure_router, prefix="/api")
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

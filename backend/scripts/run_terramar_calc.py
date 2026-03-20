@@ -1,6 +1,7 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import asyncio
 import json
@@ -8,9 +9,10 @@ from types import SimpleNamespace
 from api.schemas.calculator import CalculatorInput, VehicleOptions
 from core.LTRKalkulator import LTRKalkulator
 
+
 async def main():
     vehicle_id = "2a016435-f3a5-4092-9b4f-a73ccce14a01"
-    
+
     calc_input = CalculatorInput(
         vehicle_id=vehicle_id,
         base_price_net=162357.72,
@@ -65,19 +67,22 @@ async def main():
     )
 
     kalkulator = LTRKalkulator(input_data=calc_input, settings=settings)
-    
+
     # Run pipeline for 48 / 30k (Commented out to focus on WR as per user request)
     # matrix = kalkulator.build_matrix()
     # cost_components = next((cell for cell in matrix if cell["months"] == 48 and cell["km_per_year"] == 30000), None)
-    
+
     # print("--- 48 months / 30 000 km per year ---")
     # print(json.dumps(cost_components, indent=2))
-    
+
     # Additionally dump the WR calculation
     from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
+
     rv_calc = LTRSubCalculatorUtrataWartosciNew(kalkulator.vehicle, calc_input)
-    base_wr_options = sum(opt.price_net for opt in calc_input.factory_options if opt.include_in_wr)
-    
+    base_wr_options = sum(
+        opt.price_net for opt in calc_input.factory_options if opt.include_in_wr
+    )
+
     rv_res = rv_calc.calculate_values(
         months=48,
         total_km=120000,
@@ -86,6 +91,7 @@ async def main():
     )
     print("\n--- RV TRACE ---")
     print(json.dumps(rv_res.get("debug", {}), indent=2))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -8,10 +8,14 @@ from core.database import supabase
 
 try:
     print("Executing delete...")
-    response = supabase.table("vehicle_synthesis").delete().in_(
-        "id", ["test1", "test2"]
-    ).execute()
+    response = (
+        supabase.table("vehicle_synthesis")
+        .delete()
+        .in_("id", ["test1", "test2"])
+        .execute()
+    )
     print("Success:", response)
 except Exception:
     import traceback
+
     traceback.print_exc()

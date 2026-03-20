@@ -74,7 +74,9 @@ class PipelineDebugger(LTRKalkulator):
                     "months": months,
                     "total_km": total_km,
                     "z_oponami": self.tires_calc.z_oponami,
-                    "klasa_opony_string": getattr(self.input_data, "klasa_opony_string", ""),
+                    "klasa_opony_string": getattr(
+                        self.input_data, "klasa_opony_string", ""
+                    ),
                     "srednica_felgi": getattr(self.tires_calc, "srednica_felgi", 0),
                 },
                 "outputs": {
@@ -82,7 +84,7 @@ class PipelineDebugger(LTRKalkulator):
                     "Koszt1KplOpon": float(tires_res.get("Koszt1KplOpon", 0.0)),
                     "IloscOpon": float(tires_res.get("IloscOpon", 0.0)),
                 },
-                "trace": tires_res.get("trace", [])
+                "trace": tires_res.get("trace", []),
             }
         )
 
@@ -214,7 +216,9 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "service_base * months",
                     },
                 },
-                "trace": service_from_new_dict.get("trace", getattr(service_calc, "trace", [])),
+                "trace": service_from_new_dict.get(
+                    "trace", getattr(service_calc, "trace", [])
+                ),
             }
         )
 
@@ -255,12 +259,12 @@ class PipelineDebugger(LTRKalkulator):
             for opt in self.input_data.service_options
             if getattr(opt, "include_in_wr", False)
         )
-        
+
         # W V1 Utrata Wartości (Amortyzacja) liczona jest WYŁĄCZNIE od ceny pojazdu i opcji fabrycznych (bez opon i bez opcji serwisowych)
         discount_pct = getattr(self.input_data, "discount_pct", 0) / 100.0
         discounted_factory_options = base_wr_options * (1 - discount_pct)
         wp_amortyzacja = vehicle_capex + discounted_factory_options
-        
+
         vat_rate = getattr(self.settings, "vat_rate", 1.23)
         if vat_rate > 10.0:
             vat_rate = 1.0 + (vat_rate / 100.0)
@@ -356,7 +360,13 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "Różnica % między Wartością Początkową (CAPEX) a Wartością Końcową (WR) podzielona przez Okres",
                     }
                 },
-                "trace": getattr(amort_result, "trace", getattr(AmortyzacjaCalculator, "trace", [])) if 'amort_result' in locals() else [f"Amortyzacja pobrana sztywno z input_data: {orig_procent_amortyzacji_miesiecznie}%"],
+                "trace": getattr(
+                    amort_result, "trace", getattr(AmortyzacjaCalculator, "trace", [])
+                )
+                if "amort_result" in locals()
+                else [
+                    f"Amortyzacja pobrana sztywno z input_data: {orig_procent_amortyzacji_miesiecznie}%"
+                ],
             }
         )
 
@@ -461,7 +471,9 @@ class PipelineDebugger(LTRKalkulator):
                         "formula": "CzynszBrutto / VAT (kwotowy) lub WP × % (procentowy)",
                     },
                 },
-                "trace": getattr(finance_res, "trace", getattr(finance_calc, "trace", [])),
+                "trace": getattr(
+                    finance_res, "trace", getattr(finance_calc, "trace", [])
+                ),
             }
         )
 
@@ -607,6 +619,7 @@ class PipelineDebugger(LTRKalkulator):
 
         def _fmt_value(value: Any) -> str:
             from decimal import Decimal
+
             if isinstance(value, (float, Decimal)):
                 return f"{value:,.4f}".replace(",", " ")
             if isinstance(value, int):

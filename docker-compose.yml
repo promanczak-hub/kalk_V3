@@ -43,7 +43,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: ["poetry", "run", "celery", "-A", "core.celery_app", "worker", "-B", "--loglevel=info"]
+    command: ["poetry", "run", "celery", "-A", "core.celery_app", "worker", "--pool=solo", "-B", "--loglevel=info"]
     env_file:
       - ./backend/.env
     environment:

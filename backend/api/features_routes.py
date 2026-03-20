@@ -129,7 +129,9 @@ def get_vehicle_feature_state(
 
     if client is not None:
         try:
-            client.setex(cache_key, _TTL_FEATURES_STATE, json.dumps(result, default=str))
+            client.setex(
+                cache_key, _TTL_FEATURES_STATE, json.dumps(result, default=str)
+            )
         except Exception as exc:
             logger.debug("Redis SET error [%s]: %s", cache_key, exc)
 
@@ -241,7 +243,7 @@ def preview_catalog_features_endpoint(
 ) -> dict[str, Any]:
     """Preview features that would be matched from a catalog."""
     from core.feature_cross_reference import preview_catalog_features
-    
+
     return preview_catalog_features(vehicle_id, catalog_id)
 
 
@@ -259,16 +261,16 @@ def add_selected_catalog_features(
     from core.database import supabase
     from core.feature_resolver import resolve_vehicle_features
     from core.feature_cross_reference import _get_feature_id_map
-    
+
     feature_id_map = _get_feature_id_map()
     evidence_batch = []
-    
+
     for feat in body.features:
         feat_key = feat.get("feature_key")
         feat_id = feature_id_map.get(feat_key)
         if not feat_id:
             continue
-            
+
         evidence: dict[str, Any] = {
             "source_vehicle_id": vehicle_id,
             "feature_id": feat_id,
@@ -277,7 +279,7 @@ def add_selected_catalog_features(
             "confidence": 1.0,
             "source_text": "Ręczny wybór z zasugerowanego cennika",
         }
-        
+
         if "value_bool" in feat and feat["value_bool"] is not None:
             evidence["value_bool"] = feat["value_bool"]
         if "value_num" in feat and feat["value_num"] is not None:
@@ -286,9 +288,9 @@ def add_selected_catalog_features(
             evidence["value_text"] = feat["value_text"]
         if "unit" in feat and feat["unit"]:
             evidence["unit"] = feat["unit"]
-            
+
         evidence_batch.append(evidence)
-        
+
     if evidence_batch:
         try:
             supabase.schema("reverse_search").table("vehicle_feature_evidence").upsert(
@@ -297,26 +299,36 @@ def add_selected_catalog_features(
             ).execute()
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Błąd zapisu cech: {exc}")
-        
+
     # Zapisz w vehicle_catalog_matches fakt, że dopasowaliśmy ręcznie
     try:
-        supabase.schema("reverse_search").table("vehicle_catalog_matches").upsert({
-            "source_vehicle_id": vehicle_id,
-            "catalog_source_id": body.catalog_id,
-            "matched_variant_name": "Wybrane ręcznie z cennika",
-            "match_confidence": 1.0,
-        }, on_conflict="source_vehicle_id,catalog_source_id").execute()
+        supabase.schema("reverse_search").table("vehicle_catalog_matches").upsert(
+            {
+                "source_vehicle_id": vehicle_id,
+                "catalog_source_id": body.catalog_id,
+                "matched_variant_name": "Wybrane ręcznie z cennika",
+                "match_confidence": 1.0,
+            },
+            on_conflict="source_vehicle_id,catalog_source_id",
+        ).execute()
     except Exception:
         pass
-        
+
     # Usuń suggested_catalog bo już dodaliśmy dane
     try:
-        current_synth_resp = supabase.table("vehicle_synthesis").select("synthesis_data").eq("id", vehicle_id).execute()
+        current_synth_resp = (
+            supabase.table("vehicle_synthesis")
+            .select("synthesis_data")
+            .eq("id", vehicle_id)
+            .execute()
+        )
         if current_synth_resp.data:
             current_synth = current_synth_resp.data[0].get("synthesis_data") or {}
             if "suggested_catalog" in current_synth:
                 del current_synth["suggested_catalog"]
-                supabase.table("vehicle_synthesis").update({"synthesis_data": current_synth}).eq("id", vehicle_id).execute()
+                supabase.table("vehicle_synthesis").update(
+                    {"synthesis_data": current_synth}
+                ).eq("id", vehicle_id).execute()
     except Exception:
         pass
 
@@ -864,11 +876,7 @@ def enrich_vehicle_background(
 ) -> dict[str, Any]:
     """Trigger background CELERY task to enrich vehicle features from documents."""
     from tasks.enrichment_tasks import enrich_vehicle_features_from_catalog
-    
+
     task = enrich_vehicle_features_from_catalog.delay(vehicle_id)
-    
-    return {
-        "status": "queued",
-        "vehicle_id": vehicle_id,
-        "task_id": task.id
-    }
+
+    return {"status": "queued", "vehicle_id": vehicle_id, "task_id": task.id}

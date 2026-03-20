@@ -18,7 +18,6 @@ from api.schemas.control_center import (
     PaintType,
     VintageCorrection,
 )
-from tasks.matrix_tasks import process_matrix_refresh_task
 
 router = APIRouter(tags=["Control Center"])
 
@@ -45,7 +44,7 @@ async def update_control_center(
         data = settings.model_dump()
         data["id"] = 1
         data["last_settings_update"] = datetime.now(timezone.utc).isoformat()
-        
+
         response = supabase.table("control_center").update(data).eq("id", 1).execute()
 
         if not response.data:
@@ -53,14 +52,12 @@ async def update_control_center(
                 status_code=500, detail="Failed to update control center settings"
             )
 
-        # Trigger background refresh for ALL vehicles
-        process_matrix_refresh_task.apply_async(args=[None])
+
 
         response_data = cast(Any, response.data[0])
         return ControlCenterSettings(**response_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.get("/engines")
@@ -171,9 +168,6 @@ async def delete_depreciation_rate(rate_id: int) -> Dict[str, str]:
 
 
 # --- Mileage Corrections (per engine × samar_class) ---
-
-
-
 
 
 @router.get("/samar-classes")
@@ -383,11 +377,6 @@ async def import_samar_service_costs(file: UploadFile = File(...)) -> Dict[str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
-
-
-
 # ── Brand Corrections CRUD (ltr_admin_korekta_wr_markas) ──
 
 
@@ -530,11 +519,7 @@ async def delete_replacement_car_rate(item_id: str) -> Dict[str, str]:
 # ── Body Type WR Corrections CRUD (Sparse) ──
 
 
-
-
 # ── Zabudowa Types Dictionary CRUD ──
-
-
 
 
 # ── Paint Types WR Correction CRUD ──

@@ -18,6 +18,7 @@ import {
   useNavigate,
   useLocation,
   Navigate,
+  Link,
 } from "react-router-dom";
 import ControlCenter from "./ControlCenter";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
@@ -99,11 +100,13 @@ function AppContent() {
           }}
         >
           {/* Logo */}
-          <img
-            src="/express-logo.png"
-            alt="Express Car Rental"
-            style={{ height: 30, flexShrink: 0 }}
-          />
+          <Link to="/" style={{ display: 'flex', alignItems: 'center' }}>
+            <img
+              src="/express-logo.png"
+              alt="Express Car Rental"
+              style={{ height: 30, flexShrink: 0 }}
+            />
+          </Link>
 
           {/* Separator */}
           <Box sx={{ width: "1px", height: 24, bgcolor: "divider", flexShrink: 0 }} />

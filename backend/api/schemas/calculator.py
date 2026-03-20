@@ -60,7 +60,8 @@ class CalculatorInput(BaseModel):
         default="Medium", description="Klasa Opon np. 'WIELOSEZONOWE MEDIUM'"
     )
     odkup_opon_enabled: bool = Field(
-        default=False, description="Włącz logikę obniżenia kosztów przez odkup opon (V1)"
+        default=False,
+        description="Włącz logikę obniżenia kosztów przez odkup opon (V1)",
     )
     korekta_kosztu_opon: bool = Field(
         default=False, description="Czy stosować ręczną korektę"
@@ -101,7 +102,8 @@ class CalculatorInput(BaseModel):
     add_registration: bool = Field(default=True, description="Rejestracja")
     add_sales_prep: bool = Field(default=True, description="Przygotowanie do sprzedaży")
     korekta_kosztu_przygotowania: float = Field(
-        default=0.0, description="Ręczna korekta kosztu przygotowania do sprzedaży (netto)"
+        default=0.0,
+        description="Ręczna korekta kosztu przygotowania do sprzedaży (netto)",
     )
 
     # Nowe pola V1→V3
@@ -129,7 +131,8 @@ class CalculatorInput(BaseModel):
         default=None, description="Nazwa typu lakieru z dropdownu/UI (opcjonalnie)"
     )
     zabudowa_type_id: Optional[int] = Field(
-        default=None, description="ID typu zabudowy z Control Center (opcjonalnie - legacy, mapowane jako body_type_id)"
+        default=None,
+        description="ID typu zabudowy z Control Center (opcjonalnie - legacy, mapowane jako body_type_id)",
     )
     power_kw: Optional[float] = Field(
         default=None, description="Moc silnika (kW) przesyłana wprost z UI"
@@ -165,6 +168,3 @@ class CalculatorInput(BaseModel):
         default=10000,
         description="Krok siatki przebiegu dla trybu contract (km/kontrakt)",
     )
-
-
-

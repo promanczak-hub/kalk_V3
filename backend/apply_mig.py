@@ -1,7 +1,9 @@
 import psycopg2
 import sys
 
-sql_file = r"d:\kalk_v3\supabase\migrations\20260319102400_update_similar_vehicles_scoring.sql"
+sql_file = (
+    r"d:\kalk_v3\supabase\migrations\20260319102400_update_similar_vehicles_scoring.sql"
+)
 print(f"Executing {sql_file}...")
 
 try:
@@ -15,7 +17,7 @@ try:
         host="aws-0-eu-central-1.pooler.supabase.com",
         port="6543",
         sslmode="require",
-        options="-c lock_timeout=5000"
+        options="-c lock_timeout=5000",
     )
     conn.autocommit = True
     with conn.cursor() as cur:

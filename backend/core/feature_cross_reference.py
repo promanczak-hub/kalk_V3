@@ -47,9 +47,7 @@ __all__ = [
 
 
 @lru_cache(maxsize=1)
-def _load_feature_catalog() -> (
-    tuple[tuple[str, ...], tuple[tuple[str, str], ...]]
-):
+def _load_feature_catalog() -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
     """Load feature keys and id map in a single DB query.
 
     Returns immutable tuples for lru_cache compatibility.
@@ -129,9 +127,7 @@ def wipe_vehicle_features(
 
     if not source_type:
         try:
-            sb.schema("reverse_search").table(
-                "vehicle_catalog_matches"
-            ).delete().eq(
+            sb.schema("reverse_search").table("vehicle_catalog_matches").delete().eq(
                 "source_vehicle_id", vehicle_id
             ).execute()
         except Exception as exc:
@@ -146,6 +142,7 @@ def wipe_vehicle_features(
 
     # Invalidate Redis cache for feature state
     from core.redis_cache import _get_client, _PREFIX
+
     client = _get_client()
     if client is not None:
         try:
@@ -198,22 +195,16 @@ def cross_reference_vehicle(
     vehicle_spec = _build_vehicle_spec(card_summary, synthesis)
 
     # 2. Load catalog variants (without mutating originals)
-    all_variants, variant_catalog_ids = _load_catalog_variants(
-        catalog_ids
-    )
+    all_variants, variant_catalog_ids = _load_catalog_variants(catalog_ids)
     if not all_variants:
-        return {
-            "error": "No ready variants found in selected catalogs"
-        }
+        return {"error": "No ready variants found in selected catalogs"}
 
     # 3. Load feature keys + ID map (single query, cached)
     feature_keys = _get_feature_keys()
     feature_id_map = _get_feature_id_map()
 
     # 4. LLM variant matching (or exact match bypass)
-    match_result = _perform_matching(
-        vehicle_spec, all_variants, feature_keys
-    )
+    match_result = _perform_matching(vehicle_spec, all_variants, feature_keys)
     if isinstance(match_result, dict):
         return match_result  # error dict
 
@@ -223,14 +214,10 @@ def cross_reference_vehicle(
     )
 
     # 6. Body parameter calculations (batch)
-    body_count = create_body_param_evidence(
-        vehicle_id, match_result, feature_id_map
-    )
+    body_count = create_body_param_evidence(vehicle_id, match_result, feature_id_map)
 
     # 7. Save audit trail (use catalog_id from variant)
-    matched_cat_id = _resolve_catalog_id(
-        match_result, variant_catalog_ids, catalog_ids
-    )
+    matched_cat_id = _resolve_catalog_id(match_result, variant_catalog_ids, catalog_ids)
     if matched_cat_id:
         save_catalog_match(vehicle_id, matched_cat_id, match_result)
 
@@ -287,7 +274,10 @@ def preview_catalog_features(
         return match_result
 
     # model_dump is pydantic v2
-    features_dicts = [f.model_dump() if hasattr(f, 'model_dump') else f.dict() for f in match_result.features]
+    features_dicts = [
+        f.model_dump() if hasattr(f, "model_dump") else f.dict()
+        for f in match_result.features
+    ]
 
     return {
         "status": "preview_ready",
@@ -307,12 +297,8 @@ def _build_vehicle_spec(
 ) -> dict[str, Any]:
     """Build vehicle spec dict from card_summary + synthesis."""
     return {
-        "brand": (
-            card_summary.get("brand") or synthesis.get("brand", "")
-        ),
-        "model": (
-            card_summary.get("model") or synthesis.get("model", "")
-        ),
+        "brand": (card_summary.get("brand") or synthesis.get("brand", "")),
+        "model": (card_summary.get("model") or synthesis.get("model", "")),
         "body_style": card_summary.get("body_style", ""),
         "powertrain": card_summary.get("powertrain", ""),
         "power_hp": card_summary.get("power_hp"),
@@ -350,9 +336,7 @@ def _load_catalog_variants(
             .execute()
         )
         if not cat_resp.data:
-            logger.warning(
-                "Catalog %s not found or not ready", cat_id
-            )
+            logger.warning("Catalog %s not found or not ready", cat_id)
             continue
 
         extracted = cat_resp.data[0].get("extracted_data") or {}
@@ -380,9 +364,7 @@ def _perform_matching(
 ) -> VariantMatchResult | dict[str, Any]:
     """Run exact + LLM matching. Returns result or error dict."""
 
-    exact_variant = find_exact_variant_match(
-        vehicle_spec, all_variants
-    )
+    exact_variant = find_exact_variant_match(vehicle_spec, all_variants)
 
     try:
         if exact_variant:

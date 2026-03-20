@@ -55,7 +55,9 @@ def get_samar_class_id(class_name: str) -> Optional[int]:
     import re
 
     # Usuwamy słowo KLASA i redukujemy spacje
-    c_name_norm = re.sub(r"\s+", " ", c_name).replace("KLASA ", "").replace("SAMAR: ", "")
+    c_name_norm = (
+        re.sub(r"\s+", " ", c_name).replace("KLASA ", "").replace("SAMAR: ", "")
+    )
     search_norm = c_name_norm.replace("-", " ").replace("(SUV)", "").strip()
 
     for db_name, db_id in _SAMAR_CACHE.items():
@@ -503,8 +505,6 @@ class SamarRVCalculator:
             self.data.body_type_id,
         )
 
-
-
     def fetch_vintage_correction(self) -> float:
         """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
         return fetch_vintage_correction_cached(self.data.rocznik)
@@ -543,7 +543,7 @@ class SamarRVCalculator:
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # V1 PARITY: Przeliczenia per se operowały na wartościach Netto.
-        # Cena Katalogowa "goła" (często z opcjami jako całość, wedle wejścia V1) 
+        # Cena Katalogowa "goła" (często z opcjami jako całość, wedle wejścia V1)
         # jest deprecjonowana przez tabele, ale Opcje starzały się OSOBNO ułamkowo.
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         base_netto = self.data.capex_base_net
@@ -555,7 +555,7 @@ class SamarRVCalculator:
         wr_base_pct = rates.get(0, {"base": 0.0})["base"]
         brand_correction = self._fetch_brand_correction()
         effective_pct = wr_base_pct + brand_correction
-        
+
         wr_value_netto = base_netto * effective_pct
 
         debug["krok1_wr_base_pct"] = wr_base_pct
@@ -571,7 +571,11 @@ class SamarRVCalculator:
         # W górę (od bazy do bieżącego = Delta -)
         v = wr_value_netto
         for yr in [3, 2, 1, 0]:
-            rate = rates.get(0, {"base": 0.0})["base"] if yr == 0 else rates.get(4 - yr, {"base": 0.0})["base"]
+            rate = (
+                rates.get(0, {"base": 0.0})["base"]
+                if yr == 0
+                else rates.get(4 - yr, {"base": 0.0})["base"]
+            )
             v = v * (1.0 + rate)
             value_table[yr] = v
 
@@ -582,7 +586,9 @@ class SamarRVCalculator:
             v = v * (1.0 - rate)
             value_table[yr] = v
 
-        debug["krok2_value_table_netto"] = {k: round(val, 2) for k, val in sorted(value_table.items())}
+        debug["krok2_value_table_netto"] = {
+            k: round(val, 2) for k, val in sorted(value_table.items())
+        }
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 3: Wybór WR bazy + Ręczne ułamkowe WR doposażenia
@@ -598,7 +604,7 @@ class SamarRVCalculator:
         else:
             divisor = 1.0 + years
             rv_options_netto = options_netto / divisor if divisor > 0 else options_netto
-        
+
         rv_total_netto = rv_base_netto + rv_options_netto
 
         debug["krok3_years"] = years
@@ -611,17 +617,19 @@ class SamarRVCalculator:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         under_rate, over_rate = self._fetch_mileage_corrections()
         # Odtwarzamy bezpiecznie sztywne progi V1 (parity)
-        # UWAGA: Usunięto ograniczenie max(..., 0) z przebieg_ponizej_190, aby obsłużyć "bonus" 
+        # UWAGA: Usunięto ograniczenie max(..., 0) z przebieg_ponizej_190, aby obsłużyć "bonus"
         # (redukcję kary) dla mniejszych przebiegów zgodnie z formułami V1.
-        
+
         przebieg_ponizej_190 = min(self.data.total_km, 190000) - 140000
         paczki_under = przebieg_ponizej_190 / 10000.0
-        
+
         przebieg_powyzej_190 = max(self.data.total_km - 190000, 0)
         paczki_over = przebieg_powyzej_190 / 10000.0
 
         # Excel podchodził do korekty używając całkowitej zsumowanej wartości WROkres
-        korekta_przebieg_netto = (under_rate * rv_total_netto * paczki_under) + (over_rate * rv_total_netto * paczki_over)
+        korekta_przebieg_netto = (under_rate * rv_total_netto * paczki_under) + (
+            over_rate * rv_total_netto * paczki_over
+        )
 
         debug["krok4_paczki_under"] = round(paczki_under, 2)
         debug["krok4_paczki_over"] = round(paczki_over, 2)
@@ -640,7 +648,10 @@ class SamarRVCalculator:
         body_value_netto = body_correction_pct * capex_total_netto
 
         rv_netto_pre_manual = (
-            rv_total_netto + color_value_netto + body_value_netto - korekta_przebieg_netto
+            rv_total_netto
+            + color_value_netto
+            + body_value_netto
+            - korekta_przebieg_netto
         )
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -652,7 +663,7 @@ class SamarRVCalculator:
         # Mnożnik za rocznik zawsze na samym końcu
         vintage_correction_pct = self.fetch_vintage_correction()
         final_rv_netto = rv_z_reczna_netto * (1.0 + vintage_correction_pct)
-        
+
         debug["krok5_color_netto"] = round(color_value_netto, 2)
         debug["krok5_body_netto"] = round(body_value_netto, 2)
         debug["krok6_manual_correction_netto"] = manual_correction_netto

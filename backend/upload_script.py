@@ -43,9 +43,7 @@ storage_path = f"{brand}/{model_family}/{doc_id}.{file_type}"
 print(f"Uploading to {storage_path}...")
 
 res = sb.storage.from_("catalog-documents").upload(
-    path=storage_path,
-    file=content,
-    file_options={"content-type": mime_type}
+    path=storage_path, file=content, file_options={"content-type": mime_type}
 )
 
 print(f"Upload to storage done: {res}")
@@ -66,7 +64,7 @@ row = {
     "variant_count": 0,
 }
 
-print(f"Inserting to model_document_sources...")
+print("Inserting to model_document_sources...")
 
 res2 = sb.table("model_document_sources").insert(row).execute()
 

@@ -29,9 +29,9 @@ def _build_from_v1(
     data: Dict[str, Any], brand: str | None, model: str | None, trim_level: str | None
 ) -> VehicleBrochureSchema:
     tech = data.get("technical_data") or {}
-    
+
     equipment_categories = []
-    
+
     # Kategoria: Wyposażenie standardowe
     std_eq = data.get("standard_equipment") or []
     for cat in std_eq:
@@ -63,11 +63,11 @@ def _build_from_v1(
     for pkg in packages:
         pkg_name = pkg.get("package_name") or "Pakiet"
         pkg_price = pkg.get("price")
-        
+
         cat_title = f"Pakiet: {pkg_name}"
         if pkg_price and float(pkg_price) > 0:
             cat_title += f" ({pkg_price} PLN)"
-            
+
         pkg_items = pkg.get("contents") or []
         if pkg_items:
             equipment_categories.append(
@@ -78,7 +78,7 @@ def _build_from_v1(
         brand=brand,
         model=model,
         trim_level=trim_level,
-        vehicle_class="Osobowy", # domyślnie v1 częściej były osobowe, brak jawnego pola w formacie
+        vehicle_class="Osobowy",  # domyślnie v1 częściej były osobowe, brak jawnego pola w formacie
         engine_description=tech.get("engine_type"),
         power_hp=tech.get("power_hp"),
         transmission=tech.get("transmission"),
@@ -118,7 +118,7 @@ def _build_from_v2(
         cat_name = opt.get("category", "Opcje dodatkowe")
         name = opt.get("name")
         price = opt.get("price")
-        
+
         if name:
             item_str = name
             # price is usually a string like '1500 PLN netto'
@@ -126,13 +126,14 @@ def _build_from_v2(
                 # Check if it has an actual number to avoid "0 PLN"
                 try:
                     import re
+
                     nums = re.findall(r"\d+", price)
                     if nums and int(nums[0]) > 0:
                         item_str = f"{name} ({price})"
                 except Exception:
                     item_str = f"{name} ({price})"
             opt_dict.setdefault(cat_name, []).append(item_str)
-            
+
     for cat_name, items in opt_dict.items():
         if items:
             equipment_categories.append(
@@ -141,7 +142,11 @@ def _build_from_v2(
 
     # Wymiary użytkowe
     utility = data.get("utility_features") or []
-    utility_items = [f"{u.get('name')}: {u.get('value')}" for u in utility if u.get("name") and u.get("value")]
+    utility_items = [
+        f"{u.get('name')}: {u.get('value')}"
+        for u in utility
+        if u.get("name") and u.get("value")
+    ]
     if utility_items:
         equipment_categories.append(
             BrochureEquipmentCategory(
@@ -160,10 +165,11 @@ def _build_from_v2(
     for u in utility:
         name = (u.get("name") or "").lower()
         val_str = (u.get("value") or "").lower()
-        
+
         # Ekstrakcja tylko cyfr dla typowych wymiarów
         try:
             import re
+
             nums = re.findall(r"\d+", val_str)
             if nums:
                 val_int = int(nums[0])

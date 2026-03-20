@@ -65,7 +65,7 @@ class FinanseResult:
     MarzaFinansowaProcent: float = 0.0
     WykupKwota: float = 0.0
     Oprocentowanie: float = 0.0
-    
+
     trace: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -175,23 +175,27 @@ class FinanseCalculator:
         # Czynsz netto
         czynsz_netto = self._resolve_czynsz_netto()
         czynsz_procent = (czynsz_netto / wp * 100.0) if wp > 0 else 0.0
-        
-        trace.append({
-            "krok": "Finanse: Czynsz Inicjalny Netto",
-            "rownanie": f"Tryb: {self.data.RodzajCzynszu} | Kwota Brut: {self.data.CzynszInicjalny:.2f} / VAT {self.data.StawkaVAT:.2f} LUB % z CAPEX ({self.data.CzynszProcent:.2f}% * {wp:.2f})",
-            "wynik": czynsz_netto
-        })
+
+        trace.append(
+            {
+                "krok": "Finanse: Czynsz Inicjalny Netto",
+                "rownanie": f"Tryb: {self.data.RodzajCzynszu} | Kwota Brut: {self.data.CzynszInicjalny:.2f} / VAT {self.data.StawkaVAT:.2f} LUB % z CAPEX ({self.data.CzynszProcent:.2f}% * {wp:.2f})",
+                "wynik": czynsz_netto,
+            }
+        )
 
         # Oprocentowanie = WIBOR + Marża (V1 L67)
         oprocentowanie = (
             self.data.WIBORProcent + self.data.MarzaFinansowaProcent
         ) / 100.0
-        
-        trace.append({
-            "krok": "Finanse: Oprocentowanie Zsumowane",
-            "rownanie": f"WIBOR {self.data.WIBORProcent:.4f}% + Marża {self.data.MarzaFinansowaProcent:.4f}%",
-            "wynik": oprocentowanie * 100.0
-        })
+
+        trace.append(
+            {
+                "krok": "Finanse: Oprocentowanie Zsumowane",
+                "rownanie": f"WIBOR {self.data.WIBORProcent:.4f}% + Marża {self.data.MarzaFinansowaProcent:.4f}%",
+                "wynik": oprocentowanie * 100.0,
+            }
+        )
 
         # --- Wariant Z CZYNSZEM (V1 L61, L71) ---
         wartosc_kredytu = wp - czynsz_netto
@@ -200,22 +204,26 @@ class FinanseCalculator:
         raty_z, suma_z, pmt_z = _get_raty(
             wartosc_kredytu, wykup_kwota, okres, oprocentowanie
         )
-        
-        trace.append({
-            "krok": "Finanse (Z Czynszem): Kredyt i PMT",
-            "rownanie": f"Kredyt: CAPEX {wp:.2f} - Czynsz {czynsz_netto:.2f} | Wykup: {wykup_kwota:.2f} | PMT -> Suma Odsetek = {suma_z:.2f}",
-            "wynik": pmt_z
-        })
+
+        trace.append(
+            {
+                "krok": "Finanse (Z Czynszem): Kredyt i PMT",
+                "rownanie": f"Kredyt: CAPEX {wp:.2f} - Czynsz {czynsz_netto:.2f} | Wykup: {wykup_kwota:.2f} | PMT -> Suma Odsetek = {suma_z:.2f}",
+                "wynik": pmt_z,
+            }
+        )
 
         # --- Wariant BEZ CZYNSZU (V1 L73) ---
         # V1: ten sam wykup_kwota, ale kredyt = pełne WP
         raty_bez, suma_bez, pmt_bez = _get_raty(wp, wykup_kwota, okres, oprocentowanie)
 
-        trace.append({
-            "krok": "Finanse (BEZ Czynszu): Kredyt i PMT",
-            "rownanie": f"Kredyt: CAPEX {wp:.2f} | Wykup: {wykup_kwota:.2f} | PMT -> Suma Odsetek = {suma_bez:.2f}",
-            "wynik": pmt_bez
-        })
+        trace.append(
+            {
+                "krok": "Finanse (BEZ Czynszu): Kredyt i PMT",
+                "rownanie": f"Kredyt: CAPEX {wp:.2f} | Wykup: {wykup_kwota:.2f} | PMT -> Suma Odsetek = {suma_bez:.2f}",
+                "wynik": pmt_bez,
+            }
+        )
 
         return FinanseResult(
             SumaOdsetekZczynszem=suma_z,

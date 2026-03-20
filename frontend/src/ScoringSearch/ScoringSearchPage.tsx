@@ -1,19 +1,13 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  Box, Paper, Typography, Divider, CircularProgress, Button, Tooltip,
-  Snackbar, Alert, LinearProgress,
+  Box, Paper, Typography, Divider, CircularProgress,
+  Snackbar, Alert
 } from '@mui/material';
-import CalculateIcon from '@mui/icons-material/Calculate';
 import { ScoringFilters } from './components/ScoringFilters';
 import { ScoringResults } from './components/ScoringResults';
 import type { SelectedFeature, SearchContext, ScoredVehicle } from './types';
 
-interface CacheProgress {
-  total: number;
-  done: number;
-  current_vehicle: string | null;
-  status: 'running' | 'done' | 'unknown';
-}
+
 
 export const ScoringSearchPage: React.FC = () => {
   const [searchContext, setSearchContext] = useState<SearchContext>({
@@ -37,24 +31,12 @@ export const ScoringSearchPage: React.FC = () => {
   const [searchResults, setSearchResults] = useState<ScoredVehicle[]>([]);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
-  // ── Progress tracking ──
-  const [cacheProgress, setCacheProgress] = useState<CacheProgress | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-  }, []);
 
   // Clean up on unmount
   useEffect(() => () => {
-    stopPolling();
     if (debounceRef.current) clearTimeout(debounceRef.current);
-  }, [stopPolling]);
+  }, []);
 
   // ── Auto-search with debounce on every filter change ──
   // Stringify only the fields that affect results to avoid reference churn
@@ -71,56 +53,7 @@ export const ScoringSearchPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKey]);
 
-  const startPolling = useCallback(async (jobId: string) => {
-    stopPolling();
-    const { apiFetch } = await import('../lib/api');
 
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await apiFetch(`/api/scoring-search/cache/progress/${jobId}`);
-        if (!res.ok) return;
-        const data: CacheProgress = await res.json();
-        setCacheProgress(data);
-
-        if (data.status === 'done') {
-          stopPolling();
-          setIsRefreshing(false);
-          setSnackbarMessage(`Przeliczono ${data.total} pojazdów. Wyszukaj ponownie, aby zobaczyć wyniki.`);
-          // Clear progress bar after 3s
-          setTimeout(() => setCacheProgress(null), 3000);
-        }
-      } catch {
-        // Ignore polling errors (backend may be busy)
-      }
-    }, 2000);
-  }, [stopPolling]);
-
-  const handleRefreshMissing = async () => {
-    setIsRefreshing(true);
-    setCacheProgress(null);
-    try {
-      const { apiFetch } = await import('../lib/api');
-      const res = await apiFetch('/api/scoring-search/cache/refresh-missing', {
-        method: 'POST'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSnackbarMessage(data.message);
-        if (data.job_id) {
-          startPolling(data.job_id);
-        } else {
-          // No missing vehicles → no polling needed
-          setIsRefreshing(false);
-        }
-      } else {
-        setSnackbarMessage("Wystąpił błąd podczas uruchamiania kalkulacji.");
-        setIsRefreshing(false);
-      }
-    } catch {
-      setSnackbarMessage("Wystąpił błąd sieci podczas uruchamiania kalkulacji.");
-      setIsRefreshing(false);
-    }
-  };
 
   // Function to execute the search
   const handleSearch = async () => {
@@ -208,9 +141,7 @@ export const ScoringSearchPage: React.FC = () => {
     }
   };
 
-  const progressPct = cacheProgress && cacheProgress.total > 0
-    ? Math.round((cacheProgress.done / cacheProgress.total) * 100)
-    : 0;
+
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, height: { md: 'calc(100vh - 120px)' } }}>
@@ -245,46 +176,7 @@ export const ScoringSearchPage: React.FC = () => {
               <Typography variant="h6">Wyniki Dopasowania ({searchResults.length})</Typography>
               {isSearching && <CircularProgress size={24} />}
             </Box>
-            <Tooltip title="Przelicz w tle pojazdy bez wygenerowanej macierzy cen">
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={isRefreshing ? <CircularProgress size={16} /> : <CalculateIcon />}
-                  onClick={handleRefreshMissing}
-                  disabled={isSearching || isRefreshing}
-                >
-                  {isRefreshing ? 'Przeliczanie…' : 'Przelicz braki (LTR)'}
-                </Button>
-              </span>
-            </Tooltip>
           </Box>
-
-          {/* ── Progress Bar ── */}
-          {cacheProgress && cacheProgress.status === 'running' && (
-            <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="caption" color="textSecondary">
-                  Przeliczanie pojazdów: {cacheProgress.done} / {cacheProgress.total}
-                </Typography>
-                <Typography variant="caption" fontWeight={600} color="primary">
-                  {progressPct}%
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={progressPct}
-                sx={{ height: 6, borderRadius: 3 }}
-              />
-            </Box>
-          )}
-          {cacheProgress && cacheProgress.status === 'done' && (
-            <Box sx={{ px: 2, py: 1, bgcolor: 'success.light' }}>
-              <Typography variant="caption" color="success.contrastText" fontWeight={600}>
-                ✓ Przeliczono {cacheProgress.total} pojazdów — wyszukaj ponownie
-              </Typography>
-            </Box>
-          )}
 
           <Box sx={{ p: 2, flexGrow: 1, overflowY: 'auto', bgcolor: 'background.default' }}>
             <ScoringResults results={searchResults} loading={isSearching} searchContext={searchContext} />

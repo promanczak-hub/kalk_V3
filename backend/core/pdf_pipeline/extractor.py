@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class PDFExtractor:
     """Class responsible for hybrid extraction of PDF content: Native bytes + PyMuPDF4LLM Markdown."""
 
@@ -11,15 +12,15 @@ class PDFExtractor:
 
     def extract_hybrid(self, pdf_path: str | Path) -> tuple[str, bytes]:
         """
-        Reads a given PDF file and returns both its raw bytes (for Vision processing) 
+        Reads a given PDF file and returns both its raw bytes (for Vision processing)
         and its Markdown representation (for table structure context).
-        
+
         Args:
             pdf_path: Path to the PDF file.
-            
+
         Returns:
             A tuple of (markdown_content, pdf_bytes).
-            
+
         Raises:
             FileNotFoundError: If the provided path does not exist.
         """
@@ -32,17 +33,20 @@ class PDFExtractor:
 
         try:
             import pymupdf4llm
+
             # 1. Wyciągnięcie strukturalnego tekstu (Markdown) przy użyciu pymupdf4llm (bez OCR)
             markdown_content = pymupdf4llm.to_markdown(str(path_obj))
-            
-            logger.info(f"Ekstrakcja pymupdf4llm zakończona wygenerowaniem {len(markdown_content)} znaków tekstu.")
-            
+
+            logger.info(
+                f"Ekstrakcja pymupdf4llm zakończona wygenerowaniem {len(markdown_content)} znaków tekstu."
+            )
+
             # 2. Odczyt surowych bajtów do wysyłki graficznej
             with open(path_obj, "rb") as f:
                 pdf_bytes = f.read()
-                
+
             return markdown_content, pdf_bytes
-            
+
         except Exception as e:
             logger.error(f"Błąd podczas analizy hybrydowej pliku PDF: {str(e)}")
             raise

@@ -18,18 +18,31 @@ logger = logging.getLogger(__name__)
 
 DIMENSION_ALIASES: dict[str, set[str]] = {
     "length_mm": {
-        "dlugosc", "długość", "length", "cargo_length",
+        "dlugosc",
+        "długość",
+        "length",
+        "cargo_length",
     },
     "width_mm": {
-        "szerokosc", "szerokość", "width", "cargo_width",
+        "szerokosc",
+        "szerokość",
+        "width",
+        "cargo_width",
     },
     "height_mm": {
-        "wysokosc", "wysokość", "height", "cargo_height",
+        "wysokosc",
+        "wysokość",
+        "height",
+        "cargo_height",
     },
 }
 
 OVERALL_MARKERS: set[str] = {
-    "overall", "calkowit", "całkowit", "zewn", "total",
+    "overall",
+    "calkowit",
+    "całkowit",
+    "zewn",
+    "total",
 }
 
 MIN_MAPPING_CONFIDENCE = 0.90
@@ -88,9 +101,7 @@ def create_evidence_batch(
             "source_type": source_type,
             "evidence_status": "observed",
             "confidence": feat.mapping_confidence,
-            "source_text": (
-                f"Cross-ref: {match_result.matched_variant_name}"
-            ),
+            "source_text": (f"Cross-ref: {match_result.matched_variant_name}"),
         }
         if feat.value_bool is not None:
             evidence["value_bool"] = feat.value_bool
@@ -107,9 +118,7 @@ def create_evidence_batch(
         return 0
 
     try:
-        sb_client.schema("reverse_search").table(
-            "vehicle_feature_evidence"
-        ).upsert(
+        sb_client.schema("reverse_search").table("vehicle_feature_evidence").upsert(
             evidence_batch,
             on_conflict="source_vehicle_id,feature_id,source_type",
         ).execute()
@@ -199,24 +208,24 @@ def create_body_param_evidence(
         if not feat_id:
             continue
 
-        evidence_batch.append({
-            "source_vehicle_id": vehicle_id,
-            "feature_id": feat_id,
-            "source_type": "body_parameters",
-            "evidence_status": "observed",
-            "value_num": float(value),
-            "unit": unit,
-            "confidence": 0.99,
-            "source_text": "Calculated from catalog dimensions",
-        })
+        evidence_batch.append(
+            {
+                "source_vehicle_id": vehicle_id,
+                "feature_id": feat_id,
+                "source_type": "body_parameters",
+                "evidence_status": "observed",
+                "value_num": float(value),
+                "unit": unit,
+                "confidence": 0.99,
+                "source_text": "Calculated from catalog dimensions",
+            }
+        )
 
     if not evidence_batch:
         return 0
 
     try:
-        sb_client.schema("reverse_search").table(
-            "vehicle_feature_evidence"
-        ).upsert(
+        sb_client.schema("reverse_search").table("vehicle_feature_evidence").upsert(
             evidence_batch,
             on_conflict="source_vehicle_id,feature_id,source_type",
         ).execute()
@@ -240,15 +249,11 @@ def save_catalog_match(
 ) -> None:
     """Save cross-reference match to audit table."""
     try:
-        sb_client.schema("reverse_search").table(
-            "vehicle_catalog_matches"
-        ).upsert(
+        sb_client.schema("reverse_search").table("vehicle_catalog_matches").upsert(
             {
                 "source_vehicle_id": vehicle_id,
                 "catalog_source_id": catalog_id,
-                "matched_variant_name": (
-                    match_result.matched_variant_name
-                ),
+                "matched_variant_name": (match_result.matched_variant_name),
                 "match_confidence": match_result.confidence,
             },
             on_conflict="source_vehicle_id,catalog_source_id",

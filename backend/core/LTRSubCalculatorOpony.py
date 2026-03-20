@@ -54,7 +54,6 @@ class LTRSubCalculatorOpony:
             else:
                 self.vat_rate = 1.23
 
-
             # Hardware cost base from DB (price per set / komplet)
             self.tire_set_price_base = self._fetch_tire_cost()
 
@@ -90,7 +89,9 @@ class LTRSubCalculatorOpony:
                     # In DB these seem to be strings like '120' or '216'
                     return float(str(val).replace(",", "."))
         except Exception as e:
-            raise ValueError(f"Błąd bazy danych przy pobieraniu parametru globalnego {param_name}: {e}") from e
+            raise ValueError(
+                f"Błąd bazy danych przy pobieraniu parametru globalnego {param_name}: {e}"
+            ) from e
 
         raise ValueError(
             f"Brak parametru globalnego '{param_name}' w tabeli LTRAdminParametry_czak. "
@@ -135,7 +136,6 @@ class LTRSubCalculatorOpony:
             logger.error(f"Error fetching tyre_configurations: {e}")
 
         return defaults
-
 
     def _read_required_config(self, key: str) -> float:
         """Zwraca wymagany parametr z tyre_configurations (bez hardcode fallbacku)."""
@@ -189,7 +189,7 @@ class LTRSubCalculatorOpony:
         """Pobiera historyczną cenę kompletu opon dla marki 'Budżet' (V1)."""
         if not self.srednica_felgi:
             return 0.0
-        
+
         budget_col = "wielosezon_budget" if self.all_season else "budget"
         try:
             response = (
@@ -212,7 +212,7 @@ class LTRSubCalculatorOpony:
         """Pobiera historyczną cenę odkupu opon z tabeli (V1: zmniejsza ogólny koszt netto)."""
         if not self.srednica_felgi or not self.z_oponami or not self.odkup_opon_enabled:
             return 0.0
-        
+
         # W V1 odkup by połączony z cennikiem i opierał się na średnicy o rozmiarze
         try:
             response = (
@@ -228,9 +228,11 @@ class LTRSubCalculatorOpony:
                 if val is not None:
                     return float(val)
         except Exception as e:
-            logger.error(f"Error fetching Odkup Opon for size {self.srednica_felgi}: {e}")
+            logger.error(
+                f"Error fetching Odkup Opon for size {self.srednica_felgi}: {e}"
+            )
             pass
-            
+
         return 0.0
 
     def _get_sets_needed(self, total_km: int) -> float:
@@ -275,13 +277,19 @@ class LTRSubCalculatorOpony:
             if total_km < base_limit:
                 return self.tire_set_price
             else:
-                return self.tire_set_price + ((total_km - base_limit) / base_limit) * self.tire_set_price
+                return (
+                    self.tire_set_price
+                    + ((total_km - base_limit) / base_limit) * self.tire_set_price
+                )
         else:
             base_limit = t.get("season_threshold_1", 120000)
             if total_km < base_limit:
                 return self.tire_set_price
             else:
-                return self.tire_set_price + ((total_km - base_limit) / 60000.0) * self.tire_set_price
+                return (
+                    self.tire_set_price
+                    + ((total_km - base_limit) / 60000.0) * self.tire_set_price
+                )
 
     def calculate_cost(self, months: int, total_km: int) -> Dict[str, Any]:
         """Kalkuluje techniczne koszty opon dla danego wariantu.
@@ -292,11 +300,13 @@ class LTRSubCalculatorOpony:
         trace: list[dict[str, Any]] = []
 
         if not self.z_oponami:
-            trace.append({
-                "krok": "Opony (Wyłączone)",
-                "rownanie": "z_oponami = False",
-                "wynik": 0.0
-            })
+            trace.append(
+                {
+                    "krok": "Opony (Wyłączone)",
+                    "rownanie": "z_oponami = False",
+                    "wynik": 0.0,
+                }
+            )
             return {
                 "OponyNetto": 0.0,
                 "Koszt1KplOpon": 0.0,
@@ -307,7 +317,7 @@ class LTRSubCalculatorOpony:
                 "monthly_storage": 0.0,
                 "monthly_swaps": 0.0,
                 "monthly_hardware": 0.0,
-                "trace": trace
+                "trace": trace,
             }
 
         if months <= 0:
@@ -326,16 +336,24 @@ class LTRSubCalculatorOpony:
                 "monthly_storage": 0.0,
                 "monthly_swaps": 0.0,
                 "monthly_hardware": 0.0,
-                "trace": [{"krok": "Opony (Całość)", "rownanie": "Moduł Wyłączony (0 kompletów)", "wynik": 0.0}]
+                "trace": [
+                    {
+                        "krok": "Opony (Całość)",
+                        "rownanie": "Moduł Wyłączony (0 kompletów)",
+                        "wynik": 0.0,
+                    }
+                ],
             }
 
         total_hw_cost = self._get_total_hardware_cost(total_km, sets_needed)
 
-        trace.append({
-            "krok": "Zużycie Opon (Sprzęt)",
-            "rownanie": f"Cena 1 kpl: {self.tire_set_price:.2f} PLN. Wymagane kpl: {sets_needed:.2f} (zależne od przebiegu: {total_km} km)",
-            "wynik": total_hw_cost
-        })
+        trace.append(
+            {
+                "krok": "Zużycie Opon (Sprzęt)",
+                "rownanie": f"Cena 1 kpl: {self.tire_set_price:.2f} PLN. Wymagane kpl: {sets_needed:.2f} (zależne od przebiegu: {total_km} km)",
+                "wynik": total_hw_cost,
+            }
+        )
 
         swaps_total = 0.0
         storage_total = 0.0
@@ -343,33 +361,41 @@ class LTRSubCalculatorOpony:
         if self.all_season:
             swaps_total = math.ceil(total_km / 60000.0) * self.swap_cost
             storage_total = 0.0
-            trace.append({
-                "krok": "Opony Wielosezonowe: Przekładki",
-                "rownanie": f"MATH.CEIL({total_km} km / 60000) * {self.swap_cost:.2f} PLN",
-                "wynik": swaps_total
-            })
+            trace.append(
+                {
+                    "krok": "Opony Wielosezonowe: Przekładki",
+                    "rownanie": f"MATH.CEIL({total_km} km / 60000) * {self.swap_cost:.2f} PLN",
+                    "wynik": swaps_total,
+                }
+            )
         else:
             swaps_total = self.swap_cost * years * 2
             storage_total = self.storage_cost_per_year * years * 2
-            trace.append({
-                "krok": "Opony Sezonowe: Przekładki",
-                "rownanie": f"Złożoność: {self.swap_cost:.2f} PLN * {years:.2f} lat * 2 sezony",
-                "wynik": swaps_total
-            })
-            trace.append({
-                "krok": "Opony Sezonowe: Przechowywanie",
-                "rownanie": f"Koszt z bazy: {self.storage_cost_per_year:.2f} PLN * {years:.2f} lat * 2 sezony",
-                "wynik": storage_total
-            })
+            trace.append(
+                {
+                    "krok": "Opony Sezonowe: Przekładki",
+                    "rownanie": f"Złożoność: {self.swap_cost:.2f} PLN * {years:.2f} lat * 2 sezony",
+                    "wynik": swaps_total,
+                }
+            )
+            trace.append(
+                {
+                    "krok": "Opony Sezonowe: Przechowywanie",
+                    "rownanie": f"Koszt z bazy: {self.storage_cost_per_year:.2f} PLN * {years:.2f} lat * 2 sezony",
+                    "wynik": storage_total,
+                }
+            )
 
         # W V1 świadomym zabiegiem było to, że opony w CAPEX generowały tylko koszt odsetkowy
         # a całe zużycie/koszt sprzętu opon wędrował do czynszu technicznego (OponyNetto)
         capex_initial = self.tire_set_price
-        trace.append({
-            "krok": "Opony: Preshift do CAPEX (Initial Set)",
-            "rownanie": f"Dodanie kwoty do raty finansowej (leasingowej): {self.tire_set_price:.2f} PLN",
-            "wynik": capex_initial
-        })
+        trace.append(
+            {
+                "krok": "Opony: Preshift do CAPEX (Initial Set)",
+                "rownanie": f"Dodanie kwoty do raty finansowej (leasingowej): {self.tire_set_price:.2f} PLN",
+                "wynik": capex_initial,
+            }
+        )
 
         # Zgodnie z anomalią V1 - sprzęt wrzucony do CAPEX NIE był pomniejszany
         # w kosztach technicznych (czynszu). Zostało to odtworzone dla parity.
@@ -377,22 +403,26 @@ class LTRSubCalculatorOpony:
 
         odkup_kwota = self.odkup_opon_cost
         if odkup_kwota > 0:
-            trace.append({
-                "krok": "Odkup Opon (Polisa na Resztę)",
-                "rownanie": f"Wartość odkupu ściągnięta z tabeli bazy danych {odkup_kwota:.2f} PLN",
-                "wynik": -odkup_kwota
-            })
+            trace.append(
+                {
+                    "krok": "Odkup Opon (Polisa na Resztę)",
+                    "rownanie": f"Wartość odkupu ściągnięta z tabeli bazy danych {odkup_kwota:.2f} PLN",
+                    "wynik": -odkup_kwota,
+                }
+            )
 
         # V1 parity: oponyNetto = lacznyKosztOpon + przekladki + przechowywanie - odkupOpon
         wynik_netto = remaining_hw_cost + swaps_total + storage_total - odkup_kwota
         if wynik_netto < 0.0:
             wynik_netto = 0.0
 
-        trace.append({
-            "krok": "Koszty Techniczne Opon (SUMA)",
-            "rownanie": f"{remaining_hw_cost:.2f} (Hardware) + {swaps_total:.2f} (Przekładki) + {storage_total:.2f} (Hotel) - {odkup_kwota:.2f} (Odkup)",
-            "wynik": wynik_netto
-        })
+        trace.append(
+            {
+                "krok": "Koszty Techniczne Opon (SUMA)",
+                "rownanie": f"{remaining_hw_cost:.2f} (Hardware) + {swaps_total:.2f} (Przekładki) + {storage_total:.2f} (Hotel) - {odkup_kwota:.2f} (Odkup)",
+                "wynik": wynik_netto,
+            }
+        )
 
         return {
             "OponyNetto": wynik_netto,
@@ -404,5 +434,5 @@ class LTRSubCalculatorOpony:
             "monthly_storage": storage_total / months,
             "monthly_swaps": swaps_total / months,
             "monthly_hardware": remaining_hw_cost / months,
-            "trace": trace
+            "trace": trace,
         }

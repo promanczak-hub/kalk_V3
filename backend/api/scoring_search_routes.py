@@ -3,18 +3,16 @@
 import hashlib
 import json
 import logging
-import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, cast
+
+from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from celery.result import AsyncResult
 
 from core.database import supabase
-from core.matrix_cache_job import calculate_live_ltr_tile
 from core.celery_app import celery_app
-from tasks.matrix_tasks import process_matrix_refresh_task
 from core.models_scoring_search import (
     AvailableFiltersRequest,
     ScoringSearchRequest,
@@ -26,7 +24,10 @@ from core.models_scoring_search import (
     TrimsAndOptionsResponse,
     OptionItem,
     PriceForParamsResponse,
+    SimilarBatchRequest,
+    SimilarBatchResponse,
 )
+from typing import List, Dict
 from core.redis_cache import (
     _get_client,
     _PREFIX,
@@ -38,12 +39,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["scoring_search"])
 
 # ── TTL constants ──────────────────────────────────────────────────────────────
-_TTL_INITIAL_DATA = 3600   # 1 hour  — changes only when vehicles are added
-_TTL_FILTERS = 300         # 5 min   — depends on vehicle DB state
-_TTL_SEARCH = 120          # 2 min   — user results; short enough to stay fresh
+_TTL_INITIAL_DATA = 3600  # 1 hour  — changes only when vehicles are added
+_TTL_FILTERS = 300  # 5 min   — depends on vehicle DB state
+_TTL_SEARCH = 120  # 2 min   — user results; short enough to stay fresh
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _redis_get(key: str) -> Any | None:
     """Safe Redis GET — returns None on any error."""
@@ -75,6 +77,7 @@ def _params_hash(payload: str) -> str:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @router.post("/scoring-search/available-filters")
 def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
     """Get dynamic facets (enums, ranges) generated directly from DB evidence."""
@@ -95,8 +98,8 @@ def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
                 "p_models": request.models,
                 "p_body_types": request.body_types,
                 "p_samar_class_ids": request.samar_class_ids,
-                "p_current_filters": request.current_filters or {}
-            }
+                "p_current_filters": request.current_filters or {},
+            },
         ).execute()
 
         result: dict[str, Any] = resp.data or {}
@@ -119,7 +122,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
     if cached is not None:
         logger.debug("Cache HIT: search [%s]", params_hash)
         matches = [ScoringSearchMatch(**row) for row in cached["results_raw"]]
-        page_results = matches[request.offset:request.offset + request.limit]
+        page_results = matches[request.offset : request.offset + request.limit]
         return ScoringSearchResponse(results=page_results, total_count=cached["total"])
 
     sb = supabase
@@ -133,8 +136,8 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 "p_models": request.models,
                 "p_samar_class_ids": request.samar_class_ids,
                 "p_trims": request.trims,
-                "p_requirements": req_list
-            }
+                "p_requirements": req_list,
+            },
         ).execute()
 
         all_matches = [ScoringSearchMatch(**row) for row in resp.data]
@@ -146,7 +149,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             _TTL_SEARCH,
         )
 
-        page_results = all_matches[request.offset:request.offset + request.limit]
+        page_results = all_matches[request.offset : request.offset + request.limit]
         return ScoringSearchResponse(results=page_results, total_count=len(all_matches))
     except Exception as e:
         logger.exception("Error calling rpc_reverse_search: %s", e)
@@ -176,7 +179,9 @@ def get_initial_data() -> InitialDataResponse:
         )
 
 
-@router.post("/scoring-search/trims-and-options", response_model=TrimsAndOptionsResponse)
+@router.post(
+    "/scoring-search/trims-and-options", response_model=TrimsAndOptionsResponse
+)
 def get_trims_and_options(request: TrimsAndOptionsRequest) -> TrimsAndOptionsResponse:
     """Get available trim levels and option lists for a given brands/models selection."""
     params_hash = _params_hash(request.model_dump_json())
@@ -200,7 +205,9 @@ def get_trims_and_options(request: TrimsAndOptionsRequest) -> TrimsAndOptionsRes
         data: dict = resp.data or {}
         result = TrimsAndOptionsResponse(
             trim_levels=[OptionItem(**i) for i in data.get("trim_levels", [])],
-            standard_options=[OptionItem(**i) for i in data.get("standard_options", [])],
+            standard_options=[
+                OptionItem(**i) for i in data.get("standard_options", [])
+            ],
             paid_options=[OptionItem(**i) for i in data.get("paid_options", [])],
         )
         _redis_set(cache_key, result.model_dump(), _TTL_FILTERS)
@@ -219,10 +226,7 @@ def refresh_derived_features(vehicle_id: str) -> dict[str, Any]:
     try:
         sb.rpc(
             "rpc_refresh_vehicle_features",
-            {
-                "p_vehicle_id": vehicle_id,
-                "p_bundle_id": None
-            }
+            {"p_vehicle_id": vehicle_id, "p_bundle_id": None},
         ).execute()
 
         return {"status": "success", "vehicle_id": vehicle_id}
@@ -252,8 +256,8 @@ def get_similar_vehicles(
                 "p_vehicle_id": vehicle_id,
                 "p_limit": limit,
                 "p_duration_months": duration_months,
-                "p_annual_mileage": annual_mileage
-            }
+                "p_annual_mileage": annual_mileage,
+            },
         ).execute()
 
         if not resp.data:
@@ -267,6 +271,220 @@ def get_similar_vehicles(
         )
 
 
+@router.post(
+    "/scoring-search/cache/batch-similar",
+    response_model=SimilarBatchResponse,
+)
+def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse:
+    """Return similar vehicles for multiple vehicle IDs in one DB query."""
+    sb = supabase
+    try:
+        if not req.vehicle_ids:
+            return SimilarBatchResponse(results={})
+
+        response = sb.rpc(
+            "rpc_get_similar_vehicles_batch",
+            {
+                "p_vehicle_ids": req.vehicle_ids,
+                "p_limit": req.limit,
+                "p_duration_months": req.duration_months,
+                "p_annual_mileage": req.annual_mileage,
+            },
+        ).execute()
+
+        results: dict[str, list[SimilarVehicleMatch]] = {vid: [] for vid in req.vehicle_ids}
+        
+        if response.data:
+            from typing import cast, Any
+            rows = cast(list[dict[str, Any]], response.data)
+            for row in rows:
+                source_id = str(row.pop("source_vehicle_id"))
+                # Map the RPC return columns to SimilarVehicleMatch fields
+                match = SimilarVehicleMatch(
+                    vehicle_id=str(row.get("v_id")),
+                    brand=str(row.get("brand")) if row.get("brand") else None,
+                    model=str(row.get("model")) if row.get("model") else None,
+                    version=str(row.get("version")) if row.get("version") else None,
+                    samar_category=str(row.get("samar_category")) if row.get("samar_category", row.get("v_samar")) else None,
+                    fuel=str(row.get("fuel")) if row.get("fuel", row.get("v_fuel")) else None,
+                    transmission=str(row.get("transmission")) if row.get("transmission", row.get("v_transmission")) else None,
+                    best_monthly_price=float(row.get("min_price")) if row.get("min_price") is not None else None,
+                    image_url=str(row.get("v_image")) if row.get("v_image") else None,
+                    similarity_score_pct=float(row.get("similarity_score_pct")) if row.get("similarity_score_pct") is not None else None,
+                )
+                
+                if source_id in results:
+                    results[source_id].append(match)
+
+        return SimilarBatchResponse(results=results)
+    except Exception as e:
+        logger.exception("Error calling rpc_get_similar_vehicles_batch: %s", e)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch batch similar vehicles: {e}"
+        )
+
+
+
+class BatchPricesRequest(BaseModel):
+    vehicle_ids: List[str]
+    duration_months: int
+    annual_mileage: int
+    margin: float = 0.0
+    discount_mode: str = "custom"  # 'catalog', 'offer', 'custom'
+    custom_discount_pct: float = 0.0
+
+
+class VehiclePrices(BaseModel):
+    price_for_params: PriceForParamsResponse | None = None
+    variants: List[PriceForParamsResponse] = []
+
+
+class BatchPricesResponse(BaseModel):
+    prices: Dict[str, VehiclePrices]
+
+
+@router.post(
+    "/scoring-search/cache/batch-prices",
+    response_model=BatchPricesResponse,
+)
+async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
+    """Return LTR prices and variants for multiple vehicles based exclusively on historical calculations."""
+    sb = supabase
+    try:
+        if not req.vehicle_ids:
+            return BatchPricesResponse(prices={})
+
+        # Fetch all matrix cache entries for the requested vehicles
+        # IMPORTANT: Supabase default limit = 1000 rows; 42 vehicles × ~29 variants = ~1218 rows → must raise limit
+        resp = (
+            sb.table("vehicle_matrix_cache")
+            .select("vehicle_id, kalkulacja_id, duration_months, annual_mileage, monthly_price_net, tire_class, service_type, calculated_at")
+            .in_("vehicle_id", req.vehicle_ids)
+            .limit(10000)
+            .execute()
+        )
+        all_rows = resp.data or []
+        
+        # Group by vehicle_id
+        from collections import defaultdict
+        
+        v_map = defaultdict(list)
+        for r in all_rows:
+            v_map[r["vehicle_id"]].append(r)
+
+        results = {}
+
+        for vid in req.vehicle_ids:
+            v_prices = VehiclePrices(price_for_params=None, variants=[])
+            v_rows_all = v_map.get(vid, [])
+
+            if not v_rows_all:
+                v_prices.price_for_params = PriceForParamsResponse(
+                    vehicle_id=vid, found=False
+                )
+                results[vid] = v_prices
+                continue
+
+            # Group by kalkulacja_id to find the latest
+            calc_map = defaultdict(list)
+            kalk_times = {}
+            for r in v_rows_all:
+                kid = r.get("kalkulacja_id")
+                # Fallback to empty string if no kalkulacja_id to group legacy
+                kid_str = kid if kid else ""
+                calc_map[kid_str].append(r)
+                if r.get("calculated_at"):
+                    dt = datetime.fromisoformat(r["calculated_at"].replace("Z", "+00:00"))
+                    if kid_str not in kalk_times or dt > kalk_times[kid_str]:
+                        kalk_times[kid_str] = dt
+            
+            # Find the latest kalkulacja_id
+            latest_kid = None
+            if kalk_times:
+                latest_kid = max(kalk_times, key=kalk_times.get)
+            else:
+                latest_kid = list(calc_map.keys())[0]
+
+            variants_count = len(calc_map)
+            latest_rows = calc_map[latest_kid]
+            
+            # Find exact match
+            exact_match = next(
+                (
+                    r for r in latest_rows
+                    if r["duration_months"] == req.duration_months
+                    and r["annual_mileage"] == req.annual_mileage
+                ),
+                None,
+            )
+            
+            best_match = exact_match
+            if not best_match:
+                # Fallback to closest
+                def distance(r: dict) -> float:
+                    return abs(r["duration_months"] - req.duration_months) * 10000 + abs(r["annual_mileage"] - req.annual_mileage)
+
+                best_match = min(latest_rows, key=distance)
+                
+            display_price = float(best_match["monthly_price_net"] or 0) / (
+                1.0 - (req.margin / 100.0)
+            )
+            
+            v_prices.price_for_params = PriceForParamsResponse(
+                vehicle_id=vid,
+                duration_months=best_match["duration_months"],
+                annual_mileage=best_match["annual_mileage"],
+                monthly_price_net=round(display_price, 2),
+                calculated_at=best_match.get("calculated_at"),
+                found=True,
+                variants_count=variants_count,
+                tire_class=best_match.get("tire_class"),
+                service_type=best_match.get("service_type"),
+                kalkulacja_id=best_match.get("kalkulacja_id")
+            )
+            
+            # Process variants for the latest calculation
+            # We want ONE row per kalkulacja_id that matches the passed duration/mileage
+            variant_responses = []
+            for kid, rows in calc_map.items():
+                if kid == latest_kid:
+                    continue  # already the main price
+
+                kid_match = next(
+                    (r for r in rows if r["duration_months"] == req.duration_months and r["annual_mileage"] == req.annual_mileage),
+                    None
+                )
+                
+                if kid_match:
+                    variant_responses.append(
+                        PriceForParamsResponse(
+                            vehicle_id=vid,
+                            duration_months=kid_match["duration_months"],
+                            annual_mileage=kid_match["annual_mileage"],
+                            monthly_price_net=round(
+                                float(kid_match["monthly_price_net"]) / (1.0 - (req.margin / 100.0)), 2
+                            ) if kid_match.get("monthly_price_net") else 0.0,
+                            calculated_at=kid_match.get("calculated_at"),
+                            found=True,
+                            variants_count=variants_count,
+                            tire_class=kid_match.get("tire_class"),
+                            service_type=kid_match.get("service_type"),
+                            kalkulacja_id=kid_match.get("kalkulacja_id")
+                        )
+                    )
+            
+            # Sort variants by calculated_at descending
+            variant_responses.sort(key=lambda x: x.calculated_at or "", reverse=True)
+            v_prices.variants = variant_responses
+
+            results[vid] = v_prices
+
+        return BatchPricesResponse(prices=results)
+    except Exception as e:
+        logger.exception("Error in get_batch_prices: %s", e)
+        raise HTTPException(status_code=500, detail=f"Batch prices failed: {e}")
+
+
 @router.get(
     "/scoring-search/vehicle/{vehicle_id}/price-for-params",
     response_model=PriceForParamsResponse,
@@ -276,94 +494,88 @@ async def get_price_for_params(
     duration_months: int,
     annual_mileage: int,
     margin: float = 0.0,
+    discount_mode: str = "catalog",
+    custom_discount_pct: float = 0.0,
 ) -> PriceForParamsResponse:
-    """Return the LTR price tile closest to the requested duration/mileage."""
+    """Return the LTR price tile based exclusively on historical cache."""
     sb = supabase
     try:
-        # 1. Get Control Center Settings for timestamp check
-        settings_response = sb.table("control_center").select("*").eq("id", 1).execute()
-        last_settings_update = None
-        if settings_response.data:
-            cc_data = settings_response.data[0]
-            last_settings_update_str = cc_data.get("last_settings_update")
-            if last_settings_update_str:
-                last_settings_update = datetime.fromisoformat(last_settings_update_str.replace("Z", "+00:00"))
-
-        # 2. Check cache
         resp = (
             sb.table("vehicle_matrix_cache")
-            .select("duration_months, annual_mileage, monthly_price_net, calculated_at")
+            .select("duration_months, annual_mileage, monthly_price_net, calculated_at, kalkulacja_id, tire_class, service_type")
             .eq("vehicle_id", vehicle_id)
             .execute()
         )
-        rows = resp.data or []
-        
-        # Exact match logic
-        exact_match = next(
-            (r for r in rows if r["duration_months"] == duration_months and r["annual_mileage"] == annual_mileage),
-            None
-        )
-        
-        if exact_match:
-            calculated_at_str = exact_match.get("calculated_at")
-            is_fresh = True
-            if last_settings_update and calculated_at_str:
-                calculated_at = datetime.fromisoformat(calculated_at_str.replace("Z", "+00:00"))
-                if calculated_at < last_settings_update:
-                    is_fresh = False
-                    logger.info(f"Cache stale for vehicle {vehicle_id}: {calculated_at} < {last_settings_update}")
+        rows_all = resp.data or []
 
-            if is_fresh:
-                base_price = float(exact_match["monthly_price_net"]) if exact_match["monthly_price_net"] else 0.0
-                display_price = base_price / (1.0 - (margin / 100.0))
-                return PriceForParamsResponse(
-                    vehicle_id=vehicle_id,
-                    duration_months=duration_months,
-                    annual_mileage=annual_mileage,
-                    monthly_price_net=round(display_price, 2),
-                    calculated_at=calculated_at.isoformat() if hasattr(calculated_at, 'isoformat') else str(calculated_at) if calculated_at else None,
-                    found=True,
-                )
-
-        # 3. Live calculation (either no cache, no exact match, or stale cache)
-        logger.info(f"Running live calculation for vehicle {vehicle_id} (Stale or Missing Cache)")
-        live_base_price = calculate_live_ltr_tile(vehicle_id, duration_months, annual_mileage)
-        
-        if live_base_price is not None:
-            # Apply margin
-            display_price = live_base_price / (1.0 - (margin / 100.0))
-            return PriceForParamsResponse(
-                vehicle_id=vehicle_id,
-                duration_months=duration_months,
-                annual_mileage=annual_mileage,
-                monthly_price_net=round(display_price, 2),
-                calculated_at=datetime.now(timezone.utc).isoformat(),
-                found=True,
-            )
-
-        # 4. Fallback: Closest tile (if live fails or no data)
-        if not rows:
+        if not rows_all:
             return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
 
-        def distance(row: dict) -> float:
-            dm_diff = abs(row["duration_months"] - duration_months)
-            km_diff = abs(row["annual_mileage"] - annual_mileage)
-            return dm_diff * 10_000 + km_diff
-
-        best = min(rows, key=distance)
-        base_price_best = float(best["monthly_price_net"]) if best["monthly_price_net"] else 0.0
-        display_price_best = base_price_best / (1.0 - (margin / 100.0))
+        from collections import defaultdict
         
+        # Group by kalkulacja_id to find the latest
+        calc_map = defaultdict(list)
+        kalk_times = {}
+        for r in rows_all:
+            kid = r.get("kalkulacja_id")
+            kid_str = kid if kid else ""
+            calc_map[kid_str].append(r)
+            if r.get("calculated_at"):
+                dt = datetime.fromisoformat(r["calculated_at"].replace("Z", "+00:00"))
+                if kid_str not in kalk_times or dt > kalk_times[kid_str]:
+                    kalk_times[kid_str] = dt
+        
+        # Find the latest kalkulacja_id
+        latest_kid = None
+        if kalk_times:
+            latest_kid = max(kalk_times, key=kalk_times.get)
+        else:
+            latest_kid = list(calc_map.keys())[0]
+
+        variants_count = len(calc_map)
+        latest_rows = calc_map[latest_kid]
+
+        # Exact match logic
+        exact_match = next(
+            (
+                r
+                for r in latest_rows
+                if r["duration_months"] == duration_months
+                and r["annual_mileage"] == annual_mileage
+            ),
+            None,
+        )
+
+        best_match = exact_match
+        if not best_match:
+            def distance(row: dict) -> float:
+                dm_diff = abs(row["duration_months"] - duration_months)
+                km_diff = abs(row["annual_mileage"] - annual_mileage)
+                return dm_diff * 10_000 + km_diff
+            best_match = min(latest_rows, key=distance)
+
+        base_price_best = (
+            float(best_match["monthly_price_net"]) if best_match["monthly_price_net"] else 0.0
+        )
+        display_price_best = base_price_best / (1.0 - (margin / 100.0))
+
         return PriceForParamsResponse(
             vehicle_id=vehicle_id,
-            duration_months=best["duration_months"],
-            annual_mileage=best["annual_mileage"],
+            duration_months=best_match["duration_months"],
+            annual_mileage=best_match["annual_mileage"],
             monthly_price_net=round(display_price_best, 2),
+            calculated_at=best_match.get("calculated_at"),
             found=True,
+            variants_count=variants_count,
+            tire_class=best_match.get("tire_class"),
+            service_type=best_match.get("service_type"),
+            kalkulacja_id=best_match.get("kalkulacja_id")
         )
     except Exception as e:
         logger.exception("Error in get_price_for_params [%s]: %s", vehicle_id, e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch price for params: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch price for params: {e}"
+        )
 
 
 @router.get(
@@ -386,19 +598,22 @@ def get_price_variants(
             .execute()
         )
         rows = resp.data or []
-        
+
         grouped_variants = {}
         for row in rows:
             if row.get("monthly_price_net"):
                 dur = row["duration_months"]
                 price = float(row["monthly_price_net"])
-                if dur not in grouped_variants or price < grouped_variants[dur]["monthly_price_net"]:
+                if (
+                    dur not in grouped_variants
+                    or price < grouped_variants[dur]["monthly_price_net"]
+                ):
                     grouped_variants[dur] = {
                         "duration_months": dur,
                         "annual_mileage": row["annual_mileage"],
-                        "monthly_price_net": price
+                        "monthly_price_net": price,
                     }
-        
+
         variants = [
             PriceForParamsResponse(
                 vehicle_id=vehicle_id,
@@ -406,105 +621,28 @@ def get_price_variants(
                 annual_mileage=v["annual_mileage"],
                 monthly_price_net=v["monthly_price_net"],
                 found=True,
-            ) for v in grouped_variants.values()
+            )
+            for v in grouped_variants.values()
         ]
-        
+
         # Sort variants by duration_months ascending
         variants.sort(key=lambda x: x.duration_months or 0)
         return variants
     except Exception as e:
         logger.exception("Error in get_price_variants [%s]: %s", vehicle_id, e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch price variants: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch price variants: {e}"
+        )
 
 
 # ── Cache management ──────────────────────────────────────────────────────────
+
 
 @router.get("/scoring-search/cache/stats")
 def get_search_cache_stats() -> dict[str, Any]:
     """Zwraca statystyki Redis (dostępność, liczba kluczy, pamięć)."""
     return get_cache_stats()
 
-
-# ── Matrix cache management ───────────────────────────────────────────────────
-
-class RefreshCacheRequest(BaseModel):
-    vehicle_ids: list[str]
-
-
-@router.post("/scoring-search/cache/refresh-matrix")
-def trigger_matrix_cache_refresh(
-    req: RefreshCacheRequest,
-) -> dict[str, Any]:
-    """Uruchamia asynchroniczne przeliczanie matrycy LTR za pomocą Celery."""
-    if not req.vehicle_ids:
-        raise HTTPException(
-            status_code=400, detail="vehicle_ids list cannot be empty"
-        )
-
-    # Use first vehicle ID to generate a predictable or random job_id
-    job_id = str(uuid.uuid4())
-    
-    # We submit the whole list to a single Celery task.
-    # Celery handles lists well. To keep the frontend simple, we return one job_id.
-    process_matrix_refresh_task.apply_async(
-        args=[req.vehicle_ids, job_id], 
-        task_id=job_id
-    )
-
-    return {
-        "status": "success",
-        "job_id": job_id,
-        "message": (
-            f"Rozpoczęto weryfikację i zapis cache "
-            f"dla {len(req.vehicle_ids)} pojazdów w tle Celery."
-        ),
-    }
-
-
-@router.post("/scoring-search/cache/refresh-missing")
-def trigger_matrix_cache_refresh_missing() -> dict[str, Any]:
-    """Przeliczanie matrycy LTR TYLKO dla aut bez cache za pomocą Celery."""
-    sb = supabase
-    try:
-        res_all = sb.table("vehicle_synthesis").select("id").execute()
-        all_ids = set(row["id"] for row in (res_all.data or []))
-
-        res_cache = (
-            sb.table("vehicle_matrix_cache").select("vehicle_id").execute()
-        )
-        cached_ids = set(
-            row["vehicle_id"] for row in (res_cache.data or [])
-        )
-
-        missing_ids = list(all_ids - cached_ids)
-
-        if not missing_ids:
-            return {
-                "status": "success",
-                "message": "Wszystkie pojazdy posiadają już przeliczony cache.",
-                "job_id": None,
-            }
-
-        job_id = str(uuid.uuid4())
-        process_matrix_refresh_task.apply_async(
-            args=[missing_ids, job_id], 
-            task_id=job_id
-        )
-
-        return {
-            "status": "success",
-            "job_id": job_id,
-            "message": (
-                f"Rozpoczęto przeliczanie cache "
-                f"dla {len(missing_ids)} brakujących pojazdów."
-            ),
-            "missing_count": len(missing_ids),
-        }
-    except Exception as e:
-        logger.exception("Error triggering missing cache refresh: %s", e)
-        raise HTTPException(
-            status_code=500, detail=f"Wystąpił błąd: {e}"
-        )
 
 
 @router.get("/scoring-search/readiness-check")
@@ -570,15 +708,17 @@ def readiness_check() -> dict[str, Any]:
             else:
                 failed_count += 1
 
-            result_vehicles.append({
-                "vehicle_id": vid,
-                "brand": brand,
-                "model": model,
-                "status": status,
-                "has_cache": has_cache,
-                "can_calculate": can_calculate,
-                "missing_fields": missing,
-            })
+            result_vehicles.append(
+                {
+                    "vehicle_id": vid,
+                    "brand": brand,
+                    "model": model,
+                    "status": status,
+                    "has_cache": has_cache,
+                    "can_calculate": can_calculate,
+                    "missing_fields": missing,
+                }
+            )
 
         return {
             "total": len(vehicles),
@@ -596,12 +736,12 @@ def readiness_check() -> dict[str, Any]:
 def get_cache_job_progress(job_id: str) -> dict[str, Any]:
     """Zwraca aktualny progress przeliczania cache dla danego job_id z Celery."""
     task = AsyncResult(job_id, app=celery_app)
-    
-    if task.state == 'SUCCESS':
+
+    if task.state == "SUCCESS":
         return {"status": "done", "result": task.result}
-    elif task.state == 'FAILURE':
+    elif task.state == "FAILURE":
         return {"status": "error", "error": str(task.info)}
-    elif task.state in ['PENDING', 'STARTED', 'RETRY']:
+    elif task.state in ["PENDING", "STARTED", "RETRY"]:
         return {"status": "pending", "state": task.state}
     else:
         return {"status": "unknown", "state": task.state}

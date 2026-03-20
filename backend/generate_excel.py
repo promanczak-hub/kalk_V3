@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 
+
 def create_sample_offers_excel(filepath: str):
     data = [
         {
@@ -10,7 +11,7 @@ def create_sample_offers_excel(filepath: str):
             "Paliwo": "Hybryda",
             "Rata netto (PLN)": 1500,
             "Czas trwania (mc)": 36,
-            "Przebieg (km)": 20000
+            "Przebieg (km)": 20000,
         },
         {
             "Marka": "Skoda",
@@ -19,7 +20,7 @@ def create_sample_offers_excel(filepath: str):
             "Paliwo": "Diesel",
             "Rata netto (PLN)": 1800,
             "Czas trwania (mc)": 48,
-            "Przebieg (km)": 30000
+            "Przebieg (km)": 30000,
         },
         {
             "Marka": "Porsche",
@@ -28,13 +29,14 @@ def create_sample_offers_excel(filepath: str):
             "Paliwo": "Benzyna",
             "Rata netto (PLN)": 4500,
             "Czas trwania (mc)": 24,
-            "Przebieg (km)": 15000
-        }
+            "Przebieg (km)": 15000,
+        },
     ]
-    
+
     df = pd.DataFrame(data)
-    df.to_excel(filepath, index=False, engine='openpyxl')
+    df.to_excel(filepath, index=False, engine="openpyxl")
     print(f"Zapisano plik Excel: {filepath}")
+
 
 if __name__ == "__main__":
     out_path = os.path.join(os.getcwd(), "oferty_koszyk.xlsx")

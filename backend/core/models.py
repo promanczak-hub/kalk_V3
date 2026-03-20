@@ -43,4 +43,4 @@ class ControlCenterSettings(BaseModel):
     # Współczynnik WR dla ceny sprzedaży LO: WRdlaLO = WR × (1 + lo_param)
     przewidywana_cena_sprzedazy_lo: float = 0.15
     budzet_marketingowy_ltr: float = 0.0
-    last_settings_update: str = "" # ISO datetime from DB
+    last_settings_update: str = ""  # ISO datetime from DB
