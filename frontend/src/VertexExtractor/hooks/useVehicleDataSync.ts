@@ -108,6 +108,14 @@ export function useVehicleDataSync(
 
       if (error) throw error;
       onRefresh();
+
+      // Trigger cache refresh in background after classification updates
+      await apiFetch(`/api/kalkulacje/matrix-cache/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicle_ids: [vehicle.id] }),
+      }).catch(e => console.error("Could not trigger cache refresh", e));
+
     } catch (err) {
       console.error("Error saving vehicle fields", err);
       alert("Błąd zapisu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
@@ -147,6 +155,14 @@ export function useVehicleDataSync(
 
       setLocalMappedData(data);
       onRefresh();
+
+      // Trigger cache refresh
+      await apiFetch(`/api/kalkulacje/matrix-cache/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicle_ids: [vehicle.id] }),
+      }).catch(e => console.error("Could not trigger cache refresh", e));
+
     } catch (err) {
       console.error("Remap classification error details:", err);
       alert("Błąd przeliczania klasyfikacji: " + (err instanceof Error ? err.message : JSON.stringify(err)));

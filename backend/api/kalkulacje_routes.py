@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Literal, Optional, List, cast
 from datetime import datetime
@@ -244,6 +244,29 @@ def get_kalkulacje():
         return [_extract_list_fields(r) for r in res.data]
     except Exception as e:
         logger.exception("GET /kalkulacje failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MatrixCacheRefreshRequest(BaseModel):
+    vehicle_ids: List[str]
+
+
+@router.post("/matrix-cache/refresh")
+async def refresh_matrix_cache(request: MatrixCacheRefreshRequest, background_tasks: BackgroundTasks):
+    """
+    Ręczne wywołanie odświeżenia cache macierzy dla pojazdów.
+    Używane z UI Extractor po np. ręcznym przemapowaniu klasy SAMAR.
+    Wykonuje się w tle, by nie blokować interfejsu (zapis do bazy sam odświeży Realtime).
+    """
+    from core.matrix_cache_job import refresh_matrix_cache_for_vehicles
+    try:
+        if not request.vehicle_ids:
+            return {"status": "error", "message": "Brak ID pojazdów."}
+        
+        background_tasks.add_task(refresh_matrix_cache_for_vehicles, request.vehicle_ids)
+        return {"status": "success", "message": f"Wysłano {len(request.vehicle_ids)} pojazd(ów) do przeliczenia w tle."}
+    except Exception as e:
+        logger.exception("Błąd w trakcie odświeżania cache macierzy.")
         raise HTTPException(status_code=500, detail=str(e))
 
 
