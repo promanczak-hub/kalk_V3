@@ -567,28 +567,31 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
                   )}
 
                   {/* ── Catalog Price Breakdown ── */}
-                  {!!(car.base_price_gross || car.total_price_gross) && (
-                    <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                      <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>Katalog:</Typography>
-                      {car.base_price_gross && car.options_price_gross && car.total_price_gross ? (
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                          <strong>{car.base_price_gross as string}</strong>
-                          {' + opcje '}
-                          <strong>{car.options_price_gross as string}</strong>
-                          {' = '}
-                          <strong style={{ color: '#1565c0' }}>{car.total_price_gross as string}</strong>
-                        </Typography>
-                      ) : car.total_price_gross ? (
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#1565c0' }}>
-                          {car.total_price_gross as string}
-                        </Typography>
-                      ) : (
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#1565c0' }}>
-                          {car.base_price_gross as string}
-                        </Typography>
-                      )}
-                    </Box>
-                  )}
+                  {!!(car.base_price_gross || car.total_price_gross) && (() => {
+                    const cleanPrice = (val?: string | null) => val ? val.replace(/netto|brutto|pln/gi, '').trim() : '';
+                    return (
+                      <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>Katalog:</Typography>
+                        {car.base_price_gross && car.options_price_gross && car.total_price_gross ? (
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                            <strong>{cleanPrice(car.base_price_gross as string)}</strong>
+                            {' + opcje '}
+                            <strong>{cleanPrice(car.options_price_gross as string)}</strong>
+                            {' = '}
+                            <strong style={{ color: '#1565c0' }}>{cleanPrice(car.total_price_gross as string)} PLN brutto</strong>
+                          </Typography>
+                        ) : car.total_price_gross ? (
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#1565c0' }}>
+                            {cleanPrice(car.total_price_gross as string)} PLN brutto
+                          </Typography>
+                        ) : (
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#1565c0' }}>
+                            {cleanPrice(car.base_price_gross as string)} PLN brutto
+                          </Typography>
+                        )}
+                      </Box>
+                    );
+                  })()}
                 </Box>
 
                 {/* Right: Score + Pricing */}

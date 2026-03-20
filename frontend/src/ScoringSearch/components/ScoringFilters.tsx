@@ -485,7 +485,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
               <Switch
                 size="small"
                 checked={!!searchContext.useMatrixFilters}
-                onChange={(e) => onContextChange({ ...searchContext, useMatrixFilters: e.target.checked, exact_mode: false })}
+                onChange={(e) => onContextChange({ ...searchContext, useMatrixFilters: e.target.checked, exact_mode: true })}
                 sx={{
                   '& .MuiSwitch-switchBase.Mui-checked': { color: '#1e40af' },
                   '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#3b82f6' },
@@ -509,15 +509,15 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
               <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Okres (m-ce)</Typography>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                {searchContext.duration_months_range[0]}–{searchContext.duration_months_range[1]} mc
+                {searchContext.exact_duration_months} mc
               </Typography>
             </Box>
             <Slider
-              value={searchContext.duration_months_range}
-              onChange={(_, val) => onContextChange({ ...searchContext, duration_months_range: val as [number, number] })}
+              value={searchContext.exact_duration_months}
+              onChange={(_, val) => onContextChange({ ...searchContext, exact_duration_months: val as number, exact_mode: true })}
               min={24} max={60} step={12}
               marks={[24, 36, 48, 60].map(v => ({ value: v, label: String(v) }))}
-              valueLabelDisplay="auto" disableSwap
+              valueLabelDisplay="auto"
               sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
             />
           </Box>
@@ -526,16 +526,15 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
               <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Łączny przebieg na kontrakt (km)</Typography>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                {(searchContext.total_mileage_range[0] / 1000).toFixed(0)}k–{(searchContext.total_mileage_range[1] / 1000).toFixed(0)}k km
+                {(searchContext.exact_total_mileage / 1000).toFixed(0)}k km
               </Typography>
             </Box>
             <Slider
-              value={searchContext.total_mileage_range}
-              onChange={(_, val) => onContextChange({ ...searchContext, total_mileage_range: val as [number, number] })}
+              value={searchContext.exact_total_mileage}
+              onChange={(_, val) => onContextChange({ ...searchContext, exact_total_mileage: val as number, exact_mode: true })}
               min={20000} max={200000} step={5000}
               marks={[20000, 60000, 100000, 140000, 200000].map(v => ({ value: v, label: `${(v / 1000).toFixed(0)}k` }))}
               valueLabelDisplay="auto" valueLabelFormat={(v) => `${(v / 1000).toFixed(0)}k`}
-              disableSwap
               sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
             />
           </Box>

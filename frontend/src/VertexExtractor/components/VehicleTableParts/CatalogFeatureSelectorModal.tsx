@@ -18,6 +18,7 @@ interface PreviewResponse {
   reasoning: string;
   features: FeaturePreview[];
   error?: string;
+  message?: string;
 }
 
 interface ModalProps {
@@ -50,9 +51,19 @@ export function CatalogFeatureSelectorModal({
         if (!res.ok) throw new Error("Błąd podczas ładowania podglądu z cennika");
         
         const json: PreviewResponse = await res.json();
+        
         if (json.error) {
           throw new Error(json.error);
         }
+        
+        if (json.status === "error" || json.status === "no_match") {
+          throw new Error(json.message || "Nie znaleziono pasującego wariantu.");
+        }
+        
+        if (!json.features || !Array.isArray(json.features)) {
+          throw new Error("Brak danych o cechach z tego cennika.");
+        }
+        
         setData(json);
         
         // Domyślnie zaznaczamy wszystkie z wysokim confidence

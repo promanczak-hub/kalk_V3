@@ -19,7 +19,7 @@ export const ScoringSearchPage: React.FC = () => {
     useMatrixFilters: false,
     duration_months_range: [24, 48],
     total_mileage_range: [60000, 140000],
-    exact_mode: false,
+    exact_mode: true,
     exact_duration_months: 48,
     exact_total_mileage: 80000,
     margin_pct: 10,

@@ -481,39 +481,9 @@ async def trigger_extraction(catalog_id: str) -> dict[str, Any]:
         {"extraction_status": "extracting"}
     ).eq("id", catalog_id).execute()
 
-    # Run extraction (async in background)
-    import threading
-
-    from core.catalog_extractor import extract_catalog_variants
-
-    def _run():
-        try:
-            result = extract_catalog_variants(catalog)
-            _rs().table("model_document_sources").update(
-                {
-                    "extraction_status": "ready",
-                    "extracted_data": result["extracted_data"],
-                    "variant_count": result["variant_count"],
-                    "extracted_at": "now()",
-                    "extraction_error": None,
-                }
-            ).eq("id", catalog_id).execute()
-            logger.info(
-                "Extraction complete for %s: %d variants",
-                catalog["display_name"],
-                result["variant_count"],
-            )
-        except Exception as exc:
-            logger.error("Extraction failed for %s: %s", catalog_id, exc)
-            _rs().table("model_document_sources").update(
-                {
-                    "extraction_status": "error",
-                    "extraction_error": str(exc),
-                }
-            ).eq("id", catalog_id).execute()
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
+    # Zamiast threading używamy workera Celery
+    from core.celery_tasks import extract_catalog_task
+    extract_catalog_task.delay(catalog_id)
 
     return {"status": "extraction_started", "catalog_id": catalog_id}
 
@@ -540,26 +510,8 @@ async def reprocess_catalog_as_offer(
     storage_path = row["storage_path"]
     filename = row.get("original_filename") or f"document.{row['file_type']}"
 
-    from urllib.parse import quote
-
-    try:
-        encoded_path = quote(storage_path, safe="/")
-        file_bytes = await anyio.to_thread.run_sync(
-            sb_client.storage.from_(_STORAGE_BUCKET).download,
-            encoded_path
-        )
-    except Exception as exc:
-        exc_str = str(exc)
-        if "404" in exc_str or "Object not found" in exc_str:
-            raise HTTPException(
-                404,
-                f"Plik fizycznie nie istnieje w magazynie danych (Storage): {storage_path}",
-            ) from exc
-        raise HTTPException(500, f"File download failed: {exc}") from exc
-
-    import hashlib
-
-    md5_hash = hashlib.md5(file_bytes).hexdigest()
+    # Pusta suma kontrolna na etapie API, celowo - worker obliczy na pobranym pliku, ale tutaj by wystartować wstrzykujemy ""
+    md5_hash = ""
 
     content_type_map = {
         "pdf": "application/pdf",
@@ -568,7 +520,7 @@ async def reprocess_catalog_as_offer(
     }
     mime_type = content_type_map.get(row["file_type"], "application/octet-stream")
 
-    from core.background_jobs import process_and_save_document_bg
+    from core.celery_tasks import process_document_task_from_storage
 
     # We create a new synthesis row for the file upload (like the regular upload does)
     new_id = str(uuid.uuid4())
@@ -576,10 +528,10 @@ async def reprocess_catalog_as_offer(
         {"id": new_id, "verification_status": "processing", "file_hash": md5_hash}
     ).execute()
 
-    background_tasks.add_task(
-        process_and_save_document_bg,
+    process_document_task_from_storage.delay(
         file_id=new_id,
-        file_bytes=file_bytes,
+        storage_path=storage_path,
+        bucket_name=_STORAGE_BUCKET,
         file_name=filename,
         mime_type=mime_type,
         md5_hash=md5_hash,
@@ -600,7 +552,7 @@ async def reprocess_catalog_as_offer(
     return {
         "status": "processing",
         "vehicle_id": new_id,
-        "message": "Rozpoczęto przetwarzanie jako Oferta.",
+        "message": "Rozpoczęto przetwarzanie jako Oferta w tle (Celery).",
     }
 
 

@@ -12,10 +12,10 @@ COPY pyproject.toml poetry.lock* ./
 
 # Install deps (using pip for simplicity in Docker)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir poetry && \
+    pip install --no-cache-dir poetry poetry-plugin-export && \
     poetry config virtualenvs.create false && \
-    poetry install --no-dev --no-interaction --no-ansi 2>/dev/null || \
-    pip install --no-cache-dir -r <(poetry export --without-hashes -f requirements.txt)
+    poetry export --without-hashes -f requirements.txt --output requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
@@ -26,7 +26,7 @@ WORKDIR /app
 
 # Runtime deps only
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 && \
+    libpq5 libgl1 libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
