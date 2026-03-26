@@ -99,7 +99,7 @@ def _finalize_vehicle(
             model = mapped_data.get("model", model)
 
         card_summary = parsed_data.get("card_summary", {})
-        trim = mapped_data.get("trim")
+        trim = mapped_data.get("trim_level")
 
         # ── 1. Engine mapper (first — doesn't depend on SAMAR) ──
         from core.engine_mapper import map_to_engine_class
@@ -122,10 +122,21 @@ def _finalize_vehicle(
             trim=trim,
         )
 
+        previous_fuel = mapped_data.get("fuel", "")
+        is_mhev_previously = "mHEV" in previous_fuel
+
         if eng_name != "UNKNOWN":
-            mapped_data["fuel"] = eng_name
-            mapped_data["engine_class"] = eng_cat
-            mapped_data["engine_candidates"] = eng_candidates
+            # Guard: If previously identified as mHEV, don't downgrade to generic Petrol/Diesel
+            # unless the new identification is also mHEV or clearly superior (not generic)
+            is_new_mhev = "mHEV" in eng_name
+            is_generic_new = eng_name in ["Benzyna (PB)", "Diesel (ON)", "LPG"]
+            
+            if is_mhev_previously and is_generic_new and not is_new_mhev:
+                print(f"[BG TASK] Guard: Preserving mHEV status '{previous_fuel}' over generic '{eng_name}'")
+            else:
+                mapped_data["fuel"] = eng_name
+                mapped_data["engine_class"] = eng_cat
+                mapped_data["engine_candidates"] = eng_candidates
         elif mapped_data.get("fuel"):
             # Fallback for when API fails so we don't break old logic
             try:
@@ -159,11 +170,25 @@ def _finalize_vehicle(
         )
         mapped_data["samar_category"] = samar_name
         mapped_data["samar_candidates"] = samar_candidates
+        
+        # ── READINESS CHECK (Fail-Fast) ──
+        if samar_name == "INNE - WYMAGA RĘCZNEGO MAPOWANIA" or not samar_name:
+            raise ValueError(f"Readiness Check failed: Brak przypisanej klasy SAMAR dla modelu '{brand} {model}'.")
+            
+        if not mapped_data.get("engine_class") or mapped_data.get("engine_class") == "UNKNOWN":
+            raise ValueError(f"Readiness Check failed: Brak zidentyfikowanej klasy silnika dla modelu '{brand} {model}'.")
+            
+        validation_info = card_summary.get("_validation", {})
+        parsed_prices = validation_info.get("parsed_prices", {})
+        if parsed_prices.get("base") is None:
+            raise ValueError("Readiness Check failed: Brak zidentyfikowanej ceny bazowej (base_price). Dokument jest wysoce niekompletny.")
 
         parsed_data["mapped_ai_data"] = mapped_data
 
     except Exception as map_err:
         print(f"[BG TASK] Błąd mapowania danych AI: {map_err}")
+        # Re-raise the error so the vehicle is marked as 'error' in DB and fails fast
+        raise
 
     if _is_cancelled(parent_file_id, supabase):
         _update_progress(supabase, vehicle_id, "cancelled")
@@ -275,20 +300,25 @@ def _finalize_vehicle(
         print(f"[BG TASK] Błąd wzbogacania cech dla {vehicle_id}: {enrich_err}")
 
     # ── 4. Auto-trigger: LTR matrix cache ──
-    print(f"[BG TASK] Auto-kalkulacja LTR cache dla {vehicle_id}...")
-    try:
-        from core.matrix_cache_job import refresh_matrix_cache_for_vehicles
-
-        refresh_matrix_cache_for_vehicles([vehicle_id])
-        print(f"[BG TASK] Auto-kalkulacja LTR zakończona dla {vehicle_id}")
-    except Exception as calc_err:
-        print(f"[BG TASK] Auto-kalkulacja pominięta (dane niekompletne): {calc_err}")
+    print(f"[BG TASK] Auto-kalkulacja LTR cache dla {vehicle_id} (WYŁĄCZONA NA ŻYCZENIE)")
+    # try:
+    #     from core.matrix_cache_job import refresh_matrix_cache_for_vehicles
+    #
+    #     refresh_matrix_cache_for_vehicles([vehicle_id])
+    #     print(f"[BG TASK] Auto-kalkulacja LTR zakończona dla {vehicle_id}")
+    # except Exception as calc_err:
+    #     print(f"[BG TASK] Auto-kalkulacja pominięta (dane niekompletne): {calc_err}")
 
     # ── 5. Final Completed Status ──
     print(f"[BG TASK] Oznaczam gotowość (stan: completed) dla {vehicle_id}")
     supabase.table("vehicle_synthesis").update({"verification_status": "completed"}).eq(
         "id", vehicle_id
     ).execute()
+    
+    # Invalidate cache for frontend filters so new vehicles appear immediately
+    from core.redis_cache import cache_invalidate_pattern
+    cache_invalidate_pattern("initial_data")
+    cache_invalidate_pattern("filters:*")
 
     print(f"[BG TASK] Gotowe dla {vehicle_id}")
 
@@ -372,7 +402,7 @@ def process_and_save_document_bg(
                 f"[BG TASK] Skonwertowano {mime_type} → tekst ({len(gemini_data)} znaków)"
             )
 
-        # ── Extract Markdown via Docling for Router Analysis (Phase -1) ──
+        # ── Extract Markdown via pymupdf4llm for Router Analysis (Phase -1) ──
         router_data = gemini_data
         router_mime = gemini_mime
         tmp_pdf_path = None
@@ -383,20 +413,20 @@ def process_and_save_document_bg(
             import concurrent.futures
 
             try:
-                # Save PDF to temporary file for Docling
+                # Save PDF to temporary file for pymupdf4llm
                 fd, tmp_pdf_path = tempfile.mkstemp(suffix=".pdf")
                 with os.fdopen(fd, "wb") as f:
                     f.write(file_bytes)
 
                 print(
-                    f"[BG TASK] Ekstrakcja Docling z tymczasowego PDF {tmp_pdf_path} "
+                    f"[BG TASK] Ekstrakcja pymupdf4llm z tymczasowego PDF {tmp_pdf_path} "
                     f"[BG TASK] Ekstrakcja z PDF do natywnych bajtów..."
                 )
                 pdf_extractor = PDFExtractor()
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(pdf_extractor.extract_hybrid, tmp_pdf_path)
-                    markdown_content, pdf_bytes = future.result(timeout=300)
+                    markdown_content, pdf_bytes = future.result(timeout=600)
 
                 # Formatuj otrzymany tekst w poprawny Markdown z wypunktowaniami
                 from core.markdown_formatter import format_markdown_with_llm
@@ -410,18 +440,18 @@ def process_and_save_document_bg(
                 router_mime = "text/plain"
             except concurrent.futures.TimeoutError:
                 print(
-                    f"[BG TASK CRITICAL] Docling extraction timeout (300s) dla {file_name}! Nastąpi zrzut na docelowe bajty PDF."
+                    f"[BG TASK CRITICAL] PDF extraction timeout (600s) dla {file_name}! Nastąpi zrzut na docelowe bajty PDF."
                 )
                 router_data = gemini_data
                 router_mime = gemini_mime
             except Exception as docling_err:
                 print(
-                    f"[BG TASK] Docling extraction failed! Zrzut na docelowe bajty PDF. Błąd: {docling_err}"
+                    f"[BG TASK] PDF extraction failed! Zrzut na docelowe bajty PDF. Błąd: {docling_err}"
                 )
                 router_data = gemini_data
                 router_mime = gemini_mime
 
-        # ── Phase -1: Document Router (Gemini Pro z Docling/Markdown) ──
+        # ── Phase -1: Document Router (Gemini Pro z pymupdf4llm/Markdown) ──
         _update_progress(supabase, file_id, "classifying_document")
         print(f"[BG TASK] Faza -1: Klasyfikacja dokumentu {file_name}...")
 

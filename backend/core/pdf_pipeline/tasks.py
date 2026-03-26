@@ -1,6 +1,6 @@
 import os
 import logging
-from worker import celery_app
+from core.celery_app import celery_app
 from core.pdf_pipeline.schemas import ExtractorPipelineResult, ParsedPriceList
 from core.pdf_pipeline.extractor import PDFExtractor
 from core.pdf_pipeline.agents import PricingAgent
@@ -30,15 +30,15 @@ def extract_pdf_pricelist_task(self, temp_file_path: str) -> dict:
         resolver = FootnoteResolver()
         normalizer = StrictNormalizer()
 
-        # Step 1: Deterministic Docling Extraction
+        # Step 1: PDF → Markdown Extraction (pymupdf4llm)
         self.update_state(
             state="PROCESSING",
-            meta={"status": "Ekstrakcja tekstu z dokumentu (Docling)", "progress": 10},
+            meta={"status": "Ekstrakcja tekstu z dokumentu (pymupdf4llm)", "progress": 10},
         )
         raw_markdown = extractor.extract_to_markdown(temp_file_path)
 
         if not raw_markdown.strip():
-            logger.warning("Docling zwrócił pusty Markdown")
+            logger.warning("Extractor zwrócił pusty Markdown")
             return ExtractorPipelineResult(
                 is_successful=False,
                 error_message="Z pliku PDF nie udało się wyciągnąć czytelnego tekstu. Format prawdopodobnie jest chroniony lub nieczytelny.",

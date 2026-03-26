@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo } from "react";
 import { API_BASE_URL } from "../../../../config/env";
 import type { MiniMatrixCell } from "../decision-center/decision-center.types";
 import { findBestCell } from "../decision-center/decision-center.utils";
-import { extractOptionsFromPaidOptions } from "./calculations.utils";
+import { extractOptionsFromPaidOptions, parsePriceToNumber } from "./calculations.utils";
 import type { MatrixFilters, MileageMode } from "../../../../CalculatorPanel/MatrixFilterToolbar";
 import { apiClient } from "../../../../lib/apiClient";
 
@@ -130,7 +130,7 @@ export function useVehicleCalculations({
       kmPerMonthRef.current = przebiegBazowy / okresBazowy;
 
       const rawBasePrice = String(cardSummary.base_price || cardSummary.total_price || "0");
-      const cleanBasePrice = parseFloat(rawBasePrice.replace(/\s+/g, "").replace(",", ".")) || 0;
+      const cleanBasePrice = parsePriceToNumber(rawBasePrice);
       const priceDomain = cardSummary._price_domain || "unknown";
       const isBrutto = rawBasePrice.toLowerCase().includes("brutto") || priceDomain === "brutto";
       
@@ -201,7 +201,7 @@ export function useVehicleCalculations({
         ),
         z_oponami: toggles.z_oponami !== false,
         klasa_opony_string: stanJson.tire_params?.tire_class || "Medium",
-        srednica_felgi: stanJson.tire_params?.rim_diameter || null,
+        srednica_felgi: stanJson.tire_params?.rim_diameter || (cardSummary.wheels ? parseInt(String(cardSummary.wheels).replace(/\D/g, "")) : 16) || 16,
         liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : (isNaN(parseFloat(stanJson.tire_params?.tire_count_mode)) ? null : parseFloat(stanJson.tire_params?.tire_count_mode)),
         korekta_kosztu_opon: stanJson.tire_params?.tire_cost_correction_enabled !== false,
         koszt_opon_korekta: stanJson.tire_params?.tire_cost_correction || 0,
@@ -219,10 +219,11 @@ export function useVehicleCalculations({
         matrix_contract_km_step: 10000,
         settings: { settings_version_id: null, overrides: null },
         power_kw: Number(stanJson.power_kw ?? cardSummary.power_kw ?? (cardSummary.power_hp ? Number(cardSummary.power_hp) * 0.73549875 : 0)),
-        body_type_name: stanJson.body_type_name ?? cardSummary.body_style ?? cardSummary.body_type ?? "",
+        paint_type_name: stanJson.mapped_ai_data?.color ?? stanJson.typ_lakieru ?? stanJson.paint_type_name ?? cardSummary.color ?? "",
+        body_type_name: stanJson.mapped_ai_data?.body_type ?? stanJson.body_type_name ?? cardSummary.body_style ?? cardSummary.body_type ?? "",
         zabudowa_type_id: stanJson.zabudowa_type_id ?? ((typeof cardSummary.zabudowa_type_id === "number") ? cardSummary.zabudowa_type_id : null),
-        samar_category: stanJson.samar_category ?? cardSummary.samar_category ?? "",
-        engine_name: stanJson.engine_category ?? cardSummary.engine_category ?? cardSummary.powertrain ?? "",
+        samar_category: stanJson.mapped_ai_data?.samar_category ?? stanJson.samar_category ?? cardSummary.samar_category ?? "",
+        engine_name: stanJson.mapped_ai_data?.fuel ?? stanJson.engine_category ?? cardSummary.engine_category ?? cardSummary.powertrain ?? "",
       };
 
       basePayloadRef.current = payload;

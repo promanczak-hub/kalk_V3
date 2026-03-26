@@ -5,32 +5,17 @@ import {
   View,
   StyleSheet,
   Image,
-  Font,
 } from "@react-pdf/renderer";
 import type { BrochureImage } from "./HeroSection";
 
-// ── Roboto – full Polish glyph support ──
-Font.register({
-  family: "Roboto",
-  fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v27/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf",
-      fontWeight: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v27/KFOlCnqEu92Fr1MmEU9fBBc4.ttf",
-      fontWeight: "medium",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v27/KFOlCnqEu92Fr1MmWUlfBBc4.ttf",
-      fontWeight: "bold",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v27/KFOkCnqEu92Fr1Mu51xIIzc.ttf",
-      fontStyle: "italic",
-    },
-  ],
-});
+// ── Using default fonts for robust PDF generation initially ──
+
+// Font.register({
+//   family: "Roboto",
+//   fonts: [
+//     { src: "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf", fontWeight: "normal" }
+//   ],
+// });
 
 const ACCENT = "#2563eb"; // Blue-600
 const DARK = "#0f172a"; // Slate-900
@@ -42,7 +27,7 @@ const styles = StyleSheet.create({
   page: {
     padding: 0,
     backgroundColor: "#ffffff",
-    fontFamily: "Roboto",
+    // fontFamily: "Roboto", // Reverted to default Helvetica temporarily to prevent generation crash
     position: "relative",
   },
   // ── Blue left stripe ──
@@ -257,7 +242,7 @@ export function BrochurePDFDocument({
           {/* ── HEADER ── */}
           <Text style={styles.brandName}>{vn.brand ? String(vn.brand) : "Marka"}</Text>
           <Text style={styles.modelName}>{vn.model ? String(vn.model) : "Model"}</Text>
-          {Boolean(vn.edition) ? <Text style={styles.editionName}>{String(vn.edition)}</Text> : null}
+          {vn.edition ? <Text style={styles.editionName}>{String(vn.edition)}</Text> : null}
 
           {/* ── HERO IMAGE ── */}
           {mainImage ? (
@@ -313,7 +298,7 @@ export function BrochurePDFDocument({
           ) : null}
 
           {/* ── NOTATKI ── */}
-          {Boolean(notes && notes.trim() !== "") ? (
+          {notes && notes.trim() !== "" ? (
             <View style={styles.notesBox}>
               <Text style={styles.notesTitle}>Dodatkowe informacje</Text>
               <Text style={styles.notesContent}>{notes}</Text>

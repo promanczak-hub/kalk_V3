@@ -50,11 +50,22 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
     })) || [];
 
     if (vehicle.exterior_color && vehicle.exterior_color !== "Brak") {
-      const isAlreadyAdded = opts.some(
-        (opt) =>
-          opt.name.toLowerCase().includes("lakier") ||
-          vehicle.exterior_color!.toLowerCase().includes(opt.name.toLowerCase())
-      );
+      const normalizeColor = (s: string) =>
+        s.toLowerCase()
+          .replace(/^(lakier|kolor|color|paint):\s*/, "")
+          .replace(/\s*\([^)]*\).*/, "")
+          .trim();
+
+      const normalizedExterior = normalizeColor(vehicle.exterior_color);
+      const isAlreadyAdded = opts.some((opt: any) => {
+        const normalizedOpt = normalizeColor(opt.name);
+        return (
+          normalizedOpt.includes(normalizedExterior) ||
+          normalizedExterior.includes(normalizedOpt) ||
+          opt.name.toLowerCase().includes("lakier")
+        );
+      });
+
       if (!isAlreadyAdded) {
         let name = `Lakier: ${vehicle.exterior_color}`;
         let priceNet = 0;

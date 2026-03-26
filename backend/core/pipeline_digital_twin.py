@@ -17,30 +17,60 @@ from core.extractor_models import UtilityFeatureItem
 
 
 class EquipmentItem(BaseModel):
-    name: str
-    price: Optional[str] = None
+    name: str = Field(description="Nazwa wyposażenia rzetelnie odczytana z dokumentu")
+    price: Optional[str] = Field(None, description="Cena wyposażenia, jeśli przypisana wprost")
 
+class VehicleExtractionSchema(BaseModel):
+    brand: str = Field(description="Zidentyfikowana marka pojazdu, np. Skoda, Audi, Tayron")
+    model: str = Field(description="Zidentyfikowany model i ewentualnie wersja, np. Kodiaq L&K")
+    offer_number: Optional[str] = Field(None, description="Numer oferty widoczny na dokumencie (jeśli występuje)")
+    configuration_code: Optional[str] = Field(None, description="Kod konfiguracji producenta (jeśli występuje)")
+    total_price: Optional[str] = Field(None, description="Pełna cena brutto/netto podana jako wynikowa")
+    base_price: Optional[str] = Field(None, description="Cena bazowa pojazdu wynikająca z cenników przed opcjami")
+    options_price: Optional[str] = Field(None, description="Cena wariantów/opcji dodatkowych")
+    engine_power_hp: Optional[str] = Field(None, description="Moc silnika (np. 150 KM)")
+    engine_capacity_cm3: Optional[str] = Field(None, description="Pojemność silnika (np. 1498 cm3)")
+    fuel_consumption: Optional[str] = Field(None, description="Zużycie paliwa / WLTP")
+    co2_emissions: Optional[str] = Field(None, description="Emisje CO2 w g/km")
+    transmission: Optional[str] = Field(None, description="Rodzaj skrzyni biegów (np. Automatyczna DSG)")
+    drive_type: Optional[str] = Field(None, description="Typ napędu (np. 4x4, oś przednia)")
+    paint_color: Optional[str] = Field(None, description="Kolor zewnętrzny nadwozia (najlepiej z cennikiem obok)")
+    wheels: Optional[str] = Field(None, description="Szczegóły dotyczące kół/obręczy aluminiowych")
+    upholstery: Optional[str] = Field(None, description="Informacje o wyposażeniu tapicerki/wnętrza")
+    standard_equipment: List[str] = Field(description="Kompletne wylistowanie wyposażenia standardowego / seryjnego z dokumentu")
+    optional_equipment: List[EquipmentItem] = Field(description="Lista płatnego i darmowego wybranego wyposażenia (opcje/akcesoria/pakiety)")
+    utility_features: List[UtilityFeatureItem] = Field(default_factory=list, description="Parametry fizyczne (np. pojemność bagażnika, długość, masa) - Bądź agresywny w szukaniu!")
 
-class FlatVehicleExtractionSchema(BaseModel):
-    brand: str
-    model: str
-    offer_number: Optional[str] = None
-    configuration_code: Optional[str] = None
-    total_price: Optional[str] = None
-    base_price: Optional[str] = None
-    options_price: Optional[str] = None
-    engine_power_hp: Optional[str] = None
-    engine_capacity_cm3: Optional[str] = None
-    fuel_consumption: Optional[str] = None
-    co2_emissions: Optional[str] = None
-    transmission: Optional[str] = None
-    drive_type: Optional[str] = None
-    paint_color: Optional[str] = None
-    wheels: Optional[str] = None
-    upholstery: Optional[str] = None
-    standard_equipment: List[str]
-    optional_equipment: List[EquipmentItem]
-    utility_features: List[UtilityFeatureItem] = Field(default_factory=list)
+def _format_unified_data(extracted_data: dict) -> dict:
+    return {
+        "brand": extracted_data.get("brand", ""),
+        "model": extracted_data.get("model", ""),
+        "offer_number": extracted_data.get("offer_number", ""),
+        "configuration_code": extracted_data.get("configuration_code", ""),
+        "digital_twin": {
+            "pricing": {
+                "total_price": extracted_data.get("total_price"),
+                "base_price": extracted_data.get("base_price"),
+                "options_price": extracted_data.get("options_price"),
+            },
+            "technical": {
+                "power": extracted_data.get("engine_power_hp"),
+                "capacity": extracted_data.get("engine_capacity_cm3"),
+                "fuel_consumption": extracted_data.get("fuel_consumption"),
+                "co2": extracted_data.get("co2_emissions"),
+                "transmission": extracted_data.get("transmission"),
+                "drive": extracted_data.get("drive_type"),
+            },
+            "features": {
+                "color": extracted_data.get("paint_color"),
+                "wheels": extracted_data.get("wheels"),
+                "upholstery": extracted_data.get("upholstery"),
+            },
+            "standard_equipment": extracted_data.get("standard_equipment", []),
+            "optional_equipment": extracted_data.get("optional_equipment", []),
+            "utility_features": extracted_data.get("utility_features", []),
+        },
+    }
 
 
 def _call_gemini_pro(client, contents) -> dict:
@@ -50,13 +80,14 @@ def _call_gemini_pro(client, contents) -> dict:
         seed=42,
         max_output_tokens=65536,
         response_mime_type="application/json",
+        response_schema=VehicleExtractionSchema,
         system_instruction=MASTER_PROMPT_V2,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
         thinking_config=types.ThinkingConfig(
             thinking_budget=16384,
         ),
     )
-    print("Attempting primary standard JSON extraction with Pro (thinking enabled)...")
+    print("Attempting primary standard JSON extraction with Pro (Thinking + Structured Outputs)...")
     try:
         response = client.models.generate_content(
             model=model_id,
@@ -73,7 +104,7 @@ def _call_gemini_pro(client, contents) -> dict:
                 "output_tokens": getattr(usage, "candidates_token_count", None),
                 "thinking_tokens": getattr(usage, "thoughts_token_count", None),
                 "model": model_id,
-                "stage": "digital_twin",
+                "stage": "digital_twin_pro_structured",
             }
             print(
                 f"[GEMINI USAGE] prompt={usage_info['prompt_tokens']}, "
@@ -81,11 +112,13 @@ def _call_gemini_pro(client, contents) -> dict:
                 f"thinking={usage_info['thinking_tokens']}"
             )
 
-        pro_data = json.loads(clean_json_response(pro_response_text))
+        pro_data_raw = json.loads(clean_json_response(pro_response_text))
+        unified_data = _format_unified_data(pro_data_raw)
+
         if usage_info:
-            pro_data["_extraction_metadata"] = usage_info
+            unified_data["_extraction_metadata"] = usage_info
         print("Pro standard JSON extraction succeeded.")
-        return pro_data
+        return unified_data
     except Exception as e:
         print(f"Extraction failed with JSONDecodeError or other error (Pro): {e}")
         return {}
@@ -97,7 +130,7 @@ def _call_gemini_flash(client, contents) -> dict:
         temperature=0.0,
         max_output_tokens=8192,
         response_mime_type="application/json",
-        response_schema=FlatVehicleExtractionSchema,
+        response_schema=VehicleExtractionSchema,
         system_instruction=FALLBACK_STRUCTURED_PROMPT_FLASH,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )
@@ -111,35 +144,7 @@ def _call_gemini_flash(client, contents) -> dict:
         fallback_text = getattr(fallback_response, "text", "{}") or "{}"
         fallback_data = json.loads(clean_json_response(fallback_text))
 
-        unified_data = {
-            "brand": fallback_data.get("brand", ""),
-            "model": fallback_data.get("model", ""),
-            "offer_number": fallback_data.get("offer_number", ""),
-            "configuration_code": fallback_data.get("configuration_code", ""),
-            "digital_twin": {
-                "pricing": {
-                    "total_price": fallback_data.get("total_price"),
-                    "base_price": fallback_data.get("base_price"),
-                    "options_price": fallback_data.get("options_price"),
-                },
-                "technical": {
-                    "power": fallback_data.get("engine_power_hp"),
-                    "capacity": fallback_data.get("engine_capacity_cm3"),
-                    "fuel_consumption": fallback_data.get("fuel_consumption"),
-                    "co2": fallback_data.get("co2_emissions"),
-                    "transmission": fallback_data.get("transmission"),
-                    "drive": fallback_data.get("drive_type"),
-                },
-                "features": {
-                    "color": fallback_data.get("paint_color"),
-                    "wheels": fallback_data.get("wheels"),
-                    "upholstery": fallback_data.get("upholstery"),
-                },
-                "standard_equipment": fallback_data.get("standard_equipment", []),
-                "optional_equipment": fallback_data.get("optional_equipment", []),
-                "utility_features": fallback_data.get("utility_features", []),
-            },
-        }
+        unified_data = _format_unified_data(fallback_data)
 
         usage = getattr(fallback_response, "usage_metadata", None)
         if usage:

@@ -6,6 +6,7 @@ import {
 import { FilterChip, SectionLabel, Section } from './FilterUIComponents';
 import { AdaptiveSliderField } from '../AdaptiveSliderField';
 import type { SearchContext, SelectedFeature, InitialDataResponse, TrimsAndOptionsResponse, EnumFilter } from '../../types';
+import { MATRIX_LIMITS } from '../../../config/matrixLimits';
 
 interface Level1PrimaryProps {
   searchContext: SearchContext;
@@ -201,7 +202,7 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
               <Slider
                 value={searchContext.exact_total_mileage}
                 onChange={(_, val) => onContextChange({ ...searchContext, exact_total_mileage: val as number, exact_mode: true })}
-                min={20000} max={200000} step={5000}
+                min={MATRIX_LIMITS.KM_MIN_CONTRACT} max={MATRIX_LIMITS.KM_MAX_CONTRACT} step={MATRIX_LIMITS.KM_STEP_CONTRACT}
                 marks={[20000, 60000, 100000, 140000, 200000].map(v => ({ value: v, label: `${(v / 1000).toFixed(0)}k` }))}
                 valueLabelDisplay="auto" valueLabelFormat={(v) => `${(v / 1000).toFixed(0)}k`}
                 sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}

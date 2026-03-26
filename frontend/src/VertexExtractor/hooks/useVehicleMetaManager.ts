@@ -12,6 +12,15 @@ export function useVehicleMetaManager(
 ) {
   const [isMapping, setIsMapping] = useState(false);
 
+  // Trigger Celery background task to rebuild matrix cache (0% margin) after semantic changes
+  const triggerMatrixCacheRefresh = () => {
+    apiClient.fetch(`/api/kalkulacje/matrix-cache/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicle_ids: [vehicle.id] }),
+    }).catch(err => console.error("Matrix cache refresh failed:", err));
+  };
+
   const handleSamarCategoryChange = async (newCategory: string) => {
     try {
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
@@ -32,6 +41,8 @@ export function useVehicleMetaManager(
         ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
         samar_category: newCategory,
       }));
+
+      triggerMatrixCacheRefresh();
     } catch (err) {
       console.error("Error updating SAMAR category", err);
       alert("Błąd zapisu kategorii SAMAR: " + (err instanceof Error ? err.message : "Nieznany błąd"));
@@ -66,6 +77,8 @@ export function useVehicleMetaManager(
         fuel: newCategory,
         engine_class: newCategoryClass || prev?.engine_class || serverMappedData?.engine_class,
       }));
+
+      triggerMatrixCacheRefresh();
     } catch (err) {
       console.error("Error updating Engine category", err);
       alert("Błąd zapisu kategorii Silnika: " + (err instanceof Error ? err.message : "Nieznany błąd"));
@@ -91,6 +104,8 @@ export function useVehicleMetaManager(
         ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
         drive_type: newDriveType,
       }));
+
+      triggerMatrixCacheRefresh();
     } catch (err) {
       console.error("Error updating drive type", err);
       alert("Błąd zapisu napędu: " + (err instanceof Error ? err.message : "Nieznany błąd"));
@@ -131,6 +146,8 @@ export function useVehicleMetaManager(
         ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
         body_type: canonicalBodyType,
       }));
+
+      triggerMatrixCacheRefresh();
     } catch (err) {
       console.error("Error updating body type", err);
       alert("Błąd zapisu nadwozia: " + (err instanceof Error ? err.message : "Nieznany błąd"));

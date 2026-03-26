@@ -152,6 +152,21 @@ Skopiuj i dostosuj poniższy prompt. Wklej go na początku sesji (np. w Cursorze
 > 4. Aktywne Pytanie: Jeśli w starej logice występuje niejasność, brak dokumentacji lub ryzyko błędu zaokrągleń – nie zgaduj. Zatrzymaj się i natychmiast zapytaj mnie o intencję biznesową lub dostarczenie większego kontekstu.
 > 5. Test-First (TDD): Każdy krok logiki musi być poprzedzony stworzeniem testu jednostkowego, który potwierdza zgodność starego wyniku z nowym. Dopiero po przejściu (lub napisaniu) testu, możesz zaimplementować docelowy kod funkcji.
 > 6. Sequential Thinking i Pole Rażenia: Przed wprowadzeniem zmian w jakiejkolwiek funkcji, bezwzględnie zastosuj narzędzie lub podejście `sequential-thinking`. Krok po kroku ustal, jakie będzie "pole rażenia" (blast radius) planowanej zmiany w całym programie. Umiejętnie zaplanuj architekturę i logikę modyfikacji, aby zagwarantować, że będzie ona dobrze i bezpiecznie współpracować z resztą systemu.
+### 🔍 Reverse Search — Architektura cen
+
+> [!IMPORTANT]
+> **Reverse Search NIE przelicza cen od nowa.** Moduł pobiera cenę bazową (0% marży handlowej)
+> z cache (output pełnego kalkulatora `LTRKalkulator`) i **dodaje marżę na frontendzie**
+> formułą `price / (1 - margin)`.
+>
+> Podejście z przebudową kalkulacji w `batch-prices` (`_calc_exact_price`) jest **błędne** —
+> prowadziło do rozbieżności parametrów wejściowych (factory_options, margin_pct, wibor itp.)
+> między cachem generowanym przez Celery/matrix_cache_job a kalkulacją ad-hoc.
+>
+> **Prawidłowy przepływ:**
+> 1. Vertex Kalkulator → pełna kalkulacja → zapis do `ltr_kalkulacje` + cache Redis
+> 2. Reverse Search → odczyt ceny bazowej z cache
+> 3. Frontend → `rawPrice / (1 - marginPct/100)` → wyświetlenie ceny z marżą
 
 ## 🔢 Kolejność Sub-Kalkulatorów (V1 → V3)
 

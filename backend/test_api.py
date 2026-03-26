@@ -1,28 +1,15 @@
 import requests
-from core.database import supabase
 
-# Get a vehicle ID
-res = supabase.table("vehicle_synthesis").select("id, brand, model").limit(5).execute()
-if res.data:
-    for v in res.data:
-        vid = v["id"]
-        name = f"{v['brand']} {v['model']}"
-        print(f"Testing {name} ({vid}) ...")
+base_url = "http://localhost:8000/api/excel-drafts/TAB. PRZEBIEG"
 
-        try:
-            r1 = requests.get(
-                f"http://localhost:8000/api/kalkulator/pojazd/{vid}", timeout=5
-            )
-            print("  /api/kalkulator STATUS:", r1.status_code)
-        except Exception as e:
-            print("  /api/kalkulator ERROR:", e)
+payload = {
+    "columns_def": [{"field": "col_1", "headerName": "Test", "width": 150}],
+    "data_rows": [{"id": 1, "col_1": "abc"}]
+}
 
-        try:
-            r2 = requests.get(
-                f"http://localhost:8000/api/features/vehicle/{vid}/state", timeout=15
-            )
-            print("  /api/features STATUS:", r2.status_code)
-            if r2.status_code != 200:
-                print("  Response:", r2.text[:200])
-        except Exception as e:
-            print("  /api/features ERROR:", e)
+try:
+    r = requests.put(base_url, json=payload)
+    print(r.status_code)
+    print(r.text)
+except Exception as e:
+    print("Error:", e)

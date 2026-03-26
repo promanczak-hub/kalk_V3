@@ -12,14 +12,13 @@ export function fmtPLN(val: number): string {
 
 export function parsePriceToNumber(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string") return 0;
-
-  const normalized = value
-    .replace(/\s+/g, "")
-    .replace(/[^\d,.-]/g, "")
-    .replace(",", ".");
-
-  const parsed = parseFloat(normalized);
+  if (!value) return 0;
+  
+  let s = String(value).replace(/\s/g, "").replace(/[^\d,.-]/g, "");
+  if (s.includes(".") && s.includes(",")) s = s.replace(/\./g, "");
+  s = s.replace(",", ".");
+  
+  const parsed = parseFloat(s);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -61,7 +60,19 @@ export function extractOptionsFromPaidOptions(
   paidOptions: unknown,
   defaultPriceDomain?: string,
 ): { factory: NormalizedOption[]; service: NormalizedOption[] } {
-  const rows = Array.isArray(paidOptions) ? paidOptions : [];
+  let rows: unknown[] = [];
+  if (Array.isArray(paidOptions)) {
+    rows = paidOptions;
+  } else if (paidOptions && typeof paidOptions === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const poDict = paidOptions as any;
+    if (Array.isArray(poDict.options)) {
+      rows = poDict.options;
+    } else if (Array.isArray(poDict.paid_options)) {
+      rows = poDict.paid_options;
+    }
+  }
+
   const normalizedDomain = String(defaultPriceDomain || "").toLowerCase();
   const factory: NormalizedOption[] = [];
   const service: NormalizedOption[] = [];

@@ -2,7 +2,10 @@ import logging
 
 from core.celery_app import celery_app
 
-from core.matrix_cache_job import process_single_kalkulacja_matrix_task
+from core.matrix_cache_job import (
+    process_single_kalkulacja_matrix_task,
+    refresh_matrix_cache_for_vehicles
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,3 +23,17 @@ def process_kalkulacja_matrix_task(self, kalkulacja_id: str, trace_id: str | Non
     except Exception as e:
         logger.error("Failed to process kalkulacja matrix in Celery task: %s [Trace: %s]", e, task_trace_id)
         raise
+
+@celery_app.task(bind=True)
+def refresh_matrix_cache_for_vehicles_task(self, vehicle_ids: list[str]) -> str:
+    """
+    Celery task that computes and caches matrices for a batch of vehicles.
+    """
+    logger.info("Executing Celery task for %d vehicles", len(vehicle_ids))
+    try:
+        refresh_matrix_cache_for_vehicles(vehicle_ids)
+        return f"Cache refresh launched for {len(vehicle_ids)} vehicles"
+    except Exception as e:
+        logger.error("Failed to refresh cache for vehicles in Celery task: %s", e)
+        raise
+

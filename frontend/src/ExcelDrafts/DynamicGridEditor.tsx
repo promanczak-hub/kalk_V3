@@ -1,17 +1,16 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Snackbar,
   Alert,
-  CircularProgress,
-  Chip
+  CircularProgress
 } from "@mui/material";
 import {
   DataGrid,
   useGridApiRef
 } from "@mui/x-data-grid";
 import type { GridColDef } from "@mui/x-data-grid";
-import LockIcon from "@mui/icons-material/Lock";
+
 import { v4 as uuidv4 } from "uuid";
 import { API_BASE_URL } from "../config/env";
 import { apiClient } from "../lib/apiClient";
@@ -85,7 +84,7 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
           field: c.field,
           headerName: c.headerName,
           width: c.width || 150,
-          editable: false,
+          editable: true,
           type: (isClass || isBodyType) ? 'singleSelect' : 'string',
           valueOptions: options,
         };
@@ -119,22 +118,54 @@ export default function DynamicGridEditor({ sheetName }: DynamicGridEditorProps)
     );
   }
 
+  const processRowUpdate = async (newRow: any, oldRow: any) => {
+    if (JSON.stringify(newRow) === JSON.stringify(oldRow)) return newRow;
+    
+    const updatedRows = rows.map((r) => (r.id === newRow.id ? newRow : r));
+    setRows(updatedRows);
+
+    try {
+      // Map columns back to backend expected format
+      const colsPayload = columns.map(c => ({
+        field: c.field,
+        headerName: c.headerName || "",
+        width: c.width
+      }));
+
+      // Strip artificial 'id' we added
+      const rowsPayload = updatedRows.map(r => {
+        const { id, ...rest } = r;
+        return typeof id === 'string' ? rest : r; // Keep original id if numeric
+      });
+
+      const res = await apiClient.fetch(`${API_BASE_URL}/api/excel-drafts/${encodeURIComponent(sheetName)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          columns_def: colsPayload,
+          data_rows: rowsPayload
+        })
+      });
+
+      if (!res.ok) throw new Error("Błąd podczas zapisywania");
+      setSnackbar({ open: true, message: "Zapisano", severity: "success" });
+      return newRow;
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err.message, severity: "error" });
+      setRows(rows); // revert on failure
+      return oldRow;
+    }
+  };
+
   return (
     <Box sx={{ height: 600, width: "100%", position: "relative" }}>
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
-        <Chip
-          icon={<LockIcon fontSize="small" />}
-          label="ZAMROŻONE"
-          color="error"
-          variant="filled"
-          size="small"
-        />
-      </Box>
       <DataGrid
         apiRef={apiRef}
         rows={rows}
         columns={columns}
         disableRowSelectionOnClick
+        processRowUpdate={processRowUpdate}
+        onProcessRowUpdateError={(err) => setSnackbar({ open: true, message: err.message, severity: "error" })}
       />
 
       <Snackbar

@@ -118,6 +118,14 @@ def _resolve_engine_id(engine_name: str) -> Optional[int]:
     for key, fid in mapping.items():
         if key in normalized or normalized in key:
             return fid
+
+    import re
+    match = re.search(r'\(([A-Za-z0-9\-]+)\)', normalized)
+    if match:
+        tag = f"({match.group(1)})"
+        for key, fid in mapping.items():
+            if tag in key:
+                return fid
     return None
 
 

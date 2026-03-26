@@ -45,7 +45,8 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     const basePrice = (car.best_monthly_price as number) || 0;
-    const finalPrice = basePrice * (1 + (searchContext.margin_pct || 0) / 100);
+    const marginVal = (searchContext.margin_pct || 0) / 100.0;
+    const finalPrice = marginVal < 1.0 ? basePrice / (1.0 - marginVal) : basePrice;
     const variantPriceData = priceData?.price_for_params;
     
     addToCart({

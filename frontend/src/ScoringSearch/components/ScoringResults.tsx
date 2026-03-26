@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import type { SearchContext } from '../types';
 import { useBatchPrices, useBatchSimilarVehicles } from '../hooks/useBatchData';
 import { VehicleResultCard } from './Results/VehicleResultCard';
+import { MATRIX_LIMITS } from '../../config/matrixLimits';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
@@ -28,19 +30,17 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   const targetDurationForAnnualMin = searchDurationMax;
   const targetDurationForAnnualMax = searchDurationMin;
   let searchAnnualMin = Math.max(10000, Math.round((searchContext.total_mileage_range[0] * 12) / targetDurationForAnnualMin));
-  let searchAnnualMax = Math.min(80000, Math.round((searchContext.total_mileage_range[1] * 12) / targetDurationForAnnualMax));
+  let searchAnnualMax = Math.min(MATRIX_LIMITS.KM_MAX_ANNUAL, Math.round((searchContext.total_mileage_range[1] * 12) / targetDurationForAnnualMax));
 
   if (searchContext.exact_mode) {
     const d = searchContext.exact_duration_months;
-    if (d <= 24) { searchDurationMin = 24; searchDurationMax = 24; }
-    else if (d <= 36) { searchDurationMin = 24; searchDurationMax = 36; }
-    else if (d <= 48) { searchDurationMin = 36; searchDurationMax = 48; }
-    else { searchDurationMin = 48; searchDurationMax = 60; }
+    searchDurationMin = d;
+    searchDurationMax = d;
     
     const annual = Math.round((searchContext.exact_total_mileage * 12) / d);
-    const bucket = Math.round(annual / 5000) * 5000;
-    searchAnnualMin = Math.max(10000, bucket - 5000);
-    searchAnnualMax = Math.min(80000, bucket + 5000);
+    const bucket = Math.round(annual / 2500) * 2500;
+    searchAnnualMin = Math.max(MATRIX_LIMITS.KM_MIN_ANNUAL, Math.min(MATRIX_LIMITS.KM_MAX_ANNUAL, bucket));
+    searchAnnualMax = searchAnnualMin;
   }
 
   // Calculate generic targets for similar vehicles and fallback scenarios
@@ -59,7 +59,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
   const { prices: batchPrices, loading: batchPricesLoading } = useBatchPrices(
     vehicleIdsToFetchPrices, searchDurationMin, searchDurationMax, searchAnnualMin, searchAnnualMax,
-    results.length > 0 && matrixFiltersActive
+    results.length > 0 && matrixFiltersActive,
   );
   
   const { similarVehicles: batchSimilar, loading: batchSimilarLoading } = useBatchSimilarVehicles(

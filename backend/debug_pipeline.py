@@ -1,54 +1,75 @@
-import os
+import asyncio
 import json
-from dotenv import load_dotenv
+from api.schemas.calculator import CalculatorInput
+from core.database import supabase
+from core.LTRKalkulator import LTRKalkulator
+from core.models import ControlCenterSettings
 
-load_dotenv()
-
-from core.pipeline_digital_twin import extract_digital_twin_from_pdf  # noqa: E402
-from core.pipeline_card_summary import generate_card_summary_from_twin  # noqa: E402
-from core.pipeline_discounts import match_fleet_discount  # noqa: E402
-
-
-def test_pipeline():
-    print("Testing digital twin extraction...")
+async def debug_pipeline():
+    res = supabase.table("ltr_kalkulacje").select("stan_json").eq("numer_kalkulacji", "KALK/2026/03/F3AD10").execute()
+    if not res.data:
+        print("Calc not found!")
+        return
+    
+    stan = res.data[0]["stan_json"]
+    print("STAN JSON KEYS:")
+    print("keys:", list(stan.keys()))
+    print("cena_podstawowa_brutto:", stan.get("cena_podstawowa_brutto"))
+    print("base_price_net:", stan.get("base_price_net"))
     try:
-        # Pass dummy pdf path or content
-        pdf_path = "../skoda.pdf"
-        if not os.path.exists(pdf_path):
-            print("No skoda.pdf found, using dummy text")
-            data = "To jest testowa oferta na samochód marki Kia Ceed 1.5 T-GDI 160KM. Cena: 120 000 PLN brutto."
-            mime = "text/plain"
-        else:
-            with open(pdf_path, "rb") as f:
-                data = f.read()
-            mime = "application/pdf"
+        calc_input = CalculatorInput(**stan)
+        # Mocking the missing field until the new DB records generate it
+        calc_input.paint_type_name = stan.get("typ_lakieru") or "Metalik"
+    except Exception as e:
+        print("Model parse error:", e)
+        return
+    
+    try:
+        from core.models import ControlCenterSettings
+        settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
+        settings = ControlCenterSettings(**settings_res.data[0])
+    except Exception as e:
+        print("Settings fetch error:", e)
+        return
 
-        print("1. extract_digital_twin_from_pdf")
-        pro_data = extract_digital_twin_from_pdf(data, mime)
-        print(
-            f"Result keys: {list(pro_data.keys()) if isinstance(pro_data, dict) else 'Not a dict'}"
-        )
+    calc = LTRKalkulator(input_data=calc_input, settings=settings)
+    # Give it a base price and parse other attributes from calc_input
+    calc.vehicle.price_net = stan.get("base_price_net", 0.0)
+    calc._apply_explicit_input_overrides()
 
-        print("2. generate_card_summary_from_twin")
-        pro_data = generate_card_summary_from_twin(pro_data)
-        print(
-            f"Result keys: {list(pro_data.keys()) if isinstance(pro_data, dict) else 'Not a dict'}"
-        )
+    print(f"DEBUG VEHICLE:")
+    print(f"paint_type_name (raw): {getattr(calc_input, 'paint_type_name', None)}")
+    print(f"is_metalic: {getattr(calc.vehicle, 'is_metalic', None)}")
+    print(f"paint_type_id: {getattr(calc.vehicle, 'paint_type_id', None)}")
+    print(f"body_type_id: {getattr(calc.vehicle, 'body_type_id', None)}")
 
-        print("3. match_fleet_discount")
-        pro_data = match_fleet_discount(pro_data)
-        print(
-            f"Result keys: {list(pro_data.keys()) if isinstance(pro_data, dict) else 'Not a dict'}"
-        )
+    try:
+        matrix = calc.build_matrix()
+        if not matrix:
+            print("Matrix empty!")
+            return
+        
+        c0 = matrix[0]
+        print("Keys in cell:", c0.keys() if isinstance(c0, dict) else dir(c0))
+        for c in matrix:
+            okres = c.get("Okres", c.get("months"))
+            przebieg = c.get("Przebieg", c.get("km_per_year"))
+            if okres == 48 and przebieg == 35000:
+                print(f"==========================================")
+                print(f"CELL 48/35k (140k total):")
+                print(f"CenaZakupu: {c.get('CenaZakupu')}")
+                print(f"WR: {c.get('WR')}")
+                traces = c.get("calculation_trace", [])
+                for t in traces:
+                    if "WR" in str(t):
+                        print(f"TRACE: {t}")
+                        print(f"TRACE: {t}")
+                print(f"==========================================")
 
-        print("Full string output:")
-        print(json.dumps(pro_data, ensure_ascii=False)[:500] + "...")
-        print("Pipeline successful!")
-    except Exception:
+    except Exception as e:
         import traceback
-
         traceback.print_exc()
 
-
 if __name__ == "__main__":
-    test_pipeline()
+    asyncio.run(debug_pipeline())
+

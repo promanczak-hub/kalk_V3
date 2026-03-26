@@ -1,62 +1,77 @@
+import os
+import tempfile
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from core.pdf_pipeline.extractor import PDFExtractor
 
 
-def test_extractor_file_not_found():
+def test_extractor_file_not_found() -> None:
     extractor = PDFExtractor()
     with pytest.raises(FileNotFoundError):
         extractor.extract_to_markdown("nieistniejacy_plik_testowy_12345.pdf")
 
 
-@patch("core.pdf_pipeline.extractor.DocumentConverter")
-def test_extractor_success(mock_converter_class):
-    # Setup mock
-    mock_converter_instance = MagicMock()
-    mock_result = MagicMock()
-    mock_result.document.export_to_markdown.return_value = "# Test Markdown Output"
-    mock_converter_instance.convert.return_value = mock_result
+def test_extract_to_markdown_delegates_to_hybrid() -> None:
+    """extract_to_markdown should return only the markdown string."""
+    from unittest.mock import patch
 
-    mock_converter_class.return_value = mock_converter_instance
+    extractor = PDFExtractor()
 
-    # Create temp file
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
-        tmp_path = tmp_file.name
+    fd, tmp_file = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
 
     try:
-        extractor = PDFExtractor()
-        # Dependency injection / use mock
-        extractor.converter = mock_converter_instance
+        with patch.dict("sys.modules", {"pymupdf4llm": __import__("unittest.mock", fromlist=["MagicMock"])}):
+            import sys
+            mock_mod = sys.modules["pymupdf4llm"]
+            from unittest.mock import MagicMock
+            mock_mod.to_markdown = MagicMock(return_value="# Test Markdown Output")  # type: ignore[attr-defined]
 
-        result = extractor.extract_to_markdown(tmp_path)
+            # Need fresh extractor to pick up the mocked module
+            result = extractor.extract_to_markdown(tmp_file)
 
-        assert result == "# Test Markdown Output"
-        mock_converter_instance.convert.assert_called_once_with(tmp_path)
+            assert result == "# Test Markdown Output"
     finally:
-        import os
-
-        os.unlink(tmp_path)
+        os.unlink(tmp_file)
 
 
-@patch("core.pdf_pipeline.extractor.DocumentConverter")
-def test_extractor_failure(mock_converter_class):
-    mock_converter_instance = MagicMock()
-    mock_converter_instance.convert.side_effect = Exception("General docling error")
+def test_extract_hybrid_returns_tuple() -> None:
+    """extract_hybrid should return (markdown, bytes) tuple."""
+    from unittest.mock import patch, MagicMock
 
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
-        tmp_path = tmp_file.name
+    fd, tmp_file = tempfile.mkstemp(suffix=".pdf")
+    with os.fdopen(fd, "wb") as f:
+        f.write(b"%PDF-1.4 test content")
 
     try:
-        extractor = PDFExtractor()
-        extractor.converter = mock_converter_instance
+        with patch.dict("sys.modules", {"pymupdf4llm": MagicMock()}):
+            import sys
+            sys.modules["pymupdf4llm"].to_markdown.return_value = "# Hybrid Test"
 
-        with pytest.raises(Exception, match="General docling error"):
-            extractor.extract_to_markdown(tmp_path)
+            extractor = PDFExtractor()
+            md, pdf_bytes = extractor.extract_hybrid(tmp_file)
+
+            assert md == "# Hybrid Test"
+            assert pdf_bytes == b"%PDF-1.4 test content"
     finally:
-        import os
+        os.unlink(tmp_file)
 
-        os.unlink(tmp_path)
+
+def test_extractor_failure() -> None:
+    """Extraction errors should propagate cleanly."""
+    from unittest.mock import patch, MagicMock
+
+    fd, tmp_file = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
+
+    try:
+        with patch.dict("sys.modules", {"pymupdf4llm": MagicMock()}):
+            import sys
+            sys.modules["pymupdf4llm"].to_markdown.side_effect = RuntimeError("pymupdf4llm crash")
+
+            extractor = PDFExtractor()
+            with pytest.raises(RuntimeError, match="pymupdf4llm crash"):
+                extractor.extract_to_markdown(tmp_file)
+    finally:
+        os.unlink(tmp_file)

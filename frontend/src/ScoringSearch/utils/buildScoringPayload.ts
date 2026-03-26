@@ -1,4 +1,5 @@
 import type { SelectedFeature, SearchContext } from '../types';
+import { MATRIX_LIMITS } from '../../config/matrixLimits';
 
 export const buildScoringPayload = (searchContext: SearchContext, selectedFeatures: SelectedFeature[]) => {
   // Build requirements payload out of selectedFeatures and context
@@ -11,19 +12,17 @@ export const buildScoringPayload = (searchContext: SearchContext, selectedFeatur
     const targetDurationForAnnualMin = searchDurationMax; // To get minimum annual, divide by max duration
     const targetDurationForAnnualMax = searchDurationMin; // To get maximum annual, divide by min duration
     let searchAnnualMin = Math.max(10000, Math.round((searchContext.total_mileage_range[0] * 12) / targetDurationForAnnualMin));
-    let searchAnnualMax = Math.min(80000, Math.round((searchContext.total_mileage_range[1] * 12) / targetDurationForAnnualMax));
+    let searchAnnualMax = Math.min(MATRIX_LIMITS.KM_MAX_ANNUAL, Math.round((searchContext.total_mileage_range[1] * 12) / targetDurationForAnnualMax));
 
     if (searchContext.exact_mode) {
        const d = searchContext.exact_duration_months;
-       if (d <= 24) { searchDurationMin = 24; searchDurationMax = 24; }
-       else if (d <= 36) { searchDurationMin = 24; searchDurationMax = 36; }
-       else if (d <= 48) { searchDurationMin = 36; searchDurationMax = 48; }
-       else { searchDurationMin = 48; searchDurationMax = 60; }
+       searchDurationMin = d;
+       searchDurationMax = d;
        
        const annual = Math.round((searchContext.exact_total_mileage * 12) / d);
-       const bucket = Math.round(annual / 5000) * 5000;
-       searchAnnualMin = Math.max(10000, bucket - 5000);
-       searchAnnualMax = Math.min(80000, bucket + 5000);
+       const bucket = Math.round(annual / 2500) * 2500;
+       searchAnnualMin = Math.max(MATRIX_LIMITS.KM_MIN_ANNUAL, Math.min(MATRIX_LIMITS.KM_MAX_ANNUAL, bucket));
+       searchAnnualMax = searchAnnualMin;
     }
 
     // Duration range (gte + lte pair)

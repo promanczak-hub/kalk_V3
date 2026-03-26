@@ -1,4 +1,3 @@
-import sys
 import openpyxl
 
 def main():

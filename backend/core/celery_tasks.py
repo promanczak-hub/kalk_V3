@@ -1,5 +1,5 @@
 import base64
-from worker import celery_app
+from core.celery_app import celery_app
 from core.background_jobs import process_and_save_document_bg
 import logging
 

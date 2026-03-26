@@ -18,7 +18,7 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/1")
 _PREFIX = "kalk_v3:"
 
 # ── Lazy singleton Redis client ──

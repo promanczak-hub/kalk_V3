@@ -9,7 +9,13 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=production
-      - AUTH_ENABLED=true
+      - AUTH_ENABLED=false
+      - REDIS_URL=redis://redis:6379/0
+      - SUPABASE_URL=http://postgrest:3000
+      - SUPABASE_KEY=local_parity_key
+    depends_on:
+      - redis
+      - postgrest
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -23,13 +29,35 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=http://localhost:8000
-        - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-sb_publishable_placeholder}
+        - VITE_SUPABASE_URL=http://localhost:3000
+        - VITE_SUPABASE_ANON_KEY=local_parity_key
     ports:
       - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./init_local_db.sql:/docker-entrypoint-initdb.d/init_local_db.sql
+    restart: unless-stopped
+
+  postgrest:
+    image: postgrest/postgrest
+    environment:
+      - PGRST_DB_URI=postgresql://postgres:postgres@db:5432/postgres
+      - PGRST_DB_SCHEMA=public,reverse_search
+      - PGRST_DB_ANON_ROLE=postgres
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
 
   redis:
     image: redis:7-alpine
@@ -43,16 +71,46 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: ["poetry", "run", "celery", "-A", "core.celery_app", "worker", "--pool=solo", "-B", "--loglevel=info"]
+    command: ["celery", "-A", "core.celery_app", "worker", "-Q", "celery,uploads", "--concurrency=2", "--loglevel=info"]
     env_file:
       - ./backend/.env
     environment:
       - APP_ENV=production
-      - AUTH_ENABLED=true
+      - AUTH_ENABLED=false
       - REDIS_URL=redis://redis:6379/0
+      - SUPABASE_URL=http://postgrest:3000
+      - SUPABASE_KEY=local_parity_key
+      - PYTHONPATH=/app
     depends_on:
       - redis
+      - postgrest
+    healthcheck:
+      test: ["CMD", "celery", "-A", "core.celery_app", "inspect", "ping", "--timeout", "5"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["celery", "-A", "core.celery_app", "beat", "--loglevel=info"]
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=production
+      - AUTH_ENABLED=false
+      - REDIS_URL=redis://redis:6379/0
+      - SUPABASE_URL=http://postgrest:3000
+      - SUPABASE_KEY=local_parity_key
+      - PYTHONPATH=/app
+    depends_on:
+      - redis
+      - postgrest
     restart: unless-stopped
 
 volumes:
   redis_data:
+

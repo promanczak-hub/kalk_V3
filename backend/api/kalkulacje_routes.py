@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Literal, Optional, List, cast
 from datetime import datetime
@@ -256,19 +256,29 @@ class MatrixCacheRefreshRequest(BaseModel):
 
 
 @router.post("/matrix-cache/refresh")
-async def refresh_matrix_cache(request: MatrixCacheRefreshRequest, background_tasks: BackgroundTasks):
+async def refresh_matrix_cache(request: MatrixCacheRefreshRequest):
     """
     Ręczne wywołanie odświeżenia cache macierzy dla pojazdów.
-    Używane z UI Extractor po np. ręcznym przemapowaniu klasy SAMAR.
-    Wykonuje się w tle, by nie blokować interfejsu (zapis do bazy sam odświeży Realtime).
+    Zleca zadania do kolejki Celery, by nie blokować interfejsu ani pętli zdarzeń uvicorn.
     """
-    from core.matrix_cache_job import refresh_matrix_cache_for_vehicles
     try:
         if not request.vehicle_ids:
             return {"status": "error", "message": "Brak ID pojazdów."}
         
-        background_tasks.add_task(refresh_matrix_cache_for_vehicles, request.vehicle_ids)
-        return {"status": "success", "message": f"Wysłano {len(request.vehicle_ids)} pojazd(ów) do przeliczenia w tle."}
+        from tasks.matrix_tasks import refresh_matrix_cache_for_vehicles_task
+        
+        # Split into chunks of 5 to avoid long-running celery tasks
+        chunk_size = 5
+        dispatched_tasks = 0
+        for i in range(0, len(request.vehicle_ids), chunk_size):
+            batch = request.vehicle_ids[i:i+chunk_size]
+            refresh_matrix_cache_for_vehicles_task.apply_async(args=[batch])
+            dispatched_tasks += 1
+            
+        return {
+            "status": "success", 
+            "message": f"Wysłano {len(request.vehicle_ids)} pojazd(ów) w {dispatched_tasks} transzach do Celery."
+        }
     except Exception as e:
         logger.exception("Błąd w trakcie odświeżania cache macierzy.")
         raise HTTPException(status_code=500, detail=str(e))

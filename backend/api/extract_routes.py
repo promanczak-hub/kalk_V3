@@ -8,6 +8,7 @@ import base64
 from core.celery_tasks import process_document_task
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.database import supabase as supabase_client
+from core.redis_cache import cache_invalidate_pattern
 
 router = APIRouter()
 
@@ -121,10 +122,21 @@ async def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
             trim=trim,
         )
 
+        previous_fuel = mapped_data.get("fuel", "")
+        is_mhev_previously = "mHEV" in previous_fuel
+
         if eng_name != "UNKNOWN":
-            mapped_data["fuel"] = eng_name
-            mapped_data["engine_class"] = eng_cat
-            mapped_data["engine_candidates"] = eng_candidates
+            # Guard: If previously identified as mHEV, don't downgrade to generic Petrol/Diesel
+            # unless the new identification is also mHEV or clearly superior (not generic)
+            is_new_mhev = "mHEV" in eng_name
+            is_generic_new = eng_name in ["Benzyna (PB)", "Diesel (ON)", "LPG"]
+            
+            if is_mhev_previously and is_generic_new and not is_new_mhev:
+                print(f"[REMAP] Guard: Preserving mHEV status '{previous_fuel}' over generic '{eng_name}'")
+            else:
+                mapped_data["fuel"] = eng_name
+                mapped_data["engine_class"] = eng_cat
+                mapped_data["engine_candidates"] = eng_candidates
         elif mapped_data.get("fuel"):
             try:
                 engines_resp = (
@@ -217,6 +229,10 @@ async def delete_vehicle(request: DeleteVehicleRequest) -> Dict[str, Any]:
             "id", request.vehicle_id
         ).execute()
 
+        # Invalidate cache for frontend filters
+        cache_invalidate_pattern("initial_data")
+        cache_invalidate_pattern("filters:*")
+
         return {"status": "success", "message": "Vehicle deleted successfully"}
     except Exception as e:
         print(f"Error deleting vehicle: {e}")
@@ -269,6 +285,10 @@ async def delete_vehicles_batch(request: BatchDeleteRequest) -> Dict[str, Any]:
         supabase_client.table("vehicle_synthesis").delete().in_(
             "id", request.vehicle_ids
         ).execute()
+
+        # Invalidate cache for frontend filters
+        cache_invalidate_pattern("initial_data")
+        cache_invalidate_pattern("filters:*")
 
         return {
             "status": "success",

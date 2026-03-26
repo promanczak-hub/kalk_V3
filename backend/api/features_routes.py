@@ -673,7 +673,7 @@ def reverse_search_vehicles(
 
             try:
                 engine = LTRKalkulator(input_data=calc_input, settings=settings)
-                matrix = engine.build_matrix()
+                matrix = engine.build_matrix(only_exact=True)
 
                 # Find matching cell
                 # We look for the cell where months == target_months and total_km matches roughly target_mileage

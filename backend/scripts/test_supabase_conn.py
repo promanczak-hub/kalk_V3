@@ -1,8 +1,6 @@
 import sys
 import os
-from pprint import pprint
 import requests
-import asyncio
 
 # Set up path so we can import modules
 sys.path.insert(0, os.path.abspath("."))

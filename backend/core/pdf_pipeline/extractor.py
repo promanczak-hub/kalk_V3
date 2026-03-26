@@ -50,3 +50,21 @@ class PDFExtractor:
         except Exception as e:
             logger.error(f"Błąd podczas analizy hybrydowej pliku PDF: {str(e)}")
             raise
+
+    def extract_to_markdown(self, pdf_path: str | Path) -> str:
+        """Extract only Markdown text from a PDF file using pymupdf4llm.
+
+        Convenience wrapper over ``extract_hybrid`` for callers that do not
+        need the raw PDF bytes (e.g. the pricing-pipeline Celery task).
+
+        Args:
+            pdf_path: Path to the PDF file.
+
+        Returns:
+            Markdown representation of the PDF content.
+
+        Raises:
+            FileNotFoundError: If the provided path does not exist.
+        """
+        markdown_content, _ = self.extract_hybrid(pdf_path)
+        return markdown_content

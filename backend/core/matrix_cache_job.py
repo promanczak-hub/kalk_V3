@@ -285,16 +285,7 @@ def process_single_kalkulacja_matrix_task(
     # Track: running
     _upsert_job(vehicle_id, "running", celery_task_id=celery_task_id)
 
-    # 2. Build CalculatorInput directly
-    try:
-        calc_input = CalculatorInput(**stan_json)
-    except Exception as e:
-        msg = str(e)[:500]
-        logger.error("Failed to parse stan_json into CalculatorInput for %s: %s", kalkulacja_id, e)
-        _upsert_job(vehicle_id, "failed", error_code="INVALID_STAN_JSON", error_detail=msg)
-        return
-
-    # 3. Load CC settings
+    # 2. Load CC settings (needed for both direct parse and fallback)
     settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
     if not settings_res.data:
         logger.error("process_single_kalkulacja_matrix_task: Control center settings not found")
@@ -302,6 +293,41 @@ def process_single_kalkulacja_matrix_task(
         return
     settings_dict = cast(dict[str, Any], settings_res.data[0])
     settings = ControlCenterSettings(**settings_dict)
+
+    # 3. Build CalculatorInput — try direct parse first, fallback to build_calculator_input
+    calc_input: CalculatorInput | None = None
+    try:
+        calc_input = CalculatorInput(**stan_json)
+    except Exception as direct_err:
+        logger.warning(
+            "Direct stan_json parse failed for kalkulacja %s (likely raw synthesisData). "
+            "Falling back to build_calculator_input. Error: %s [Trace: %s]",
+            kalkulacja_id, str(direct_err)[:200], task_trace_id,
+        )
+        # Fallback: fetch vehicle from vehicle_synthesis and build input properly
+        v_res = supabase.table("vehicle_synthesis").select("*").eq("id", vehicle_id).execute()
+        if not v_res.data:
+            msg = f"Direct parse failed AND vehicle {vehicle_id} not found in vehicle_synthesis"
+            logger.error(msg)
+            _upsert_job(vehicle_id, "failed", error_code="VEHICLE_NOT_FOUND", error_detail=msg)
+            return
+        try:
+            calc_input = build_calculator_input(v_res.data[0], margin_pct=0.0, settings=settings)
+        except Exception as build_err:
+            msg = str(build_err)[:500]
+            logger.error("build_calculator_input fallback also failed for %s: %s", vehicle_id, build_err)
+            _upsert_job(vehicle_id, "failed", error_code="BUILD_INPUT_ERROR", error_detail=msg)
+            return
+
+    if not calc_input:
+        logger.error("CalculatorInput is None for kalkulacja %s / vehicle %s", kalkulacja_id, vehicle_id)
+        _upsert_job(vehicle_id, "failed", error_code="NO_BASE_PRICE", error_detail="build_calculator_input returned None")
+        return
+
+    # CRITICAL: Force pricing_margin_pct to 0.0 for cache generation!
+    # The cache must store base prices (0% sales margin).
+    # The sales margin is added dynamically by the frontend in Reverse Search.
+    calc_input.pricing_margin_pct = 0.0
 
     # 4. Generate Matrix
     try:
@@ -402,9 +428,9 @@ def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
         vid = row["id"]
         # Track: queued before building input
         _upsert_job(str(vid), "queued")
-        # Default margin is taken from CC settings
+        # Force 0.0 margin for caching to support Reverse Search (Zero-Margin DB)
         try:
-            calc_input = build_calculator_input(row, margin_pct=float(settings.default_ltr_margin), settings=settings)
+            calc_input = build_calculator_input(row, margin_pct=0.0, settings=settings)
         except Exception as e:
             msg = str(e)[:400]
             logger.error("Error building calculator input for %s: %s", vid, e)

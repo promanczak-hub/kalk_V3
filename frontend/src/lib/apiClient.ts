@@ -26,7 +26,7 @@ export interface ApiClientOptions extends RequestInit {
 
 class ApiClient {
   public async fetch(endpoint: string | RequestInfo, options: ApiClientOptions = {}): Promise<Response> {
-    const { timeoutMs = 30000, skipGlobalError = false, ...fetchOptions } = options;
+    const { timeoutMs = 120000, skipGlobalError = false, ...fetchOptions } = options;
     
     let url: string;
     if (typeof endpoint === "string") {
@@ -39,13 +39,15 @@ class ApiClient {
     const id = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+      const headers = new Headers(fetchOptions.headers);
+      if (!(fetchOptions.body instanceof FormData) && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+
       const response = await fetch(url, {
         ...fetchOptions,
         signal: options.signal || controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...fetchOptions.headers,
-        },
+        headers,
       });
 
       clearTimeout(id);
@@ -59,9 +61,14 @@ class ApiClient {
           errorData = { message: response.statusText };
         }
         
+        let errorMessage = errorData?.detail || errorData?.message || response.statusText;
+        if (Array.isArray(errorMessage)) {
+          errorMessage = errorMessage.map((err: Record<string, unknown>) => err.msg || JSON.stringify(err)).join(", ");
+        }
+
         throw new ApiError(
           response.status, 
-          errorData?.detail || errorData?.message || response.statusText, 
+          errorMessage, 
           errorData
         );
       }
@@ -71,14 +78,21 @@ class ApiClient {
       clearTimeout(id);
       
       let errorMessage = "Wystąpił nieoczekiwany błąd sieci.";
+      let isManualAbort = false;
       
       if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          // Identify if it was aborted intentionally via the provided options.signal
+          if (options.signal && options.signal.aborted) {
+            isManualAbort = true;
+          }
+        }
         errorMessage = error.name === "AbortError" 
           ? "Przekroczono czas oczekiwania na odpowiedź serwera (Timeout)." 
           : error.message;
       }
 
-      if (!skipGlobalError) {
+      if (!skipGlobalError && !isManualAbort) {
         useAppStore.getState().setGlobalError(errorMessage);
       }
       

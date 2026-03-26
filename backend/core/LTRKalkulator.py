@@ -443,24 +443,7 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
         return vehicle_dict
 
     except Exception as exc:
-        logging.warning("get_vehicle_from_db error for %s: %s", vid, exc)
-    return cast(Dict[str, Any], {})
-
-
-@lru_cache(maxsize=128)
-def get_samar_klasa_from_db(klasa_id: str) -> Dict[str, Any]:
-    """Pobiera parametry serwisowe (i nie tylko) przypisane do klasy pojazdu"""
-    if not klasa_id:
-        return {}
-    try:
-        from core.database import supabase
-
-        res = supabase.table("samar_klasa_wr").select("*").eq("id", klasa_id).execute()
-        if res.data and len(res.data) > 0:
-            return cast(Dict[str, Any], res.data[0])
-    except Exception:
-        pass
-    return {}
+        raise ValueError(f"Błąd bazy danych podzzas pobierania pojazdu (ID: {vid}): {exc}. Przerwanie procesu (Fail-Fast).") from exc
 
 
 @lru_cache(maxsize=128)
@@ -568,12 +551,7 @@ class LTRKalkulator:
             self.samar_id = raw_v.get("samar_class_id", 0)
             raw_v["samar_class_id"] = self.samar_id
 
-            samar_id_str = str(self.samar_id)
-            raw_s = (
-                get_samar_klasa_from_db(samar_id_str)
-                if samar_id_str and samar_id_str != "0"
-                else {}
-            )
+            raw_s = {}
             
             if raw_v:
                 self.vehicle = VehicleDataDTO(
@@ -622,24 +600,28 @@ class LTRKalkulator:
         if input_samar:
             resolved_samar_id = _resolve_samar_class_id_from_name(input_samar)
             if resolved_samar_id <= 0:
-                raise ValueError(
-                    f"Nie rozpoznano klasy SAMAR z dropdownu: '{input_samar}'."
+                logging.warning(
+                    f"Zignorowano wprowadzona klase SAMAR z dropdownu: '{input_samar}'. Nie rozpoznano ID."
                 )
-            self.vehicle.Segment = input_samar
-            self.vehicle.samar_class_id = int(resolved_samar_id)
-            self.samar_id = int(resolved_samar_id)
+            else:
+                self.vehicle.Segment = input_samar
+                self.vehicle.samar_class_id = int(resolved_samar_id)
+                self.samar_id = int(resolved_samar_id)
 
         # Nadpisanie mocy z UI payload
         if getattr(self.input_data, "power_kw", None):
             self.vehicle.power_kw = float(self.input_data.power_kw)
         elif getattr(self.input_data, "power_hp", None):
             self.vehicle.power_kw = float(round(self.input_data.power_hp / 1.36))
-            self.samar_klasa = get_samar_klasa_from_db(str(self.samar_id))
+            self.samar_klasa = {}
 
         input_engine = str(getattr(self.input_data, "engine_name", "") or "").strip()
         if input_engine:
-            resolved_engine_id = _resolve_engine_type_id(input_engine)
-            self.vehicle.engine_type_id = int(resolved_engine_id)
+            try:
+                resolved_engine_id = _resolve_engine_type_id(input_engine)
+                self.vehicle.engine_type_id = int(resolved_engine_id)
+            except ValueError as e:
+                logging.warning(f"Zignorowano wprowadzona kategorie silnika '{input_engine}': {e}")
 
         input_body = str(getattr(self.input_data, "body_type_name", "") or "").strip()
         if input_body:
@@ -779,7 +761,7 @@ class LTRKalkulator:
         vehicle_capex, options_capex, capex_res = self._calculate_capex()
         capex = vehicle_capex + options_capex
         # V1 parity: WR curve uses full catalogue prices (no discount)
-        base_price_net_full = float(getattr(self.input_data, "base_price_net", 0))
+        base_price_net_full = float(getattr(self.vehicle, "price_net", 0.0))
 
         # Instantiate RV calculator once (shared across all months)
         from core.LTRSubCalculatorUtrataWartosciNew import (
@@ -850,8 +832,8 @@ class LTRKalkulator:
             pass  # Skip building the full grid if we only want the exact requested tile
         elif matrix_km_mode == "contract":
             contract_km_min = 10000
-            contract_km_max = 300000
-            contract_km_step = 5000
+            contract_km_max = 600000
+            contract_km_step = 10000
 
             for m in (24, 36, 48, 60):
                 for total_km_contract in range(
@@ -863,7 +845,7 @@ class LTRKalkulator:
                     add_grid_pair(m, km_py, total_km_contract)
         else:
             for m in (24, 36, 48, 60):
-                for km_py in range(10000, 80001, 2500):
+                for km_py in range(10000, 200001, 10000):
                     add_grid_pair(m, km_py)
 
         # Inject requested base period/mileage into the grid.
@@ -1238,7 +1220,7 @@ class LTRKalkulator:
                         + bm_result.trace
                     ),
                     # Extra technical output (status/warnings)
-                    "status": "OK" if total_km <= 200000 else "WARNING_HIGH_KM",
+                    "status": "OK",
                     "warnings": {
                         "service_fallback_used": service_fallback_used,
                         "replacement_car_missing": rc_base == 0.0

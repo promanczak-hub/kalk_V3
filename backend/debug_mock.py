@@ -93,7 +93,7 @@ def run():
             calc.tires_calc = mock_tires.return_value
             cells = calc.build_matrix()
             print("Successfully built cells:", len(cells))
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
 
 if __name__ == "__main__":

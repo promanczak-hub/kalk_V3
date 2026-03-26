@@ -1,6 +1,4 @@
-import platform
 
-import platform
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

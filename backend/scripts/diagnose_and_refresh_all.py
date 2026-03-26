@@ -8,9 +8,7 @@ Produces a human-readable report of:
 import sys
 import os
 import logging
-import json
 from datetime import datetime
-from io import StringIO
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -169,7 +167,7 @@ def run_refresh_and_report() -> None:
     # ── REPORT ───────────────────────────────────────────────────────────────
 
     print(f"\n{'='*70}")
-    print(f"  WYNIKI")
+    print("  WYNIKI")
     print(f"{'='*70}")
     print(f"OK  Sukces:          {len(successes)} aut")
     print(f"!   Brak ceny:       {len(skipped_no_price)} aut")

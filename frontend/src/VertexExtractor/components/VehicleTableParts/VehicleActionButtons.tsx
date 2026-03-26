@@ -4,6 +4,7 @@ import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
 import { apiClient } from '../../../lib/apiClient';
+import { extractOptionsFromPaidOptions } from "./calculations/calculations.utils";
 
 interface HistoricalCalculation {
   id: string;
@@ -167,6 +168,25 @@ export function VehicleActionButtons({
       const existingCalculatorSetup = ((vehicle.synthesis_data as Record<string, unknown>)?.calculator_setup as Record<string, unknown>) || {};
       const existingFinancialParams = (existingCalculatorSetup.financial_params as Record<string, unknown>) || {};
       const existingToggles = (existingCalculatorSetup.toggles as Record<string, unknown>) || {};
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cardSummary = (vehicle.synthesis_data as Record<string, any>)?.card_summary || {};
+      const isDemo = String(cardSummary.is_demo || "").toLowerCase() === "true";
+      const rawBasePrice = isDemo 
+        ? (cardSummary.demo_price || cardSummary.base_price)
+        : cardSummary.base_price;
+        
+      const cleanBasePrice = parseFloat(String(rawBasePrice || "").replace(/\s+/g, "").replace(",", ".")) || 0;
+      const priceDomain = cardSummary._price_domain || "unknown";
+      const isBrutto = String(rawBasePrice || "").toLowerCase().includes("brutto") || priceDomain === "brutto";
+      
+      const basePriceNet = isBrutto ? parseFloat((cleanBasePrice / 1.23).toFixed(2)) : cleanBasePrice;
+
+      const fallbackFromPaid = extractOptionsFromPaidOptions(
+        cardSummary.paid_options || [],
+        String(cardSummary._price_domain || cardSummary.price_domain || "")
+      );
+
       const resp = await apiClient.fetch(`${baseUrl}/api/kalkulacje`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,8 +195,31 @@ export function VehicleActionButtons({
           stan_json: {
             ...(vehicle.synthesis_data || {}),
             vehicle_id: vehicle.id,
+            base_price_net: basePriceNet,
+            factory_options: fallbackFromPaid.factory,
+            service_options: fallbackFromPaid.service,
             brand: vehicle.brand || "",
             model: vehicle.model || "",
+
+            // Flattened fields strictly required by backend's CalculatorInput model cache job
+            wibor_pct: wiborPct,
+            margin_pct: marginPct,
+            pricing_margin_pct: pricingMarginPct,
+            discount_pct: activeDiscountPct,
+            depreciation_pct: null,
+            initial_deposit_pct: initialDepositPct,
+            inne_koszty_serwisowania_netto: otherServiceCosts,
+            replacement_car_enabled: replacementCar,
+            add_gsm_subscription: gpsRequired,
+            add_hook_installation: hookInstallation,
+            include_servicing: includeServicing,
+            z_oponami: true,
+            klasa_opony_string: tireClass || "Medium",
+            liczba_kompletow_opon: tireCountMode === "auto" ? null : (isNaN(parseFloat(tireCountMode)) ? null : parseFloat(tireCountMode)),
+            korekta_kosztu_opon: tireCostCorrectionEnabled,
+            koszt_opon_korekta: tireCostCorrection,
+            srednica_felgi: rimDiameter || (cardSummary.wheels ? parseInt(String(cardSummary.wheels).replace(/\D/g, "")) : 16) || 16,
+            
             financial_params: {
               ...existingFinancialParams,
               wibor_pct: wiborPct,

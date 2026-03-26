@@ -419,7 +419,7 @@ export function useCalculator() {
         dealer_options: dealerOptions,
         tire_size: cs.wheels || "",
         discount_amount_net: Math.abs(discountAmt),
-        discount_pct: 0,
+        discount_pct: discountAmt > 0 ? 0 : (cs.suggested_discount_pct || 0),
         fuel_type: "Diesel",
         body_style: cs.body_style || "",
         samar_category: "KLASYFIKACJA...",

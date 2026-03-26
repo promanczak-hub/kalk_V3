@@ -122,13 +122,13 @@ ZADANIE: Oceń prawdopodobieństwo przynależności tego pojazdu do KAŻDEGO opi
 Dla KAŻDEGO napędu z listy przypisz confidence (0.0-1.0) — jak bardzo ten układ pasuje.
 
 KRYTYCZNE WSKAZÓWKI:
-1. Odczytane Paliwo (np. Benzyna, Diesel) to główny klucz, ale szukaj też słów mHEV, Mild Hybrid, miękka hybryda w oznaczeniu technologii lub trimie. Zwykła Benzyna to "Benzyna (PB)", a benzyna + mHEV to "Benzyna mHEV (PB-mHEV)".
-2. Zwróć uwagę na Plug-In Hybrid (PHEV) (auto z wtyczką, zazwyczaj wyższa moc systemowa i dopisek e-Hybrid, TFSIe, PHEV).
+1. Słowa kluczowe: mHEV, Mild Hybrid, miękka hybryda, e-TEC, eTSI mają WYŻSZY priorytet niż ogólne "Benzyna" lub "Diesel". Jeśli widzisz te słowa w jakimkolwiek polu (szczególnie w technologii lub trimie), SZUKAJ odpowiednika mHEV w słowniku (np. "Benzyna mHEV (PB-mHEV)").
+2. Zwróć uwagę na Plug-In Hybrid (PHEV) (auto z wtyczką, zazwyczaj wyższa moc systemowa i dopisek e-Hybrid, TFSIe, PHEV, Recharge).
 3. Klasyczna Hybryda HEV nie ma wtyczki (Toyota Hybrid, Renault E-Tech pełen).
-4. Jeśli widzisz tylko "Benzyna" i brak jakichkolwiek dopisków hybrydowych, to najprawdopodobniej czyste ICE.
-5. "Elektryczny (BEV)" stosuj tylko dla pełnych elektryków (np. moc w kW bez uwag o silniku spalinowym).
+4. Jeśli widzisz tylko "Benzyna" i brak jakichkolwiek dopisków hybrydowych (mHEV, Hybrid itp.), to najprawdopodobniej czyste ICE ("Benzyna (PB)").
+5. "Elektryczny (BEV)" stosuj tylko dla pełnych elektryków (brak silnika spalinowego).
 
-WAŻNE: Musisz ocenić WSZYSTKIE {len(unique_names)} klas, używając DOKŁADNIE nazwy pola 'name' (np. "Benzyna (PB)", "Diesel mHEV (ON-mHEV)"). Klasy, do których to absolutnie nie pasuje, powinny dostać confidence bliskie 0.0.
+WAŻNE: Musisz ocenić WSZYSTKIE {len(unique_names)} klas, używając DOKŁADNIE nazwy pola 'name' (np. "Benzyna (PB)", "Benzyna mHEV (PB-mHEV)"). Klasy, do których to absolutnie nie pasuje, powinny dostać confidence 0.0.
 Posortuj wyniki od najwyższego do najniższego confidence.
 """
 

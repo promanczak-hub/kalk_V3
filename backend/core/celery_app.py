@@ -1,6 +1,5 @@
 import os
 from celery import Celery
-from celery import Celery
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
@@ -13,6 +12,7 @@ celery_app = Celery(
         "tasks.cache_tasks",
         "tasks.enrichment_tasks",
         "tasks.matrix_tasks",
+        "tasks.matrix_watchdog",
         "core.celery_tasks",
         "core.pdf_pipeline.tasks",
     ],
@@ -31,6 +31,10 @@ celery_app.conf.update(
         "prewarm-global-filters-every-15-mins": {
             "task": "tasks.cache_tasks.prewarm_global_filters_cache",
             "schedule": 900.0,  # 15 minutes in seconds
+        },
+        "matrix-watchdog-every-5-mins": {
+            "task": "matrix_watchdog_task",
+            "schedule": 300.0,  # 5 minutes in seconds
         },
     },
 )

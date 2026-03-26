@@ -139,7 +139,7 @@ Dodatkowo rozbij `powertrain` na części składowe:
 
 Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. Przeszukaj wszystkie kolekcje i listy opisujące pojazd, niezależnie od tego, czy nazywają się "standard_equipment", "wyposażenie seryjne", "specyfikacja" itp.
 Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedłużone gwarancje. Jeśli dokument zawiera opcje serwisowe/zabudowy, wyciągnij je do osobnego obiektu 'service_equipment', wyliczając poprawnie łączną kwotę netto i brutto całego pakietu. Ponadto, jeżeli suma ta składa się z pojedynczych części składowych, wypisz je wszystkie jako 'components' podając dla każdego cenę netto i brutto. 
-Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie z jakiejkolwiek sekcji opcji płatnych.
+Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie. Dla lakierów/kolorów zewnętrznych używaj konsekwentnie prefiksu 'Lakier: ' w nazwie opcji.
 Bądź precyzyjny, ale szukaj szeroko w obrębie danego kontekstu. 
 Wyciągnij 'body_style' i 'trim_level' jako dwie oddzielne wartości w obiekcie, nie dokładaj ich na końcu innych stringów typu model.
 

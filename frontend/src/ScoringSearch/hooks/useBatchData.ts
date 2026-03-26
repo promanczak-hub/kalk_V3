@@ -27,7 +27,7 @@ export function useBatchPrices(
   durationMonthsMax: number,
   annualMileageMin: number,
   annualMileageMax: number,
-  enabled: boolean
+  enabled: boolean,
 ): { prices: Record<string, { price_for_params?: PriceForParams, variants?: PriceForParams[] }>; loading: boolean } {
   const [prices, setPrices] = useState<Record<string, { price_for_params?: PriceForParams, variants?: PriceForParams[] }>>({});
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export function useBatchPrices(
             duration_months_min: durationMonthsMin,
             duration_months_max: durationMonthsMax,
             annual_mileage_min: annualMileageMin,
-            annual_mileage_max: annualMileageMax
+            annual_mileage_max: annualMileageMax,
           }),
         });
         const data = await r.json();
