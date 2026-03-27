@@ -310,6 +310,12 @@ class CardSummary(BaseModel):
     transmission: str = Field(
         description="Rodzaj skrzyni biegów, np. 'Automatyczna', 'Manualna', 'DSG'. Zwróć 'Brak' jeśli nie przypisano."
     )
+    number_of_seats: Optional[int] = Field(
+        None, description="Liczba miejsc siedzących (np. 2, 5, 7, 9)."
+    )
+    has_automatic_ac: Optional[bool] = Field(
+        None, description="Czy pojazd posiada klimatyzację automatyczną?"
+    )
     body_style: str = Field(
         description=(
             "Typ nadwozia pojazdu. Jeśli w jakiejkolwiek sekcji (wersja, nazwa) widzisz "

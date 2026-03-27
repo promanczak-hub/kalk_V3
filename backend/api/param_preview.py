@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from core.database import supabase
+from core.LTRSubCalculatorSerwisNew import get_base_service_rate, get_service_multiplier
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,12 @@ router = APIRouter(tags=["Param Preview"])
 class ServicePreview(BaseModel):
     found: bool = False
     rate_per_km: float = 0.0
+    base_rate: float = 0.0
+    m_brand: float = 1.0
+    m_fuel: float = 1.0
+    m_drive: float = 1.0
+    m_gearbox: float = 1.0
+    total_multiplier: float = 1.0
     type: str = ""
     power_band: str = ""
 
@@ -65,36 +72,63 @@ class ParamPreviewResponse(BaseModel):
 
 def _fetch_service_preview(
     samar_class_id: int,
-    engine_type_id: int,
-    power_band: str,
-    service_type: str,
+    brand_normalized: Optional[str] = None,
+    fuel_type: Optional[str] = None,
+    drive_type: Optional[str] = None,
+    gearbox_type: Optional[str] = None,
+    service_type: str = "ASO",
+    target_mileage: int = 60000,
 ) -> ServicePreview:
-    """Fetch service rate from samar_service_costs."""
+    """Fetch service rate and multipliers (V3)."""
     try:
-        res = (
-            supabase.table("samar_service_costs")
-            .select("cost_aso_per_km, cost_non_aso_per_km")
-            .eq("samar_class_id", samar_class_id)
-            .eq("engine_type_id", engine_type_id)
-            .eq("power_band", power_band)
-            .execute()
-        )
-        if res.data:
-            row = cast(dict[str, Any], res.data[0])
-            rate_key = (
-                "cost_aso_per_km"
+        record = get_base_service_rate(samar_class_id, target_mileage)
+        if not record:
+            return ServicePreview()
+
+        base_rate = float(
+            record.get(
+                "stawka_aso_per_km"
                 if service_type.upper() == "ASO"
-                else "cost_non_aso_per_km"
+                else "stawka_non_aso_per_km",
+                0.0,
             )
-            rate = float(row.get(rate_key, 0.0))
-            return ServicePreview(
-                found=True,
-                rate_per_km=rate,
-                type=service_type.upper(),
-                power_band=power_band,
-            )
+        )
+
+        m_brand = get_service_multiplier(
+            "samar_service_brand_multipliers",
+            "brand_normalized",
+            (brand_normalized or "").strip().upper(),
+        )
+        m_fuel = get_service_multiplier(
+            "samar_service_fuel_multipliers",
+            "fuel_normalized",
+            (fuel_type or "").strip().upper(),
+        )
+        m_drive = get_service_multiplier(
+            "samar_service_drive_multipliers",
+            "drive_normalized",
+            (drive_type or "").strip().upper(),
+        )
+        m_gearbox = get_service_multiplier(
+            "samar_service_gearbox_multipliers",
+            "gearbox_normalized",
+            (gearbox_type or "").strip().upper(),
+        )
+
+        total_multiplier = m_brand * m_fuel * m_drive * m_gearbox
+        return ServicePreview(
+            found=True,
+            rate_per_km=base_rate * total_multiplier,
+            base_rate=base_rate,
+            m_brand=m_brand,
+            m_fuel=m_fuel,
+            m_drive=m_drive,
+            m_gearbox=m_gearbox,
+            total_multiplier=total_multiplier,
+            type=service_type.upper(),
+        )
     except Exception as exc:
-        logger.warning("param-preview service error: %s", exc)
+        logger.warning("param-preview service v3 error: %s", exc)
     return ServicePreview()
 
 
@@ -197,15 +231,15 @@ def _fetch_replacement_car_preview(
     return ReplacementCarPreview()
 
 
-# ── Endpoint ─────────────────────────────────────────────────────
-
-
 @router.get("/param-preview")
-async def get_param_preview(
+def get_param_preview(
     samar_class_id: int = Query(...),
-    engine_type_id: int = Query(...),
-    power_band: str = Query(default="MID"),
+    brand_normalized: Optional[str] = Query(default=None),
+    fuel_type: Optional[str] = Query(default=None),
+    drive_type: Optional[str] = Query(default=None),
+    gearbox_type: Optional[str] = Query(default=None),
     service_type: str = Query(default="ASO"),
+    target_mileage: int = Query(default=60000),
     rim_diameter: Optional[int] = Query(default=None),
     tire_class: str = Query(default="Medium"),
     vehicle_vintage: str = Query(default="current"),
@@ -213,7 +247,13 @@ async def get_param_preview(
 ) -> ParamPreviewResponse:
     """Returns live parameter preview for LinkedIndicator tooltips."""
     service = _fetch_service_preview(
-        samar_class_id, engine_type_id, power_band, service_type
+        samar_class_id,
+        brand_normalized,
+        fuel_type,
+        drive_type,
+        gearbox_type,
+        service_type,
+        target_mileage,
     )
 
     tires = (
@@ -221,7 +261,6 @@ async def get_param_preview(
         if rim_diameter
         else TiresPreview(tire_class=tire_class)
     )
-
     vintage = _fetch_vintage_preview(vehicle_vintage)
     color = _fetch_color_preview(is_metalic)
     replacement_car = _fetch_replacement_car_preview(samar_class_id)

@@ -8,9 +8,16 @@ sys.path.insert(0, os.path.abspath("."))
 try:
     from core.database import supabase
     from core.settings import SUPABASE_URL
+
     print(f"Supabase URL: {SUPABASE_URL}")
     print("--- Testing client ---")
-    resp = supabase.schema("reverse_search").table("model_document_sources").select("id").limit(1).execute()
+    resp = (
+        supabase.schema("reverse_search")
+        .table("model_document_sources")
+        .select("id")
+        .limit(1)
+        .execute()
+    )
     print("Supabase Table Response:", resp)
 except Exception as e:
     print("Supabase Python Error:", e)

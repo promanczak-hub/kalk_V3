@@ -1,0 +1,47 @@
+﻿python : Traceback (mos
+t recent call last):
+At line:1 char:1
++ python verify_margin.
+py > out_err.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Traceback (mo   
+ st recent call las    
+t)::String) [], Re    m
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+  File "D:\kalk_v3\back
+end\verify_margin.py", 
+line 49, in main
+    matrix, success = k
+alk.build_matrix()
+                      ^
+^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\back
+end\core\LTRKalkulator.
+py", line 1047, in buil
+d_matrix
+    insurance_res = ins
+_calc.calculate_cost(mo
+nths, capex_for_financi
+ng)  # type: ignore
+                    ^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+  File "D:\kalk_v3\back
+end\core\LTRSubCalculat
+orUbezpieczenie.py", li
+ne 37, in calculate_cos
+t
+    raise ValueError(
+ValueError: Brak popraw
+nego parametru `ins_avg
+_damage_value` w Contro
+l Center.
+Testing CBQDKGWL with 14% margin...

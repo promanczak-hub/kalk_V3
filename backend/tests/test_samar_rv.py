@@ -1,106 +1,102 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pytest
-from core.samar_rv import SamarRVCalculator
-
-
-class MockSettings:
-    def __init__(self):
-        self.samar_rv_apply_color_correction = True
-        self.samar_rv_apply_body_correction = True
-        self.samar_rv_apply_options_depreciation = True
-        self.samar_rv_base_mileage = 140000
-        self.samar_rv_mileage_unit_km = 10000
-
-
-class MockInput:
-    def __init__(self):
-        self.settings = MockSettings()
+from core.samar_rv import SamarRVCalculator, RVInput, RVOutput
 
 
 @pytest.fixture
-def mock_vehicle_data():
-    return {
-        "Segment": "B",
-        "Paliwo": "Benzyna",  # Paliwo=1
-        "MakeId": 55,  # Marka
-        "ProdukcjaRok": 2020,
-        "LakierRodzaj": "Metalik",
-        "Zabudowa": "Furgon",
-    }
-
-
-@pytest.fixture
-def mock_calc_input():
-    return MockInput()
-
-
-def test_map_fuel_type(mock_vehicle_data, mock_calc_input):
-    calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-    assert calc.fuel_type_id == 1  # Benzyna (PB) -> fuel_group_id=1
-
-    mock_vehicle_data["Paliwo"] = "Diesel (ON)"
-    calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-    assert calc.fuel_type_id == 2  # Diesel (ON) -> fuel_group_id=2
-
-    mock_vehicle_data["Paliwo"] = "Hybryda Plug-in (PHEV)"
-    calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-    assert calc.fuel_type_id == 3  # PHEV -> fuel_group_id=3
-
-
-def test_samar_rv_calculate_base(mocker, mock_vehicle_data, mock_calc_input):
-    """Testuje czy kalkulator wyliczy poprawnie RV wg uproszczonego V1 algorytmu na mockach"""
-    mocker.patch.object(SamarRVCalculator, "get_base_rv_percentage", return_value=0.50)
-    mocker.patch.object(SamarRVCalculator, "get_brand_correction", return_value=0.0)
-    mocker.patch.object(
-        SamarRVCalculator, "get_depreciation_correction", return_value=0.0
+def mock_rv_input():
+    return RVInput(
+        samar_class_id=1,
+        engine_id=1,
+        fuel_name="BENZYNA",
+        brand_name="TEST_BRAND",
+        model_name="TEST_MODEL",
+        months=48,
+        total_km=140000,
+        catalog_base_net=100000.0,
+        catalog_options_net=20000.0,
+        paint_type_id=1,
+        is_metalic=True,
+        body_type_id=1,
+        rocznik="current",
+        zabudowa_apr_wr=True,
+        zabudowa_type_id=2,
+        manual_wr_correction=0.0,
     )
-    mocker.patch.object(SamarRVCalculator, "get_options_depreciation", return_value=0.8)
-    mocker.patch.object(SamarRVCalculator, "get_color_correction", return_value=0.01)
-    mocker.patch.object(SamarRVCalculator, "get_body_correction", return_value=0.02)
-    mocker.patch.object(SamarRVCalculator, "get_vintage_correction", return_value=0.0)
+
+
+def test_samar_rv_calculate_base(mocker, mock_rv_input):
+    """Testuje czy kalkulator wyliczy poprawnie RV wg uproszczonego V1 algorytmu na mockach"""
+    # Base WR = 50% dla 4 roku
     mocker.patch.object(
         SamarRVCalculator,
-        "get_mileage_correction",
-        return_value={"under_190": 0.0, "over_190": 0.0},
+        "_fetch_depreciation_rates",
+        return_value={"km_140000": 0.50},
     )
+    mocker.patch.object(SamarRVCalculator, "_fetch_brand_correction", return_value=0.0)
+    mocker.patch.object(
+        SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0, 140000)
+    )
+    mocker.patch.object(
+        SamarRVCalculator,
+        "_fetch_class_config",
+        return_value={"base_mileage_km": 140000, "mileage_threshold_km": 190000},
+    )
+    mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.80)
+    mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.01)
+    mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.02)
+    mocker.patch.object(
+        SamarRVCalculator, "fetch_zabudowa_correction", return_value=0.0
+    )
+    mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
+    mocker.patch.object(SamarRVCalculator, "fetch_lo_param", return_value=0.0)
 
-    calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
+    calc = SamarRVCalculator(mock_rv_input)
 
     # Base: 50%
     # Options: 80% (0.8)
     # Wartość 48 miesięcy = 50% * 100k = 50k
-    # Brak deprecjacji
-    # Opcje = 50k + (20k * 0.8) = 50k + 16k = 66k
+    # Brak deprecjacji przebiegu (0.0 multiplier na under/over)
+    # Opcje = 20k * 0.8 = 16k
     # Kolor = 100k * 0.01 = 1k
-    # Zabudowa = 120k * 0.02 = 2.4k
-    # RV = 66k + 1k + 2.4k = 69.4k
+    # Zabudowa/Body = (100k + 20k) * 0.02 = 2.4k
+    # RV = 50k + 16k + 1k + 2.4k = 69.4k
 
-    rv_value = calc.calculate_rv(
-        months=48, total_km=140000, base_vehicle_capex=100000.0, options_capex=20000.0
-    )
-    assert rv_value == pytest.approx(69400.0)
+    output: RVOutput = calc.calculate()
+    assert output.wr_net == pytest.approx(69400.0)
 
 
-def test_samar_rv_sanity_bounds(mocker, mock_vehicle_data, mock_calc_input):
-    """Sprawdzenie czy RV mieści się w granicach min 5% a max 95% łącznej ceny"""
-    mocker.patch.object(SamarRVCalculator, "get_base_rv_percentage", return_value=0.0)
-    mocker.patch.object(SamarRVCalculator, "get_brand_correction", return_value=0.0)
-    mocker.patch.object(
-        SamarRVCalculator, "get_depreciation_correction", return_value=0.0
-    )
-    mocker.patch.object(SamarRVCalculator, "get_options_depreciation", return_value=0.0)
-    mocker.patch.object(SamarRVCalculator, "get_color_correction", return_value=0.0)
-    mocker.patch.object(SamarRVCalculator, "get_body_correction", return_value=0.0)
-    mocker.patch.object(SamarRVCalculator, "get_vintage_correction", return_value=0.0)
+def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
+    """Sprawdzenie czy parametry zwracaja sie poprawnie przy 0% (edge case)"""
     mocker.patch.object(
         SamarRVCalculator,
-        "get_mileage_correction",
-        return_value={"under_190": 0.0, "over_190": 0.0},
+        "_fetch_depreciation_rates",
+        return_value={"km_140000": 0.0},
     )
-
-    calc = SamarRVCalculator(mock_vehicle_data, mock_calc_input)
-
-    # Suma to 0%, powinno zostać podbite do 5% łącznej (100k + 20k = 120k * 0.05 = 6000)
-    rv_value = calc.calculate_rv(
-        months=48, total_km=140000, base_vehicle_capex=100000.0, options_capex=20000.0
+    mocker.patch.object(SamarRVCalculator, "_fetch_brand_correction", return_value=0.0)
+    mocker.patch.object(
+        SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0, 140000)
     )
-    assert rv_value == pytest.approx(6000.0)
+    mocker.patch.object(
+        SamarRVCalculator,
+        "_fetch_class_config",
+        return_value={"base_mileage_km": 140000, "mileage_threshold_km": 190000},
+    )
+    mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.0)
+    mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.0)
+    mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.0)
+    mocker.patch.object(
+        SamarRVCalculator, "fetch_zabudowa_correction", return_value=0.0
+    )
+    mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
+    mocker.patch.object(SamarRVCalculator, "fetch_lo_param", return_value=0.0)
+
+    calc = SamarRVCalculator(mock_rv_input)
+
+    # Suma to 0%, wiec final_rv_netto wynika tylko z opcji przez ułamek V1: 20000 / (1 + 4) = 4000
+    rv_output = calc.calculate()
+    assert rv_output.wr_net == pytest.approx(4000.0)

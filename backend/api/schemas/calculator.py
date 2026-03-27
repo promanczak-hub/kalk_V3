@@ -80,8 +80,13 @@ class CalculatorInput(BaseModel):
     )
 
     # Podatki i Finanse (PMT)
-    wibor_pct: float = Field(default=5.0, description="WIBOR %")
-    margin_pct: float = Field(default=2.0, description="Marża Finansowa Leasingu %")
+    wibor_pct: Optional[float] = Field(
+        default=None, description="WIBOR % (domyślnie z Control Center)"
+    )
+    margin_pct: Optional[float] = Field(
+        default=None,
+        description="Marża Finansowa Leasingu % (domyślnie z Control Center)",
+    )
     depreciation_pct: Optional[float] = Field(
         default=None,
         description="Procent amortyzacji przekazany z UI (nadpisuje dynamikę SAMAR)",
@@ -177,28 +182,38 @@ class CalculatorInput(BaseModel):
     @classmethod
     def check_base_price_net(cls, v: float) -> float:
         if v <= 0:
-            raise ValueError("Wartość base_price_net musi być większa niż 0. Reguła Fail-Fast: kalkulacja bez ceny pojazdu jest niemożliwa.")
+            raise ValueError(
+                "Wartość base_price_net musi być większa niż 0. Reguła Fail-Fast: kalkulacja bez ceny pojazdu jest niemożliwa."
+            )
         return v
 
     @field_validator("samar_category")
     @classmethod
     def check_samar_category(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not str(v).strip():
-            raise ValueError("Wartość samar_category nie może być pustym ciągiem znaków. Wymagane dla logiki klasowej SAMAR (Fail-Fast).")
+            raise ValueError(
+                "Wartość samar_category nie może być pustym ciągiem znaków. Wymagane dla logiki klasowej SAMAR (Fail-Fast)."
+            )
         return v
 
     @field_validator("engine_name")
     @classmethod
     def check_engine_name(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not str(v).strip():
-            raise ValueError("Wartość engine_name nie może być pustym ciągiem znaków. Wymagane dla logiki klasowej stawkowej serwisu (Fail-Fast).")
+            raise ValueError(
+                "Wartość engine_name nie może być pustym ciągiem znaków. Wymagane dla logiki klasowej stawkowej serwisu (Fail-Fast)."
+            )
         return v
-    
+
     @model_validator(mode="after")
     def check_critical_dependencies(self) -> "CalculatorInput":
         if not self.vehicle_id or self.vehicle_id == "0":
             if not self.samar_category or not self.samar_category.strip():
-                raise ValueError("Brak class SAMAR. Jeśli nie przekazano `vehicle_id`, `samar_category` musi zostać jawnie określone (Fail-Fast).")
+                raise ValueError(
+                    "Brak class SAMAR. Jeśli nie przekazano `vehicle_id`, `samar_category` musi zostać jawnie określone (Fail-Fast)."
+                )
             if not self.engine_name or not self.engine_name.strip():
-                raise ValueError("Brak rodzaju silnika. Jeśli nie przekazano `vehicle_id`, `engine_name` musi zostać jawnie określone (Fail-Fast).")
+                raise ValueError(
+                    "Brak rodzaju silnika. Jeśli nie przekazano `vehicle_id`, `engine_name` musi zostać jawnie określone (Fail-Fast)."
+                )
         return self

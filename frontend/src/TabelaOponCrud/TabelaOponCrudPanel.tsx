@@ -44,8 +44,7 @@ interface ThresholdField {
   fallback: number;
 }
 
-const TYRE_SERVICE_COST_KEYS = ['cost_tyre_swap', 'cost_tyre_storage'] as const;
-type TyreServiceCostKey = (typeof TYRE_SERVICE_COST_KEYS)[number];
+// Removed unused types
 
 // ---------------------------------------------------------------------------
 // Threshold field definitions (driven by data, not hardcoded logic)
@@ -73,8 +72,8 @@ const SEASONAL_FIELDS: ThresholdField[] = [
 function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) {
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
   const [loadingThresholds, setLoadingThresholds] = useState(true);
-  const [savingServiceCosts, setSavingServiceCosts] = useState(false);
-  const [serviceCostsSaved, setServiceCostsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const fetchThresholds = useCallback(async () => {
     setLoadingThresholds(true);
@@ -112,34 +111,37 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
     fetchThresholds();
   }, [fetchThresholds]);
 
-  const handleServiceCostChange = (key: TyreServiceCostKey, rawValue: string) => {
+  const handleChange = (key: string, rawValue: string) => {
     const parsed = parseFloat(rawValue.replace(',', '.'));
     const next = Number.isFinite(parsed) ? parsed : 0;
     setThresholds((prev) => ({ ...prev, [key]: next }));
-    setServiceCostsSaved(false);
+    setSaved(false);
   };
 
-  const saveServiceCosts = async () => {
+  const saveAllSettings = async () => {
     try {
-      setSavingServiceCosts(true);
-      setServiceCostsSaved(false);
-      const payload = TYRE_SERVICE_COST_KEYS.map((key) => ({
+      setSaving(true);
+      setSaved(false);
+      
+      const payload = Object.keys(thresholds).map((key) => ({
         config_key: key,
         config_value: String(thresholds[key] ?? 0),
       }));
+
       const { error } = await supabase
         .from('tyre_configurations')
         .upsert(payload, { onConflict: 'config_key' });
+        
       if (error) {
         onError(error.message);
         return;
       }
-      setServiceCostsSaved(true);
-      setTimeout(() => setServiceCostsSaved(false), 2500);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch (e) {
       onError(String(e));
     } finally {
-      setSavingServiceCosts(false);
+      setSaving(false);
     }
   };
 
@@ -158,9 +160,15 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
       </Typography>
       <Box display="grid" gridTemplateColumns={`repeat(${fields.length}, 1fr)`} gap={2}>
         {fields.map(f => (
-          <Box key={f.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: 'grey.100', borderRadius: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>{f.label}:</Typography>
-            <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>{(thresholds[f.key] ?? f.fallback).toLocaleString('pl-PL')} km</Typography>
+          <Box key={f.key} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{f.label}</Typography>
+            <TextField
+              type="number"
+              size="small"
+              value={thresholds[f.key] ?? f.fallback}
+              onChange={(e) => handleChange(f.key, e.target.value)}
+              inputProps={{ step: '1000', min: '0' }}
+            />
           </Box>
         ))}
       </Box>
@@ -171,9 +179,9 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
     <Paper sx={{ p: 2.5, mb: 3, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6" sx={{ fontSize: '1rem' }}>
-          📏 Progi przebiegowe opon
+          📏 Progi przebiegowe opon (km)
         </Typography>
-        <Chip icon={<LockIcon />} label="Progi: zamrożone" size="small" color="default" variant="outlined" />
+        <Chip label="EDYTOWALNE" size="small" color="success" variant="outlined" />
       </Box>
       <Box display="flex" flexDirection="column" gap={2}>
         {renderGroup('🛞 Opony wielosezonowe', ALL_SEASON_FIELDS)}
@@ -186,7 +194,6 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
             🔧 Koszty serwisu opon (netto)
           </Typography>
-          <Chip label="EDYTOWALNE" size="small" color="success" variant="outlined" />
         </Box>
 
         <Box display="grid" gridTemplateColumns="repeat(2, minmax(220px, 1fr))" gap={2}>
@@ -195,7 +202,7 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
             size="small"
             label="Przekładka (za komplet)"
             value={thresholds.cost_tyre_swap ?? 0}
-            onChange={(e) => handleServiceCostChange('cost_tyre_swap', e.target.value)}
+            onChange={(e) => handleChange('cost_tyre_swap', e.target.value)}
             inputProps={{ step: '0.01', min: '0' }}
           />
           <TextField
@@ -203,27 +210,27 @@ function TyreThresholdsSection({ onError }: { onError: (msg: string) => void }) 
             size="small"
             label="Przechowywanie (za sezon)"
             value={thresholds.cost_tyre_storage ?? 0}
-            onChange={(e) => handleServiceCostChange('cost_tyre_storage', e.target.value)}
+            onChange={(e) => handleChange('cost_tyre_storage', e.target.value)}
             inputProps={{ step: '0.01', min: '0' }}
           />
         </Box>
-
-        <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1.5} mt={2}>
-          {serviceCostsSaved && (
-            <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
-              Zapisano
-            </Typography>
-          )}
-          <Button
-            variant="contained"
-            size="small"
-            onClick={saveServiceCosts}
-            disabled={savingServiceCosts}
-          >
-            {savingServiceCosts ? 'Zapisywanie...' : 'Zapisz koszty opon'}
-          </Button>
-        </Box>
       </Paper>
+      
+      <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1.5} mt={2}>
+        {saved && (
+          <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+            Zapisano
+          </Typography>
+        )}
+        <Button
+          variant="contained"
+          size="small"
+          onClick={saveAllSettings}
+          disabled={saving}
+        >
+          {saving ? 'Zapisywanie...' : 'Zapisz konfigurację opon'}
+        </Button>
+      </Box>
 
       <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: 'text.disabled', textAlign: 'center' }}>
         Progi km decydują o doliczaniu ułamkowych kompletów opon proporcjonalnie do przebiegu (V1 parity)

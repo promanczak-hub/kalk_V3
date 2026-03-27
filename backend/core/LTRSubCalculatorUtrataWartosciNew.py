@@ -40,9 +40,13 @@ class LTRSubCalculatorUtrataWartosciNew:
         self.engine_id = int(self.vehicle.get("engine_type_id", 0) or 0)
 
         if self.samar_class_id <= 0:
-            raise ValueError("Brak `samar_class_id` w danych pojazdu dla kalkulacji WR.")
+            raise ValueError(
+                "Brak `samar_class_id` w danych pojazdu dla kalkulacji WR."
+            )
         if self.engine_id <= 0:
-            raise ValueError("Brak `engine_type_id` w danych pojazdu dla kalkulacji WR.")
+            raise ValueError(
+                "Brak `engine_type_id` w danych pojazdu dla kalkulacji WR."
+            )
 
         # Brand
         self.brand_name = (
@@ -116,8 +120,8 @@ class LTRSubCalculatorUtrataWartosciNew:
         self,
         months: int,
         total_km: int,
-        base_vehicle_capex_gross: float,
-        options_capex_gross: float,
+        base_vehicle_catalog_gross: float,
+        options_catalog_gross: float,
     ) -> Dict[str, Any]:
         """Zwraca słownik z WR, WRdlaLO, UtrataWartosciBEZczynszu.
 
@@ -125,8 +129,8 @@ class LTRSubCalculatorUtrataWartosciNew:
         dla SamarRVCalculator, a wynik zwracamy w netto.
         """
         # Konwersja brutto → netto
-        base_net = base_vehicle_capex_gross / self.vat_rate
-        options_net = options_capex_gross / self.vat_rate
+        base_net = base_vehicle_catalog_gross / self.vat_rate
+        options_net = options_catalog_gross / self.vat_rate
 
         # Manual WR correction
         manual_wr = 0.0
@@ -142,8 +146,8 @@ class LTRSubCalculatorUtrataWartosciNew:
             model_name=self.model_name,
             months=months,
             total_km=total_km,
-            capex_base_net=base_net,
-            capex_options_net=options_net,
+            catalog_base_net=base_net,
+            catalog_options_net=options_net,
             paint_type_id=self.paint_type_id,
             is_metalic=self.is_metalic,
             body_type_id=self.body_type_id,
@@ -160,48 +164,63 @@ class LTRSubCalculatorUtrataWartosciNew:
         d = result.debug
         trace: list[dict[str, Any]] = []
 
-        trace.append({
-            "krok": "WR Krok 1: Wartość Bazowa (klasa + marka)",
-            "rownanie": f"CAPEX_NETTO * (WR_KLASA {d.get('krok1_wr_base_pct', 0)*100:.2f}% + KOR_MARKA {d.get('krok1_brand_correction', 0)*100:.2f}%)",
-            "wynik": d.get('krok1_wr_value_netto', 0.0)
-        })
+        trace.append(
+            {
+                "krok": "WR Krok 1 i 2: Wartość Bazowa i Odczyt Direct WR% (tab_okres_final)",
+                "rownanie": f"CAPEX_NETTO * (WR_TABELA {d.get('krok1_base_rate', 0) * 100:.2f}% + KOR_MARKA {d.get('krok1_brand_correction', 0) * 100:.2f}%)",
+                "wynik": d.get("krok1_wr_value_netto", 0.0),
+            }
+        )
 
-        value_table = d.get('krok2_value_table_netto', {})
-        trace.append({
-            "krok": "WR Krok 2: Deprecjacja kaskadowa (Tabela)",
-            "rownanie": f"Generowanie krzywej utraty wartości: {value_table}",
-            "wynik": value_table.get(d.get("krok3_years", 0), 0.0) if value_table else 0.0
-        })
+        value_table = d.get("krok2_value_table_netto", {})
+        trace.append(
+            {
+                "krok": "WR: Wybrany Przebieg (Interpolacja)",
+                "rownanie": f"Wybrano najbliższy punkt: {d.get('krok1_chosen_km', 0)} km. (Baza: {d.get('krok1_base_rate', 0) * 100:.2f}%)",
+                "wynik": d.get("krok1_wr_value_netto", 0.0),
+            }
+        )
 
-        trace.append({
-            "krok": "WR Krok 3: Wartość per lat + Opcje (V1 ułamek opcji)",
-            "rownanie": f"Baza ({d.get('krok3_years', 0)} lat) {d.get('krok3_rv_base_netto', 0):.2f} + Opcje {d.get('krok3_rv_options_netto', 0):.2f} / (1 + lata)",
-            "wynik": d.get('krok3_rv_total_netto', 0.0)
-        })
+        trace.append(
+            {
+                "krok": "WR Krok 3: Wartość per lat + Opcje (V1 ułamek opcji)",
+                "rownanie": f"Baza ({d.get('krok3_years', 0)} lat) {d.get('krok3_rv_base_netto', 0):.2f} + Opcje {d.get('krok3_rv_options_netto', 0):.2f} / (1 + lata)",
+                "wynik": d.get("krok3_rv_total_netto", 0.0),
+            }
+        )
 
-        trace.append({
-            "krok": "WR Krok 4: Korekta Przebiegu",
-            "rownanie": f"Paczki 10k: Under {d.get('krok4_paczki_under', 0)} ({d.get('krok4_under_rate', 0)*100:.2f}%), Over: {d.get('krok4_paczki_over', 0)} ({d.get('krok4_over_rate', 0)*100:.2f}%)",
-            "wynik": -d.get("krok4_korekta_przebieg_netto", 0.0)
-        })
+        trace.append(
+            {
+                "krok": "WR Krok 4: Korekta Przebiegu",
+                "rownanie": f"Paczki 10k: Under {d.get('krok4_paczki_under', 0)} ({d.get('krok4_under_rate', 0) * 100:.2f}%), Over: {d.get('krok4_paczki_over', 0)} ({d.get('krok4_over_rate', 0) * 100:.2f}%)",
+                "wynik": -d.get("krok4_korekta_przebieg_netto", 0.0),
+            }
+        )
 
-        trace.append({
-            "krok": "WR Krok 5: Korekty Dodatkowe (Kolor, Nadwozie)",
-            "rownanie": f"Kolor {d.get('krok5_color_netto', 0):.2f} + Nadwozie {d.get('krok5_body_netto', 0):.2f}",
-            "wynik": d.get("krok5_color_netto", 0.0) + d.get("krok5_body_netto", 0.0)
-        })
+        trace.append(
+            {
+                "krok": "WR Krok 5: Korekty Dodatkowe (Kolor, Nadwozie, Zabudowa)",
+                "rownanie": f"Kolor {d.get('krok5_color_netto', 0):.2f} + Nadwozie/Zabudowa {d.get('krok5_body_netto', 0):.2f}",
+                "wynik": d.get("krok5_color_netto", 0.0)
+                + d.get("krok5_body_netto", 0.0),
+            }
+        )
 
-        trace.append({
-            "krok": "WR Krok 6: Korekta Ręczna i Rocznik (Final_RV)",
-            "rownanie": f"Mnożnik Rocznika: (1+ {d.get('krok6_vintage_pct', 0)*100:.2f}%), Korekta Ręczna {d.get('krok6_manual_correction_netto', 0):.2f}",
-            "wynik": d.get("krok6_final_rv_netto", 0.0)
-        })
-        
-        trace.append({
-            "krok": "WR: Utrata Wartości Netto",
-            "rownanie": f"MAX((CAPEX {base_net + options_net:.2f} - WR {d.get('krok6_final_rv_netto', 0):.2f}), 0)",
-            "wynik": d.get("krok6_utrata", 0.0)
-        })
+        trace.append(
+            {
+                "krok": "WR Krok 6: Korekta za Rocznik oraz Ręczna Korekta (Final_RV)",
+                "rownanie": f"Kwota Rocznika (CATALOG * {d.get('krok6_vintage_pct', 0) * 100:.2f}%): {d.get('krok6_vintage_netto', 0):.2f}, Korekta Ręczna: {d.get('krok6_manual_correction_netto', 0):.2f}",
+                "wynik": d.get("krok6_final_rv_netto", 0.0),
+            }
+        )
+
+        trace.append(
+            {
+                "krok": "WR: Utrata Wartości Netto",
+                "rownanie": f"MAX((CATALOG {base_net + options_net:.2f} - WR {d.get('krok6_final_rv_netto', 0):.2f}), 0)",
+                "wynik": d.get("krok6_utrata", 0.0),
+            }
+        )
 
         return {
             "WR_Gross": result.wr_net * self.vat_rate,

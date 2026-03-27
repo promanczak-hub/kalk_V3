@@ -1,0 +1,1055 @@
+SEGMENTACJA RYNKU 
+SAMAR 2025 W.03..
+Copyright @ IBRM Samar, Polska 2025
+DEFINICJE, KLASYFIKACJE
+ST REFA BIZNESU
+
+Segmentacja rynkowa SAMAR 2025 jest rozwinięciem 
+segmentacji opracowanej w roku 2008, która wyróżnia 7 grup 
+pojazdów oraz 9 klas (segmentów) dla samochodów 
+osobowych oraz 6 grup pojazdów dla samochodów 
+dostawczych. 
+Podstawowe parametry decydujące o klasyfikacji danego auta w przyjętej segmentacji to: typ nadwozia 
+oraz długość pojazdu,
+czy
+rozstaw
+osi. Parametrami wspomagającymi, wykorzystywanymi w 
+przypadkach spornych, np. gdy długość auta umożliwia jego klasyfikację jednocześnie w dwóch 
+segmentach,  są bezpośredni konkurenci wskazani przez producenta, poziom wykończenia oraz 
+wyposażenia samochodu oraz zwykły rozsądek. 
+Podział segmentacyjny rynku może być wykorzystany do określenia bezpośrednich konkurentów w 
+przypadku porównywania samochodów, a także w czasie przygotowywania warunków przetargu na zakup 
+określonego typu pojazdów.
+Copyright @ IBRM Samar, Polska 2025
+PODZIAŁ SEGMENTACYJNY - ZAŁOŻENIA
+
+GRUPA 
+PODSTAWOWA 
+- 
+Grupa 
+obejmuje 
+samochody o nadwoziach typu hatchback, sedan i 
+kombi, 
+podzielone 
+na 
+7 
+klas 
+(segmentów) 
+wynikających z wymiarów pojazdu, bezpośrednich 
+konkurentów określonych przez producenta , a 
+także poziomu wykończenia i wyposażenia auta.
+Hatchback to samochód 3- lub 5-drzwiowy z 
+podwieszanymi tylnymi drzwiami, zapewniającymi 
+dostęp zarówno do części bagażowej, jak i 
+pasażerskiej. W Europie tylne drzwi podwieszane 
+traktuje się jako kolejne drzwi, dlatego też liczba 
+drzwi w hatchbacku jest zawsze nieparzysta. 
+Kształt dachu zapewnia pełną przestrzeń w tylnej 
+części pojazdu, w tym bagażowej. Z reguły oparcie 
+tylnego siedzenia jest składane, co pozwala na 
+uzyskanie większej przestrzeni bagażowej. W 
+niektórych modelach tylne drzwi mają wyraźnie 
+wyróżnioną 
+część 
+bagażnika 
+(z 
+reguły 
+1/3 
+normalnej powierzchni bagażnika wersji sedan). 
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I TYPY NADWOZI - DEFINICJE
+Otwierają się jednak jak typowe drzwi hatchback’a 
+(razem z tylną szybą). Ta wersja znana jest również 
+pod nazwą liftback. Wersja hatchback oraz sedan w 
+przypadku jednego modelu może wyglądać niemal 
+identycznie. 
+Wizualne 
+różnice 
+są 
+niewielkie. 
+Wyróżnia je sposób otwierania bagażnika.
+Sedan to samochód o trójbryłowej sylwetce z 
+wyraźnie 
+wydzielonym 
+bagażnikiem. 
+Klapa 
+bagażnika mocowana jest poniżej dolnej linii szyby. 
+Dostęp do części pasażerskiej od strony bagażnika 
+jest utrudniony, lub wręcz niemożliwy. W niektórych 
+przypadkach 
+oparcie 
+tylnego 
+siedzenia 
+jest 
+składane, lub częściowo składane, co zapewnia 
+możliwość przewożenia dłuższych przedmiotów. 
+Kształt nadwozia zapewnia pełną wysokość w tylnej 
+części przedziału pasażerskiego. Sedan może 
+występować w wersji 4-drzwiowej.
+
+Kombi to samochód o powiększonej powierzchni 
+bagażowej, w którym wysokość dachu w części 
+bagażowej jest zbliżona do wysokości dachu w 
+części pasażerskiej. Tylna klapa schodzi pionowo 
+lub prawie pionowo w dół i w większości 
+przypadków jest mocowana na zawiasach na 
+wysokości dachu, a kończy się na poziomie podłogi 
+bagażnika. Podobnie jak w przypadku hatchback’a 
+ten 
+typ 
+zamknięcia 
+przestrzeni 
+bagażowej 
+nazywany jest tylnymi drzwiami. Kombi może 
+występować w odmianie 5-drzwiowej.
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I TYPY NADWOZI - DEFINICJE
+W grupie podstawowej klasyfikowane są również
+samochody
+określone
+przez
+producenta
+jako
+coupe.
+
+VANY 
+- 
+Grupa 
+obejmuje 
+tzw. 
+samochody 
+wielozadaniowe o nadwoziu typu MPV (Multi 
+Purpose 
+Vehicle), 
+charakteryzujące 
+się 
+pojedynczym przedziałem pasażersko-bagażowym, 
+ze znacznie podwyższonym (w porównaniu do 
+typowych 
+samochodów 
+osobowych) 
+dachem, 
+zapewniającym 
+maksimum 
+komfortu 
+dla 
+pasażerów. Z reguły nadwozie typu MPV jest 
+nadwoziem jednobryłowym, chociaż w ofercie 
+producentów 
+zdarzają 
+się 
+także 
+nadwozia 
+dwubryłowe. Przedział pasażersko-bagażowy może 
+być dowolnie modyfikowany. MPV posiada dwa lub 
+trzy rzędy siedzeń oraz w większości przypadków 5 
+drzwi. Dostęp do przedziału pasażerskiego jest 
+także możliwy od strony przedziału bagażowego.
+SAMOCHODY SPORTOWO-REKREACYJNE - 
+Grupa obejmuje samochody o nadwoziach typu 
+coupe oraz convertible.
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I TYPY NADWOZI - DEFINICJE
+Coupe to samochód 2-, 3- lub 4-drzwiowy z 
+wydzielonym bagażnikiem oraz charakterystycznie 
+opadającą z tyłu linią dachu, nadającą autu 
+sportowy 
+charakter. 
+W 
+przypadku 
+wersji 
+4-
+drzwiowej tylne drzwi mogą otwierać się tylko po 
+otwarciu drzwi przednich. 
+Convertible 
+(kabriolet) 
+to 
+samochód 
+ze 
+składanym lub zdejmowanym dachem (bez stałej 
+konstrukcji mocującej). Dach auta może być 
+wykonany z tkaniny lub tworzywa rozpinanego na 
+składanej konstrukcji mocującej (SOFT TOP), albo 
+stalowy (HARD TOP). Za pierwszym rzędem 
+siedzeń 
+mocowana 
+jest 
+czasami 
+belka 
+zabezpieczająca pasażerów w przypadku wywrotki 
+samochodów (tzw. roll-bar).
+
+SAMOCHODY 
+TERENOWO-REKREACYJNE 
+- 
+Grupa obejmuje samochody o nadwoziu typu 
+convertible (Range Rover Evoque), SUV (Sport 
+Utility Vehicle) oraz Off-Road. 
+SUV łączy w sobie cechy vana, zapewniającego 
+dużą przestrzeń dla pasażerów oraz samochodu 
+terenowego, charakteryzującego się większym 
+prześwitem niż pozostałe auta. SUV’y są zwykle 
+projektowane i budowane jako odrębne modele, nie 
+będące modyfikacją modeli już istniejących w 
+gamie. Prawdziwe właściwości terenowe SUV’ów 
+mogą 
+się 
+znacznie 
+różnić. 
+Tego 
+typu 
+funkcjonalność nie zawsze jest najistotniejsza. 
+Wszystkie 
+samochody 
+terenowe 
+mogą 
+być 
+klasyfikowane jako SUV’y, jednak nie wszystkie 
+SUV’y mogą być klasyfikowane jako typowe 
+samochody 
+terenowe, 
+dlatego 
+na 
+niektórych 
+rynkach samochody terenowe wyróżniane są jako 
+oddzielny typ - Off-Road. Suv’y najczęściej 
+posiadają dwa rzędy siedzeń. W przypadku 
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I TYPY NADWOZI - DEFINICJE
+samochodów 
+klasyfikowanych 
+w 
+wyższych 
+segmentach dostępny jest często trzeci rząd 
+siedzeń, 
+który 
+można 
+złożyć 
+powiększając 
+przestrzeń bagażową.
+Crossover to samochód, który łączy w sobie cechy 
+SUV’a oraz Van’a. Cechuje się powiększoną 
+przestrzenią 
+pasażerską 
+oraz 
+większym 
+prześwitem niż pozostałe samochody osobowe. W 
+wielu wypadkach crossovery nie posiadają napędu 
+na cztery koła lub możliwości blokady mechanizmu 
+różnicowego. Zastosowanie napędu na 4 koła służy 
+bardziej poprawie własności trakcyjnych auta, niż 
+terenowych. Zawieszenie jest raczej konstruowane 
+z myślą o jeździe miejskiej. Zewnętrznie crossovery 
+przypominają samochody terenowe skrzyżowane z 
+autami grupy podstawowej.
+
+FURGONETKI 
+stanowią 
+odrębną 
+grupę 
+w 
+klasyfikacji rynkowej. Są to przeważnie samochody 
+o 
+sylwetce 
+dwubryłowej, 
+tzw. 
+kombi-vany, 
+charakteryzującej 
+się 
+jednym 
+przedziałem 
+pasażersko-bagażowym. Siedzenia mocowane są 
+w dwóch rzędach, bez możliwości ustawiania 
+różnych konfiguracji. Drzwi tylne mogą występować 
+w wersji podwieszanej lub mogą być mocowane do 
+słupków bocznych i otwierane na zewnątrz.
+MINIBUSY - Grupa minibusy stanowi ostatnią 
+grupę 
+w 
+klasyfikacji 
+segmentacyjnej 
+rynku 
+samochodów 
+osobowych. 
+Minibusy 
+są 
+samochodami zbudowanymi na bazie samochodu 
+dostawczego. Z reguły służą do przewozu 8 + 1 
+osób, chociaż w niektórych wersjach liczba 
+przewożonych osób wraz z kierowcą może być 
+ograniczona do 6. Posiadają maksymalnie 3 rzędy 
+siedzeń. W przypadku wersji luksusowych, np. VW 
+Multivan, funkcjonalność siedzeń jest identyczna z 
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I TYPY NADWOZI - DEFINICJE
+funkcjonalnością 
+siedzeń 
+dostępną 
+w 
+grupie 
+vanów. Nadwozie w całości jest przeszklone.
+Ze względu na swoją specyfikę (pochodzenie), 
+chociaż 
+zgodnie 
+z 
+obowiązującym 
+prawem 
+minibusy 
+rejestrowane 
+są 
+jako 
+samochody 
+osobowe, w statystyce motoryzacyjnej często 
+prezentowane 
+są 
+po 
+stronie 
+samochodów 
+dostawczych.
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I SEGMENTY
+(SAMOCHODY OSOBOWE)
+GRUPA
+PODSTAWOWA
+VANY
+SPORTOWO-
+REKREACYJNE
+TERENOWO-
+REKREACYJNE
+KOMBIVANY
+MINIBUSY
+Klasa A
+MINI
+Klasa B
+MAŁE
+Klasa C
+NIŻSZA ŚREDNIA
+Klasa D
+ŚREDNIA
+Klasa E
+WYŻSZA
+Klasa F
+LUKSUSOWE
+Klasa G
+S. LUKSUSOWE
+Klasa B
+MICROVANY
+Klasa C
+MINIVANY
+Klasa D
+VANY
+Klasa B
+MAŁE
+Klasa C
+NIŻSZA ŚREDNIA
+Klasa D
+ŚREDNIA
+Klasa F
+LUKSUSOWE
+Klasa B
+MAŁE
+Klasa C
+NIŻSZA ŚREDNIA
+Klasa D
+ŚREDNIA
+Klasa E
+WYŻSZA
+Klasa H
+KOMBI-VANY
+Klasa I
+MINIBUSY
+Klasa G
+S. LUKSUSOWE
+Klasa G
+S. LUKSUSOWE
+Klasa A
+MINI
+Klasa E
+WYŻSZA
+KEMPINGOWE
+Klasa K
+KEMPINGOWE
+Klasa E
+WYŻSZA
+Klasa F
+LUKSUSOWE
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA PODSTAWOWA
+Klasa A
+MINI
+Klasa B
+MAŁE
+Klasa C
+NIŻSZA ŚREDNIA
+Klasa D
+ŚREDNIA
+Klasa E
+WYŻSZA
+1.
+Audi A3/S3/RS3
+2.
+BMW Serii 1
+3.
+BMW Serii 2 Gran Coupe
+4.
+BYD Dolphin
+5.
+BYD Seal 5
+6.
+Citroen C4
+7.
+Citroen C4 X
+8.
+Cupra Born
+9.
+Cupra Leon
+10. Dongfeng Shine
+11. DS DS4
+12. DS DS Nº4
+13. Ford Focus
+14. Honda Civic
+15. Hyundai i30
+16. Kia Ceed
+17. Kia EV4
+18. Kia K4
+19. Mazda Mazda3
+20. Mercedes Klasa A
+21. Mercedes CLA
+22. MG MG4
+23. Opel Astra
+24. Peugeot 308
+25. Renault  Megane
+26. SEAT Leon 
+27. Skoda Octavia
+28. Skoda Scala
+29. Toyota Corolla
+30. Toyota Prius
+31. Volkswagen Golf
+32. Volkswagen ID.3 
+1. Abarth 500
+2. Dacia Spring
+3. Fiat Panda
+4. Fiat 500
+5. Hyundai i10
+6. Hyundai Inster
+7. Kia Picanto
+8. Leapmotor T03
+9. Toyota Aygo X
+1. Alpine A290
+2. Audi A1
+3. BYD Dolphin Surf
+4. Dacia Sandero
+5. Dongfeng Box
+6. Fiat Grande Panda
+7. Hyundai i20
+8. Mazda Mazda2
+9. MG MG3
+10. Mini Mini
+11. Mitsubishi Colt
+12. Opel Corsa
+13. Peugeot 208
+14. Renault 4
+15. Renault 5
+16. Renault Clio
+17. SEAT Ibiza
+18. Skoda Fabia
+19. Suzuki Swift
+20. Toyota Yaris
+21. Volkswagen Polo
+1. Alfa Romeo Giulia
+2. Alpina B3 / D3 S
+3. Alpina B4 / D4 S
+4. Audi A5
+5. Bestune B70
+6. BMW Serii 3
+7. BMW Serii 4
+8. BYD Seal
+9. BYD Seal 6
+10. Citroen C5 X
+11. DS DS Nº8
+12. Hyundai Ioniq 6
+13. Jac J7 Plus
+14. Mazda 6e
+15. Mercedes Klasa C/C All-
+Terrain
+16. Peugeot 408
+17. Peugeot 508
+18. Polestar Polestar 2
+19. Skoda Superb*
+20. Subaru Outback
+21. Tesla Model 3
+22. Toyota Camry
+23. Volkswagen ID.7
+24. Volkswagen Passat
+25. Volvo S60
+26. Volvo V60/V60 Cross Country
+1. Audi A6/RS6/S6/Allroad
+2. Audi A6 e-tron
+3. BMW Serii 5
+4. Hongqi H5
+5. Lexus ES
+6. Mercedes Klasa E/E All-
+Terrain
+7. Mercedes EQE
+8. Tesla Model S
+9. Toyota Mirai
+10. Volvo ES90
+11. Volvo S90
+12. Volvo V90/V90 Cross 
+Country
+13. XPeng P7
+* Zgodnie z dokumentami homologacyjnymi Skoda Superb 
+rejestrowana jest jako sedan
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA PODSTAWOWA
+Klasa F
+LUKSUSOWE
+Klasa G
+SUPER LUKSUSOWE
+1. Alpina B8
+2. Audi A7
+3. Audi A8
+4. Audi e-tron GT
+5. BMW Serii 7
+6. BMW Serii 8 Gran Coupe
+7. Hongqi H9
+8. Lexus LS
+9. Mercedes AMG GT 4-Door Coupe
+10. Mercedes EQS
+11. Mercedes Klasa S
+12. Porsche Panamera
+13. Porsche Taycan
+1. Bentley Flying Spur
+2. Rolls Royce Ghost
+3. Rolls Royce Phantom
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA VANY
+Klasa B
+MICROVANY
+Klasa C
+MINIVANY
+1. Honda Jazz
+1. BMW 2 Active Tourer
+2. Dacia Jogger
+3. Mercedes Klasa B
+4. Volkswagen Touran
+Klasa D
+VANY
+1. Forthing U-Tour
+Klasa E
+WYŻSZA
+Klasa F
+LUKSUSOWE
+1. Lexus LM
+1. Forthing V-Tour
+2. Voyah Dream
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA SPORTOWO-REKREACYJNE
+Klasa B
+MAŁE
+Klasa C
+NIŻSZA ŚREDNIA
+1.
+Mini Mini Cabrio
+1. BMW Serii 4
+2. Ford Mustang
+3. Porsche 718
+Klasa D
+ŚREDNIA
+1. Mercedes CLE
+Klasa E
+WYŻSZA
+1. Alpine A110
+2. BMW Serii 2
+3. BMW Z4
+4. Mazda MX-5
+5. MG Cyberster
+Klasa A
+MINI
+1. Abarth 500 Cabrio
+2. Fiat 500 Cabrio
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA SPORTOWO-REKREACYJNE
+1. BMW Serii 8
+2. Maserati GranCabrio
+3. Maserati GranTurismo
+4. Mercedes SL
+5. Porsche 911
+Klasa F
+LUKSUSOWE
+Klasa G
+SUPER LUKSUSOWE
+1. Aston Martin DB12
+2. Aston Martin V12 Vantage
+3. Aston Martin Vanquish
+4. Aston Martin Vantage
+5. Bentley Continental
+6. Dallara Stradale
+7. Ferrari 12cilindri
+8. Ferrari 296 GTB
+9. Ferrari 296 GTS
+10. Ferrari Amalfi
+11. Ferrari Daytona SP3
+12. Ferrari Roma Spider
+13. Ferrari SF90 XX
+14. Lamborghini Revuelto
+15. Lamborghini Temerario
+16. Maserati MC20 / MC20 
+Cielo
+17. Maserati MCPURA
+18. McLaren 750S
+19. McLaren GTS
+20. McLaren Artura
+21. Rolls-Royce Spectre
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA TERENOWO-REKREACYJNE
+Klasa B
+MAŁE
+Klasa C
+NIŻSZA ŚREDNIA
+1. Abarth 600
+2. Alfa Romeo Junior
+3. Audi Q2
+4. BAIC Beijing 3
+5. BYD Atto 2
+6. Chery Tiggo 4
+7. Citroen C3 (gen. IV)
+8. DS DS3 Crossback
+9. Fiat 600
+10. Ford Puma
+11. Honda HR-V
+12. Hyundai Bayon
+13. Hyundai Kona
+14. Jeep Avenger
+15. Jeep Renegade
+16. Kia EV3
+17. Kia Stonic
+18. Lexus LBX
+19. Mini Aceman
+20. Mitsubishi ASX
+21. Nissan Juke
+22. Opel Mokka
+23. Peugeot 2008
+24. Renault Captur
+25. Seat Arona
+26. Skoda Kamiq
+27. Ssangyong / KGM Tivoli
+28. Suzuki Vitara
+29. Toyota Yaris Cross
+30. Volkswagen T-Cross
+31. Volkswagen T-Roc
+32. Volkswagen Taigo
+33. Volvo EX30
+1. Alfa Romeo Stelvio
+2. Alpina XD3
+3. Alpina XD4
+4. Audi Q4 e-tron
+5. Audi Q5
+6. Audi Q6 e-tron
+7. BAIC Beijing 7
+8. BAIC BJ30
+9. BAIC BJ40
+10. Bestune T90
+11. BMW X3 / IX3
+12. BMW X4
+13. BYD Sealion 7
+14. BYD Seal U
+15. Chery Tiggo 8
+16. Chery Tiggo 9
+17. Cupra Tavascan
+18. DFSK E5 / Fengon E5
+19. DFSK FX600 / Fengon 600
+20. Dongfeng Huge
+21. Dongfeng Mage
+22. Ford Bronco
+23. Ford Capri
+24. Ford Kuga
+25. Ford Mustang Mach-E
+26. Geely Starray
+27. Honda CR-V
+28. Hongqi HS3
+29. Hongqi HS5
+30. Hyundai Ioniq 5
+31. Hyundai Santa Fe
+32. JAC JS8 Pro
+33. Jetour T2
+34. Jetour X70 Plus
+35. Kia EV6
+36. Kia Sorento
+37. Land Rover Defender
+38. Land Rover Discovery Sport
+Klasa D
+ŚREDNIA
+1. Alfa Romeo Tonale
+2. Audi Q3
+3. BAIC Bejing 5
+4. Bestune T77
+5. BMW X1
+6. BMW X2
+7. Chery Tiggo 7
+8. Citroen C3 Aircross (gen. II)
+9. Citroen C5 Aircross
+10. Cupra Ateca
+11. Cupra Formentor
+12. Cupra Terramar
+13. Dacia Bigster
+14. Dacia Duster
+15. DFSK Fengon 500
+16. DS DS7 Crossback
+17. Ford Explorer (CX740S)
+18. Forthing T-Five
+19. Gac Aion V
+20. Geely EX5
+21. Honda e:Ny1
+22. Honda ZR-V
+23. Hyundai Tucson
+24. Jaecoo Jaecoo 5
+25. Jaecoo Jaecoo 7
+26. Jaecoo Jaecoo E5
+27. JAC e-JS4
+28. JAC JS6
+29. Jeep Wrangler
+30. Jeep Compass
+31. Jetour Dashing
+32. Kia EV5
+33. Kia XCeed
+34. Kia Niro
+35. Kia Sportage
+36. Land Rover Range Rover 
+Evoque
+37. Leapmotor B10
+38. Lexus UX
+39. Mazda CX-30
+40. Mazda CX-5
+41. Mercedes EQA
+42. Mercedes GLA
+43. MG S5
+44. MG ZS
+45. Mini Countryman (od. gen. 
+U25)
+46. Nissan Qashqai
+47. Omoda Omoda 5
+48. Omoda Omoda E5
+49. Opel Frontera
+50. Opel Grandland
+51. Peugeot 3008
+52. Renault Arkana
+53. Renault Austral
+54. Renault Scenic
+55. Renault Symbioz
+56. Seat Ateca
+57. Skoda Elroq
+58. Skoda Karoq
+59. Ssangyong / KGM Korando
+60. Subaru Crosstrek
+61. Suzuki SX4 S-Cross
+62. SWM G03F
+63. Toyota Corolla Cross
+64. Toyota C-HR
+65. Volkswagen Tiguan
+66. Volvo EC40
+67. Volvo EX40
+68. Volvo XC40
+69. Zeekr X
+39. Leapmotor C10
+40. Lexus NX
+41. Mazda CX-60
+42. Mercedes EQB
+43. Mercedes GLB
+44. Mercedes GLC/GLC Coupe
+45. MG HS
+46. Mitsubishi Outlander
+47. Nissan Ariya
+48. Nissan X-Trail
+49. Omoda Omoda 9
+50. Peugeot 5008
+51. Polestar Polestar 4
+52. Porsche Macan
+53. Renault Espace
+54. Renault Rafale
+55. Skoda Enyaq iV
+56. Skoda Kodiaq
+57. Skywell ET5
+58. Skyworth K
+59. Ssangyong / KGM Actyon
+60. Ssangyong / KGM Rexton
+61. Ssangyong / KGM Torres
+62. Subaru Forester
+63. Suzuki Across
+64. SWM G01F
+65. SWM G05
+66. Tesla Model Y
+67. Toyota bZ4x
+68. Toyota RAV4
+69. Volkswagen ID.4
+70. Volkswagen ID.5
+71. Volkswagen Tayron
+72. Volvo XC60
+73. Voyah Courage
+74. XPeng G6
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA TERENOWO-REKREACYJNE
+Klasa E
+WYŻSZA
+1. BMW X7
+2. Hongqi E-HS9
+3. Lotus Eletre
+4. Mercedes EQS SUV
+5. Mercedes GLS
+Klasa F
+LUKSUSOWE
+1. Aston Martin DBX
+2. Bentley Bentayga
+3. Ferrari Purosangue
+4. Lamborghini Urus
+5. Rolls Royce Cullinan
+Klasa G
+SUPER LUKSUSOWE
+1. Alpina XB7
+2. Audi Q7
+3. Audi Q8
+4. BAIC BJ60
+5. BMW iX
+6. BMW X5
+7. BMW X6
+8. BMW XM
+9. BYD Tang
+10. DFSK Fengon 7
+11. Dongfeng M-Hero
+12. Gac Hyptec HT
+13. Hyundai Ioniq 9
+14. Ineos Grenadier
+15. Jeep Grand Cherokee
+16. KIA EV9
+17. Land Rover Discovery
+18. Land Rover Range Rover 
+19. Land Rover Range Rover 
+Sport
+20. Land Rover Range Rover 
+Velar
+21. Lexus RX
+22. Lexus RZ
+23. Maserati Grecale
+24. Mazda CX-80
+25. Mercedes EQE SUV
+26. Mercedes GLE/GLE Coupe
+27. Mercedes Klasa G
+28. Porsche Cayenne/Cayenne 
+Coupe
+29. Tesla Model X
+30. Toyota Land Cruiser
+31. Volkswagen Touareg
+32. Volvo EX90
+33. Volvo XC90
+34. Voyah Free
+35. XPeng G9
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA KOMBIVANY
+Klasa H
+KOMBI-VANY
+1. Citroen Berlingo
+2. Ford Transit / Tourneo Connect
+3. Ford Transit / Tourneo Courier
+4. Mercedes Citan 
+5. Mercedes EQT
+6. Mercedes T
+7. Nissan Townstar
+8. Opel Combo
+9. Peugeot Rifter
+10. Renault Kangoo
+11. Toyota Proace City Verso
+12. Volkswagen Caddy
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA MINIBUSY
+Klasa I
+MINIBUSY
+1. Citroen Jumper
+2. Citroen SpaceTourer
+3. Fiat Ducato
+4. Ford Tourneo Custom
+5. Ford Transit Custom
+6. Ford Transit
+7. Hyundai Staria
+8. Iveco Daily
+9. KIA PV5
+10. Man TGE
+11. Mercedes EQV
+12. Mercedes Vito / V 
+13. Mercedes Sprinter
+14. Nissan Primastar
+15. Opel Movano
+16. Opel Vivaro
+17. Opel Zafira Life
+18. Peugeot Boxer
+19. Peugeot Traveller
+20. Renault Trafic
+21. Toyota Proace Verso
+22. Volkswagen Caravelle
+23. Volkswagen Crafter
+24. Volkswagen ID.Buzz
+25. Volkswagen Multivan
+26. Volkswagen Transporter
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA KEMPINGOWE
+Klasa K
+KEMPINGOWE
+1. Mercedes Marco Polo
+2. Volkswagen California 
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPY I SEGMENTY
+(S.DOSTAWCZE I CIĘŻAROWE DO 6T)
+LEKKIE 
+DOSTAWCZE
+PICK-UP
+ŚREDNIE 
+DOSTAWCZE
+Klasa
+KOMBI VAN
+Klasa
+VAN
+Klasa
+PICK-UP
+AUTOBUSY
+CIĘŻKIE 
+DOSTAWCZE
+Klasa
+CIĘŻKIE 
+DOSTAWCZE
+Klasa
+ŚREDNIE 
+DOSTAWCZE
+KEMPINGOWE
+Klasa 
+KEMPINGOWE
+Klasa 
+AUTOBUSY
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA LEKKIE DOSTAWCZE
+Klasa
+KOMBI VAN
+1. BYD ETP3
+2. Citroen Berlingo
+3. Evum Motors Acar
+4. Fiat Doblo
+5. Ford Transit Connect
+6. Mercedes Citan
+7. Nissan Townstar
+8. Opel Combo Van 
+9. Peugeot Partner
+10. Peugeot Rifter
+11. Renault Kangoo Van
+12. Toyota Proace City
+13. Volkswagen Caddy
+Klasa 
+VAN
+1. Citroen C3 Van
+2. Dacia Spring Cargo
+3. Ford Transit Courier
+4. Ineos Grenadier
+5. Kia Niro Van
+6. Land Rover Defender Hard Top
+7. Opel Corsa Van
+8. Peugeot 208 Van
+9. Renault Clio Societe
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA PICK-UP
+Klasa
+PICK-UP
+1. Ford Ranger
+2. Foton Tunland
+3. Isuzu D-Max
+4. JAC T8 Pro
+5. JAC T9
+6. Maxus eTerron 9
+7. Maxus T60 Max
+8. Ssangyong / KGM  Musso Grand
+9. Toyota Hilux
+10. Volkswagen Amarok
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA ŚREDNIE DOSTAWCZE
+Klasa
+ŚREDNIE 
+DOSTAWCZE
+1. Citroen Jumpy
+2. DFSK C31 / C32
+3. Farizon V6E
+4. Fiat Scudo
+5. Ford Transit Custom
+6. KIA PV5
+7. Maxus Deliver 7
+8. Maxus e-Deliver 3
+9. Maxus e-Deliver 5
+10. Maxus e-Deliver 7
+11. Mercedes Vito
+12. Nissan Primastar
+13. Opel Vivaro
+14. Peugeot Expert
+15. Piaggio Porter NP6
+16. Renault Trafic
+17. Toyota Proace
+18. Volkswagen Caravelle
+19. Volkswagen ID.Buzz
+20. Volkswagen Transporter
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA CIĘŻKIE DOSTAWCZE
+Klasa
+CIĘŻKIE DOSTAWCZE
+1. Citroen Jumper
+2. Farizon SV
+3. Fiat Ducato
+4. Ford Transit
+5. Fuso Canter
+6. Isuzu M21
+7. Isuzu M27
+8. Iveco Daily
+9. Man TGE 
+10. Maxus Deliver 9
+11. Maxus e-Deliver 9
+12. Mercedes Sprinter
+13. Nissan Interstar
+14. Opel Movano
+15. Peugeot Boxer
+16. Renault Master
+17. Renault Trucks Master
+18. Renault Trucks Maxity
+19. Toyota Proace Max
+20. Volkswagen Crafter
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA AUTOBUSY
+Klasa
+AUTOBUSY
+1. Ford Transit
+2. Iveco Daily
+3. Karsan Jest
+4. Man TGE
+5. Mercedes Sprinter
+6. Opel Movano
+7. Peugeot Boxer
+8. Renault Master
+9. Volkswagen Crafter
+
+Copyright @ IBRM Samar, Polska 2025
+GRUPA KEMPINGOWE
+Klasa
+KEMPINGOWE
+1. Mercedes Marco Polo
+2. Volkswagen California
+3. Volkswagen Grand California
+

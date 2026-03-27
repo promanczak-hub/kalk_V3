@@ -81,7 +81,7 @@ def _detect_file_type(filename: str) -> str:
 
 
 @router.get("")
-async def list_catalogs(
+def list_catalogs(
     brand: Optional[str] = None,
     model_family: Optional[str] = None,
     document_type: Optional[str] = None,
@@ -111,7 +111,7 @@ async def list_catalogs(
 
 
 @router.get("/match")
-async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
+def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
     """Fast brand-based catalog matching (no LLM).
 
     Returns all catalogs that match the vehicle's brand, sorted by
@@ -192,7 +192,7 @@ async def match_catalogs_for_vehicle(vehicle_id: str) -> dict[str, Any]:
 
 
 @router.get("/suggest")
-async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
+def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
     """Suggest best catalogs for a given vehicle using LLM ranking."""
     # 1. Fetch vehicle data
     v_resp = (
@@ -252,7 +252,7 @@ async def suggest_catalogs(vehicle_id: str) -> dict[str, Any]:
 
 
 @router.get("/{catalog_id}")
-async def get_catalog_detail(catalog_id: str) -> dict[str, Any]:
+def get_catalog_detail(catalog_id: str) -> dict[str, Any]:
     """Get full catalog detail including extracted data."""
     resp = (
         _rs().table("model_document_sources").select("*").eq("id", catalog_id).execute()
@@ -346,7 +346,7 @@ async def upload_catalog(
 
 
 @router.get("/{catalog_id}/markdown")
-async def get_catalog_markdown(catalog_id: str) -> dict[str, Any]:
+def get_catalog_markdown(catalog_id: str) -> dict[str, Any]:
     """Fetch the raw docling markdown for a catalog document."""
     resp = (
         _rs()
@@ -384,8 +384,7 @@ async def get_catalog_file(catalog_id: str):
     try:
         encoded_path = quote(storage_path, safe="/")
         file_bytes = await anyio.to_thread.run_sync(
-            sb_client.storage.from_(_STORAGE_BUCKET).download,
-            encoded_path
+            sb_client.storage.from_(_STORAGE_BUCKET).download, encoded_path
         )
     except Exception as exc:
         exc_str = str(exc)
@@ -441,8 +440,7 @@ async def get_catalog_xlsx_data(catalog_id: str) -> dict[str, Any]:
     try:
         encoded_path = quote(row["storage_path"], safe="/")
         file_bytes = await anyio.to_thread.run_sync(
-            sb_client.storage.from_(_STORAGE_BUCKET).download,
-            encoded_path
+            sb_client.storage.from_(_STORAGE_BUCKET).download, encoded_path
         )
     except Exception as exc:
         exc_str = str(exc)
@@ -463,7 +461,7 @@ async def get_catalog_xlsx_data(catalog_id: str) -> dict[str, Any]:
 
 
 @router.post("/{catalog_id}/extract")
-async def trigger_extraction(catalog_id: str) -> dict[str, Any]:
+def trigger_extraction(catalog_id: str) -> dict[str, Any]:
     """Trigger AI extraction of variants from catalog document."""
     resp = (
         _rs().table("model_document_sources").select("*").eq("id", catalog_id).execute()
@@ -483,6 +481,7 @@ async def trigger_extraction(catalog_id: str) -> dict[str, Any]:
 
     # Zamiast threading używamy workera Celery
     from core.celery_tasks import extract_catalog_task
+
     extract_catalog_task.delay(catalog_id)
 
     return {"status": "extraction_started", "catalog_id": catalog_id}
@@ -492,7 +491,7 @@ async def trigger_extraction(catalog_id: str) -> dict[str, Any]:
 
 
 @router.post("/{catalog_id}/reprocess")
-async def reprocess_catalog_as_offer(
+def reprocess_catalog_as_offer(
     catalog_id: str, background_tasks: BackgroundTasks
 ) -> dict[str, Any]:
     """Reprocess a catalog document as an OFFER."""
@@ -560,7 +559,7 @@ async def reprocess_catalog_as_offer(
 
 
 @router.patch("/{catalog_id}/activate")
-async def toggle_catalog_active(
+def toggle_catalog_active(
     catalog_id: str,
     is_active: bool = True,
 ) -> dict[str, Any]:
@@ -581,7 +580,7 @@ async def toggle_catalog_active(
 
 
 @router.delete("/{catalog_id}")
-async def delete_catalog(catalog_id: str) -> dict[str, Any]:
+def delete_catalog(catalog_id: str) -> dict[str, Any]:
     """Delete a catalog and its file from storage."""
     resp = (
         _rs()

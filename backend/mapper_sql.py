@@ -33,6 +33,12 @@ NEW_CLASSES_MD = """
 | Kombivany                  | H     | KOMBI-VANY      | Citroen Berlingo, Peugeot Rifter, Volkswagen Caddy                     |
 | Minibusy                   | I     | MINIBUSY        | Volkswagen Multivan, Mercedes V-Class, Hyundai Staria                  |
 | Kempingowe                 | K     | KEMPINGOWE      | Volkswagen California, Mercedes Marco Polo                             |
+| Pick-up                    | -     | PICK-UP         | Toyota Hilux, Ford Ranger, Volkswagen Amarok, Isuzu D-Max              |
+| Średnie dostawcze          | -     | ŚREDNIE DOSTAWCZE| Mercedes Vito, Volkswagen Transporter, Renault Trafic                 |
+| Ciężkie dostawcze          | -     | CIĘŻKIE DOSTAWCZE| Mercedes Sprinter, Volkswagen Crafter, Renault Master, Fiat Ducato    |
+| Autobusy                   | -     | AUTOBUSY        | Mercedes Sprinter Bus, Ford Transit Bus                                |
+| Lekkie dostawcze           | -     | KOMBI VAN       | Renault Kangoo, Volkswagen Caddy Cargo, Mercedes Citan                |
+| Lekkie dostawcze           | -     | VAN             | Dacia Dokker Van                                                       |
 """
 
 

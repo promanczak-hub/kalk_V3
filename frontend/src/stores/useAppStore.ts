@@ -42,7 +42,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().globalSettings) return; // already loaded
     set({ isLoadingSettings: true, globalError: null });
     try {
-      const { apiFetch } = await import('../lib/api');
       const res = await apiClient.fetch('/api/control-center');
       if (res.ok) {
         const data = await res.json();

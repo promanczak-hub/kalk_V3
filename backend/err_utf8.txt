@@ -1,0 +1,42 @@
+﻿python : WARNING:root:Z
+ignorowano wprowadzona 
+kategorie silnika 'spal
+inowy': Nieznana katego
+ria silnika: 'spalinowy
+'. Brak mapowania na en
+gine_type_id.
+At line:1 char:39
++ ... ATH="d:\kalk_v3\b
+ackend"; python test_re
+fresh_fabia.py > err.tx
+t 2>&1
++                      
+         ~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (WARNING:root:   
+ Zi...engine_type_i    
+d.:String) [], Rem    o
+teException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+WARNING:root:Zignorowan
+o wprowadzona kategorie
+ silnika 'spalinowy': N
+ieznana kategoria silni
+ka: 'spalinowy'. Brak m
+apowania na engine_type
+_id.
+WARNING:root:Zignorowan
+o wprowadzona kategorie
+ silnika 'spalinowy': N
+ieznana kategoria silni
+ka: 'spalinowy'. Brak m
+apowania na engine_type
+_id.
+Total Fabias to refresh: 3
+All Fabias refreshed. Check logs above.

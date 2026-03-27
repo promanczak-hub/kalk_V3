@@ -107,8 +107,8 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
             </Typography>
 
             <Stack direction="row" spacing={1} sx={{ mt: 0.75, flexWrap: 'wrap' }}>
-              {item.fuel_type && (
-                <Chip label={item.fuel_type} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+              {item.fuel && (
+                <Chip label={item.fuel} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
               )}
               {item.body_type && (
                 <Chip label={item.body_type} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />

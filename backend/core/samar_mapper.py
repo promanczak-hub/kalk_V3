@@ -28,7 +28,8 @@ def _build_samar_client() -> Client:
 
 
 def _fetch_samar_dictionary(client: Client) -> list[dict]:
-    """Fetch SAMAR class dictionary from ``samar_classes`` (28 classes).
+    """Fetch SAMAR class dictionary from ``samar_classes`` (33 classes).
+
 
     Returns a list of dicts: ``[{"klasa": "Podstawowa - D ŚREDNIA", "modele": "BMW Serii 3, ..."}]``
     Uses in-memory cache with 5-minute TTL.
@@ -51,8 +52,10 @@ def _fetch_samar_dictionary(client: Client) -> list[dict]:
     for row in response.data:
         klasa = (row.get("name") or "").strip()
         modele = (row.get("example_models") or "").strip()
-        if klasa and modele:
-            rows.append({"klasa": klasa, "modele": modele})
+        if klasa:
+            rows.append(
+                {"klasa": klasa, "modele": modele or "Brak przykładowych modeli"}
+            )
 
     _samar_cache["data"] = rows
     _samar_cache["ts"] = now

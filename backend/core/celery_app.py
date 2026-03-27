@@ -1,7 +1,7 @@
 import os
 from celery import Celery
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
 celery_app = Celery(
     "kalk_worker",
@@ -26,6 +26,7 @@ celery_app.conf.update(
     enable_utc=True,
     task_routes={
         "process_document_task": {"queue": "uploads"},
+        "extract_pdf_pricelist_task": {"queue": "uploads"},
     },
     beat_schedule={
         "prewarm-global-filters-every-15-mins": {
@@ -38,4 +39,3 @@ celery_app.conf.update(
         },
     },
 )
-

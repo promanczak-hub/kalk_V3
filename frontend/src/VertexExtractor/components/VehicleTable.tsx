@@ -10,6 +10,7 @@ import { useVehicleFilters } from "../hooks/useVehicleFilters";
 import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
 import { apiClient } from '../../lib/apiClient';
+import { ConfirmModal } from "../../components/ConfirmModal";
 import type { ControlCenterSettings } from "../../hooks/useCalculator";
 import Pagination from "@mui/material/Pagination";
 
@@ -94,34 +95,26 @@ export function VehicleTable({
     tryScroll();
   }, [highlightVehicleId, isLoadingSaved, savedVehicles]);
 
+  const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
+  const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false);
+
   // Listen for the custom event from the nested card
   useEffect(() => {
     const handleCustomDelete = (e: Event) => {
       const customEvent = e as CustomEvent;
-      if (
-        customEvent.detail &&
-        customEvent.detail.vehicleId &&
-        handleDeleteVehicle
-      ) {
-        handleDeleteVehicle(customEvent.detail.vehicleId);
+      if (customEvent.detail && customEvent.detail.vehicleId) {
+        setVehicleToDelete(customEvent.detail.vehicleId);
       }
     };
     window.addEventListener("deleteVehicle", handleCustomDelete);
     return () => {
       window.removeEventListener("deleteVehicle", handleCustomDelete);
     };
-  }, [handleDeleteVehicle]);
+  }, []);
 
   const handleDeleteSelected = async () => {
-    console.log("[DEBUG] handleDeleteSelected called, selectedCount:", selectedCount);
     const selected = getSelectedVehicles();
-    console.log("[DEBUG] selected vehicles:", selected.length, selected.map(v => v.id));
     if (selected.length === 0) return;
-
-    const confirmed = window.confirm(
-      `Czy na pewno chcesz usunąć ${selected.length} rekordów? Tej operacji nie można cofnąć.`,
-    );
-    if (!confirmed) return;
 
     try {
       const response = await apiClient.fetch(`/api/delete-vehicles-batch`, {
@@ -134,11 +127,14 @@ export function VehicleTable({
 
       if (!response.ok) throw new Error("Batch delete failed");
 
+      // Optymistyczne ukrycie z widoku zeby nie polegać podwójnie na widoku i pobraniu (ghost)
       deselectAll();
       fetchSavedVehicles();
     } catch (err) {
       console.error("Batch delete error:", err);
       alert("Wystąpił błąd podczas usuwania rekordów.");
+    } finally {
+      setIsBatchDeleteModalOpen(false);
     }
   };
 
@@ -265,7 +261,7 @@ export function VehicleTable({
             totalVisible={filteredVehicles.length}
             allVisibleSelected={allVisibleSelected}
             onToggleSelectAll={() => selectAll(allVisibleIds)}
-            onDeleteSelected={handleDeleteSelected}
+            onDeleteSelected={() => setIsBatchDeleteModalOpen(true)}
             onCompareSelected={handleCompareSelected}
           />
 
@@ -348,6 +344,30 @@ export function VehicleTable({
           onClose={() => setShowComparison(false)}
         />
       )}
+
+      {/* Confirm Modals */}
+      <ConfirmModal
+        isOpen={!!vehicleToDelete}
+        title="Usuwanie rekordu"
+        message="Czy na pewno chcesz trwale usunąć ten rekord powiązany z dokumentem? Tej operacji nie można cofnąć."
+        confirmText="Usuń"
+        onConfirm={() => {
+          if (vehicleToDelete && handleDeleteVehicle) {
+            handleDeleteVehicle(vehicleToDelete);
+          }
+          setVehicleToDelete(null);
+        }}
+        onCancel={() => setVehicleToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={isBatchDeleteModalOpen}
+        title="Usuwanie zaznaczonych"
+        message={`Czy na pewno chcesz trwale usunąć ${selectedCount} rekordów? Tej operacji nie można cofnąć.`}
+        confirmText="Usuń"
+        onConfirm={handleDeleteSelected}
+        onCancel={() => setIsBatchDeleteModalOpen(false)}
+      />
     </div>
   );
 }

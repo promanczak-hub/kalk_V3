@@ -240,7 +240,10 @@ def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) 
                     severity="INFO",
                 )
             )
-        elif report.parsed_base > report.parsed_total and report.parsed_options is not None:
+        elif (
+            report.parsed_base > report.parsed_total
+            and report.parsed_options is not None
+        ):
             # AI extracted the discounted final price as total_price
             corrected_total_val = report.parsed_base + report.parsed_options
 

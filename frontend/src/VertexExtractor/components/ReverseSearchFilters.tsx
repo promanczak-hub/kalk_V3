@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { Search, ChevronDown, ChevronRight, Settings2, Loader2 } from "lucide-react";
-import { CatalogFeature, SearchFilter, getSliderBounds, CURATED_SHARED, CURATED_PASSENGER, CURATED_COMMERCIAL } from "../types";
+import type { CatalogCategory, CatalogFeature, SearchFilter } from "../types";
+import { getSliderBounds, CURATED_SHARED, CURATED_PASSENGER, CURATED_COMMERCIAL } from "../types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ReverseSearchFilters({ state, actions }: { state: any; actions: any }) {

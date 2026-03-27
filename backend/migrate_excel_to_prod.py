@@ -13,21 +13,27 @@ from __future__ import annotations
 
 import argparse
 import logging
+import unicodedata
+import os
 from typing import Any
+from supabase import create_client, Client, ClientOptions
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # ── Fuel type mapping (monolith suffix → integer ID) ──────────
 FUEL_TYPE_MAP: dict[str, int] = {
-    "Elektryczny (BEV)": 1,
-    "Wodór (FCEV)": 2,
-    "Hybryda (HEV)": 3,
-    "Benzyna mHEV (PB-mHEV)": 4,
-    "Diesel mHEV (ON-mHEV)": 5,
+    "Benzyna (PB)": 1,
+    "Diesel (ON)": 2,
+    "Benzyna mHEV (PB-mHEV)": 3,
+    "Diesel mHEV (ON-mHEV)": 4,
+    "Hybryda (HEV)": 5,
     "Plug-in Hybrid (PHEV)": 6,
-    "Benzyna (PB)": 7,
-    "Diesel (ON)": 8,
+    "Elektryczny (BEV)": 7,
+    "Wodór (FCEV)": 8,
     "LPG": 9,
 }
 
@@ -58,7 +64,14 @@ def _parse_monolith(
         logger.warning("Nie rozpoznano silnika w: %r", monolith)
         return None
 
-    samar_class_id = class_name_to_id.get(class_part)
+    def normalize(text: str) -> str:
+        s = text.lower().strip()
+        s = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("utf-8")
+        return s.replace(" ", "").replace("-", "").replace("_", "")
+
+    norm_class_map = {normalize(k): v for k, v in class_name_to_id.items()}
+    samar_class_id = norm_class_map.get(normalize(class_part))
+
     if samar_class_id is None:
         logger.warning(
             "Nie znaleziono klasy SAMAR dla: %r (z monolitu %r)",
@@ -109,7 +122,10 @@ def _safe_float(val: Any) -> float:
 
 def migrate(*, dry_run: bool = True) -> None:
     """Główna logika migracji."""
-    from core.database import supabase
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    opts = ClientOptions(postgrest_client_timeout=60, storage_client_timeout=60)
+    supabase: Client = create_client(supabase_url, supabase_key, options=opts)
 
     class_map = _load_samar_classes(supabase)
 
@@ -120,9 +136,23 @@ def migrate(*, dry_run: bool = True) -> None:
     przebieg_rows = _load_sheet(supabase, "TAB. PRZEBIEG")
 
     # Index TAB. OKRES FINAL & DOPOSAŻENIA by monolith key for fast lookup
-    okres_by_key: dict[str, dict[str, Any]] = {r["col_1"]: r for r in okres_rows}
-    dopos_by_key: dict[str, dict[str, Any]] = {r["col_1"]: r for r in dopos_rows}
-    przebieg_by_key: dict[str, dict[str, Any]] = {r["col_1"]: r for r in przebieg_rows}
+    # Normalize keys for robust matching
+    def normalize_key(k: str) -> str:
+        s = k.lower().strip()
+        import unicodedata
+
+        s = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("utf-8")
+        return s.replace(" ", "").replace("-", "").replace("_", "")
+
+    okres_by_key: dict[str, dict[str, Any]] = {
+        normalize_key(r.get("klasa_samar", r.get("col_1", ""))): r for r in okres_rows
+    }
+    dopos_by_key: dict[str, dict[str, Any]] = {
+        normalize_key(r["col_1"]): r for r in dopos_rows
+    }
+    przebieg_by_key: dict[str, dict[str, Any]] = {
+        normalize_key(r["col_1"]): r for r in przebieg_rows
+    }
 
     depreciation_inserts: list[dict[str, Any]] = []
     mileage_inserts: list[dict[str, Any]] = []
@@ -142,8 +172,20 @@ def migrate(*, dry_run: bool = True) -> None:
         parsed_count += 1
 
         base_wr = _safe_float(wr_row.get("col_2"))
-        okres_row = okres_by_key.get(monolith, {})
-        dopos_row = dopos_by_key.get(monolith, {})
+
+        # We need `class_part` which is stripped of fuel
+        fuel_type_id_parsed = None
+        class_part = monolith
+        for suffix in _FUEL_SUFFIXES:
+            if monolith.endswith(suffix):
+                class_part = monolith[: -len(suffix)].strip()
+                break
+
+        norm_monolith = normalize_key(monolith)
+        norm_class = normalize_key(class_part)
+
+        okres_row = okres_by_key.get(norm_monolith, {})
+        dopos_row = dopos_by_key.get(norm_monolith, {})
 
         # Year 0: base_depreciation = WR KLASA, options = DOPOSAŻENIA col_2
         depreciation_inserts.append(
@@ -159,20 +201,20 @@ def migrate(*, dry_run: bool = True) -> None:
         # Years 1-7: depreciation from OKRES FINAL, options from DOPOSAŻENIA
         for yr in range(1, 8):
             col_key = f"col_{yr + 1}"  # col_2=yr0, col_3=yr1, ...
-            # OKRES FINAL: col_2=35k, col_3=35k, col_4=70k... but it's
-            # indexed the same way — col_2 is year 0(?), col_3 is year 1 etc.
-            # Actually from data: headers are 35, 35, 70, 105, 140, 175, 210, 245
-            # So col_2 = half-year 1, col_3 = half-year 2 ...
-            # But structurally it's col_2..col_9 mapping to year 0..7
-            okres_col = f"col_{yr + 1}"
-            dopos_col = f"col_{yr + 1}"
+
+            # OKRES FINAL: new script uses rok_0 to rok_7, old uses col_2 to col_9
+            okres_val = okres_row.get(f"rok_{yr}")
+            if okres_val is None:
+                okres_val = okres_row.get(col_key)
+
+            dopos_col = col_key
 
             depreciation_inserts.append(
                 {
                     "samar_class_id": samar_class_id,
                     "fuel_type_id": fuel_type_id,
                     "year": yr,
-                    "base_depreciation_percent": _safe_float(okres_row.get(okres_col)),
+                    "base_depreciation_percent": _safe_float(okres_val),
                     "options_depreciation_percent": _safe_float(
                         dopos_row.get(dopos_col)
                     ),
@@ -180,7 +222,7 @@ def migrate(*, dry_run: bool = True) -> None:
             )
 
         # ── Mileage corrections ──
-        przebieg_row = przebieg_by_key.get(monolith, {})
+        przebieg_row = przebieg_by_key.get(norm_class, {})
         if przebieg_row:
             mileage_inserts.append(
                 {
@@ -218,7 +260,15 @@ def migrate(*, dry_run: bool = True) -> None:
     batch_size = 100
     for i in range(0, len(depreciation_inserts), batch_size):
         batch = depreciation_inserts[i : i + batch_size]
-        supabase.table("samar_class_depreciation_rates").insert(batch).execute()
+        try:
+            supabase.table("samar_class_depreciation_rates").upsert(
+                batch, on_conflict="samar_class_id,fuel_type_id,year"
+            ).execute()
+        except Exception as e:
+            logger.error("Error upserting depreciation: %s", repr(e))
+            if hasattr(e, "json"):
+                logger.error("API Error details: %s", e.json())
+
         logger.info(
             "  batch %d/%d",
             i // batch_size + 1,
@@ -228,7 +278,15 @@ def migrate(*, dry_run: bool = True) -> None:
     logger.info("Wstawianie przebiegu (%d)...", len(mileage_inserts))
     for i in range(0, len(mileage_inserts), batch_size):
         batch = mileage_inserts[i : i + batch_size]
-        supabase.table("samar_class_mileage_corrections").insert(batch).execute()
+        try:
+            supabase.table("samar_class_mileage_corrections").upsert(
+                batch, on_conflict="samar_class_id,fuel_type_id"
+            ).execute()
+        except Exception as e:
+            logger.error("Error upserting mileage: %s", repr(e))
+            if hasattr(e, "json"):
+                logger.error("API Error details: %s", e.json())
+
         logger.info(
             "  batch %d/%d", i // batch_size + 1, -(-len(mileage_inserts) // batch_size)
         )

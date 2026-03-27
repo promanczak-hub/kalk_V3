@@ -1,9 +1,12 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Box, Tabs, Tab, CircularProgress, Typography } from "@mui/material";
 import DynamicGridEditor from "./DynamicGridEditor";
 import { API_BASE_URL } from "../config/env";
 import PaintTypesCrudPanel from "../PaintTypesCrud/PaintTypesCrudPanel";
 import { apiClient } from "../lib/apiClient";
+import MatrixRVCrudPanel from "../MatrixRVCrud/MatrixRVCrudPanel";
+import MileageAdjustmentsCrudPanel from "../MileageAdjustmentsCrud/MileageAdjustmentsCrudPanel";
+import TabOkresFinalCrudPanel from "../TabOkresFinal/TabOkresFinalCrudPanel";
 
 export default function ExcelDraftsPanel() {
   const [activeTab, setActiveTab] = useState(0);
@@ -63,6 +66,12 @@ export default function ExcelDraftsPanel() {
       <Box sx={{ mt: 2 }}>
         {currentSheetName === "KOLOR" ? (
           <PaintTypesCrudPanel />
+        ) : currentSheetName === "TAB.WR KLASA" ? (
+          <MatrixRVCrudPanel />
+        ) : currentSheetName === "TAB. PRZEBIEG" ? (
+          <MileageAdjustmentsCrudPanel />
+        ) : currentSheetName === "TAB. OKRES FINAL" ? (
+          <TabOkresFinalCrudPanel />
         ) : (
           <DynamicGridEditor sheetName={currentSheetName} />
         )}
@@ -70,4 +79,3 @@ export default function ExcelDraftsPanel() {
     </Box>
   );
 }
-

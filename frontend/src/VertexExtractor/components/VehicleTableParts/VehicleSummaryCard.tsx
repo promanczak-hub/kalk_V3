@@ -8,7 +8,9 @@ interface VehicleSummaryCardProps {
   isSaving?: boolean;
   onRemapClassification?: () => Promise<void>;
   isRemapping?: boolean;
+  readinessResult?: any;
 }
+
 
 const EMPTY = "—";
 
@@ -91,7 +93,9 @@ export function VehicleSummaryCard({
   isSaving,
   onRemapClassification,
   isRemapping,
+  readinessResult,
 }: VehicleSummaryCardProps) {
+
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
@@ -251,7 +255,15 @@ export function VehicleSummaryCard({
     { label: "Kolor nadwozia", value: val(vehicle.exterior_color) },
     { label: "Kategoria lakieru", value: extractPaintCategory(vehicle) },
     { label: "Ilość miejsc", value: extractSeats(vehicle) },
+    { label: "Typ nadwozia", value: val(vehicle.body_style) },
+    { 
+      label: "Korekta RV (nadwozie)", 
+      value: readinessResult?.body_match?.correction != null 
+        ? `${readinessResult.body_match.correction > 0 ? '+' : ''}${readinessResult.body_match.correction}%` 
+        : (vehicle.body_style ? "0%" : EMPTY) 
+    },
   ];
+
 
   const metaRows: typeof identityRows = [
     { label: "Numer oferty", value: val(vehicle.offer_number) },

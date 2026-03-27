@@ -1,5 +1,5 @@
 import { apiClient } from '../../lib/apiClient';
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { v4 as uuidv4 } from "uuid";
 import SparkMD5 from "spark-md5";
@@ -38,6 +38,7 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
   const processDocument = useCallback(
     async (doc: UploadedDocument, fileObj: File) => {
@@ -55,11 +56,16 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
         md5Hash = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => {
-            if (e.target?.result) {
-              const spark = new SparkMD5.ArrayBuffer();
-              spark.append(e.target.result as ArrayBuffer);
-              resolve(spark.end());
-            } else reject("Błąd odczytu pliku");
+            try {
+              if (e.target?.result) {
+                const spark = new SparkMD5.ArrayBuffer();
+                spark.append(e.target.result as ArrayBuffer);
+                resolve(spark.end());
+              } else reject(new Error("Błąd odczytu pliku (pusty wynik)"));
+            } catch (err) {
+              console.error("Błąd podczas hashowania pliku MD5:", err);
+              reject(err);
+            }
           };
           reader.onerror = () => reject(reader.error);
           reader.readAsArrayBuffer(fileObj);
@@ -129,9 +135,13 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           ),
         );
 
+        const controller = new AbortController();
+        abortControllers.current.set(doc.id, controller);
+
         const response = await apiClient.fetch(`/api/extract/async`, {
           method: "POST",
           body: formData,
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -151,8 +161,13 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
           onSuccessSaved();
         }
 
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Extraction error:", error);
+        
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("Upload aborted by user.");
+          return; // Ignore setting error states if intentionally aborted
+        }
         
         // Zabezpieczenie: jeśli dostaliśmy ID na początku, oznaczmy ten wpis jako błąd w bazie by nie "wisiał"
         if (md5Hash) {
@@ -275,6 +290,11 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
   }, [activeJsonView, onSuccessSaved]);
 
   const removeDocument = useCallback((id: string) => {
+    const controller = abortControllers.current.get(id);
+    if (controller) {
+      controller.abort();
+      abortControllers.current.delete(id);
+    }
     setDocuments((docs) => docs.filter((d) => d.id !== id));
   }, []);
 

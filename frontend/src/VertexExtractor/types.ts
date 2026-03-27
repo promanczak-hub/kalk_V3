@@ -70,6 +70,48 @@ export interface FleetVehicleView {
   [key: string]: any; // Allow dynamic raw data access
 }
 
+export interface CatalogFeature {
+  id: string;
+  feature_key: string;
+  display_name: string;
+  feature_type: "boolean" | "bool" | "numeric" | "enum" | "string" | string;
+  metadata?: any;
+  applicable_body_types?: string[];
+}
+
+export interface CatalogCategory {
+  id: string;
+  display_name: string;
+  features: CatalogFeature[];
+}
+
+export interface SearchFilter {
+  feature_key: string;
+  display_name?: string;
+  value_bool?: boolean;
+  value_num_min?: number;
+  value_num_max?: number;
+  value_text?: string;
+}
+
+export interface SearchResult {
+  vehicle_id: string;
+  brand: string;
+  model: string;
+  score: number;
+  [key: string]: any;
+}
+
+export const CURATED_SHARED: string[] = ["klimatyzacja", "czujniki", "kamera", "tempomat"];
+export const CURATED_PASSENGER: string[] = ["podgrzewane_fotele", "skora", "szyberdach", "isofix"];
+export const CURATED_COMMERCIAL: string[] = ["drzwi_przesuwne", "sklejka", "hak"];
+
+export function getSliderBounds(featName: string): { min: number; max: number } {
+  if (featName.toLowerCase().includes("moc")) return { min: 50, max: 500 };
+  if (featName.toLowerCase().includes("pojemność")) return { min: 900, max: 5000 };
+  return { min: 0, max: 10000 };
+}
+
 export interface PriceValidationWarning {
   rule: string;
   message: string;

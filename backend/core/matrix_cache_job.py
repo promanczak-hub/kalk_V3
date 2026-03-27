@@ -41,6 +41,7 @@ def _upsert_job(
     except Exception as exc:
         logger.warning("[JOBS] upsert_calculation_job failed silently: %s", exc)
 
+
 # Standard configurations for pricing matrix
 CACHE_MARGINS_PCT = [0.0]  # Only base cost; margin applied dynamically in RPC
 
@@ -266,12 +267,20 @@ def process_single_kalkulacja_matrix_task(
 ) -> None:
     """Calculate and cache 116 matrix cells for a given kalkulacja."""
     task_trace_id = trace_id or celery_task_id or "UNKNOWN_TRACE"
-    logger.info("Starting process_single_kalkulacja_matrix_task for kalkulacja_id=%s [Trace: %s]", kalkulacja_id, task_trace_id)
+    logger.info(
+        "Starting process_single_kalkulacja_matrix_task for kalkulacja_id=%s [Trace: %s]",
+        kalkulacja_id,
+        task_trace_id,
+    )
 
     # 1. Fetch kalkulacja
     res = supabase.table("ltr_kalkulacje").select("*").eq("id", kalkulacja_id).execute()
     if not res.data:
-        logger.error("process_single_kalkulacja_matrix_task: Kalkulacja %s not found [Trace: %s]", kalkulacja_id, task_trace_id)
+        logger.error(
+            "process_single_kalkulacja_matrix_task: Kalkulacja %s not found [Trace: %s]",
+            kalkulacja_id,
+            task_trace_id,
+        )
         return
 
     kalk_row = res.data[0]
@@ -279,7 +288,10 @@ def process_single_kalkulacja_matrix_task(
     vehicle_id = stan_json.get("vehicle_id")
 
     if not vehicle_id:
-        logger.error("Kalkulacja %s has no vehicle_id. Skipping matrix generation.", kalkulacja_id)
+        logger.error(
+            "Kalkulacja %s has no vehicle_id. Skipping matrix generation.",
+            kalkulacja_id,
+        )
         return
 
     # Track: running
@@ -288,8 +300,15 @@ def process_single_kalkulacja_matrix_task(
     # 2. Load CC settings (needed for both direct parse and fallback)
     settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
     if not settings_res.data:
-        logger.error("process_single_kalkulacja_matrix_task: Control center settings not found")
-        _upsert_job(vehicle_id, "failed", error_code="NO_CC_SETTINGS", error_detail="control_center table empty")
+        logger.error(
+            "process_single_kalkulacja_matrix_task: Control center settings not found"
+        )
+        _upsert_job(
+            vehicle_id,
+            "failed",
+            error_code="NO_CC_SETTINGS",
+            error_detail="control_center table empty",
+        )
         return
     settings_dict = cast(dict[str, Any], settings_res.data[0])
     settings = ControlCenterSettings(**settings_dict)
@@ -302,26 +321,52 @@ def process_single_kalkulacja_matrix_task(
         logger.warning(
             "Direct stan_json parse failed for kalkulacja %s (likely raw synthesisData). "
             "Falling back to build_calculator_input. Error: %s [Trace: %s]",
-            kalkulacja_id, str(direct_err)[:200], task_trace_id,
+            kalkulacja_id,
+            str(direct_err)[:200],
+            task_trace_id,
         )
         # Fallback: fetch vehicle from vehicle_synthesis and build input properly
-        v_res = supabase.table("vehicle_synthesis").select("*").eq("id", vehicle_id).execute()
+        v_res = (
+            supabase.table("vehicle_synthesis")
+            .select("*")
+            .eq("id", vehicle_id)
+            .execute()
+        )
         if not v_res.data:
             msg = f"Direct parse failed AND vehicle {vehicle_id} not found in vehicle_synthesis"
             logger.error(msg)
-            _upsert_job(vehicle_id, "failed", error_code="VEHICLE_NOT_FOUND", error_detail=msg)
+            _upsert_job(
+                vehicle_id, "failed", error_code="VEHICLE_NOT_FOUND", error_detail=msg
+            )
             return
         try:
-            calc_input = build_calculator_input(v_res.data[0], margin_pct=0.0, settings=settings)
+            calc_input = build_calculator_input(
+                v_res.data[0], margin_pct=0.0, settings=settings
+            )
         except Exception as build_err:
             msg = str(build_err)[:500]
-            logger.error("build_calculator_input fallback also failed for %s: %s", vehicle_id, build_err)
-            _upsert_job(vehicle_id, "failed", error_code="BUILD_INPUT_ERROR", error_detail=msg)
+            logger.error(
+                "build_calculator_input fallback also failed for %s: %s",
+                vehicle_id,
+                build_err,
+            )
+            _upsert_job(
+                vehicle_id, "failed", error_code="BUILD_INPUT_ERROR", error_detail=msg
+            )
             return
 
     if not calc_input:
-        logger.error("CalculatorInput is None for kalkulacja %s / vehicle %s", kalkulacja_id, vehicle_id)
-        _upsert_job(vehicle_id, "failed", error_code="NO_BASE_PRICE", error_detail="build_calculator_input returned None")
+        logger.error(
+            "CalculatorInput is None for kalkulacja %s / vehicle %s",
+            kalkulacja_id,
+            vehicle_id,
+        )
+        _upsert_job(
+            vehicle_id,
+            "failed",
+            error_code="NO_BASE_PRICE",
+            error_detail="build_calculator_input returned None",
+        )
         return
 
     # CRITICAL: Force pricing_margin_pct to 0.0 for cache generation!
@@ -331,11 +376,18 @@ def process_single_kalkulacja_matrix_task(
 
     # 4. Generate Matrix
     try:
-        engine = LTRKalkulator(input_data=calc_input, settings=settings, trace_id=task_trace_id)
+        engine = LTRKalkulator(
+            input_data=calc_input, settings=settings, trace_id=task_trace_id
+        )
         all_cells = engine.build_matrix()
     except Exception as e:
         msg = str(e)[:500]
-        logger.error("Failed matrix build for kalkulacja %s: %s [Trace: %s]", kalkulacja_id, e, task_trace_id)
+        logger.error(
+            "Failed matrix build for kalkulacja %s: %s [Trace: %s]",
+            kalkulacja_id,
+            e,
+            task_trace_id,
+        )
         _upsert_job(vehicle_id, "failed", error_code="CALC_ERROR", error_detail=msg)
         return
 
@@ -380,7 +432,11 @@ def process_single_kalkulacja_matrix_task(
             )
 
     if records_to_upsert:
-        logger.info("Upserting %d matrix cells for kalkulacja %s", len(records_to_upsert), kalkulacja_id)
+        logger.info(
+            "Upserting %d matrix cells for kalkulacja %s",
+            len(records_to_upsert),
+            kalkulacja_id,
+        )
         chunk_size = 500
         for i in range(0, len(records_to_upsert), chunk_size):
             chunk = records_to_upsert[i : i + chunk_size]
@@ -391,39 +447,55 @@ def process_single_kalkulacja_matrix_task(
                 ).execute()
             except Exception as e:
                 logger.error("Failed to upsert cache chunk %s: %s", kalkulacja_id, e)
-                _upsert_job(vehicle_id, "failed", error_code="DB_UPSERT_ERROR", error_detail=str(e)[:300])
+                _upsert_job(
+                    vehicle_id,
+                    "failed",
+                    error_code="DB_UPSERT_ERROR",
+                    error_detail=str(e)[:300],
+                )
                 return
 
         # Track: done
         _upsert_job(vehicle_id, "done", monthly_price=best_price)
         logger.info("Matrix cache refresh complete for kalkulacja %s", kalkulacja_id)
     else:
-        _upsert_job(vehicle_id, "failed", error_code="NO_MATRIX_CELLS", error_detail="build_matrix() returned 0 valid cells")
-        logger.warning("No valid matrix cells generated for kalkulacja %s", kalkulacja_id)
+        _upsert_job(
+            vehicle_id,
+            "failed",
+            error_code="NO_MATRIX_CELLS",
+            error_detail="build_matrix() returned 0 valid cells",
+        )
+        logger.warning(
+            "No valid matrix cells generated for kalkulacja %s", kalkulacja_id
+        )
 
 
 def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
     """Generate default LTR matrix cache for newly extracted/updated vehicles.
-    
+
     Creates a system-generated record in ltr_kalkulacje and runs the matrix calculation.
     """
     logger.info("Auto-refreshing matrix cache for vehicles: %s", vehicle_ids)
-    
+
     # 1. Fetch vehicles
-    v_res = supabase.table("vehicle_synthesis").select("*").in_("id", vehicle_ids).execute()
+    v_res = (
+        supabase.table("vehicle_synthesis").select("*").in_("id", vehicle_ids).execute()
+    )
     vehicles = v_res.data or []
-    
+
     # 2. Fetch CC settings
     settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
     if not settings_res.data:
-        logger.error("refresh_matrix_cache_for_vehicles: Control center settings not found")
+        logger.error(
+            "refresh_matrix_cache_for_vehicles: Control center settings not found"
+        )
         return
     settings_dict = cast(dict[str, Any], settings_res.data[0])
     settings = ControlCenterSettings(**settings_dict)
-    
+
     import uuid
     from datetime import datetime
-    
+
     for row in vehicles:
         vid = row["id"]
         # Track: queued before building input
@@ -434,31 +506,51 @@ def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
         except Exception as e:
             msg = str(e)[:400]
             logger.error("Error building calculator input for %s: %s", vid, e)
-            _upsert_job(str(vid), "failed", error_code="BUILD_INPUT_ERROR", error_detail=msg)
+            _upsert_job(
+                str(vid), "failed", error_code="BUILD_INPUT_ERROR", error_detail=msg
+            )
             continue
 
         if not calc_input:
-            logger.warning("Failed to build CalculatorInput for vehicle %s. Skipping auto-cache.", vid)
-            _upsert_job(str(vid), "failed", error_code="NO_BASE_PRICE", error_detail="build_calculator_input returned None")
+            logger.warning(
+                "Failed to build CalculatorInput for vehicle %s. Skipping auto-cache.",
+                vid,
+            )
+            _upsert_job(
+                str(vid),
+                "failed",
+                error_code="NO_BASE_PRICE",
+                error_detail="build_calculator_input returned None",
+            )
             continue
-            
+
         stan_json = calc_input.model_dump()
         stan_json["source"] = "auto_extract"
-        
+
         # UI metadata often required by front/routes
         stan_json["brand"] = row.get("brand", "")
         stan_json["model"] = row.get("model", "")
-        stan_json["samar_category"] = row.get("synthesis_data", {}).get("mapped_ai_data", {}).get("samar_category", "")
-        stan_json["engine_name"] = row.get("synthesis_data", {}).get("mapped_ai_data", {}).get("engine_class", "")
-        
+        stan_json["samar_category"] = (
+            row.get("synthesis_data", {})
+            .get("mapped_ai_data", {})
+            .get("samar_category", "")
+        )
+        stan_json["engine_name"] = (
+            row.get("synthesis_data", {})
+            .get("mapped_ai_data", {})
+            .get("engine_class", "")
+        )
+
         brand = stan_json["brand"]
         model = stan_json["model"]
-        dane_pojazdu = f"{brand} {model}".strip() if brand or model else "System Auto-Extract"
-        
+        dane_pojazdu = (
+            f"{brand} {model}".strip() if brand or model else "System Auto-Extract"
+        )
+
         now = datetime.now()
         short_uuid = uuid.uuid4().hex[:6].upper()
         numer_kalkulacji = f"AUTO/{now.year}/{now.month:02d}/{short_uuid}"
-        
+
         kalk_data = {
             "numer_kalkulacji": numer_kalkulacji,
             "status": "szkic_vertex",
@@ -466,24 +558,42 @@ def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
             "dane_pojazdu": dane_pojazdu,
             "cena_netto": float(calc_input.base_price_net),
         }
-        
+
         try:
             # Avoid spamming the calculation table by checking if an auto_extract already exists
-            exist_res = supabase.table("ltr_kalkulacje").select("id").eq("stan_json->>vehicle_id", vid).eq("stan_json->>source", "auto_extract").execute()
+            exist_res = (
+                supabase.table("ltr_kalkulacje")
+                .select("id")
+                .eq("stan_json->>vehicle_id", vid)
+                .eq("stan_json->>source", "auto_extract")
+                .execute()
+            )
             if exist_res.data:
                 new_kalk_id = exist_res.data[0]["id"]
                 kalk_data["updated_at"] = now.isoformat()
-                supabase.table("ltr_kalkulacje").update(kalk_data).eq("id", new_kalk_id).execute()
-                logger.info("Updated exiting auto-kalkulacja %s for vehicle %s", new_kalk_id, vid)
+                supabase.table("ltr_kalkulacje").update(kalk_data).eq(
+                    "id", new_kalk_id
+                ).execute()
+                logger.info(
+                    "Updated exiting auto-kalkulacja %s for vehicle %s",
+                    new_kalk_id,
+                    vid,
+                )
             else:
                 ins_res = supabase.table("ltr_kalkulacje").insert(kalk_data).execute()
                 if not ins_res.data:
                     logger.error("Failed to insert auto-kalkulacja for vehicle %s", vid)
                     continue
                 new_kalk_id = ins_res.data[0]["id"]
-                logger.info("Created new auto-kalkulacja %s for vehicle %s", new_kalk_id, vid)
-            
+                logger.info(
+                    "Created new auto-kalkulacja %s for vehicle %s", new_kalk_id, vid
+                )
+
             # Generate matrices synchronously
             process_single_kalkulacja_matrix_task(new_kalk_id)
         except Exception as e:
-            logger.error("Error inserting/generating matrix for auto-kalkulacja of %s: %s", vid, e)
+            logger.error(
+                "Error inserting/generating matrix for auto-kalkulacja of %s: %s",
+                vid,
+                e,
+            )

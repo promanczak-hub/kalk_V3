@@ -398,6 +398,11 @@ def extract_features_from_text(
         return {
             "status": "success",
             "extracted_filters": [f.model_dump() for f in filters],
+            "extracted_financials": {
+                "price_max": json_resp.get("price_max"),
+                "duration_months": json_resp.get("duration_months"),
+                "annual_mileage": json_resp.get("annual_mileage"),
+            },
             "total_extracted": len(filters),
         }
 
@@ -435,39 +440,19 @@ def reverse_search_vehicles(
             detail="Przynajmniej jeden filtr cechy, wyszukiwanie tekstowe, typ zabudowy lub kategoria pojazdu jest wymagana",
         )
 
-    # 1. Base Scope, Body Type and Free Text Filtering (STRICT)
-    valid_vehicle_ids: set[str] | None = None
+    # 1. Base Scope and Body Type Filtering (STRICT) -> returns valid_vehicle_ids
+    # Text search is now pushed entirely to the database via p_search_query
+    valid_vehicle_ids: list[str] | None = None
 
-    if (
-        request.search_query
-        or request.body_types
-        or (request.vehicle_scope and request.vehicle_scope != "all")
-    ):
+    if request.body_types or (request.vehicle_scope and request.vehicle_scope != "all"):
         bt_resp = sb.table("vehicle_synthesis").select("id, synthesis_data").execute()
 
         filtered_ids = set()
-        search_words = (
-            [w.lower() for w in request.search_query.split()]
-            if request.search_query
-            else []
-        )
 
         for r in bt_resp.data:
             sd = r.get("synthesis_data") or {}
             cs = sd.get("card_summary") or {}
             mapped = sd.get("mapped_ai_data") or {}
-
-            # Text Search Check
-            word_matches = True
-            if search_words:
-                # Dump the structure to a lowercased string to find the exact substrings
-                import json
-
-                sd_str = json.dumps(sd, ensure_ascii=False).lower()
-                for w in search_words:
-                    if w not in sd_str:
-                        word_matches = False
-                        break
 
             # Scope Check
             scope_matches = True
@@ -508,308 +493,223 @@ def reverse_search_vehicles(
                 if not vals:
                     body_matches = False
                 else:
-                    # Match ANY of the requested body types
                     body_matches = any(
                         any(req_bt.upper() in v for v in vals)
                         for req_bt in request.body_types
                     )
 
-            if word_matches and scope_matches and body_matches:
+            if scope_matches and body_matches:
                 filtered_ids.add(r["id"])
 
-        valid_vehicle_ids = filtered_ids
+        valid_vehicle_ids = list(filtered_ids)
+        if not valid_vehicle_ids:
+            return FeatureSearchResponse(results=[], total_count=0, facets={})
 
-    # 2. Features Soft Scoring phase
-    from collections import defaultdict
+    # 2. Map frontend filters to p_requirements JSON
+    p_reqs: list[dict[str, Any]] = []
 
-    vehicle_feature_hits = defaultdict(int)
-    total_requested_features = len(request.filters)
-
-    # If no features are requested but strict filters exist, just pass all strict ones
-    if total_requested_features == 0:
-        if valid_vehicle_ids is not None:
-            for vid in valid_vehicle_ids:
-                vehicle_feature_hits[vid] = 0
-    else:
+    if request.filters:
         for flt in request.filters:
-            # Find feature_id by feature_key
-            feat_resp = (
-                sb.schema("reverse_search")
-                .table("universal_features")
-                .select("id")
-                .eq("feature_key", flt.feature_key)
-                .limit(1)
-                .execute()
-            )
-            if not feat_resp.data:
-                continue
-
-            feature_id = feat_resp.data[0]["id"]
-
-            # Query vehicle_feature_state
-            q = (
-                sb.schema("reverse_search")
-                .table("vehicle_feature_state")
-                .select("source_vehicle_id")
-                .eq("feature_id", feature_id)
-            )
-
-            # Apply value filters
+            # By default eq constraint
+            op = "eq"
+            val: Any = None
             if flt.value_bool is not None:
-                q = q.eq("resolved_value_bool", flt.value_bool)
-                q = q.in_(
-                    "resolved_status",
-                    [
-                        "present_confirmed_primary",
-                        "present_confirmed_secondary",
-                        "present_inferred",
-                    ],
+                op = "eq"
+                val = str(flt.value_bool).lower()  # true/false string
+            elif flt.value_text is not None:
+                op = "ilike"  # use ilike for text if possible, or eq
+                val = flt.value_text
+            elif flt.value_num_min is not None and flt.value_num_max is not None:
+                # the RPC handles min/max separately by operator if mapped as two items
+                p_reqs.append(
+                    {
+                        "feature_key": flt.feature_key,
+                        "operator": "gte",
+                        "value": str(flt.value_num_min),
+                        "weight": 1.0,
+                        "requirement": "NICE_TO_HAVE",
+                    }
+                )
+                p_reqs.append(
+                    {
+                        "feature_key": flt.feature_key,
+                        "operator": "lte",
+                        "value": str(flt.value_num_max),
+                        "weight": 1.0,
+                        "requirement": "NICE_TO_HAVE",
+                    }
+                )
+                continue
+            elif flt.value_num_min is not None:
+                op = "gte"
+                val = str(flt.value_num_min)
+            elif flt.value_num_max is not None:
+                op = "lte"
+                val = str(flt.value_num_max)
+
+            if val is not None:
+                p_reqs.append(
+                    {
+                        "feature_key": flt.feature_key,
+                        "operator": op,
+                        "value": val,
+                        "weight": 1.0,
+                        "requirement": "NICE_TO_HAVE",
+                    }
                 )
 
-            if flt.value_num_min is not None:
-                q = q.gte("resolved_value_num", flt.value_num_min)
-
-            if flt.value_num_max is not None:
-                q = q.lte("resolved_value_num", flt.value_num_max)
-
-            if flt.value_text is not None:
-                q = q.ilike(
-                    "resolved_value_text",
-                    f"%{flt.value_text}%",
-                )
-
-            state_resp = q.execute()
-            for r in state_resp.data:
-                vid = r["source_vehicle_id"]
-                # Only score if it passes the base valid_vehicle_ids check
-                if valid_vehicle_ids is None or vid in valid_vehicle_ids:
-                    vehicle_feature_hits[vid] += 1
-
-        # If there are valid body types, but NONE of the features matched, we still want to show them with 0 hits?
-        # Typically reverse search returns nothing if literally 0 features matched out of many, but if you want
-        # to show 0% matches you can do:
-        if valid_vehicle_ids is not None:
-            for vid in valid_vehicle_ids:
-                if vid not in vehicle_feature_hits:
-                    vehicle_feature_hits[vid] = 0
-
-    if not vehicle_feature_hits:
-        return FeatureSearchResponse(results=[], total_count=0)
-
-    # Sort vehicle_ids by hits (highest first)
-    sorted_vehicle_hits = sorted(
-        vehicle_feature_hits.items(), key=lambda x: x[1], reverse=True
-    )
-    # Keep as a list to preserve order
-    result_ids_list = [vid for vid, _ in sorted_vehicle_hits]
-
-    # ---------- PHASE 2: Price Calculation & Filtering ----------
-    should_calc_price = any(
-        [
-            request.price_min is not None,
-            request.price_max is not None,
-        ]
-    )
-
-    if should_calc_price:
-        from main import CalculatorInput, ControlCenterSettings
-        from core.LTRKalkulator import LTRKalkulator
-
-        # 1. Get Control Center settings once
-        cc_res = sb.table("control_center").select("*").eq("id", 1).execute()
-        if not cc_res.data:
-            raise HTTPException(
-                status_code=500, detail="Brak ustawień CC dla kalkulatora"
-            )
-
-        from typing import cast, Any, Dict
-
-        response_data = cast(Dict[str, Any], cc_res.data[0])
-        settings = ControlCenterSettings(**response_data)
-
-        # 2. Extract price ranges and targets
-        target_months = request.price_months or 48
-        target_mileage = request.price_mileage or 20000
-        min_p = request.price_min if request.price_min is not None else 0.0
-        max_p = request.price_max if request.price_max is not None else 9999999.0
-
-        # 3. Fetch data for all matched vehicles
-        vehicles_data_resp = (
-            sb.table("vehicle_synthesis")
-            .select("id, brand, model, synthesis_data")
-            .in_("id", result_ids_list)
-            .execute()
+    # 3. Add Pricing / Margin requirements
+    if request.price_months is not None:
+        p_reqs.append(
+            {
+                "feature_key": "duration_months",
+                "operator": "eq",
+                "value": str(request.price_months),
+                "weight": 0,
+            }
+        )
+    if request.price_mileage is not None:
+        p_reqs.append(
+            {
+                "feature_key": "annual_mileage",
+                "operator": "eq",
+                "value": str(request.price_mileage),
+                "weight": 0,
+            }
+        )
+    if request.price_margin_pct is not None and request.price_margin_pct != "":
+        p_reqs.append(
+            {
+                "feature_key": "margin_pct",
+                "operator": "eq",
+                "value": str(request.price_margin_pct),
+                "weight": 0,
+            }
         )
 
-        matching_phase2 = []
-        for v in vehicles_data_resp.data:
-            synth_data = v.get("synthesis_data") or {}
-            card_summary = synth_data.get("card_summary") or {}
-
-            # Base price is required for calc
-            base_price_str = card_summary.get("base_price", "0")
-            if not base_price_str:
-                continue
-
-            try:
-                base_price = float(
-                    str(base_price_str).replace(" ", "").replace(",", ".")
-                )
-            except ValueError:
-                continue
-
-            if base_price <= 0:
-                continue
-
-            calc_input = CalculatorInput(
-                vehicle_id=v["id"],
-                base_price_net=base_price,
-                okres_bazowy=target_months,
-                przebieg_bazowy=target_mileage,
-                initial_deposit_pct=request.price_deposit_pct or 0.0,
-                z_oponami=True,
-                replacement_car_enabled=True,
-            )
-
-            try:
-                engine = LTRKalkulator(input_data=calc_input, settings=settings)
-                matrix = engine.build_matrix(only_exact=True)
-
-                # Find matching cell
-                # We look for the cell where months == target_months and total_km matches roughly target_mileage
-                # Since matrix has months and km_per_year
-                target_cell = None
-                for cell in matrix:
-                    if (
-                        cell["months"] == target_months
-                        and cell["km_per_year"] == target_mileage
-                    ):
-                        target_cell = cell
-                        break
-
-                if target_cell is None:
-                    # Try fallback to closest by km_per_year if exact match fails
-                    valid_cells = [c for c in matrix if c["months"] == target_months]
-                    if valid_cells:
-                        target_cell = min(
-                            valid_cells,
-                            key=lambda c: abs(c["km_per_year"] - target_mileage),
-                        )
-
-                if target_cell:
-                    pmt = target_cell["price_net"]
-                    if request.price_margin_pct is not None:
-                        pmt = pmt / (1 - request.price_margin_pct / 100)
-                    if min_p <= pmt <= max_p:
-                        # Map extra info
-                        v["_pmt"] = pmt
-                        matching_phase2.append(v)
-            except Exception as e:
-                import logging
-
-                logging.warning(f"Error calculating PMT for vehicle {v['id']}: {e}")
-                continue
-
-        # Update result_ids to only matching, preserving the ordered list!
-        matching_phase2_ids = {v["id"] for v in matching_phase2}
-        result_ids_list = [vid for vid in result_ids_list if vid in matching_phase2_ids]
-
-        # We also need to map PMT values to results
-        pmt_map = {v["id"]: v["_pmt"] for v in matching_phase2}
-
-        # Paginate the restricted set
-        vehicle_ids_page = result_ids_list[
-            request.offset : request.offset + request.limit
-        ]
-
-        results: list[FeatureSearchResultItem] = []
-        for v in matching_phase2:
-            if v["id"] in vehicle_ids_page:
-                hits = vehicle_feature_hits.get(v["id"], 0)
-                score = (
-                    hits / total_requested_features
-                    if total_requested_features > 0
-                    else 1.0
-                )
-                results.append(
-                    FeatureSearchResultItem(
-                        source_vehicle_id=v["id"],
-                        brand=v.get("brand"),
-                        model=v.get("model"),
-                        matched_features=hits,
-                        total_filters=total_requested_features,
-                        match_score=score,
-                        price_netto=pmt_map.get(v["id"]),
-                    )
-                )
-    else:
-        # Fetch vehicle info from vehicle_synthesis without calculation
-        vehicle_ids_page = result_ids_list[
-            request.offset : request.offset + request.limit
-        ]
-
-        vehicles_resp = (
-            sb.table("vehicle_synthesis")
-            .select("id, brand, model")
-            .in_("id", vehicle_ids_page)
-            .execute()
+    # Ensure price limits are passed to filter in RPC
+    if request.price_min is not None and request.price_min != "":
+        p_reqs.append(
+            {
+                "feature_key": "monthly_price_net",
+                "operator": "gte",
+                "value": str(request.price_min),
+                "weight": 1.0,
+            }
+        )
+    if request.price_max is not None and request.price_max != "":
+        p_reqs.append(
+            {
+                "feature_key": "monthly_price_net",
+                "operator": "lte",
+                "value": str(request.price_max),
+                "weight": 1.0,
+            }
         )
 
-        results: list[FeatureSearchResultItem] = []
-        for v in vehicles_resp.data:
-            hits = vehicle_feature_hits.get(v["id"], 0)
-            score = (
-                hits / total_requested_features if total_requested_features > 0 else 1.0
-            )
-            results.append(
-                FeatureSearchResultItem(
-                    source_vehicle_id=v["id"],
-                    brand=v.get("brand"),
-                    model=v.get("model"),
-                    matched_features=hits,
-                    total_filters=total_requested_features,
-                    match_score=score,
-                    price_netto=None,
+    # 4. Call rpc_reverse_search via HTTP to specify the schema
+    rpc_payload = {
+        "p_requirements": p_reqs,
+    }
+    if request.search_query:
+        rpc_payload["p_search_query"] = request.search_query
+
+        # Generation of semantic vector for Hybrid Search
+        try:
+            from core.embeddings import generate_embedding
+
+            query_vector = generate_embedding(request.search_query)
+            if query_vector:
+                rpc_payload["p_semantic_query_vector"] = (
+                    f"[{','.join(str(v) for v in query_vector)}]"
                 )
+        except Exception as e:
+            logger.warning(
+                f"Semantic Search Error: Failed to generate query vector: {e}"
             )
 
-    # Sort the final results to preserve the original hits ordering before returning
-    results.sort(key=lambda x: x.matched_features, reverse=True)
+    if valid_vehicle_ids is not None:
+        rpc_payload["p_vehicle_ids"] = valid_vehicle_ids
 
-    # ---------- PHASE 3: Calculate Facets ----------
+    import httpx
+
+    # We must call the reverse_search schema explicitly because supabase-py defaults to public for RPCs
+    response = httpx.post(
+        f"{sb.supabase_url}/rest/v1/rpc/rpc_reverse_search",
+        headers={
+            "apikey": sb.supabase_key,
+            "Authorization": f"Bearer {sb.supabase_key}",
+            "Accept-Profile": "reverse_search",
+            "Content-Profile": "reverse_search",
+        },
+        json=rpc_payload,
+        timeout=30.0,
+    )
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"RPC Error: {response.text}")
+
+    rpc_data = response.json() or []
+
+    total_requested_features = len(request.filters) if request.filters else 0
+
+    results: list[FeatureSearchResultItem] = []
+
+    # Map RPC output to FeatureSearchResultItem
+    # rpc_reverse_search returns top 200, we apply pagination limit/offset here
+    paginated_data = rpc_data[request.offset : request.offset + request.limit]
+
+    for row in paginated_data:
+        matched_features = row.get("matched_features", [])
+        score = (
+            row.get("match_score_pct", 0) / 100.0 if row.get("match_score_pct") else 0
+        )
+
+        results.append(
+            FeatureSearchResultItem(
+                source_vehicle_id=row["vehicle_id"],
+                brand=row["brand"],
+                model=row["model"],
+                matched_features=len(matched_features),
+                total_filters=total_requested_features,
+                match_score=score,
+                price_netto=row.get("best_monthly_price"),
+            )
+        )
+
+    # 5. Calculate Facets from the first 150 IDs for speed
     facets: dict[str, int] = {}
+    result_ids_list = [r["vehicle_id"] for r in rpc_data]
+
     if result_ids_list:
-        chunk_size = 150
-        for i in range(0, len(result_ids_list), chunk_size):
-            chunk = result_ids_list[i : i + chunk_size]
-
-            facet_resp = (
-                sb.schema("reverse_search")
-                .table("vehicle_feature_state")
-                .select("feature_id, universal_features!inner(feature_key)")
-                .in_("source_vehicle_id", chunk)
-                .eq("resolved_value_bool", True)
-                .in_(
-                    "resolved_status",
-                    [
-                        "present_confirmed_primary",
-                        "present_confirmed_secondary",
-                        "present_inferred",
-                    ],
-                )
-                .execute()
+        chunk = result_ids_list[:150]
+        facet_resp = (
+            sb.schema("reverse_search")
+            .table("vehicle_feature_state")
+            .select("feature_id, universal_features!inner(feature_key)")
+            .in_("source_vehicle_id", chunk)
+            .eq("resolved_value_bool", True)
+            .in_(
+                "resolved_status",
+                [
+                    "present_confirmed_primary",
+                    "present_confirmed_secondary",
+                    "present_inferred",
+                ],
             )
+            .execute()
+        )
 
-            for r in facet_resp.data:
-                uf = r.get("universal_features")
-                if uf and isinstance(uf, dict):
-                    f_key = uf.get("feature_key")
-                    if f_key:
-                        facets[f_key] = facets.get(f_key, 0) + 1
+        for r in facet_resp.data:
+            uf = r.get("universal_features")
+            if uf and isinstance(uf, dict):
+                f_key = uf.get("feature_key")
+                if f_key:
+                    facets[f_key] = facets.get(f_key, 0) + 1
 
     return FeatureSearchResponse(
         results=results,
-        total_count=len(result_ids_list),
+        total_count=len(rpc_data),
         facets=facets,
     )
 

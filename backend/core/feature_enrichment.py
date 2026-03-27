@@ -604,8 +604,13 @@ def enrich_vehicle_features(
     """
     sb = sb_client
     card_summary = synthesis_data.get("card_summary", {})
-    if not isinstance(card_summary, dict):
-        return {"error": "No card_summary found", "evidence_created": 0}
+    if not card_summary or not isinstance(card_summary, dict):
+        # Fallback to synthesis_data itself (for V1/Flat synthesis)
+        card_summary = synthesis_data
+
+    # Guard against completely empty data
+    if not isinstance(card_summary, dict) or len(card_summary) < 2:
+        return {"error": "No valid vehicle data found", "evidence_created": 0}
 
     features = _load_feature_catalog()
     if not features:

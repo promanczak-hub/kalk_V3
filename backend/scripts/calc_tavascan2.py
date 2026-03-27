@@ -10,6 +10,7 @@ from core.models import ControlCenterSettings
 from core.matrix_cache_job import build_calculator_input
 from core.LTRKalkulator import LTRKalkulator
 
+
 async def main():
     settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
     settings = ControlCenterSettings(**settings_res.data[0])
@@ -24,7 +25,7 @@ async def main():
     if not v_res.data:
         print("Not found")
         return
-    
+
     vehicle_row = v_res.data[0]
 
     # Let's see what build_calculator_input returns!
@@ -46,5 +47,6 @@ async def main():
                 pprint(cell)
     else:
         print("No result")
+
 
 asyncio.run(main())

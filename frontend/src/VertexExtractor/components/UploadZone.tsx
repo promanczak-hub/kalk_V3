@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { UploadCloud } from "lucide-react";
-import { cn } from "../../lib/utils";
+import {
+  Box,
+  Typography,
+  Paper,
+  ButtonBase,
+  useTheme,
+  alpha,
+} from "@mui/material";
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -8,6 +15,7 @@ interface UploadZoneProps {
 
 export function UploadZone({ onFilesSelected }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const theme = useTheme();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -35,58 +43,100 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
   };
 
   return (
-    <div className="w-full mb-6">
-      <label
-        htmlFor="file-upload"
-        className={cn(
-          "relative flex flex-col sm:flex-row items-center justify-center w-full py-8 px-10 rounded-xl cursor-pointer transition-all duration-300 ease-in-out group",
-          "bg-white/60 backdrop-blur-sm border-2 border-dashed",
-          "hover:bg-white/80 hover:shadow-lg hover:shadow-blue-500/5",
-          isDragging
-            ? "border-blue-400 bg-blue-50/40 shadow-lg shadow-blue-500/10 scale-[1.01]"
-            : "border-slate-200/80 hover:border-blue-300",
-        )}
+    <Box sx={{ w: "100%", mb: 3 }}>
+      <ButtonBase
+        component="label"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        sx={{
+          width: "100%",
+          display: "block",
+          textAlign: "left",
+          borderRadius: 3,
+        }}
       >
-        <div className="flex items-center gap-5">
-          <div className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
-            isDragging
-              ? "bg-blue-100 text-blue-600 scale-110"
-              : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500",
-          )}>
-            <UploadCloud className="w-6 h-6" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-slate-800">
+        <Paper
+          variant="outlined"
+          sx={{
+            py: 4,
+            px: 5,
+            borderRadius: 3,
+            border: "2px dashed",
+            borderColor: isDragging
+              ? "primary.main"
+              : theme.palette.mode === "light"
+              ? "divider"
+              : alpha(theme.palette.divider, 0.2),
+            bgcolor: isDragging
+              ? alpha(theme.palette.primary.main, 0.05)
+              : theme.palette.mode === "light"
+              ? alpha(theme.palette.background.paper, 0.6)
+              : alpha(theme.palette.background.paper, 0.3),
+            backdropFilter: "blur(8px)",
+            transition: "all 0.3s ease",
+            "&:hover": {
+              borderColor: "primary.main",
+              bgcolor: alpha(theme.palette.primary.main, 0.02),
+              transform: "translateY(-2px)",
+              boxShadow: theme.shadows[4],
+            },
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: "center",
+            gap: 3,
+          }}
+        >
+          <Box
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: isDragging ? "primary.main" : "action.hover",
+              color: isDragging ? "primary.contrastText" : "primary.main",
+              transition: "all 0.3s ease",
+            }}
+          >
+            <UploadCloud size={28} />
+          </Box>
+
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
               Wybierz plik z komputera
-            </span>
-            <span className="text-xs text-slate-400 font-normal mt-0.5 hidden sm:inline">
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
               lub przeciągnij go tutaj • PDF, XLS, XLSX, PNG, JPG do 50 MB
-            </span>
-          </div>
-        </div>
-        <div className="mt-3 sm:mt-0 sm:ml-auto">
-          <span className={cn(
-            "text-[11px] uppercase tracking-wider font-semibold px-3.5 py-1.5 rounded-lg border transition-all duration-300",
-            isDragging
-              ? "text-blue-600 bg-blue-50 border-blue-200"
-              : "text-slate-400 bg-white border-slate-100 group-hover:text-blue-500 group-hover:border-blue-100 group-hover:bg-blue-50/50",
-          )}>
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              px: 3,
+              py: 1,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "primary.main",
+              color: "primary.main",
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
             Prześlij pliki
-          </span>
-        </div>
+          </Box>
+        </Paper>
         <input
-          id="file-upload"
           type="file"
-          className="hidden"
+          hidden
           multiple
           accept=".pdf,.xls,.xlsx,.png,.jpg,.jpeg"
           onChange={handleFileSelect}
         />
-      </label>
-    </div>
+      </ButtonBase>
+    </Box>
   );
 }

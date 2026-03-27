@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import type { MiniMatrixCell } from "../decision-center/decision-center.types";
 

@@ -93,7 +93,6 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
     if (!kalkulacjaId) return;
     setSaving(true);
     try {
-      const { apiFetch } = await import('../lib/api');
       await apiClient.fetch(`/api/kalkulacje/${kalkulacjaId}/pricing`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

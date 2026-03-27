@@ -1,4 +1,3 @@
-
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,11 +14,16 @@ from api.param_preview import router as param_preview_router
 from api.features_routes import router as features_router
 from api.features_admin_routes import router as features_admin_router
 from api.config_crud_routes import config_crud_router
-from api.base_rv_routes import router as base_rv_router
 from api.catalog_routes import router as catalog_router
 from api.excel_draft_routes import router as excel_draft_router
+from api.tab_okres_final_routes import router as tab_okres_final_router
+from api.body_types_routes import router as body_types_routes_router
+from api.body_type_wr_corrections_routes import (
+    router as body_type_wr_corrections_router,
+)
 
 from api.admin_insurance_routes import router as admin_insurance_router
+from api.mileage_adjustments_routes import router as mileage_adjustments_router
 
 from api.control_center_admin_routes import router as control_center_admin_router
 from api.calculator_core_routes import router as calculator_core_router
@@ -28,6 +32,7 @@ from api.pdf_parser_routes import router as pdf_parser_router
 from api.scoring_search_routes import router as scoring_search_router
 from api.oferty_routes import router as oferty_router
 from api.brochure_routes import router as brochure_router
+from api.sheets_sync_routes import router as sheets_sync_router
 from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
@@ -71,9 +76,11 @@ app.include_router(param_preview_router, prefix="/api")
 app.include_router(features_router, prefix="/api")
 app.include_router(features_admin_router, prefix="/api")
 app.include_router(config_crud_router, prefix="/api")
-app.include_router(base_rv_router, prefix="/api", tags=["Control Center"])
 app.include_router(catalog_router, prefix="/api")
 app.include_router(excel_draft_router, prefix="/api")
+app.include_router(tab_okres_final_router, prefix="/api")
+app.include_router(body_types_routes_router, prefix="/api")
+app.include_router(body_type_wr_corrections_router, prefix="/api")
 
 app.include_router(admin_insurance_router, prefix="/api")
 app.include_router(control_center_admin_router, prefix="/api")
@@ -83,6 +90,8 @@ app.include_router(pdf_parser_router, prefix="/api")
 app.include_router(scoring_search_router, prefix="/api")
 app.include_router(oferty_router, prefix="/api/offers", tags=["Oferty"])
 app.include_router(brochure_router, prefix="/api")
+app.include_router(mileage_adjustments_router, prefix="/api")
+app.include_router(sheets_sync_router, prefix="/api")
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

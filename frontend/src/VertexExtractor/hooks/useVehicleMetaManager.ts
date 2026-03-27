@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { apiClient } from '../../lib/apiClient';
-import type { FleetVehicleView } from "../../types";
+import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
 
 export function useVehicleMetaManager(
   vehicle: FleetVehicleView,
   serverMappedData: MappedData | undefined,
-  localMappedData: MappedData | null,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _localMappedData: MappedData | null,
   setLocalMappedData: React.Dispatch<React.SetStateAction<MappedData | null>>
 ) {
   const [isMapping, setIsMapping] = useState(false);
@@ -154,6 +155,33 @@ export function useVehicleMetaManager(
     }
   };
 
+  const handleVehicleTypeChange = async (newType: string) => {
+    try {
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.vehicle_type = newType;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        vehicle_type: newType,
+      }));
+
+      triggerMatrixCacheRefresh();
+    } catch (err) {
+      console.error("Error updating vehicle type", err);
+      alert("Błąd zapisu kategorii: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
   const handleMapDataSilent = async () => {
     if (!vehicle.synthesis_data) return;
     setIsMapping(true);
@@ -185,6 +213,9 @@ export function useVehicleMetaManager(
     handleEngineCategoryChange,
     handleDriveTypeChange,
     handleBodyTypeChange,
+    handleVehicleTypeChange,
     handleMapDataSilent,
   };
+
+
 }

@@ -18,7 +18,7 @@ interface VehicleFormState {
   brand: string;
   model: string;
   version: string;
-  fuel_type: string;
+  fuel: string;
   body_type: string;
   engine_name: string;
   samar_category: string;
@@ -37,7 +37,7 @@ export const CreateManualModal: React.FC<CreateManualModalProps> = ({ open, onCl
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleFormState>({
-    brand: '', model: '', version: '', fuel_type: '', body_type: '',
+    brand: '', model: '', version: '', fuel: '', body_type: '',
     engine_name: '', samar_category: '', rok: '',
     okres_bazowy: '48', przebieg_bazowy: '140000',
   });
@@ -63,7 +63,7 @@ export const CreateManualModal: React.FC<CreateManualModalProps> = ({ open, onCl
         brand: vehicle.brand.trim(),
         model: vehicle.model.trim(),
         version: vehicle.version.trim(),
-        fuel_type: vehicle.fuel_type,
+        fuel: vehicle.fuel,
         body_type: vehicle.body_type,
         engine_name: vehicle.engine_name.trim(),
         samar_category: vehicle.samar_category.trim(),
@@ -86,7 +86,7 @@ export const CreateManualModal: React.FC<CreateManualModalProps> = ({ open, onCl
 
   const handleReset = () => {
     setStep(0);
-    setVehicle({ brand: '', model: '', version: '', fuel_type: '', body_type: '', engine_name: '', samar_category: '', rok: '', okres_bazowy: '48', przebieg_bazowy: '140000' });
+    setVehicle({ brand: '', model: '', version: '', fuel: '', body_type: '', engine_name: '', samar_category: '', rok: '', okres_bazowy: '48', przebieg_bazowy: '140000' });
     setPricing({ components: DEFAULT_PRICING_COMPONENTS.map((c) => ({ ...c })), discount_pct: 0 });
     onClose();
   };
@@ -110,7 +110,7 @@ export const CreateManualModal: React.FC<CreateManualModalProps> = ({ open, onCl
             <TextField label="Model *" value={vehicle.model} onChange={handleVehicleChange('model')} required />
             <TextField label="Wersja wyposażenia" value={vehicle.version} onChange={handleVehicleChange('version')} />
             <TextField label="Silnik" value={vehicle.engine_name} onChange={handleVehicleChange('engine_name')} />
-            <TextField select label="Typ paliwa" value={vehicle.fuel_type} onChange={handleVehicleChange('fuel_type')}>
+            <TextField select label="Typ paliwa" value={vehicle.fuel} onChange={handleVehicleChange('fuel')}>
               <MenuItem value=""><em>— wybierz —</em></MenuItem>
               {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
             </TextField>

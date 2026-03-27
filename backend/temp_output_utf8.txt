@@ -1,0 +1,18 @@
+﻿Testing vehicle CXY6G6NG...
+Testing vehicle CXY6G6NG by explicit ID...
+Found SKODA Kodiaq RS (ID: 4efad866-2b72-4dca-a5bd-dc7f857c1443)
+Forcing cache refresh...
+Reading from Cache...
+
+--- REVERSE SEARCH (Cache + Frontend Math) ---
+Base price from DB Cache (0% margin): 6779.00 PLN
+Final Cart Price (15% margin, rounded): 7975.00 PLN
+
+--- VERTEX EXTRACTOR (Live LTRKalkulator) ---
+Live Price (0% margin): 3871.00 PLN
+Live Price (15% margin): 4554.00 PLN
+
+--- COMPARISON ---
+Diff at 0% margin: 2908.00 PLN
+Diff at 15% margin: 3421.00 PLN
+FAIL MISMATCH!

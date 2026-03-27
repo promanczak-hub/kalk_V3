@@ -81,7 +81,7 @@ class InsuranceCalculator:
 
             # Znajdź stawkę ubezpieczeniową dla danego roku z tabeli
             rok_rate = next(
-                (r for r in self.insurance_rates if r.get("KolejnyRok") == year), None
+                (r for r in self.insurance_rates if r.get("rok") == year), None
             )
 
             if not rok_rate:
@@ -91,8 +91,8 @@ class InsuranceCalculator:
                     f"Kalkulacja niemożliwa bez kompletnych danych."
                 )
 
-            stawka_ac = float(rok_rate.get("StawkaBazowaAC", 0))
-            skladka_oc = float(rok_rate.get("SkladkaOC", 0))
+            stawka_ac = float(rok_rate.get("stawka_bazowa_ac", 0))
+            skladka_oc = float(rok_rate.get("skladka_oc_zl", 0))
 
             if stawka_ac <= 0 or skladka_oc <= 0:
                 raise ValueError(
@@ -141,6 +141,9 @@ class InsuranceCalculator:
 
             # Add to total cost ONLY if the months span overlaps this year
             if months > v2:
+                print(
+                    f"[DEBUG_INS] Year {year}: AC={skladka_ac_kwota:.2f}, OC={skladka_oc_kwota:.2f}, Prorata={skladka_roczna:.2f}, Szkoda={szkoda_rocznie:.2f}"
+                )
                 trace.append(
                     {
                         "krok": f"Ubezpieczenie (Rok {year})",

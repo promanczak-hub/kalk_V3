@@ -8,6 +8,7 @@ from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
 from core.LTRSubCalculatorKosztyDodatkowe import AdditionalCostsCalculator
 from core.LTRSubCalculatorSerwisNew import ServiceCalculator, ServiceCalculatorInput
+from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
 from core.LTRSubCalculatorCenaZakupu import (
     PurchasePriceCalculator,
     PurchasePriceInput,
@@ -32,42 +33,49 @@ from core.LTRSubCalculatorStawka import (
 from functools import lru_cache
 
 
-_ENGINE_CATEGORY_TO_ID: Dict[str, int] = {
-    "BENZYNA": 1,
-    "PB": 1,
-    "DIESEL": 2,
-    "ON": 2,
-    "BENZYNA MHEV": 3,
-    "PB-MHEV": 3,
-    "DIESEL MHEV": 4,
-    "ON-MHEV": 4,
-    "HYBRYDA": 5,
-    "HEV": 5,
-    "PHEV": 6,
-    "HYBRYDA PLUG-IN": 6,
-    "ELEKTRYCZNY": 7,
-    "BEV": 7,
-    "FCEV": 8,
-    "WODĂ“R": 8,
-    "LPG": 9,
-}
+@lru_cache(maxsize=1)
+def _get_engine_mapping() -> Dict[str, int]:
+    """Pobiera i keszuje mapowanie silników z bazy Supabase."""
+    try:
+        from core.database import supabase
+
+        res = supabase.table("engines").select("id, name").execute()
+        # Tworzymy mapowanie nazw (upper) na ID
+        mapping = {}
+        for item in res.data:
+            name_upper = str(item["name"]).upper()
+            mapping[name_upper] = item["id"]
+            # Dodajemy uproszczone aliasy z nawiasów (np. PB, ON, BEV)
+            if "(" in name_upper and ")" in name_upper:
+                alias = name_upper.split("(")[1].split(")")[0].strip()
+                if alias:
+                    mapping[alias] = item["id"]
+        return mapping
+    except Exception as e:
+        logging.error(f"Error fetching engine mapping: {e}")
+        return {}
 
 
 def _resolve_engine_type_id(engine_category: str) -> int:
-    """Map engine_category string to engines.id used by DB tables."""
+    """Mapuje string kategorii silnika na engines.id za pomocą bazy danych."""
     if not engine_category:
         raise ValueError("Brak parametru engine_category.")
 
     upper = engine_category.strip().upper()
+    mapping = _get_engine_mapping()
 
-    # Most specific aliases first.
+    # 1. Próba dopasowania całego stringu (np. 'BENZYNA (PB)')
+    if upper in mapping:
+        return mapping[upper]
+
+    # 2. Logika heurystyczna dla skrótów i wariantów (V1 Parity)
     if "PHEV" in upper or "PLUG-IN" in upper:
         return 6
     if "MHEV" in upper and ("DIESEL" in upper or "ON" in upper):
         return 4
     if "MHEV" in upper and ("BENZYNA" in upper or "PB" in upper):
         return 3
-    if "FCEV" in upper or "WODOR" in upper or "WODĂ“R" in upper:
+    if "FCEV" in upper or "WODOR" in upper or "WODÓR" in upper:
         return 8
     if "HEV" in upper or "HYBRYDA" in upper:
         return 5
@@ -80,12 +88,13 @@ def _resolve_engine_type_id(engine_category: str) -> int:
     if "BENZYNA" in upper or "PB" in upper:
         return 1
 
-    for key, eid in _ENGINE_CATEGORY_TO_ID.items():
-        if key in upper:
+    # 3. Próba znalezienia klucza wewnątrz nazwy
+    for name, eid in mapping.items():
+        if name in upper:
             return eid
 
     raise ValueError(
-        f"Nieznana kategoria silnika: '{engine_category}'. Brak mapowania na engine_type_id."
+        f"Nieznana kategoria silnika: '{engine_category}'. Brak mapowania na engine_type_id w bazie danych."
     )
 
 
@@ -443,7 +452,9 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
         return vehicle_dict
 
     except Exception as exc:
-        raise ValueError(f"Błąd bazy danych podzzas pobierania pojazdu (ID: {vid}): {exc}. Przerwanie procesu (Fail-Fast).") from exc
+        raise ValueError(
+            f"Błąd bazy danych podzzas pobierania pojazdu (ID: {vid}): {exc}. Przerwanie procesu (Fail-Fast)."
+        ) from exc
 
 
 @lru_cache(maxsize=128)
@@ -456,7 +467,7 @@ def get_insurance_rates_from_db(samar_class_id: str) -> List[Dict[str, Any]]:
             res = (
                 supabase.table("ltr_admin_ubezpieczenia")
                 .select("*")
-                .eq("samar_class_id", samar_class_id)
+                .eq("klasa_samar_fk", samar_class_id)
                 .execute()
             )
             if res.data and len(res.data) > 0:
@@ -480,7 +491,7 @@ def get_replacement_car_rate_from_db(samar_class_id: str) -> Dict[str, Any]:
             res = (
                 supabase.table("replacement_car_rates")
                 .select("*")
-                .eq("samar_class_id", samar_class_id)
+                .eq("klasa_samar_fk", samar_class_id)
                 .execute()
             )
             if res.data and len(res.data) > 0:
@@ -516,7 +527,13 @@ def get_damage_coefficients_from_db(samar_class_id: str) -> Dict[str, Any]:
 class LTRKalkulator:
     """RdzeĹ„ budujÄ…cy Matrix dla zadanego CalculatorInput"""
 
-    def __init__(self, input_data: Any, settings: Any, pipeline_dto: Any = None, trace_id: str | None = None):
+    def __init__(
+        self,
+        input_data: Any,
+        settings: Any,
+        pipeline_dto: Any = None,
+        trace_id: str | None = None,
+    ):
         self.input_data = input_data
         self.settings = settings
         self.pipeline_dto = pipeline_dto
@@ -552,7 +569,7 @@ class LTRKalkulator:
             raw_v["samar_class_id"] = self.samar_id
 
             raw_s = {}
-            
+
             if raw_v:
                 self.vehicle = VehicleDataDTO(
                     id=str(raw_v.get("id", "0")),
@@ -560,10 +577,27 @@ class LTRKalkulator:
                     model=str(raw_v.get("model", "UNKNOWN")),
                     engine_type_id=int(raw_v.get("engine_type_id", 0)),
                     samar_class_id=int(self.samar_id),
-                    **{k: v for k, v in raw_v.items() if k not in ["id", "brand", "model", "engine_type_id", "samar_class_id"]}
+                    **{
+                        k: v
+                        for k, v in raw_v.items()
+                        if k
+                        not in [
+                            "id",
+                            "brand",
+                            "model",
+                            "engine_type_id",
+                            "samar_class_id",
+                        ]
+                    },
                 )
             else:
-                self.vehicle = VehicleDataDTO(id="0", brand="UNKNOWN", model="UNKNOWN", engine_type_id=0, samar_class_id=0)
+                self.vehicle = VehicleDataDTO(
+                    id="0",
+                    brand="UNKNOWN",
+                    model="UNKNOWN",
+                    engine_type_id=0,
+                    samar_class_id=0,
+                )
             self.samar_klasa = raw_s
 
         # Override synthesized vehicle data with explicit dropdown input values.
@@ -592,8 +626,13 @@ class LTRKalkulator:
     def _apply_explicit_input_overrides(self) -> None:
         if not self.vehicle:
             from domain.calculations.dto import VehicleDataDTO
+
             self.vehicle = VehicleDataDTO(
-                id="0", brand="UNKNOWN", model="UNKNOWN", engine_type_id=0, samar_class_id=0
+                id="0",
+                brand="UNKNOWN",
+                model="UNKNOWN",
+                engine_type_id=0,
+                samar_class_id=0,
             )
 
         input_samar = str(getattr(self.input_data, "samar_category", "") or "").strip()
@@ -621,7 +660,9 @@ class LTRKalkulator:
                 resolved_engine_id = _resolve_engine_type_id(input_engine)
                 self.vehicle.engine_type_id = int(resolved_engine_id)
             except ValueError as e:
-                logging.warning(f"Zignorowano wprowadzona kategorie silnika '{input_engine}': {e}")
+                logging.warning(
+                    f"Zignorowano wprowadzona kategorie silnika '{input_engine}': {e}"
+                )
 
         input_body = str(getattr(self.input_data, "body_type_name", "") or "").strip()
         if input_body:
@@ -762,16 +803,12 @@ class LTRKalkulator:
         capex = vehicle_capex + options_capex
         # V1 parity: WR curve uses full catalogue prices (no discount)
         base_price_net_full = float(getattr(self.vehicle, "price_net", 0.0))
+        if base_price_net_full == 0.0:
+            base_price_net_full = float(getattr(self.input_data, "base_price_net", 0.0))
 
         # Instantiate RV calculator once (shared across all months)
-        from core.LTRSubCalculatorUtrataWartosciNew import (
-            LTRSubCalculatorUtrataWartosciNew,
-        )
 
-        rv_calc = LTRSubCalculatorUtrataWartosciNew(
-            self.vehicle, 
-            self.input_data
-        )
+        rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
 
         # Opcje pod WartoĹ›Ä‡ RezydualnÄ… (Zawsze Fabryczne + Serwisowe z include_in_wr)
         base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
@@ -787,7 +824,7 @@ class LTRKalkulator:
             margin_pct = 0.0001
         else:
             margin_pct = self.input_data.pricing_margin_pct / 100.0
-            
+
         if margin_pct >= 1.0:
             margin_pct = 0.9999  # Prevention of division by zero
 
@@ -830,10 +867,12 @@ class LTRKalkulator:
 
         if only_exact:
             pass  # Skip building the full grid if we only want the exact requested tile
-        elif matrix_km_mode == "contract":
+        else:
+            # V3 Matrix Strategy: Use contract mileage mode with 1250km step (MESH size)
+            # This ensures we hit points like 40000km total / 60 months (8000km/yr) perfectly.
             contract_km_min = 10000
-            contract_km_max = 600000
-            contract_km_step = 10000
+            contract_km_max = 200000
+            contract_km_step = 1250
 
             for m in (24, 36, 48, 60):
                 for total_km_contract in range(
@@ -843,10 +882,6 @@ class LTRKalkulator:
                 ):
                     km_py = int(round((total_km_contract / m) * 12))
                     add_grid_pair(m, km_py, total_km_contract)
-        else:
-            for m in (24, 36, 48, 60):
-                for km_py in range(10000, 200001, 10000):
-                    add_grid_pair(m, km_py)
 
         # Inject requested base period/mileage into the grid.
         if req_months > 0:
@@ -879,11 +914,14 @@ class LTRKalkulator:
 
             # V1 parity: WR curve uses full catalogue brutto (no discount)
             # Uzywamy tylko opcji wp_amortyzacja do WR
-            rv_res = rv_calc.calculate_values(
+            rv_calc_v3 = LTRSubCalculatorUtrataWartosciNew(
+                self.vehicle, self.input_data
+            )
+            rv_res = rv_calc_v3.calculate_values(
                 months=months,
                 total_km=total_km,
-                base_vehicle_capex_gross=base_price_net_full * vat_rate,
-                options_capex_gross=base_wr_options * vat_rate,
+                base_vehicle_catalog_gross=base_price_net_full * vat_rate,
+                options_catalog_gross=base_wr_options * vat_rate,
             )
 
             vr_samar = rv_res["WR"]
@@ -904,9 +942,15 @@ class LTRKalkulator:
                 RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
                 StawkaVAT=vat_rate_fin,
                 Okres=months,
-                WIBORProcent=float(getattr(self.input_data, "wibor_pct", 0.0) or 0.0),
+                WIBORProcent=float(
+                    self.input_data.wibor_pct
+                    if getattr(self.input_data, "wibor_pct", None) is not None
+                    else getattr(self.settings, "default_wibor", 5.0)
+                ),
                 MarzaFinansowaProcent=float(
-                    getattr(self.input_data, "margin_pct", 0.0) or 0.0
+                    self.input_data.margin_pct
+                    if getattr(self.input_data, "margin_pct", None) is not None
+                    else getattr(self.settings, "default_ltr_margin", 2.0)
                 ),
             )
             finance_calc = FinanseCalculator(finance_input)
@@ -973,8 +1017,22 @@ class LTRKalkulator:
                 opcja_serwisowa=self._opcja_serwisowa,
                 normatywny_przebieg_mc=normatywny_przebieg,
                 samar_class_id=int(self.samar_id),
-                engine_type_id=engine_type_id,
-                power_kw=power_kw,
+                brand_normalized=str(getattr(self.vehicle, "brand", "")),
+                fuel_type=str(
+                    getattr(
+                        self.vehicle,
+                        "engine_category",
+                        getattr(self.input_data, "engine_name", ""),
+                    )
+                ),
+                drive_type=str(getattr(self.vehicle, "drive_type", "")),
+                gearbox_type=str(
+                    getattr(
+                        self.vehicle,
+                        "gearbox",
+                        getattr(self.input_data, "gearbox_name", ""),
+                    )
+                ),
                 przebieg=total_km,
                 okres=months,
                 pakiet_serwisowy=pakiet_serwisowy_val,
@@ -1100,6 +1158,24 @@ class LTRKalkulator:
             # Wyniki z nowego StawkaCalculator (uĹĽyte bezpoĹ›rednio niĹĽej)
 
             # --- WYNIK OSTATECZNY (FLAT V1 FORMAT) ---
+            print(f"[DEBUG_LTR_FIN] Monate: {months}, KM: {total_km}")
+            print(f"[DEBUG_LTR_FIN] WP (capex_for_financing): {capex_for_financing}")
+            print(f"[DEBUG_LTR_FIN] RV (vr_samar): {vr_samar}")
+            print(
+                f"[DEBUG_LTR_FIN] Finance SUMA ODSETEK Z CZYN: {finance_res.SumaOdsetekZczynszem}"
+            )
+            print(f"[DEBUG_LTR_STAWKA] Podstawa Marzy: {stawka_result.podstawa_marzy}")
+            print(f"[DEBUG_LTR_STAWKA] Marza MC: {stawka_result.marza_mc}")
+            print(
+                f"[DEBUG_LTR_STAWKA] CF (Czynsz Finansowy): {stawka_result.czynsz_finansowy}"
+            )
+            print(
+                f"[DEBUG_LTR_STAWKA] CT (Czynsz Techniczny): {stawka_result.czynsz_techniczny}"
+            )
+            print(
+                f"[DEBUG_LTR_STAWKA] Admin Cost (korekta): {stawka_result.koszt_admin.koszt_plus_marza_korekta}"
+            )
+
             def to_koszt_dict(k_item):
                 return {
                     "RozkladMarzy": k_item.rozklad_marzy,

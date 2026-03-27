@@ -1,12 +1,13 @@
 from unittest.mock import patch
 import traceback
 
+
 def run():
     try:
         from core.LTRKalkulator import LTRKalkulator
         from api.schemas.calculator import CalculatorInput
         from types import SimpleNamespace
-        
+
         calc_input = CalculatorInput(
             vehicle_id="golden-vehicle-1",
             base_price_net=120000.0,
@@ -16,7 +17,7 @@ def run():
             replacement_car_enabled=True,
             pricing_margin_pct=10.0,
         )
-        
+
         mock_settings = SimpleNamespace(
             cost_gsm_subscription_monthly=2.5,
             cost_gsm_device=200.0,
@@ -31,7 +32,7 @@ def run():
             cost_marketing_monthly=100.0,
             normatywny_przebieg_mc=1667,
         )
-        
+
         mock_db_responses = {
             "vehicle": {
                 "id": "golden-vehicle-1",
@@ -65,19 +66,62 @@ def run():
         }
 
         with (
-            patch("core.LTRKalkulator.get_vehicle_from_db", return_value=mock_db_responses["vehicle"]),
-            patch("core.LTRKalkulator.get_samar_klasa_from_db", return_value=mock_db_responses["samar_klasa"]),
-            patch("core.LTRKalkulator.get_insurance_rates_from_db", return_value=mock_db_responses["insurance_rates"]),
-            patch("core.LTRKalkulator.get_damage_coefficients_from_db", return_value=mock_db_responses["damage_coeffs"]),
-            patch("core.LTRKalkulator.get_replacement_car_rate_from_db", return_value=mock_db_responses["replacement_car"]),
-            patch("core.LTRSubCalculatorSerwisNew.get_service_rate_from_db", return_value=mock_db_responses["service_rates"]),
-            patch("core.samar_rv.SamarRVCalculator._fetch_depreciation_rates", return_value=mock_db_responses["rv_depreciation"]),
-            patch("core.samar_rv.SamarRVCalculator._fetch_brand_correction", return_value=0.0),
-            patch("core.samar_rv.SamarRVCalculator._fetch_mileage_corrections", return_value=(0.0, 0.0)),
-            patch("core.samar_rv.SamarRVCalculator._fetch_class_config", return_value={"base_mileage_km": 140000, "mileage_threshold_km": 190000, "base_period_months": 48}),
-            patch("core.samar_rv.SamarRVCalculator.fetch_color_correction", return_value=0.0),
-            patch("core.samar_rv.SamarRVCalculator.fetch_body_correction", return_value=0.0),
-            patch("core.samar_rv.SamarRVCalculator.fetch_vintage_correction", return_value=0.0),
+            patch(
+                "core.LTRKalkulator.get_vehicle_from_db",
+                return_value=mock_db_responses["vehicle"],
+            ),
+            patch(
+                "core.LTRKalkulator.get_samar_klasa_from_db",
+                return_value=mock_db_responses["samar_klasa"],
+            ),
+            patch(
+                "core.LTRKalkulator.get_insurance_rates_from_db",
+                return_value=mock_db_responses["insurance_rates"],
+            ),
+            patch(
+                "core.LTRKalkulator.get_damage_coefficients_from_db",
+                return_value=mock_db_responses["damage_coeffs"],
+            ),
+            patch(
+                "core.LTRKalkulator.get_replacement_car_rate_from_db",
+                return_value=mock_db_responses["replacement_car"],
+            ),
+            patch(
+                "core.LTRSubCalculatorSerwisNew.get_service_rate_from_db",
+                return_value=mock_db_responses["service_rates"],
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator._fetch_depreciation_rates",
+                return_value=mock_db_responses["rv_depreciation"],
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator._fetch_brand_correction",
+                return_value=0.0,
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator._fetch_mileage_corrections",
+                return_value=(0.0, 0.0),
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator._fetch_class_config",
+                return_value={
+                    "base_mileage_km": 140000,
+                    "mileage_threshold_km": 190000,
+                    "base_period_months": 48,
+                },
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator.fetch_color_correction",
+                return_value=0.0,
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator.fetch_body_correction",
+                return_value=0.0,
+            ),
+            patch(
+                "core.samar_rv.SamarRVCalculator.fetch_vintage_correction",
+                return_value=0.0,
+            ),
             patch("core.samar_rv.SamarRVCalculator.fetch_lo_param", return_value=0.0),
             patch("core.LTRKalkulator.LTRSubCalculatorOpony") as mock_tires,
         ):
@@ -95,6 +139,7 @@ def run():
             print("Successfully built cells:", len(cells))
     except Exception:
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     run()

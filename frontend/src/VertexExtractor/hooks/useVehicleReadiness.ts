@@ -29,7 +29,8 @@ export interface ReadinessResult {
 export function useVehicleReadiness(
   vehicle: FleetVehicleView,
   mappedData: MappedData | undefined,
-  isMetalic: boolean
+  isMetalic: boolean,
+  currentBodyType?: string
 ) {
   const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
 
@@ -50,12 +51,26 @@ export function useVehicleReadiness(
         vehicle_id: vehicle.id || "",
       });
 
-      if (vehicle.body_style) {
-        params.set("body_type_name", vehicle.body_style);
+      if (currentBodyType) {
+        params.set("body_type_name", currentBodyType);
       }
       
       const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
       params.set("paint_type_name", paintTypeName);
+
+      // Extract zabudowa_type_id if present (useful for Monolith 5)
+      interface SynthData {
+        calculator_setup?: { zabudowa_type_id?: number };
+        card_summary?: { zabudowa_type_id?: number };
+      }
+      const synthData = vehicle.synthesis_data as unknown as SynthData | undefined;
+      if (synthData) {
+        const zabudowaId = synthData.calculator_setup?.zabudowa_type_id 
+          ?? synthData.card_summary?.zabudowa_type_id;
+        if (typeof zabudowaId === "number") {
+          params.set("zabudowa_type_id", zabudowaId.toString());
+        }
+      }
 
       const res = await apiClient.fetch(`/api/readiness-check?${params}`);
       if (!res.ok) throw new Error("Readiness check failed");
@@ -66,7 +81,15 @@ export function useVehicleReadiness(
       console.error("Readiness check error:", err);
       setReadinessResult(null);
     }
-  }, [mappedData?.samar_category, mappedData?.fuel, vehicle.brand, vehicle.body_style, vehicle.id, isMetalic]);
+  }, [
+    mappedData?.samar_category,
+    mappedData?.fuel,
+    vehicle.brand,
+    currentBodyType,
+    vehicle.id,
+    vehicle.synthesis_data,
+    isMetalic,
+  ]);
 
   useEffect(() => {
     fetchReadiness();

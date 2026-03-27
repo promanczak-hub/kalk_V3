@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\postgrest\_sync\request_builder.py", line 52, in execute
+    json_obj = model_validate_json(APIErrorFromJSON, r.content)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\postgrest\utils.py", line 56, in model_validate_json
+    return model.model_validate_json(contents)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\main.py", line 766, in model_validate_json
+    return cls.__pydantic_validator__.validate_json(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for APIErrorFromJSON
+code
+  Field required [type=missing, input_value={'message': 'Invalid API ...ther Supabase project.'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+details
+  Field required [type=missing, input_value={'message': 'Invalid API ...ther Supabase project.'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "d:\kalk_v3\backend\migrate_v3_drafts_to_prod.py", line 175, in <module>
+    migrate_all()
+  File "d:\kalk_v3\backend\migrate_v3_drafts_to_prod.py", line 167, in migrate_all
+    class_map = _load_samar_classes(supabase)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\kalk_v3\backend\migrate_excel_to_prod.py", line 75, in _load_samar_classes
+    res = supabase.table("samar_classes").select("id, name").execute()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\postgrest\_sync\request_builder.py", line 55, in execute
+    raise APIError(generate_default_error_message(r))
+postgrest.exceptions.APIError: {'message': 'JSON could not be generated', 'code': 401, 'hint': 'Refer to full message for details', 'details': 'b\'{"message":"Invalid API key","hint":"Double check the provided API key for typos. This API key might also be owned by another Supabase project."}\''}

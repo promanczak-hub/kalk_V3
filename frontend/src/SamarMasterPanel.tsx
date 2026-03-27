@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
 import {
   Box,
-  Tab,
-  Tabs,
   Typography,
   Paper,
-  Chip,
   alpha,
   useTheme,
 
@@ -16,11 +13,6 @@ import {
   TableHead,
   TableRow,
 } from "@mui/material";
-import ServiceCostsCrudPanel from "./ServiceCostsCrud/ServiceCostsCrudPanel";
-import ReplacementCarCrudPanel from "./ReplacementCarCrud/ReplacementCarCrudPanel";
-import InsuranceRatesCrudPanel from "./InsuranceRatesCrud/InsuranceRatesCrudPanel";
-import DamageCoefficientsCrudPanel from "./DamageCoefficientsCrud/DamageCoefficientsCrudPanel";
-
 import { apiClient } from './lib/apiClient';
 
 interface SamarClass {
@@ -55,31 +47,8 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
 
-  // Group by category, making it case-insensitive uppercase
-  const grouped = classes.reduce(
-    (acc, cls) => {
-      const cat = (cls.category || "INNE").toUpperCase();
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(cls);
-      return acc;
-    },
-    {} as Record<string, SamarClass[]>
-  );
-
-  const categoryOrder = [
-    "PODSTAWOWA",
-    "SPORTOWO-REKREACYJNE",
-    "TERENOWO-REKREACYJNE (SUV)",
-    "VANY",
-    "KOMBIVANY",
-    "MINIBUSY",
-    "LEKKIE DOSTAWCZE",
-    "PICK-UP",
-    "ŚREDNIE DOSTAWCZE",
-    "CIĘŻKIE DOSTAWCZE",
-    "AUTOBUSY",
-    "INNE",
-  ];
+  // Sort by ID to mimic the exact 1-33 list from the spreadsheet
+  const sortedClasses = [...classes].sort((a, b) => a.id - b.id);
 
   return (
     <Box>
@@ -94,138 +63,71 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
         }}
       >
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, display: "flex", alignItems: "center", gap: 1 }}>
-          🗂️ SAMAR Master Table — {classes.length} klas
-          <Chip
-            label="ZAMROŻONE"
-            size="small"
-            color="error"
-            sx={{ fontWeight: "bold", height: 20, fontSize: "0.65rem" }}
-          />
+          🗂️ SAMAR Master Table — Baza Danych (CRUD)
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          Unified view: samar_classes + samar_class_id bridge + Excel codes +
-          example models. Źródło prawdy dla wszystkich modułów kalkulatora. Tabela ZAMROŻONA - brak edycji.
+          Poniższa tabela odzwierciedla główny arkusz klas. Klucz ID (1-33) to fundament kalkulacyjny dla wszystkich pozostałych zakładek (Ubezpieczenia, Serwis, Napędy).
         </Typography>
       </Paper>
 
-      {categoryOrder.map((cat) => {
-        const items = grouped[cat];
-        if (!items) return null;
-        
-        // Obliczamy oryginalną nazwę by zachować kolory
-        const originalCat = classes.find(c => (c.category || "INNE").toUpperCase() === cat)?.category || cat;
-        const catColor = CATEGORY_COLORS[originalCat] || CATEGORY_COLORS[cat] || "#757575";
-
-        return (
-          <Paper
-            key={cat}
-            elevation={0}
-            sx={{
-              mb: 2,
-              borderRadius: 2,
-              overflow: "hidden",
-              border: `1px solid ${alpha(catColor, 0.3)}`,
-            }}
-          >
-            <Box
-              sx={{
-                px: 2,
-                py: 0.8,
-                bgcolor: alpha(catColor, isDark ? 0.15 : 0.08),
-                borderBottom: `2px solid ${catColor}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-              }}
-            >
-              <Typography
-                sx={{ fontWeight: 700, fontSize: "0.85rem", color: catColor }}
-              >
-                {cat}
-              </Typography>
-              <Chip
-                label={`${items.length} klas`}
-                size="small"
-                sx={{
-                  bgcolor: alpha(catColor, 0.15),
-                  color: catColor,
-                  fontWeight: 600,
-                  fontSize: "0.65rem",
-                  height: 20,
-                }}
-              />
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow
-                    sx={{
-                      bgcolor: isDark
-                        ? alpha(catColor, 0.05)
-                        : alpha(catColor, 0.02),
-                    }}
-                  >
-                    <TableCell sx={{ fontWeight: 700, width: 50 }}>ID</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: 180 }}>
-                      Segment
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Pełna nazwa</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 300 }}>
-                      Przykładowe modele
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {items.map((cls) => (
-                    <TableRow
-                      key={cls.id}
-                      sx={{
-                        "&:hover": {
-                          bgcolor: alpha(catColor, isDark ? 0.08 : 0.03),
-                        },
-                      }}
-                    >
-                      <TableCell>
-                        <Chip
-                          label={cls.id}
-                          size="small"
-                          sx={{
-                            fontFamily: "monospace",
-                            fontWeight: 700,
-                            fontSize: "0.7rem",
-                            height: 22,
-                            bgcolor: alpha(catColor, 0.1),
-                            color: catColor,
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>{cls.size_class || "—"}</TableCell>
-                      <TableCell
-                        sx={{ fontSize: "0.8rem", fontWeight: 500 }}
-                      >
-                        {cls.name}
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontSize: "0.7rem",
-                          color: "text.secondary",
-                          maxWidth: 350,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                        title={cls.example_models || ""}
-                      >
-                        {cls.example_models || "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        );
-      })}
+      <TableContainer component={Paper} elevation={0} sx={{ maxHeight: '70vh', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+        <Table stickyHeader size="small" sx={{ 
+          '& .MuiTableCell-root': { 
+            borderRight: '1px solid', 
+            borderColor: 'divider',
+            padding: '6px 16px'
+          } 
+        }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 800, width: 60, bgcolor: isDark ? 'grey.900' : 'grey.100' }}>ID</TableCell>
+              <TableCell sx={{ fontWeight: 800, width: 220, bgcolor: isDark ? 'grey.900' : 'grey.100' }}>Kategoria</TableCell>
+              <TableCell sx={{ fontWeight: 800, width: 200, bgcolor: isDark ? 'grey.900' : 'grey.100' }}>Segment</TableCell>
+              <TableCell sx={{ fontWeight: 800, minWidth: 250, bgcolor: isDark ? 'grey.900' : 'grey.100' }}>Pełna nazwa klasy</TableCell>
+              <TableCell sx={{ fontWeight: 800, minWidth: 350, bgcolor: isDark ? 'grey.900' : 'grey.100' }}>Przykładowe modele</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sortedClasses.map((cls) => {
+              const catUpper = (cls.category || "INNE").toUpperCase();
+              const catColor = CATEGORY_COLORS[cls.category || "INNE"] || CATEGORY_COLORS[catUpper] || "#757575";
+              
+              return (
+                <TableRow 
+                  key={cls.id} 
+                  hover
+                  sx={{ '&:last-child td, &:last-child th': { borderBottom: 0 } }}
+                >
+                  <TableCell sx={{ 
+                    fontWeight: 700, 
+                    fontSize: '0.85rem', 
+                    bgcolor: alpha(catColor, 0.1), 
+                    color: isDark ? catColor : 'inherit', 
+                    borderRight: `3px solid ${catColor} !important` 
+                  }}>
+                    {cls.id}
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', color: catColor }}>
+                    {catUpper}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.75rem' }}>{cls.size_class || "—"}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{cls.name}</TableCell>
+                  <TableCell sx={{ 
+                    fontSize: '0.75rem', 
+                    color: 'text.secondary',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: 400
+                  }} title={cls.example_models || ""}>
+                    {cls.example_models || "—"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 }
@@ -235,8 +137,6 @@ function MasterTableView({ classes }: { classes: SamarClass[] }) {
 /* ─────────── Main Panel ─────────── */
 export default function SamarMasterPanel() {
   const [classes, setClasses] = useState<SamarClass[]>([]);
-  const [subTab, setSubTab] = useState(0);
-
 
   useEffect(() => {
     apiClient.fetch(`/api/samar-classes`)
@@ -247,7 +147,6 @@ export default function SamarMasterPanel() {
         return res.json();
       })
       .then((data) => {
-        console.log("Otrzymane klasy SAMAR:", data);
         if (Array.isArray(data)) {
           setClasses(data);
         } else {
@@ -259,36 +158,9 @@ export default function SamarMasterPanel() {
       });
   }, []);
 
-
-
-  const subTabs = [
-    { label: "🗂️ Master Table", color: "#1565c0" },
-    { label: "🔧 Serwis", color: "#4caf50" },
-    { label: "🚗 Auto Zastępcze", color: "#2196f3" },
-    { label: "🛡️ Ubezpieczenie", color: "#00897b" },
-    { label: "💥 Wsp. Szkodowe", color: "#e65100" },
-  ];
-
   return (
     <Box>
-
-
-
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
-        <Tabs value={subTab} onChange={(_e, val) => setSubTab(val)} variant="scrollable" scrollButtons="auto" sx={{ "& .MuiTab-root": { fontWeight: 600, fontSize: "0.8rem", textTransform: "none" } }}>
-          {subTabs.map((t, i) => (
-            <Tab key={i} label={t.label} sx={{ "&.Mui-selected": { color: t.color } }} />
-          ))}
-        </Tabs>
-      </Box>
-
-      {subTab === 0 && <MasterTableView classes={classes} />}
-      {subTab === 1 && <ServiceCostsCrudPanel />}
-      {subTab === 2 && <ReplacementCarCrudPanel />}
-      {/* 3 was Zabudowa (removed) */}
-      {subTab === 3 && <InsuranceRatesCrudPanel />}
-      {subTab === 4 && <DamageCoefficientsCrudPanel />}
-
+      <MasterTableView classes={classes} />
     </Box>
   );
 }

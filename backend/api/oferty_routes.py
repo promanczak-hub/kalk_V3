@@ -34,7 +34,7 @@ class OfferGenerateRequest(BaseModel):
 
 
 @router.post("/generate")
-async def generate_offer(request: OfferGenerateRequest):
+def generate_offer(request: OfferGenerateRequest):
     try:
         if not request.items:
             raise HTTPException(status_code=400, detail="Koszyk ofertowy jest pusty.")

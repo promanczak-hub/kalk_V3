@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { apiClient } from '../../lib/apiClient';
-import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../../types";
+import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
 
 export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: () => void) {
@@ -26,13 +26,12 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
   // Local state for CRUD operations on Service Options
   const initialServiceOptions = useMemo(() => {
     return vehicle.paid_options?.filter(
-      (o) => o.category && !o.category.includes("Fabryczna")
-    ).map(o => ({
+      (o: any) => o.category && !o.category.includes("Fabryczna")
+    ).map((o: any) => ({
        id: crypto.randomUUID(),
        name: o.name,
        price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
        category: o.category || "Opcja Serwisowa",
-       // @ts-expect-error - compatibility with older data model
        include_in_wr: o.include_in_wr || false
     })) || [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,8 +39,8 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
 
   const initialFactoryOptions = useMemo(() => {
     const opts = vehicle.paid_options?.filter(
-      (o) => o.category?.includes("Fabryczna") || !o.category
-    ).map(o => ({
+      (o: any) => o.category?.includes("Fabryczna") || !o.category
+    ).map((o: any) => ({
        id: crypto.randomUUID(),
        name: o.name,
        price_net: o.price ? toNettoAware(parsePriceToNumber(o.price), o.price, (o as any).price_type) : 0,
@@ -69,12 +68,17 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
       if (!isAlreadyAdded) {
         let name = `Lakier: ${vehicle.exterior_color}`;
         let priceNet = 0;
-        const match =
+        let match =
           vehicle.exterior_color.match(
             /\((?:dopłata\s*)?([\d\s,.]+\s*(?:PLN|zł|pln|ZŁ).*?)\)/i,
           ) ||
           vehicle.exterior_color.match(/-\s*([\d\s,.]+\s*(?:PLN|zł|pln|ZŁ).*?)/i) ||
           vehicle.exterior_color.match(/(\d[\d\s]*\s*(?:PLN|zł|pln|ZŁ))/i);
+
+        if (!match) {
+          // Fallback: match a trailing number (e.g. "Szary Graphite metalizowany 2900" or "Szary Graphite metalizowany - 2900")
+          match = vehicle.exterior_color.match(/(?:\s|-|^)([\d\s,.]+)\s*$/i);
+        }
 
         if (match) {
           const priceStr = match[1] || match[0];
@@ -84,6 +88,13 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
             .replace(/\(\s*\)/, "")
             .trim()}`;
         }
+        
+        // Zabezpieczenie przed usunięciem całej nazwy jeśli string był samą liczbą (mało prawdopodobne, ale bezpiecznie)
+        if (!name || name === "Lakier:") {
+          name = `Lakier: ${vehicle.exterior_color.replace(/[\d\s,.]+(?:PLN|zł|pln|ZŁ)?/i, "").trim()}`;
+          if (name === "Lakier:") name = "Lakier: Zdefiniowany";
+        }
+
         opts.unshift({ id: crypto.randomUUID(), name, price_net: priceNet, category: "Fabryczna", no_discount: false });
       }
     }

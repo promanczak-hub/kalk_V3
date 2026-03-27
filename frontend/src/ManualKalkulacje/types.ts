@@ -31,7 +31,7 @@ export interface KalkulacjaListItem {
   created_at: string;
   updated_at: string;
   body_type?: string;
-  fuel_type?: string;
+  fuel?: string;
   discount_pct?: number;
   options_count?: number;
 }

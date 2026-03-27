@@ -1,0 +1,70 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- D:\kalk_v3\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\kalk_v3\backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, Faker-40.8.0, asyncio-1.3.0, mock-3.15.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+backend\tests\test_samar_rv.py::test_samar_rv_calculate_base PASSED      [ 50%]
+backend\tests\test_samar_rv.py::test_samar_rv_sanity_bounds FAILED       [100%]
+
+================================== FAILURES ===================================
+_________________________ test_samar_rv_sanity_bounds _________________________
+
+mocker = <pytest_mock.plugin.MockerFixture object at 0x0000022346F61D30>
+mock_rv_input = RVInput(samar_class_id=1, engine_id=1, brand_name='TEST_BRAND', model_name='TEST_MODEL', months=48, total_km=140000, c...is_metalic=True, body_type_id=1, rocznik='current', zabudowa_apr_wr=True, zabudowa_type_id=2, manual_wr_correction=0.0)
+
+    def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
+        """Sprawdzenie czy parametry zwracaja sie poprawnie przy 0% (edge case)"""
+        mocker.patch.object(
+            SamarRVCalculator,
+            "_fetch_depreciation_rates",
+            return_value={4: {"base": 0.0, "options": 0.0}},
+        )
+        mocker.patch.object(SamarRVCalculator, "_fetch_brand_correction", return_value=0.0)
+        mocker.patch.object(
+            SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0)
+        )
+        mocker.patch.object(
+            SamarRVCalculator,
+            "_fetch_class_config",
+            return_value={"base_mileage_km": 140000, "mileage_threshold_km": 190000},
+        )
+    
+        mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.0)
+        mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.0)
+        mocker.patch.object(
+            SamarRVCalculator, "fetch_zabudowa_correction", return_value=0.0
+        )
+        mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
+        mocker.patch.object(SamarRVCalculator, "fetch_lo_param", return_value=0.0)
+    
+        calc = SamarRVCalculator(mock_rv_input)
+    
+        # Suma to 0%, wiec ostateczne final_rv_netto = 0.0 (lub ewentualny fallback jesli zaimplementowany, ale u nas 0.0)
+        rv_output = calc.calculate()
+>       assert rv_output.wr_net == pytest.approx(0.0)
+E       assert 4000.0 == 0.0 ± 1.0e-12
+E         
+E         comparison failed
+E         Obtained: 4000.0
+E         Expected: 0.0 ± 1.0e-12
+
+backend\tests\test_samar_rv.py:96: AssertionError
+---------------------------- Captured stdout call -----------------------------
+
+[DEBUG_RV_DUMP] START calculate_values for class 1
+[DEBUG_RV_DUMP] Rates keys: [4]
+[DEBUG_RV_DUMP] Rate 0: None
+[DEBUG_RV_DUMP] Config: {'base_mileage_km': 140000, 'mileage_threshold_km': 190000}
+[DEBUG_RV_DUMP] Base Mileage: 140000.0, Threshold: 190000.0
+[DEBUG_RV_DUMP] Base Netto: 100000.0, Options Netto: 20000.0
+[DEBUG_RV_DUMP] Base Netto: 100000.0, Options Netto: 20000.0
+[DEBUG_RV_DUMP] KROK 1/2: year=4, base_rate=0.0, brand_corr=0.0, effective=0.0
+[DEBUG_RV_DUMP] KROK 1/2 Result: rv_base_netto=0.0
+=========================== short test summary info ===========================
+FAILED backend\tests\test_samar_rv.py::test_samar_rv_sanity_bounds - assert 4...
+========================= 1 failed, 1 passed in 1.36s =========================
+

@@ -1,0 +1,25 @@
+# Wytyczne AI dla projektu Kalkulator (V3)
+# KLUCZOWE REGUŁY: Czytaj ten plik jako ostateczną "Wyrocznię" dla zachowania asystenta AI
+
+1. PROJEKT JEST DUŻY. ZERO SKRÓTÓW I PEŁNA IMPLEMENTACJA (DoD)
+Kiedy edytujesz lub tworzysz kod, masz kategoryczny zakaz ucinania logiki, stosowania placeholderów i pójścia na skróty. 
+Jeśli zapytanie wymaga modyfikacji funkcji, dopisujesz/zastępujesz pełne działające bloki. Zawsze implementuj zadanie do końca.
+Przed komunikacją "zrobione", Twój kod musi przejść przez Typowanie (mypy/tsc), lintery (ruff/eslint), oraz nie rzucać wyjątków.
+
+2. "CZARNA SKRZYNKA" TO PRZESZŁOŚĆ. JAWNA ARCHITEKTURA.
+Zanim dodasz pole w bazie danych pamiętaj o zasadzie domina:
+Zmiany polegają na update: Migracji SQL -> Modeli Pydantic w FastAPI -> Typów `types.ts` w React.
+Przy każdym ukończonym bloku prac, opisujesz wyraźnie co zmieniłeś i dlaczego.
+
+3. ABSOLUTNY ZAKAZ DESTRUKCJI BAZY ONLINE
+Nie używaj DROP, DELETE, TRUNCATE na bazie online (`gnpsdiarmwvqhqbyetce`) pod żadnym pozorem bez wywołania głośnego monitu i wprost wyrażonej zgody użytkownika. Nigdy samodzielnie nie wywołuj `supabase db reset` w chmurze!
+
+4. "PANCERNE" FUNKCJE W PIPELINE KALKULATORA
+Proces kalkulacyjny (od 1 kasku Opony do 12 Budżet) i ekstrakcji faktur ma być ścisły. Nie używaj fallbacków (domyślnych zer) w logice finansowej, jeśli brakuje danych kluczowych. Zawsze wymagaj głośnych alarmów natychmiastowo przerywających procedurę (Fail-Fast). 
+
+5. KATEGORYCZNY ZAKAZ ucinania kluczowych 7-letnich pętli kalkulacyjnych (nawet jeśli najem trwa na 1 rok). Pętle gwarantują wyliczenia wskaźnikowe (parzystość z modelem excelowym V1).
+
+6. ZAKAZ HALUCYNACJI DANYCH / TEMPERATURE 0.0
+Wszystkie zwrotki tekstowe, ekstrakcje PDF i integracje GenAI bazują na trybie Temperature 0.0. Albo dana precyzyjnie się pokrywa, albo wylatuje z jasnym błędem. Żadnego leczenia matematyki pod stołem żeby "się zgadzało".
+
+Zawsze w przypadku wątpliwości jak działa system zerknij to plików `ARCHITECTURE.md`, `GEMINI.md`, `TABLE_REGISTRY.md` i `README.md`.

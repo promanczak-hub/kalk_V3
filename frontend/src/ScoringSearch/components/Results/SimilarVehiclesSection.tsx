@@ -8,7 +8,7 @@ interface SimilarVehiclesSectionProps {
   loading?: boolean;
 }
 
-export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicleId, similar, loading = false }) => {
+export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ vehicleId: _vehicleId, similar, loading = false }) => {
   const theme = useTheme();
 
   if (loading) {

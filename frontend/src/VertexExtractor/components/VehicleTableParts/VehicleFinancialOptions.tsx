@@ -1,8 +1,11 @@
 import { Banknote, Database, Loader2, Wrench, CircleDot, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
+import { ServiceOptionsManager } from "../../../components/OptionsManager/ServiceOptionsManager";
+import type { ExtractedServiceOption } from "../../../components/OptionsManager/ServiceOptionsManager";
 import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
+import { CalculationReadinessBadge } from "./CalculationReadinessBadge";
 import { useMemo } from "react";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { parsePriceToNumber } from "./PriceDualFormat";
@@ -20,9 +23,6 @@ interface VehicleFinancialOptionsProps {
   catalogBasePriceNet: number;
   setCatalogBasePriceNet: (val: number) => void;
   aiExtractedBasePrice: string | null;
-  aiPriceAlertThresholdPln?: number;
-  requireManualPriceReview?: boolean;
-  priceDeltaFromAiPln?: number;
   // Discount state
   discountMode: "offer" | "suggested" | "custom";
   setDiscountMode: (mode: "offer" | "suggested" | "custom") => void;
@@ -45,6 +45,7 @@ interface VehicleFinancialOptionsProps {
   handleRestoreAllOptions: () => void;
   handleSaveAllOptions: () => Promise<void>;
   isSavingServices: boolean;
+  handleServiceOptionExtracted?: (option: ExtractedServiceOption) => void;
   // Financial parameters
   wiborPct: number;
   setWiborPct: (val: number) => void;
@@ -89,10 +90,10 @@ interface VehicleFinancialOptionsProps {
   isMetalicAutoDetected: boolean;
   hookAutoDetected: boolean;
   vintageAutoDetected: boolean;
-  // Czynsz inicjalny netto/brutto
+  // Price context
   activeFinalPriceForDeposit: number;
   crossCardAlerts?: DiscountAlert[];
-  // Live param preview from backend
+  // Live param preview
   paramPreview?: {
     service: { found: boolean; rate_per_km: number; type: string; power_band: string };
     tires: { found: boolean; set_price_net: number; rim_diameter: number; tire_class: string };
@@ -146,15 +147,14 @@ const TIRE_COUNT_OPTIONS = [
 export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const {
     vehicle, activeFinalPriceNet,
-    discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
     catalogBasePriceNet, setCatalogBasePriceNet, aiExtractedBasePrice,
-    aiPriceAlertThresholdPln, requireManualPriceReview, priceDeltaFromAiPln,
     discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
     isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
+    discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
-    handleSaveAllOptions, isSavingServices,
+    handleSaveAllOptions, isSavingServices, handleServiceOptionExtracted,
     wiborPct, setWiborPct, marginPct, setMarginPct, pricingMarginPct, setPricingMarginPct,
     initialDepositPct, setInitialDepositPct, otherServiceCosts, setOtherServiceCosts,
     expressPaysInsurance, setExpressPaysInsurance, replacementCar, setReplacementCar,
@@ -186,46 +186,50 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const depositAmountNet = activeFinalPriceForDeposit * (initialDepositPct / 100);
   const depositAmountGross = depositAmountNet * 1.23;
 
-
   // Helper: format currency for breakdown
   const fmtPLN = (value: number): string => {
     if (value === 0) return "—";
     return value.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " PLN";
   };
 
+  // Detect if source prices are netto or brutto
+  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
+  const toNetto = (val: number) => isSourceNetto ? val : val / 1.23;
+  const toBrutto = (val: number) => isSourceNetto ? val * 1.23 : val;
+
+  // basePriceNum in source domain derived from editable catalogBasePriceNet
+  const basePriceNum = isSourceNetto
+    ? catalogBasePriceNet
+    : Math.round(catalogBasePriceNet * 1.23);
+
   // AI-extracted base price (converted to netto for comparison)
   const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
   const aiBasePriceNetto = aiExtractedBasePrice?.toLowerCase().includes("netto")
     ? aiBasePriceRaw
     : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
-  const aiPriceThreshold = aiPriceAlertThresholdPln ?? 10;
-  const basePriceDeltaPln = Math.abs(catalogBasePriceNet - aiBasePriceNetto);
-  const basePriceWasEdited = basePriceDeltaPln > aiPriceThreshold;
-  const requiresManualPriceReview = requireManualPriceReview ?? basePriceWasEdited;
-  const effectivePriceDeltaPln = priceDeltaFromAiPln ?? basePriceDeltaPln;
+  const basePriceWasEdited = Math.abs(catalogBasePriceNet - aiBasePriceNetto) > 10;
 
   return (
     <>
-      {/* ═══ Analiza Finansowa ═══ */}
+      {/* --- Analiza Finansowa --- */}
       <div className="border border-slate-200 rounded bg-white mb-8 mt-6">
         <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <h4 className="flex items-center text-xs font-semibold uppercase tracking-wider text-slate-500">
             <Banknote className="w-4 h-4 mr-2 text-slate-400" />
             Analiza Finansowa
           </h4>
+          <CalculationReadinessBadge
+            catalogBasePriceNet={catalogBasePriceNet}
+            rimDiameter={rimDiameter}
+            vehicle={vehicle}
+            paramPreview={paramPreview as any}
+            includeServicing={includeServicing}
+            replacementCar={replacementCar}
+          />
         </div>
 
         <div className="p-5 space-y-5">
-          {requiresManualPriceReview && aiExtractedBasePrice && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800">
-              <div className="font-semibold">{"Rozbie\u017Cno\u015B\u0107 ceny bazowej > "}{aiPriceThreshold} PLN.</div>
-              <div className="mt-1">
-                {"AI (netto): "}<b>{fmtPLN(aiBasePriceNetto)}</b>{" vs obecnie: "}<b>{fmtPLN(catalogBasePriceNet)}</b>{" (\u0394 "}{fmtPLN(effectivePriceDeltaPln)}{"). Wymagana r\u0119czna weryfikacja przed kalkulacj\u0105."}
-              </div>
-            </div>
-          )}
-
-          {/* Rabat selector - compact inline */}
+          {/* Rabat selector */}
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Rabat:</span>
@@ -262,12 +266,10 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   }}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^0-9.]/g, '');
-                    // Prevent multiple dots
                     const parts = raw.split('.');
                     const sanitized = parts.length > 2
                       ? parts[0] + '.' + parts.slice(1).join('')
                       : raw;
-                    // Limit to 2 decimal places
                     const decimalParts = sanitized.split('.');
                     const capped = decimalParts.length === 2 && decimalParts[1].length > 2
                       ? decimalParts[0] + '.' + decimalParts[1].slice(0, 2)
@@ -342,13 +344,14 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                       </span>
                     )}
                   </td>
-                  <td colSpan={2} className="py-2.5 align-top">
-                    <div className="flex justify-end">
-                      <NetGrossInput
-                        netValue={catalogBasePriceNet}
-                        onChangeNet={setCatalogBasePriceNet}
-                      />
-                    </div>
+                  <td className="py-2.5 text-right align-top">
+                    <NetGrossInput
+                      netValue={catalogBasePriceNet}
+                      onChangeNet={setCatalogBasePriceNet}
+                    />
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">
+                    {catalogBasePriceNet > 0 ? fmtPLN(Math.round(catalogBasePriceNet * 1.23)) : "—"}
                   </td>
                 </tr>
 
@@ -361,7 +364,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   </tr>
                 )}
 
-                {/* Rabat — shows after discountable items */}
+                {/* Rabat */}
                 {activeDiscountPct > 0 && (
                   <>
                     <tr className="border-b border-slate-100 bg-emerald-50/40">
@@ -369,21 +372,20 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                         Rabat ({activeDiscountPct}%)
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-sm text-emerald-600">
-                        ({fmtPLN((catalogBasePriceNet + discountableOptionsTotal) * (activeDiscountPct / 100))})
+                        ({fmtPLN(toNetto(basePriceNum) * (activeDiscountPct / 100) + discountableOptionsTotal * (activeDiscountPct / 100))})
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-700">
-                        ({fmtPLN((catalogBasePriceNet * 1.23 + discountableOptionsTotal * 1.23) * (activeDiscountPct / 100))})
+                        ({fmtPLN(toBrutto(basePriceNum) * (activeDiscountPct / 100) + discountableOptionsTotal * 1.23 * (activeDiscountPct / 100))})
                       </td>
                     </tr>
 
-                    {/* Subtotal po rabacie */}
                     <tr className="border-b border-slate-200">
                       <td className="py-2 text-xs font-semibold text-slate-600">Suma po rabacie</td>
                       <td className="py-2 text-right tabular-nums text-sm font-semibold text-slate-600">
-                        {fmtPLN((catalogBasePriceNet + discountableOptionsTotal) * (1 - activeDiscountPct / 100))}
+                        {fmtPLN((toNetto(basePriceNum) + discountableOptionsTotal) * (1 - activeDiscountPct / 100))}
                       </td>
                       <td className="py-2 text-right tabular-nums text-sm font-semibold text-slate-600">
-                        {fmtPLN((catalogBasePriceNet * 1.23 + discountableOptionsTotal * 1.23) * (1 - activeDiscountPct / 100))}
+                        {fmtPLN((toBrutto(basePriceNum) + discountableOptionsTotal * 1.23) * (1 - activeDiscountPct / 100))}
                       </td>
                     </tr>
                   </>
@@ -412,7 +414,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   </tr>
                 )}
 
-                {/* Usługi serwisowe (always non-discountable) */}
+                {/* Usługi serwisowe */}
                 {serviceOptionsTotal > 0 && (
                   <tr className="border-b border-slate-100">
                     <td className="py-2.5 text-xs text-slate-500">Usługi serwisowe</td>
@@ -424,8 +426,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 {/* Cena końcowa */}
                 <tr className="border-t-2 border-slate-300">
                   <td className="py-2.5 text-sm font-semibold text-slate-900">Cena końcowa</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(activeFinalPriceNet)}</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(activeFinalPriceNet * 1.23)}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(toNetto(activeFinalPriceNet))}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(toBrutto(activeFinalPriceNet))}</td>
                 </tr>
               </tbody>
             </table>
@@ -433,9 +435,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
         </div>
       </div>
 
-
-      
-      {/* Service Options CRUD */}
+      {/* Usługi Serwisowe / Dodatkowe */}
       <div className="mt-8">
           <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
             <Wrench className="w-4 h-4 mr-2" />
@@ -482,14 +482,14 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                         </button>
                      </div>
                  </div>
-
+                 <div className="w-full pt-2 mt-2 border-t border-slate-50">
+                     <ServiceOptionsManager onOptionExtracted={handleServiceOptionExtracted} />
+                 </div>
               </div>
            </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* OPONY (Tires) Section - NEW */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* --- Opony --- */}
       <div className="mt-8">
         <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
           <CircleDot className="w-4 h-4 mr-2" />
@@ -533,13 +533,9 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 <LinkedIndicator tableName="koszty_opon" isLinked={!!paramPreview?.tires?.found} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl (${paramPreview.tires.tire_class})` : undefined} />
               </label>
               <select
-                className={cn(
-                  "w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-medium",
-                  tireCountMode === "0" ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "text-slate-700 cursor-pointer"
-                )}
+                className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
                 value={tireClass}
                 onChange={(e) => setTireClass(e.target.value)}
-                disabled={tireCountMode === "0"}
               >
                 {TIRE_CLASS_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -568,8 +564,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   type="checkbox"
                   checked={tireCostCorrectionEnabled}
                   onChange={(e) => setTireCostCorrectionEnabled(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3 disabled:opacity-50"
-                  disabled={tireCountMode === "0"}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3"
                 />
                 Korekta kosztu opon (brutto)
               </label>
@@ -578,11 +573,11 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 step="1"
                 className={cn(
                   "w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500",
-                  (!tireCostCorrectionEnabled || tireCountMode === "0") && "bg-slate-50 text-slate-400 cursor-not-allowed"
+                  !tireCostCorrectionEnabled && "bg-slate-50 text-slate-400 cursor-not-allowed"
                 )}
                 value={tireCostCorrection}
                 onChange={(e) => setTireCostCorrection(parseFloat(e.target.value) || 0)}
-                disabled={!tireCostCorrectionEnabled || tireCountMode === "0"}
+                disabled={!tireCostCorrectionEnabled}
                 placeholder="0"
               />
             </div>
@@ -590,9 +585,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* Calculator Parameters Section */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Parametry Kalkulacji */}
       <div className="mt-8">
         <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -639,7 +632,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
                 Rodzaj kosztów serwisu
-                <LinkedIndicator tableName="samar_service_costs" isLinked={!!paramPreview?.service?.found} previewValue={paramPreview?.service?.found ? `${paramPreview.service.rate_per_km} PLN/km (${paramPreview.service.type}, ${paramPreview.service.power_band})` : undefined} />
+                <LinkedIndicator tableName="samar_service_costs" isLinked={!!paramPreview?.service?.found} previewValue={paramPreview?.service?.found ? `${paramPreview.service.rate_per_km} PLN/km (${paramPreview.service.type})` : undefined} />
               </label>
               <select
                 className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
@@ -647,7 +640,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 onChange={(e) => setServiceCostType(e.target.value as "ASO" | "nonASO")}
               >
                 <option value="ASO">ASO (Autoryzowany Serwis)</option>
-                <option value="nonASO">Non-ASO (Serwis Niezależny)</option>
+                <option value="nonASO">Non-ASO (Serwis Niezale┼╝ny)</option>
               </select>
             </div>
 

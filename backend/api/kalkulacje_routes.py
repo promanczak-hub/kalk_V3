@@ -23,7 +23,7 @@ class CreateManualRequest(BaseModel):
     brand: str
     model: str
     version: str = ""
-    fuel_type: str = ""
+    fuel: str = ""
     body_type: str = ""
     engine_name: str = ""
     samar_category: str = ""
@@ -78,7 +78,7 @@ class KalkulacjaListItem(BaseModel):
     created_at: str
     updated_at: str
     body_type: Optional[str] = None
-    fuel_type: Optional[str] = None
+    fuel: Optional[str] = None
     discount_pct: Optional[float] = None
     options_count: int = 0
 
@@ -110,12 +110,17 @@ def create_kalkulacja(req: CreateKalkulacjaRequest):
             raise HTTPException(status_code=500, detail="Błąd przy zapisie do bazy.")
         row = res.data[0]
         row["source"] = req.source
-        
+
         trace_id = uuid.uuid4().hex
-        logger.info("Triggering matrix calculation for new PDF kalkulacja %s [Trace: %s]", row["id"], trace_id)
+        logger.info(
+            "Triggering matrix calculation for new PDF kalkulacja %s [Trace: %s]",
+            row["id"],
+            trace_id,
+        )
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
+
         process_kalkulacja_matrix_task.apply_async(args=[row["id"], trace_id])
-        
+
         return row
     except Exception as e:
         logger.exception("POST /kalkulacje failed")
@@ -138,7 +143,7 @@ def create_manual_kalkulacja(req: CreateManualRequest):
         "brand": req.brand,
         "model": req.model,
         "version": req.version,
-        "fuel_type": req.fuel_type,
+        "fuel": req.fuel,
         "body_type": req.body_type,
         "engine_name": req.engine_name,
         "samar_category": req.samar_category,
@@ -169,12 +174,17 @@ def create_manual_kalkulacja(req: CreateManualRequest):
             )
         row = res.data[0]
         row["source"] = "manual"
-        
+
         trace_id = uuid.uuid4().hex
-        logger.info("Triggering matrix calculation for manual kalkulacja %s [Trace: %s]", row["id"], trace_id)
+        logger.info(
+            "Triggering matrix calculation for manual kalkulacja %s [Trace: %s]",
+            row["id"],
+            trace_id,
+        )
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
+
         process_kalkulacja_matrix_task.apply_async(args=[row["id"], trace_id])
-        
+
         return row
     except Exception as e:
         logger.exception("POST /kalkulacje/manual failed")
@@ -201,7 +211,7 @@ def _extract_list_fields(row: Dict[str, Any]) -> KalkulacjaListItem:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         body_type=vehicle_mapped.get("body_type") or sj.get("body_type"),
-        fuel_type=vehicle_mapped.get("fuel_type") or sj.get("fuel_type"),
+        fuel=vehicle_mapped.get("fuel") or sj.get("fuel"),
         discount_pct=discount_block.get("active_discount_pct"),
         options_count=len(factory_opts) + len(service_opts),
     )
@@ -256,7 +266,7 @@ class MatrixCacheRefreshRequest(BaseModel):
 
 
 @router.post("/matrix-cache/refresh")
-async def refresh_matrix_cache(request: MatrixCacheRefreshRequest):
+def refresh_matrix_cache(request: MatrixCacheRefreshRequest):
     """
     Ręczne wywołanie odświeżenia cache macierzy dla pojazdów.
     Zleca zadania do kolejki Celery, by nie blokować interfejsu ani pętli zdarzeń uvicorn.
@@ -264,20 +274,20 @@ async def refresh_matrix_cache(request: MatrixCacheRefreshRequest):
     try:
         if not request.vehicle_ids:
             return {"status": "error", "message": "Brak ID pojazdów."}
-        
+
         from tasks.matrix_tasks import refresh_matrix_cache_for_vehicles_task
-        
+
         # Split into chunks of 5 to avoid long-running celery tasks
         chunk_size = 5
         dispatched_tasks = 0
         for i in range(0, len(request.vehicle_ids), chunk_size):
-            batch = request.vehicle_ids[i:i+chunk_size]
+            batch = request.vehicle_ids[i : i + chunk_size]
             refresh_matrix_cache_for_vehicles_task.apply_async(args=[batch])
             dispatched_tasks += 1
-            
+
         return {
-            "status": "success", 
-            "message": f"Wysłano {len(request.vehicle_ids)} pojazd(ów) w {dispatched_tasks} transzach do Celery."
+            "status": "success",
+            "message": f"Wysłano {len(request.vehicle_ids)} pojazd(ów) w {dispatched_tasks} transzach do Celery.",
         }
     except Exception as e:
         logger.exception("Błąd w trakcie odświeżania cache macierzy.")
@@ -300,6 +310,7 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
     except Exception as e:
         logger.exception("GET /kalkulacje/vehicle/%s failed", vehicle_id)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{kalk_id}", response_model=KalkulacjaResponse)
 def get_kalkulacja(kalk_id: str):
@@ -352,14 +363,19 @@ def duplicate_kalkulacja(kalk_id: str):
         insert_res = supabase.table("ltr_kalkulacje").insert(new_data).execute()
         if not insert_res.data:
             raise HTTPException(status_code=500, detail="Błąd duplikacji")
-        
+
         new_row = insert_res.data[0]
-        
+
         trace_id = uuid.uuid4().hex
-        logger.info("Triggering matrix calculation for duplicated kalkulacja %s [Trace: %s]", new_row["id"], trace_id)
+        logger.info(
+            "Triggering matrix calculation for duplicated kalkulacja %s [Trace: %s]",
+            new_row["id"],
+            trace_id,
+        )
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
+
         process_kalkulacja_matrix_task.apply_async(args=[new_row["id"], trace_id])
-        
+
         return new_row
     except Exception as e:
         logger.exception("DUPLICATE /kalkulacje/%s failed", kalk_id)
@@ -416,12 +432,17 @@ def patch_kalkulacja_pricing(kalk_id: str, patch: PricingPatch):
         )
         if not upd.data:
             raise HTTPException(status_code=500, detail="Błąd aktualizacji cen")
-            
+
         trace_id = uuid.uuid4().hex
-        logger.info("Triggering recalculation for pricing patch %s [Trace: %s]", kalk_id, trace_id)
+        logger.info(
+            "Triggering recalculation for pricing patch %s [Trace: %s]",
+            kalk_id,
+            trace_id,
+        )
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
+
         process_kalkulacja_matrix_task.apply_async(args=[kalk_id, trace_id])
-            
+
         return result
     except HTTPException:
         raise
@@ -444,10 +465,13 @@ def recalculate_kalkulacja(kalk_id: str):
             raise HTTPException(status_code=404, detail="Kalkulacja nie znaleziona")
 
         trace_id = uuid.uuid4().hex
-        logger.info("Triggering explicit recalculation for %s [Trace: %s]", kalk_id, trace_id)
+        logger.info(
+            "Triggering explicit recalculation for %s [Trace: %s]", kalk_id, trace_id
+        )
         from tasks.matrix_tasks import process_kalkulacja_matrix_task
+
         process_kalkulacja_matrix_task.apply_async(args=[kalk_id, trace_id])
-        
+
         return {"status": "queued", "kalk_id": kalk_id, "trace_id": trace_id}
     except HTTPException:
         raise
@@ -480,10 +504,24 @@ def get_smart_variants(kalk_id: str):
         try:
             calc_input = CalculatorInput(**stan)
         except Exception as e:
-            logger.warning(f"Failed to parse stan_json directly: {e}")
+            from pydantic import ValidationError
+
+            if isinstance(e, ValidationError):
+                error_msgs = []
+                for err in e.errors():
+                    loc = ".".join(str(part) for part in err["loc"])
+                    msg = err["msg"]
+                    error_msgs.append(f"{loc}: {msg}")
+                detail = "Błąd walidacji danych kalkulacji: " + "; ".join(error_msgs)
+            else:
+                detail = (
+                    f"Nie można odtworzyć danych wejściowych z kalkulacji: {str(e)}"
+                )
+
+            logger.warning(f"Failed to parse stan_json for smart-advisor: {e}")
             raise HTTPException(
                 status_code=400,
-                detail="Nie mozna odtworzyc danych wejsciowych z kalkulacji.",
+                detail=detail,
             )
 
         cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()

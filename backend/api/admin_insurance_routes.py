@@ -30,7 +30,7 @@ class DamageCoefficient(BaseModel):
 
 
 @router.get("/admin/insurance-rates", response_model=List[InsuranceRate])
-async def get_insurance_rates(samar_class_id: Optional[int] = None):
+def get_insurance_rates(samar_class_id: Optional[int] = None):
     try:
         query = supabase.table("ltr_admin_ubezpieczenia").select("*")
         if samar_class_id is not None:
@@ -43,7 +43,7 @@ async def get_insurance_rates(samar_class_id: Optional[int] = None):
 
 
 @router.post("/admin/insurance-rates", response_model=InsuranceRate)
-async def upsert_insurance_rate(rate: InsuranceRate):
+def upsert_insurance_rate(rate: InsuranceRate):
     try:
         data = rate.model_dump(exclude_unset=True)
         if not data.get("id"):
@@ -60,7 +60,7 @@ async def upsert_insurance_rate(rate: InsuranceRate):
 
 
 @router.post("/admin/insurance-rates/bulk")
-async def bulk_upsert_insurance_rates(rates: List[InsuranceRate]):
+def bulk_upsert_insurance_rates(rates: List[InsuranceRate]):
     try:
         data_list = []
         for rate in rates:
@@ -75,7 +75,7 @@ async def bulk_upsert_insurance_rates(rates: List[InsuranceRate]):
 
 
 @router.delete("/admin/insurance-rates/{rate_id}")
-async def delete_insurance_rate(rate_id: int):
+def delete_insurance_rate(rate_id: int):
     try:
         supabase.table("ltr_admin_ubezpieczenia").delete().eq("id", rate_id).execute()
         return {"status": "success"}
@@ -87,7 +87,7 @@ async def delete_insurance_rate(rate_id: int):
 
 
 @router.get("/admin/damage-coefficients", response_model=List[DamageCoefficient])
-async def get_damage_coefficients(samar_class_id: Optional[int] = None):
+def get_damage_coefficients(samar_class_id: Optional[int] = None):
     try:
         query = supabase.table("ltr_admin_wspolczynniki_szkodowe").select("*")
         if samar_class_id is not None:
@@ -100,7 +100,7 @@ async def get_damage_coefficients(samar_class_id: Optional[int] = None):
 
 
 @router.post("/admin/damage-coefficients", response_model=DamageCoefficient)
-async def upsert_damage_coefficient(coeff: DamageCoefficient):
+def upsert_damage_coefficient(coeff: DamageCoefficient):
     try:
         data = coeff.model_dump(exclude_unset=True)
         if not data.get("id"):
@@ -119,7 +119,7 @@ async def upsert_damage_coefficient(coeff: DamageCoefficient):
 
 
 @router.delete("/admin/damage-coefficients/{coeff_id}")
-async def delete_damage_coefficient(coeff_id: int):
+def delete_damage_coefficient(coeff_id: int):
     try:
         supabase.table("ltr_admin_wspolczynniki_szkodowe").delete().eq(
             "id", coeff_id

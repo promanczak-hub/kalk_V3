@@ -4,6 +4,8 @@ import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import CalculateOutlinedIcon from "@mui/icons-material/CalculateOutlined";
+import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
+import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
 import {
   ThemeProvider,
   createTheme,
@@ -28,23 +30,34 @@ import CommandPalette from "./components/CommandPalette";
 import { CatalogLibraryPage } from "./VertexExtractor/components/CatalogLibraryPage";
 import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
 import { ManualKalkulacjePage } from "./ManualKalkulacje/ManualKalkulacjePage";
+import { DaneZaleznePage } from "./DaneZalezne/DaneZaleznePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import SheetsSyncPanel from "./SheetsSyncPanel/SheetsSyncPanel";
 import { NotificationProvider } from "./components/NotificationProvider";
 import { useAppStore } from "./stores/useAppStore";
 import OfferCartFab from "./components/OfferCart/OfferCartFab";
+import { ThemeToggle } from "./VertexExtractor/components/ui/ThemeToggle";
+import { useState } from "react";
 
 /**
  * Route definitions — single source of truth for navigation.
  */
 const ROUTES = [
   { path: "/", label: "Ekstrakcja Danych", icon: <FileUploadOutlinedIcon fontSize="small" /> },
+  { path: "/kalkulacje", label: "Kalkulacje Manualne", icon: <CalculateOutlinedIcon fontSize="small" /> },
+  { path: "/dane-zalezne", label: "Dane zależne - kalkulator", icon: <SettingsSuggestOutlinedIcon fontSize="small" /> },
   { path: "/control-center", label: "Control Center", icon: <TuneOutlinedIcon fontSize="small" /> },
   { path: "/library", label: "Biblioteka Cenników", icon: <LibraryBooksOutlinedIcon fontSize="small" /> },
   { path: "/search", label: "Wyszukiwarka pojazdów", icon: <SearchOutlinedIcon fontSize="small" /> },
-  { path: "/kalkulacje", label: "Kalkulacje Manualne", icon: <CalculateOutlinedIcon fontSize="small" /> },
+  { path: "/sheets-sync", label: "Sheets Sync", icon: <SyncOutlinedIcon fontSize="small" /> },
 ] as const;
 
-function AppContent() {
+interface AppContentProps {
+  mode: "light" | "dark";
+  onToggleTheme: () => void;
+}
+
+function AppContent({ mode, onToggleTheme }: AppContentProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -93,9 +106,10 @@ function AppContent() {
           right: 0,
           zIndex: 1100,
           backdropFilter: "blur(12px)",
-          backgroundColor: "rgba(255,255,255,0.85)",
-          borderBottom: "1px solid rgba(0,0,0,0.08)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+          backgroundColor: mode === "light" ? "rgba(255,255,255,0.85)" : "rgba(10, 15, 30, 0.85)",
+          borderBottom: "1px solid",
+          borderColor: mode === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)",
+          boxShadow: mode === "light" ? "0 1px 3px rgba(0,0,0,0.04)" : "0 4px 12px rgba(0,0,0,0.2)",
           px: { xs: 2, md: 4 },
         }}
       >
@@ -147,32 +161,45 @@ function AppContent() {
             ))}
           </Tabs>
 
-          {/* Keyboard shortcut hint */}
-          <Box
-            sx={{
-              display: { xs: "none", md: "flex" },
-              alignItems: "center",
-              gap: 0.5,
-              px: 1.5,
-              py: 0.5,
-              borderRadius: "6px",
-              border: "1px solid rgba(0,0,0,0.08)",
-              bgcolor: "rgba(0,0,0,0.02)",
-              cursor: "pointer",
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1.5,
               flexShrink: 0,
-              transition: "all 0.15s ease",
-              "&:hover": {
-                bgcolor: "rgba(0,0,0,0.05)",
-                borderColor: "rgba(0,0,0,0.15)",
-              },
-            }}
-            onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
-          >
-            <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem", fontWeight: 500 }}>
-              Ctrl+K
-            </Typography>
+              ml: 'auto' // Push to right
+            }}>
+              {/* Theme Toggle (The Candle) */}
+              <Box sx={{ zIndex: 1200 }}>
+                <ThemeToggle mode={mode} onToggle={onToggleTheme} />
+              </Box>
+
+              {/* Keyboard shortcut hint */}
+              <Box
+                sx={{
+                  display: { xs: "none", md: "flex" },
+                  alignItems: "center",
+                  gap: 0.5,
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: "6px",
+                  border: "1px solid",
+                  borderColor: mode === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.15)",
+                  bgcolor: mode === "light" ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.05)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                  "&:hover": {
+                    bgcolor: mode === "light" ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.08)",
+                    borderColor: mode === "light" ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.25)",
+                  },
+                }}
+                onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
+              >
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem", fontWeight: 500 }}>
+                  Ctrl+K
+                </Typography>
+              </Box>
+            </Box>
           </Box>
-        </Box>
       </Box>
 
       {/* ── Global Error Banner ── */}
@@ -189,10 +216,12 @@ function AppContent() {
         <ErrorBoundary fallbackTitle="Błąd ładowania sekcji">
           <Routes>
             <Route path="/" element={<VertexExtractorPage />} />
+            <Route path="/dane-zalezne" element={<DaneZaleznePage />} />
             <Route path="/control-center" element={<ControlCenter />} />
             <Route path="/library" element={<CatalogLibraryPage />} />
             <Route path="/search" element={<ScoringSearchPage />} />
             <Route path="/kalkulacje" element={<ManualKalkulacjePage />} />
+            <Route path="/sheets-sync" element={<SheetsSyncPanel />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
@@ -202,16 +231,19 @@ function AppContent() {
 }
 
 function App() {
+  const [mode, setMode] = useState<"light" | "dark">("dark");
+
   const theme = useMemo(() => createTheme({
     palette: {
-      mode: 'light',
+      mode,
       primary: {
-        main: "#1e3a8a",
+        main: mode === "light" ? "#1e3a8a" : "#3b82f6",
       },
       background: {
-        default: "#ffffff",
-        paper: "#ffffff",
+        default: mode === "light" ? "#ffffff" : "#0f172a",
+        paper: mode === "light" ? "#ffffff" : "#1e293b",
       },
+      divider: mode === "light" ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)",
     },
     typography: {
       fontFamily:
@@ -293,12 +325,13 @@ function App() {
               display: "none",
             },
             marginBottom: "16px",
-            backgroundColor: "#ffffff",
+            backgroundColor: mode === 'light' ? "#ffffff" : "#1e293b",
+            color: mode === 'light' ? "inherit" : "#f1f5f9",
           },
         },
       },
     },
-  }), []);
+  }), [mode]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -307,7 +340,7 @@ function App() {
         <ErrorBoundary fallbackTitle="Krytyczny błąd aplikacji">
           <CommandPalette />
           <OfferCartFab />
-          <AppContent />
+          <AppContent mode={mode} onToggleTheme={() => setMode(m => m === "light" ? "dark" : "light")} />
         </ErrorBoundary>
       </NotificationProvider>
     </ThemeProvider>

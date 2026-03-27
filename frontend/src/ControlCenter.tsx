@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
-import RabatyCrudPanel from "./RabatyCrud/RabatyCrudPanel";
-import EnginesCrudPanel from "./EnginesCrud/EnginesCrudPanel";
-import TabelaOponCrudPanel from "./TabelaOponCrud/TabelaOponCrudPanel";
 import GlobalSettingsPanel from "./GlobalSettingsPanel";
-import SamarMasterPanel from "./SamarMasterPanel";
 import ExcelDraftsPanel from "./ExcelDrafts/ExcelDraftsPanel";
-import TransportFeesPanel from "./TransportFeesCrud/TransportFeesPanel";
 
 export default function ControlCenter() {
   const [activeTab, setActiveTab] = useState(0);
@@ -41,22 +36,12 @@ export default function ControlCenter() {
           }}
         >
           <Tab label="Ustawienia Globalne" />
-          <Tab label="📊 SAMAR Parametry" />
-          <Tab label="Tabela rabaty" />
-          <Tab label="Tabele Napędy" />
-          <Tab label="Tabela Opon" />
-          <Tab label="Opłaty Transportowe" />
           <Tab label="📝 Modele Wyceny (Draft)" />
         </Tabs>
       </Box>
 
       {activeTab === 0 && <GlobalSettingsPanel />}
-      {activeTab === 1 && <SamarMasterPanel />}
-      {activeTab === 2 && <RabatyCrudPanel />}
-      {activeTab === 3 && <EnginesCrudPanel />}
-      {activeTab === 4 && <TabelaOponCrudPanel />}
-      {activeTab === 5 && <TransportFeesPanel />}
-      {activeTab === 6 && <ExcelDraftsPanel />}
+      {activeTab === 1 && <ExcelDraftsPanel />}
     </Box>
   );
 }

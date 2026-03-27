@@ -1,0 +1,149 @@
+﻿python : Traceback (mos
+t recent call last):
+At line:1 char:1
++ python verify_margin.
+py > verify_err.txt 2>&
+1; python -c "import co
+de ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Traceback (mo   
+ st recent call las    
+t)::String) [], Re    m
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+  File "D:\kalk_v3\back
+end\verify_margin.py", 
+line 69, in main
+    if cell["okres_mc"]
+ == 36 and cell["przebi
+eg_roczny"] == 50000:
+       ~~~~^^^^^^^^^^^^
+KeyError: 'okres_mc'
+RAW SYNTHESIS SD:
+{
+  "fuel": "Benzyna mHEV",
+  "wheels": "16",
+  "power_hp": 115,
+  "emissions": "115 g/km, 5,0 l/100km",
+  "base_price": "130 200 PLN brutto",
+  "body_style": "Kombi",
+  "drive_type": "Nap\u0119d FWD",
+  "powertrain": "1.5 TSI m-HEV 115 KM (85 kW)",
+  "trim_level": "Edition 130 Essence",
+  "_validation": {
+    "summary": {
+      "details": "Baza + opcje = total. Wszystkie ceny w realistycznym zakresie. Brak wykrytych anomalii.",
+      "verdict": "Ceny sp\u00f3jne arytmetycznie",
+      "confidence": "HIGH",
+      "suggestions": []
+    },
+    "is_valid": true,
+    "warnings": [],
+    "parsed_prices": {
+      "base": 130200,
+      "total": 137250,
+      "options": 7050
+    }
+  },
+  "power_range": "LOW (do 130 KM)",
+  "total_price": "137 250 PLN brutto",
+  "has_tow_hook": null,
+  "paid_options": [
+    {
+      "name": "Szary Graphite Metalizowany",
+      "price": "2650 PLN brutto",
+      "category": "Fabryczna",
+      "price_type": "brutto"
+    },
+    {
+      "name": "Pakiet Na Bezdro\u017ca",
+      "price": "900 PLN brutto",
+      "category": "Fabryczna",
+      "price_type": "brutto"
+    },
+    {
+      "name": "Pakiet Simply Clever",
+      "price": "600 PLN brutto",
+      "category": "Fabryczna",
+      "price_type": "brutto"
+    },
+    {
+      "name": "Zapasowe ko\u0142o stalowe dojazdowe 16\", podno\u015bnik, klucz",
+      "price": "700 PLN brutto",
+      "category": "Fabryczna",
+      "price_type": "brutto"
+    },
+    {
+      "name": "Rozszerzony System Bezpiecze\u0144stwa (PreCrash)",
+      "price": "900 PLN brutto",
+      "category": "Fabryczna",
+      "price_type": "brutto"
+    },
+    {
+      "name": "Kessy Go z Alarmem i funkcj\u0105 Safe",
+      "price": "1300 PLN brutto",
+      "category": "Fabryczna",
+      "price_type": "brutto"
+    }
+  ],
+  "price_domain": "brutto",
+  "transmission": "Automatyczna",
+  "_price_domain": "brutto",
+  "options_price": "7050 PLN brutto",
+  "vehicle_class": "Osobowy",
+  "exterior_color": "Szary Graphite Metalizowany 2650 PLN brutto",
+  "starting_price": "130 200 PLN brutto",
+  "available_trims": [
+    "Edition 130 Essence"
+  ],
+  "engine_capacity": "1.5",
+  "engine_category": "Benzyna mHEV (PB-mHEV)",
+  "is_metalic_paint": true,
+  "key_technologies": [
+    "Tylne \u015bwiat\u0142a LED TOP z dynamicznymi kierunkowskazami",
+    "Side Assist - funkcja monitorowania martwego pola",
+    "Lane Assist - asystent pasa ruchu",
+    "SmartLink"
+  ],
+  "utility_features": [],
+  "service_equipment": null,
+  "engine_designation": "TSI m-HEV",
+  "standard_equipment": [
+    "Reflektory LED Basic",
+    "Tylne \u015bwiat\u0142a LED TOP z dynamicznymi kierunkowskazami",
+    "Czujniki parkowania - prz\u00f3d i ty\u0142",
+    "Infotainment 10\"",
+    "Kamera cofania",
+    "SmartLink",
+    "Attention and Drowsiness Assist - funkcja wykrywania zm\u0119czenia kierowcy",
+    "Front Assist - kontrola odst\u0119pu z funkcj\u0105 awaryjnego hamowania",
+    "Light and Rain Assist - czujnik zmierzchu i deszczu",
+    "Lane Assist - asystent pasa ruchu",
+    "Automatycznie \u015bciemniaj\u0105ce si\u0119 lusterko wsteczne",
+    "8 g\u0142o\u015bnik\u00f3w",
+    "Rozpoznawanie znak\u00f3w drogowych",
+    "Tempomat",
+    "TPM - system kontroli ci\u015bnienia w oponach",
+    "Climatronic - automatyczna klimatyzacja dwustrefowa",
+    "Elektrycznie sk\u0142adane lusterka boczne",
+    "Side Assist - funkcja monitorowania martwego pola",
+    "Sk\u00f3rzana 2-ramienna kierownica wielofunkcyjna z manetkami",
+    "Pod\u0142okietnik z przodu",
+    "Uchwyty Isofix"
+  ],
+  "financial_reasoning": "Na podstawie analizy sekcji 'pricing' w dokumencie zidentyfikowano nast\u0119puj\u0105ce kwoty: 'Twoja konfiguracja' (cena bazowa) wynosi 130 200 z\u0142, 'Wybrane wyposa\u017cenie opcjonalne i us\u0142ugi' (suma opcji) wynosi 7050 z\u0142, a 'Cena widocznej konfiguracji' (cena ca\u0142kowita) to 137 250 z\u0142. Weryfikacja matematyczna potwierdza sp\u00f3jno\u015b\u0107: 130 200 z\u0142 + 7050 z\u0142 = 137 250 z\u0142. W sekcji 'legal_disclaimers' znajduje si\u0119 zapis 'Podane ceny obejmuj\u0105 podatek VAT (23%)', co jednoznacznie klasyfikuje wszystkie ceny jako brutto.",
+  "available_powertrains": [
+    "1.5 TSI m-HEV (115 KM) 85 kW 7-biegowa automatyczna"
+  ],
+  "suggested_discount_pct": 27,
+  "is_current_year_vehicle": true,
+  "suggested_discount_source": "Dopasowano do modelu SKODA Octavia Combi (Kombi) FL na podstawie nazwy modelu i typu nadwozia, oraz zgodno\u015bci kodu PV5***.",
+  "suggested_discount_confidence": 98
+}

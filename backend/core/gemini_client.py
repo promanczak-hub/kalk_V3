@@ -9,6 +9,15 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 
+def get_vertex_client() -> genai.Client:
+    """Force creation of a Vertex AI client. Essential for Embeddings
+    because public GEMINI_API_KEY fails with 404 on text-embedding-004.
+    """
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+    return genai.Client(vertexai=True, project=project_id, location=location)
+
+
 def get_gemini_client() -> genai.Client:
     """Create a Gemini client using API key or Vertex AI credentials.
 
@@ -26,9 +35,14 @@ def get_gemini_client() -> genai.Client:
         return genai.Client(api_key=api_key)
 
     try:
-        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "express-handlorz")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-        client = genai.Client(vertexai=True, project=project_id, location=location)
+        # Use the dedicated get_vertex_client function
+        client = get_vertex_client()
+        project_id = os.environ.get(
+            "GOOGLE_CLOUD_PROJECT", "express-handlorz"
+        )  # These lines are now redundant but kept for context if needed elsewhere
+        location = os.environ.get(
+            "GOOGLE_CLOUD_LOCATION", "us-central1"
+        )  # These lines are now redundant but kept for context if needed elsewhere
         logger.info(
             "Gemini client created via Vertex AI (project=%s, location=%s)",
             project_id,

@@ -1,14 +1,27 @@
 import json
 import requests
+import asyncio
 from typing import Any, Dict
 from pydantic import BaseModel
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.responses import Response
-import base64
-from core.celery_tasks import process_document_task
+from core.celery_tasks import process_document_task_from_storage
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.database import supabase as supabase_client
 from core.redis_cache import cache_invalidate_pattern
+from core.settings import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+from supabase import create_client
+
+_supabase_admin = None
+
+
+def _get_admin_client():
+    """Lazy-init admin client — safe to call from inside endpoints."""
+    global _supabase_admin
+    if _supabase_admin is None and SUPABASE_SERVICE_ROLE_KEY:
+        _supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    return _supabase_admin or supabase_client
+
 
 router = APIRouter()
 
@@ -34,24 +47,46 @@ async def extract_pdf_async(
         raise HTTPException(status_code=400, detail="Unsupported file format.")
 
     try:
-        # Read the file bytes directly from the UploadFile
         file_bytes = await file.read()
         mime_type = file.content_type or "application/pdf"
-        
-        # Opcjonalne: prosta heurystyka dla obrazków, jeśli content_type jest pusty
+
         if not file.content_type:
             if file.filename.lower().endswith(".png"):
                 mime_type = "image/png"
             elif file.filename.lower().endswith((".jpg", ".jpeg")):
                 mime_type = "image/jpeg"
 
+        # Update status directly here:
+        supabase_client.table("vehicle_synthesis").update(
+            {"verification_status": "uploading"}
+        ).eq("id", file_id).execute()
 
-        # Route EVERY document background task
-        print(f"Routing {file.filename} to universal extractor V2 (Celery)")
-        file_b64 = base64.b64encode(file_bytes).decode("utf-8")
-        process_document_task.delay(
+        from services.document_storage_service import (
+            generate_safe_storage_path,
+            upload_raw_vehicle_document,
+        )
+
+        storage_path = generate_safe_storage_path(file_id, file.filename)
+
+        print(f"Uploading {file.filename} to Supabase Storage before queuing")
+
+        # Upload using the admin client synchronous call inside to_thread to prevent blocking Event Loop
+        await asyncio.to_thread(
+            upload_raw_vehicle_document,
+            file_bytes,
+            storage_path,
+            mime_type,
+            _get_admin_client(),
+        )
+
+        print(
+            f"Routing {file.filename} to universal extractor V2 from storage (Celery)"
+        )
+        await asyncio.to_thread(
+            process_document_task_from_storage.delay,
             file_id=file_id,
-            file_b64=file_b64,
+            storage_path=storage_path,
+            bucket_name="raw-vehicle-pdfs",
             file_name=file.filename,
             mime_type=mime_type,
             md5_hash="",
@@ -60,6 +95,9 @@ async def extract_pdf_async(
         return {"status": "processing", "file_id": file_id}
 
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred during extraction initialization: {str(e)}",
@@ -71,7 +109,7 @@ class MapDataRequest(BaseModel):
 
 
 @router.post("/extract/map-vehicle-data")
-async def map_vehicle_data(request: MapDataRequest) -> Dict[str, Any]:
+def map_vehicle_data(request: MapDataRequest) -> Dict[str, Any]:
     try:
         print("Processing AI data mapping for vehicle JSON.")
         mapped_data = map_vehicle_data_flash(request.original_json)
@@ -84,93 +122,15 @@ async def map_vehicle_data(request: MapDataRequest) -> Dict[str, Any]:
 
 
 @router.post("/extract/remap-classification")
-async def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
+def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
     """
     Full classification pipeline: Flash mapper → Engine → SAMAR.
     Returns mapped_ai_data with samar_category, engine_class, candidates.
     """
-    from core.samar_mapper import map_to_samar_class
-    from core.engine_mapper import map_to_engine_class
+    from services.classification_service import run_full_classification_pipeline
 
     try:
-        print("[REMAP] Running full classification pipeline...")
-
-        # Step 1: Flash mapper (brand, model, fuel, transmission, vehicle_type)
-        mapped_data = map_vehicle_data_flash(request.original_json)
-
-        card_summary = request.original_json.get("card_summary", {})
-        brand = mapped_data.get("brand") or request.original_json.get("brand")
-        model = mapped_data.get("model") or request.original_json.get("model")
-        trim = mapped_data.get("trim_level")
-
-        # Step 2: Engine classification (first — doesn't depend on SAMAR)
-        powertrain_data = (
-            card_summary.get("powertrain", {})
-            if isinstance(card_summary.get("powertrain"), dict)
-            else {}
-        )
-        engine_designation = powertrain_data.get("engine_designation")
-        capacity = powertrain_data.get("engine_capacity")
-        power = card_summary.get("power_hp")
-
-        eng_name, eng_cat, eng_candidates = map_to_engine_class(
-            fuel=mapped_data.get("fuel"),
-            engine_designation=engine_designation,
-            power=str(power) if power else None,
-            capacity=str(capacity) if capacity else None,
-            model=model,
-            trim=trim,
-        )
-
-        previous_fuel = mapped_data.get("fuel", "")
-        is_mhev_previously = "mHEV" in previous_fuel
-
-        if eng_name != "UNKNOWN":
-            # Guard: If previously identified as mHEV, don't downgrade to generic Petrol/Diesel
-            # unless the new identification is also mHEV or clearly superior (not generic)
-            is_new_mhev = "mHEV" in eng_name
-            is_generic_new = eng_name in ["Benzyna (PB)", "Diesel (ON)", "LPG"]
-            
-            if is_mhev_previously and is_generic_new and not is_new_mhev:
-                print(f"[REMAP] Guard: Preserving mHEV status '{previous_fuel}' over generic '{eng_name}'")
-            else:
-                mapped_data["fuel"] = eng_name
-                mapped_data["engine_class"] = eng_cat
-                mapped_data["engine_candidates"] = eng_candidates
-        elif mapped_data.get("fuel"):
-            try:
-                engines_resp = (
-                    supabase_client.table("engines")
-                    .select("category")
-                    .eq("name", mapped_data.get("fuel"))
-                    .execute()
-                )
-                if engines_resp.data:
-                    mapped_data["engine_class"] = engines_resp.data[0]["category"]
-            except Exception as db_e:
-                print(f"[REMAP] Engine fallback DB error: {db_e}")
-
-        # Step 3: SAMAR classification (last — uses full context incl. seats)
-        segment = card_summary.get("segment") or card_summary.get("car_segment")
-        body_style = card_summary.get("body_style")
-        transmission = mapped_data.get("transmission")
-        seats_raw = card_summary.get("number_of_seats")
-
-        samar_name, samar_candidates = map_to_samar_class(
-            brand=brand,
-            model=model,
-            segment=segment,
-            body_style=body_style,
-            trim=trim,
-            transmission=transmission,
-            number_of_seats=int(seats_raw) if seats_raw else None,
-        )
-        mapped_data["samar_category"] = samar_name
-        mapped_data["samar_candidates"] = samar_candidates
-
-        print(f"[REMAP] Done: Engine={eng_name}/{eng_cat}, SAMAR={samar_name}")
-        return mapped_data
-
+        return run_full_classification_pipeline(request.original_json)
     except Exception as e:
         import traceback
 
@@ -210,7 +170,7 @@ _MIME_MAP: dict[str, str] = {
     ".xls": "application/vnd.ms-excel",
     ".png": "image/png",
     ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg"
+    ".jpeg": "image/jpeg",
 }
 
 
@@ -219,15 +179,22 @@ class DeleteVehicleRequest(BaseModel):
 
 
 @router.post("/delete-vehicle")
-async def delete_vehicle(request: DeleteVehicleRequest) -> Dict[str, Any]:
-    from core.database import supabase
-
+def delete_vehicle(request: DeleteVehicleRequest) -> Dict[str, Any]:
     try:
+        client = _get_admin_client()
         print(f"Deleting vehicle strictly from synthesis with ID: {request.vehicle_id}")
 
-        supabase.table("vehicle_synthesis").delete().eq(
-            "id", request.vehicle_id
-        ).execute()
+        resp = (
+            client.table("vehicle_synthesis")
+            .delete()
+            .eq("id", request.vehicle_id)
+            .execute()
+        )
+
+        if not resp.data:
+            raise HTTPException(
+                status_code=404, detail="Vehicle not found or already deleted"
+            )
 
         # Invalidate cache for frontend filters
         cache_invalidate_pattern("initial_data")
@@ -244,7 +211,7 @@ class CancelProcessingRequest(BaseModel):
 
 
 @router.post("/cancel-processing")
-async def cancel_processing(request: CancelProcessingRequest) -> Dict[str, Any]:
+def cancel_processing(request: CancelProcessingRequest) -> Dict[str, Any]:
     """
     Immediately cancels document processing:
     1. Sets DB status to 'cancelled' → triggers Supabase Realtime → instant UI update
@@ -275,16 +242,23 @@ class BatchDeleteRequest(BaseModel):
 
 
 @router.post("/delete-vehicles-batch")
-async def delete_vehicles_batch(request: BatchDeleteRequest) -> Dict[str, Any]:
+def delete_vehicles_batch(request: BatchDeleteRequest) -> Dict[str, Any]:
     """Delete multiple vehicles in a single transaction."""
     if not request.vehicle_ids:
         raise HTTPException(status_code=400, detail="No vehicle IDs provided.")
 
     try:
+        client = _get_admin_client()
         print(f"Batch deleting {len(request.vehicle_ids)} vehicles")
-        supabase_client.table("vehicle_synthesis").delete().in_(
-            "id", request.vehicle_ids
-        ).execute()
+        resp = (
+            client.table("vehicle_synthesis")
+            .delete()
+            .in_("id", request.vehicle_ids)
+            .execute()
+        )
+
+        if not resp.data:
+            print("No vehicles were found to delete in batch.")
 
         # Invalidate cache for frontend filters
         cache_invalidate_pattern("initial_data")
@@ -362,7 +336,7 @@ def _extract_comparison_payload(
 
 
 @router.post("/compare-vehicles")
-async def compare_vehicles(request: CompareVehiclesRequest) -> Dict[str, Any]:
+def compare_vehicles(request: CompareVehiclesRequest) -> Dict[str, Any]:
     """
     Compare 2-5 vehicles using Gemini Flash.
     Extracts key data from synthesis_data and produces a markdown comparison.
@@ -438,7 +412,7 @@ DANE POJAZDÓW:
 
 
 @router.get("/kalkulator/pojazd/{vehicle_id}")
-async def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
+def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
     """Zwraca synthesis_data pojazdu po ID — używane przez VehicleFeaturesCard."""
     try:
         response = (
@@ -468,7 +442,7 @@ async def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
 
 
 @router.get("/extract/{vehicle_id}/markdown")
-async def get_vehicle_markdown(vehicle_id: str) -> Dict[str, Any]:
+def get_vehicle_markdown(vehicle_id: str) -> Dict[str, Any]:
     """Fetch the raw markdown for a vehicle synthesis record."""
     try:
         response = (
@@ -495,7 +469,7 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("/extract/feedback")
-async def extract_feedback(req: FeedbackRequest) -> Dict[str, Any]:
+def extract_feedback(req: FeedbackRequest) -> Dict[str, Any]:
     """Zapisuje poprawki manualne użytkownika naniesione w formularzu do tabeli extraction_corrections."""
     try:
         supabase_client.table("extraction_corrections").insert(

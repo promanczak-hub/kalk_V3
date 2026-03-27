@@ -511,11 +511,11 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
         tb = traceback.format_exc()
         error_msg = f"[CARD SUMMARY ERROR] Błąd generatywnego tworzenia CardSummary (Structured Output) - wygenerowano pustą kartę, operacja zatrzymana. Log: {str(e)}\nTraceback:\n{tb}"
         logger.error(error_msg)
-        
+
         # In a strict Enterprise setup, we do not fallback to half-baked dictionaries when schema matching fails.
         # We ensure a dict is present so the pipeline does not completely crash if downstream systems are resilient,
         # but we strictly abandon deterministic backfills.
         if "card_summary" not in pro_data:
-             pro_data["card_summary"] = {}
+            pro_data["card_summary"] = {}
 
         return pro_data

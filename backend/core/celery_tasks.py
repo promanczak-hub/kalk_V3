@@ -5,6 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @celery_app.task(name="process_document_task")
 def process_document_task(
     file_id: str,
@@ -26,6 +27,7 @@ def process_document_task(
         force_doc_type=force_doc_type,
     )
 
+
 @celery_app.task(name="process_document_task_from_storage")
 def process_document_task_from_storage(
     file_id: str,
@@ -41,13 +43,13 @@ def process_document_task_from_storage(
     """
     from core.database import supabase as sb_client
     from urllib.parse import quote
-    
+
     encoded_path = quote(storage_path, safe="/")
     logger.info(f"[Celery] Pobieranie {encoded_path} z bucketu {bucket_name}")
-    
+
     # Download file from storage
     file_bytes = sb_client.storage.from_(bucket_name).download(encoded_path)
-    
+
     # Run heavy job
     logger.info(f"[Celery] Uruchamianie process_and_save_document_bg dla {file_id}")
     process_and_save_document_bg(
@@ -59,6 +61,7 @@ def process_document_task_from_storage(
         force_doc_type=force_doc_type,
     )
 
+
 @celery_app.task(name="extract_catalog_task")
 def extract_catalog_task(catalog_id: str):
     """
@@ -67,9 +70,14 @@ def extract_catalog_task(catalog_id: str):
     """
     from core.database import supabase as sb_client
     from core.catalog_extractor import extract_catalog_variants
-    
+
     logger.info(f"[Celery] Start extract_catalog_task dla {catalog_id}")
-    resp = sb_client.table("model_document_sources").select("*").eq("id", catalog_id).execute()
+    resp = (
+        sb_client.table("model_document_sources")
+        .select("*")
+        .eq("id", catalog_id)
+        .execute()
+    )
     if not resp.data:
         logger.error(f"[Celery] Nie znaleziono katalogu {catalog_id}")
         return
@@ -88,7 +96,9 @@ def extract_catalog_task(catalog_id: str):
                 "extraction_error": None,
             }
         ).eq("id", catalog_id).execute()
-        logger.info(f"[Celery] Zakończono extract_catalog_task dla {catalog_id} - wariantów: {result['variant_count']}")
+        logger.info(
+            f"[Celery] Zakończono extract_catalog_task dla {catalog_id} - wariantów: {result['variant_count']}"
+        )
     except Exception as exc:
         logger.error(f"[Celery] Błąd przetwarzania cennika {catalog_id}: {exc}")
         sb_client.table("model_document_sources").update(

@@ -1,0 +1,117 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\kalk_v3\backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, Faker-40.11.0, timeout-2.4.0
+collected 321 items / 7 errors
+
+=================================== ERRORS ====================================
+____________ ERROR collecting tests/api/test_pdf_parser_routes.py _____________
+ImportError while importing test module 'D:\kalk_v3\backend\tests\api\test_pdf_parser_routes.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\api\test_pdf_parser_routes.py:5: in <module>
+    from main import app
+backend\main.py:35: in <module>
+    from api.sheets_sync_routes import router as sheets_sync_router
+backend\api\sheets_sync_routes.py:19: in <module>
+    from services.sheets_sync_service import (
+backend\services\sheets_sync_service.py:20: in <module>
+    import gspread
+E   ModuleNotFoundError: No module named 'gspread'
+------------------------------- Captured stdout -------------------------------
+Using Supabase URL: https://gnpsdiarmwvqhqbyetce.supabase.co
+________ ERROR collecting tests/test_calculator_pipeline_regression.py ________
+ImportError while importing test module 'D:\kalk_v3\backend\tests\test_calculator_pipeline_regression.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\test_calculator_pipeline_regression.py:2: in <module>
+    from main import app
+backend\main.py:35: in <module>
+    from api.sheets_sync_routes import router as sheets_sync_router
+backend\api\sheets_sync_routes.py:19: in <module>
+    from services.sheets_sync_service import (
+backend\services\sheets_sync_service.py:20: in <module>
+    import gspread
+E   ModuleNotFoundError: No module named 'gspread'
+_________________ ERROR collecting tests/test_homologation.py _________________
+ImportError while importing test module 'D:\kalk_v3\backend\tests\test_homologation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\test_homologation.py:7: in <module>
+    from main import app
+backend\main.py:35: in <module>
+    from api.sheets_sync_routes import router as sheets_sync_router
+backend\api\sheets_sync_routes.py:19: in <module>
+    from services.sheets_sync_service import (
+backend\services\sheets_sync_service.py:20: in <module>
+    import gspread
+E   ModuleNotFoundError: No module named 'gspread'
+_____________________ ERROR collecting tests/test_out.txt _____________________
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1028: in read_text
+    return f.read()
+           ^^^^^^^^
+<frozen codecs>:322: in decode
+    ???
+E   UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+_______________ ERROR collecting tests/test_power_summation.py ________________
+ImportError while importing test module 'D:\kalk_v3\backend\tests\test_power_summation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\test_power_summation.py:1: in <module>
+    from core.pipeline_card_summary import _backfill_from_digital_twin
+E   ImportError: cannot import name '_backfill_from_digital_twin' from 'core.pipeline_card_summary' (D:\kalk_v3\backend\core\pipeline_card_summary.py)
+__________________ ERROR collecting tests/test_tyre_costs.py __________________
+ImportError while importing test module 'D:\kalk_v3\backend\tests\test_tyre_costs.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\test_tyre_costs.py:7: in <module>
+    from main import app
+backend\main.py:35: in <module>
+    from api.sheets_sync_routes import router as sheets_sync_router
+backend\api\sheets_sync_routes.py:19: in <module>
+    from services.sheets_sync_service import (
+backend\services\sheets_sync_service.py:20: in <module>
+    import gspread
+E   ModuleNotFoundError: No module named 'gspread'
+______________ ERROR collecting tests/test_upload_and_cancel.py _______________
+ImportError while importing test module 'D:\kalk_v3\backend\tests\test_upload_and_cancel.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend\tests\test_upload_and_cancel.py:2: in <module>
+    from main import app
+backend\main.py:35: in <module>
+    from api.sheets_sync_routes import router as sheets_sync_router
+backend\api\sheets_sync_routes.py:19: in <module>
+    from services.sheets_sync_service import (
+backend\services\sheets_sync_service.py:20: in <module>
+    import gspread
+E   ModuleNotFoundError: No module named 'gspread'
+=========================== short test summary info ===========================
+ERROR backend\tests\api\test_pdf_parser_routes.py
+ERROR backend\tests\test_calculator_pipeline_regression.py
+ERROR backend\tests\test_homologation.py
+ERROR backend\tests\test_out.txt - UnicodeDecodeError: 'utf-8' codec can't de...
+ERROR backend\tests\test_power_summation.py
+ERROR backend\tests\test_tyre_costs.py
+ERROR backend\tests\test_upload_and_cancel.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 7 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 7 errors in 5.29s ==============================

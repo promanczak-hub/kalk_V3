@@ -234,8 +234,10 @@ def diagnose_vehicle(
             opcja_serwisowa="ASO",
             normatywny_przebieg_mc=getattr(settings, "normatywny_przebieg_mc", 1667),
             samar_class_id=int(klasa_id) if klasa_id.isdigit() else 0,
-            engine_type_id=engine_type_id,
-            power_kw=power_kw,
+            brand_normalized=brand,
+            fuel_type=str(v_db.get("engine_category", "?")),
+            drive_type=str(v_db.get("drive_type", "?")),
+            gearbox_type=str(v_db.get("gearbox", "?")),
             przebieg=TOTAL_KM,
             okres=MONTHS,
         )
@@ -298,8 +300,9 @@ def diagnose_vehicle(
         rv_res = rv_calc.calculate_values(
             months=MONTHS,
             total_km=TOTAL_KM,
-            base_vehicle_capex_gross=vehicle_capex * vat_rate,
-            options_capex_gross=float(tires_res.get("capex_initial_set", 0)) * vat_rate,
+            base_vehicle_catalog_gross=vehicle_capex * vat_rate,
+            options_catalog_gross=float(tires_res.get("capex_initial_set", 0))
+            * vat_rate,
         )
         vr_samar = rv_res["WR"]
         utrata_z_czynszem = float(
@@ -328,7 +331,10 @@ def diagnose_vehicle(
         )
 
         amort_input = AmortyzacjaInput(
-            wp=capex_for_financing, wr=vr_samar, okres=MONTHS
+            wp_finansowanie=capex_for_financing,
+            wp_amortyzacja=capex,
+            wr=vr_samar,
+            okres=MONTHS,
         )
         amort_res = AmortyzacjaCalculator(amort_input).calculate()
         procent_amortyzacji = amort_res.amortyzacja_procent

@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, cast, Optional
 import io
+import logging
 import pandas as pd
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -7,19 +8,177 @@ from fastapi.responses import StreamingResponse
 
 from core.database import supabase
 from core.models import ControlCenterSettings
+from core.config_cache import config_cache
 from api.schemas.control_center import (
-    EngineType,
-    SamarClass,
-    SamarServiceCost,
-    ReplacementCarRate,
     BrandCorrection,
     DepreciationRate,
-    BodyType,
+    EngineType,
+    MileageCorrection,
     PaintType,
+    ReplacementCarRate,
+    SamarClass,
+    SamarClassBaseRV,
+    SamarClassServiceRate,
+    SamarServiceCost,
+    ServiceMultiplier,
     VintageCorrection,
 )
 
-router = APIRouter(tags=["Control Center"])
+router = APIRouter(tags=["Control Center Admin"])
+logger = logging.getLogger(__name__)
+
+# --- Mapping Layer Constants (Online DB compatibility) ---
+SERVICE_RATE_MAP = {
+    "samar_class_id": "klasa_samar_fk",
+    "mileage_up_to": "przebieg_do",
+    "cost_aso_per_km": "stawka_aso_per_km",
+    "cost_non_aso_per_km": "stawka_non_aso_per_km",
+}
+
+REPLACEMENT_CAR_MAP = {
+    "samar_class_id": "klasa_samar_fk",
+    "average_days_per_year": "srednia_l_dni_rok",
+    "daily_rate_net": "stawka_dzienna_netto_zl",
+}
+
+FUEL_TO_COL = {
+    1: "benzyna_pb",
+    2: "diesel_on",
+    3: "benzyna_mhev_pb_mhev",
+    4: "diesel_mhev_on_mhev",
+    5: "hybryda_hev",
+    6: "plug_in_hybrid_phev",
+    7: "elektryczny_bev",
+    8: "wodor_fcev",
+    9: "lpg",
+}
+COL_TO_FUEL = {v: k for k, v in FUEL_TO_COL.items()}
+
+
+@router.get("/brand-corrections")
+async def get_brand_corrections() -> List[BrandCorrection]:
+    try:
+        response = supabase.table("ltr_admin_korekta_wr_markas").select("*").execute()
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                BrandCorrection(
+                    id=row["id"],
+                    brand_name=row["marka"],
+                    correction_percent=row["korekta_procent"] or 0.0,
+                    samar_class_id=0,
+                    rodzaj_paliwa=1,
+                )
+            )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/brand-corrections/bulk")
+async def bulk_upsert_brand_corrections(
+    items: List[BrandCorrection],
+) -> Dict[str, Any]:
+    try:
+        updated = 0
+        for item in items:
+            d = {
+                "marka": item.brand_name,
+                "korekta_procent": item.correction_percent,
+            }
+            if item.id:
+                supabase.table("ltr_admin_korekta_wr_markas").upsert(
+                    {**d, "id": item.id}
+                ).execute()
+            else:
+                supabase.table("ltr_admin_korekta_wr_markas").insert(d).execute()
+            updated += 1
+        return {"status": "success", "count": updated}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/vintage-corrections")
+async def get_vintage_corrections() -> List[VintageCorrection]:
+    try:
+        response = supabase.table("ltr_admin_korekta_wr_roczniks").select("*").execute()
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                VintageCorrection(
+                    id=row["id"],
+                    rocznik=str(row["rocznik"]),
+                    korekta_procent=row["korekta_procent"] or 0.0,
+                )
+            )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/vintage-corrections/bulk")
+async def bulk_upsert_vintage_corrections(
+    items: List[VintageCorrection],
+) -> Dict[str, Any]:
+    try:
+        updated = 0
+        for item in items:
+            d = {
+                "rocznik": item.year,
+                "korekta_procent": item.correction_percent,
+            }
+            if item.id:
+                supabase.table("ltr_admin_korekta_wr_roczniks").upsert(
+                    {**d, "id": item.id}
+                ).execute()
+            else:
+                supabase.table("ltr_admin_korekta_wr_roczniks").insert(d).execute()
+            updated += 1
+        return {"status": "success", "count": updated}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/paint-types")
+async def get_paint_types() -> List[PaintType]:
+    try:
+        response = supabase.table("paint_types").select("*").execute()
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                PaintType(
+                    id=row["id"],
+                    name=row["name"],
+                    wr_correction=row["wr_correction"] or 0.0,
+                )
+            )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/paint-types/bulk")
+async def bulk_upsert_paint_types(
+    items: List[PaintType],
+) -> Dict[str, Any]:
+    try:
+        updated = 0
+        for item in items:
+            d = {
+                "name": item.name,
+                "wr_correction": item.wr_correction,
+            }
+            if item.id:
+                supabase.table("paint_types").upsert({**d, "id": item.id}).execute()
+            else:
+                supabase.table("paint_types").insert(d).execute()
+            updated += 1
+        return {"status": "success", "count": updated}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/control-center")
@@ -52,8 +211,6 @@ async def update_control_center(
                 status_code=500, detail="Failed to update control center settings"
             )
 
-
-
         response_data = cast(Any, response.data[0])
         return ControlCenterSettings(**response_data)
     except Exception as e:
@@ -62,6 +219,9 @@ async def update_control_center(
 
 @router.get("/engines")
 async def get_engines() -> List[EngineType]:
+    cached = config_cache.get("engines")
+    if cached is not None:
+        return cached
     try:
         response = (
             supabase.table("engines")
@@ -71,7 +231,9 @@ async def get_engines() -> List[EngineType]:
             .execute()
         )
         response_data = cast(Any, response.data)
-        return [EngineType(**row) for row in response_data]
+        result = [EngineType(**row) for row in response_data]
+        config_cache.set("engines", result)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -85,6 +247,7 @@ async def update_engine(engine: EngineType) -> EngineType:
         response = supabase.table("engines").upsert(data).execute()
         if not response.data:
             raise HTTPException(status_code=500, detail="Failed to update engine")
+        config_cache.invalidate("engines")
         response_data = cast(Any, response.data[0])
         return EngineType(**response_data)
     except Exception as e:
@@ -95,6 +258,7 @@ async def update_engine(engine: EngineType) -> EngineType:
 async def delete_engine(engine_id: int) -> Dict[str, str]:
     try:
         supabase.table("engines").delete().eq("id", engine_id).execute()
+        config_cache.invalidate("engines")
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -108,31 +272,64 @@ async def get_depreciation_rates(
     samar_class_id: Optional[int] = None,
 ) -> List[DepreciationRate]:
     try:
-        query = supabase.table("samar_class_depreciation_rates").select("*")
-        if samar_class_id is not None:
-            query = query.eq("samar_class_id", samar_class_id)
-        response = (
-            query.order("samar_class_id").order("fuel_type_id").order("year").execute()
+        # Base rates from Wide table
+        res_base = (
+            supabase.table("samar_class_depreciation_rates").select("*").execute()
         )
-        response_data = cast(Any, response.data)
-        return [DepreciationRate(**row) for row in response_data]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Options rates from Tall table
+        res_opts = supabase.table("samar_class_options_rv").select("*").execute()
 
+        tall_rates = []
+        rows_base = cast(List[Dict[str, Any]], res_base.data or [])
+        rows_opts = cast(List[Dict[str, Any]], res_opts.data or [])
 
-@router.post("/depreciation-rates")
-async def upsert_depreciation_rate(rate: DepreciationRate) -> DepreciationRate:
-    try:
-        data = rate.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = (
-            supabase.table("samar_class_depreciation_rates").upsert(data).execute()
-        )
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to upsert rate")
-        response_data = cast(Any, response.data[0])
-        return DepreciationRate(**response_data)
+        # Pivot Base rates (Wide -> Tall)
+        for row in rows_base:
+            s_class_id = row["klasa_samar"]
+            for engine_id, col in FUEL_TO_COL.items():
+                if col in row:
+                    tall_rates.append(
+                        DepreciationRate(
+                            samar_class_id=s_class_id,
+                            fuel_type_id=engine_id,
+                            year=1,
+                            base_depreciation_percent=row[col] or 0.0,
+                            options_depreciation_percent=0.0,
+                        )
+                    )
+
+        # Merge Options rates (Tall)
+        for opt in rows_opts:
+            match = next(
+                (
+                    r
+                    for r in tall_rates
+                    if r.samar_class_id == opt["samar_class_id"]
+                    and r.fuel_type_id == opt["engine_type_id"]
+                    and r.year == opt["year"]
+                ),
+                None,
+            )
+            if match:
+                match.options_depreciation_percent = opt["options_rv_percent"]
+                if not match.id:
+                    match.id = opt["id"]
+            else:
+                tall_rates.append(
+                    DepreciationRate(
+                        id=opt["id"],
+                        samar_class_id=opt["samar_class_id"],
+                        fuel_type_id=opt["engine_type_id"],
+                        year=opt["year"],
+                        base_depreciation_percent=0.0,
+                        options_depreciation_percent=opt["options_rv_percent"],
+                    )
+                )
+
+        if samar_class_id:
+            return [r for r in tall_rates if r.samar_class_id == samar_class_id]
+        return tall_rates
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -142,16 +339,32 @@ async def bulk_upsert_depreciation_rates(
     rates: List[DepreciationRate],
 ) -> Dict[str, Any]:
     try:
-        data_list = []
+        updated = 0
         for rate in rates:
-            d = rate.model_dump(exclude_unset=True)
-            if not d.get("id"):
-                d.pop("id", None)
-            data_list.append(d)
-        response = (
-            supabase.table("samar_class_depreciation_rates").upsert(data_list).execute()
-        )
-        return {"status": "success", "count": len(response.data)}
+            # Update Base (Wide Table)
+            col_name = FUEL_TO_COL.get(rate.fuel_type_id)
+            if col_name:
+                supabase.table("samar_class_depreciation_rates").upsert(
+                    {
+                        "klasa_samar": rate.samar_class_id,
+                        col_name: rate.base_depreciation_percent,
+                    },
+                    on_conflict="klasa_samar",
+                ).execute()
+
+            # Update Options (Tall Table)
+            opt_data = {
+                "samar_class_id": rate.samar_class_id,
+                "engine_type_id": rate.fuel_type_id,
+                "year": rate.year,
+                "options_rv_percent": rate.options_depreciation_percent,
+            }
+            supabase.table("samar_class_options_rv").upsert(
+                opt_data, on_conflict="samar_class_id, engine_type_id, year"
+            ).execute()
+
+            updated += 1
+        return {"status": "success", "count": updated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -159,9 +372,8 @@ async def bulk_upsert_depreciation_rates(
 @router.delete("/depreciation-rates/{rate_id}")
 async def delete_depreciation_rate(rate_id: int) -> Dict[str, str]:
     try:
-        supabase.table("samar_class_depreciation_rates").delete().eq(
-            "id", rate_id
-        ).execute()
+        # Note: rate_id in Tall format usually refers to the options table
+        supabase.table("samar_class_options_rv").delete().eq("id", rate_id).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -172,11 +384,13 @@ async def delete_depreciation_rate(rate_id: int) -> Dict[str, str]:
 
 @router.get("/samar-classes")
 async def get_samar_classes() -> List[SamarClass]:
+    cached = config_cache.get("samar_classes")
+    if cached is not None:
+        return cached
     try:
         response = supabase.table("samar_classes").select("*").order("id").execute()
         response_data = cast(Any, response.data)
 
-        # Fetch example models from KlasaSAMAR_czak mapping
         try:
             samar_czak = (
                 supabase.table("KlasaSAMAR_czak").select("col_1", "col_8").execute()
@@ -191,8 +405,6 @@ async def get_samar_classes() -> List[SamarClass]:
             czak_mapping = {}
 
         results = []
-        # czak_mapping uses old format (no "Klasa"), samar_classes uses new format
-        # Build a normalized czak lookup for fuzzy name matching
         czak_norm_map: Dict[str, str] = {}
         for raw_name, models in czak_mapping.items():
             norm = raw_name.strip().upper().replace("KLASA ", "")
@@ -200,7 +412,6 @@ async def get_samar_classes() -> List[SamarClass]:
 
         for row in response_data:
             model = SamarClass(**row)
-            # Try exact match first, then normalized
             if model.name in czak_mapping:
                 model.example_models = czak_mapping[model.name]
             else:
@@ -209,7 +420,60 @@ async def get_samar_classes() -> List[SamarClass]:
                     model.example_models = czak_norm_map[norm_key]
             results.append(model)
 
+        config_cache.set("samar_classes", results)
         return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Base RV Matrix (per engine × samar_class)# ── Samar Class Base RV CRUD ──
+
+
+@router.get("/samar-class-base-rv", response_model=List[SamarClassBaseRV])
+async def get_all_samar_class_base_rv() -> List[SamarClassBaseRV]:
+    try:
+        response = (
+            supabase.table("samar_class_base_rv")
+            .select("id, samar_class_id, engine_type_id, base_rv_percent")
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [SamarClassBaseRV(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/samar-class-base-rv/{samar_class_id}")
+async def get_samar_class_base_rv(samar_class_id: int) -> List[SamarClassBaseRV]:
+    try:
+        response = (
+            supabase.table("samar_class_base_rv")
+            .select("id, samar_class_id, engine_type_id, base_rv_percent")
+            .eq("samar_class_id", samar_class_id)
+            .execute()
+        )
+        response_data = cast(Any, response.data)
+        return [SamarClassBaseRV(**row) for row in response_data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/samar-class-base-rv/bulk")
+async def bulk_upsert_base_rv(payload: List[SamarClassBaseRV]) -> Dict[str, Any]:
+    try:
+        data_list = []
+        for item in payload:
+            d = item.model_dump(exclude_unset=True)
+            if not d.get("id"):
+                d.pop("id", None)
+            data_list.append(d)
+
+        response = (
+            supabase.table("samar_class_base_rv")
+            .upsert(data_list, on_conflict="samar_class_id, engine_type_id")
+            .execute()
+        )
+        return {"status": "success", "count": len(response.data)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -377,99 +641,50 @@ async def import_samar_service_costs(file: UploadFile = File(...)) -> Dict[str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Brand Corrections CRUD (ltr_admin_korekta_wr_markas) ──
+@router.post("/service-multipliers/{multi_type}")
+async def upsert_service_multiplier(
+    multi_type: str, item: ServiceMultiplier
+) -> ServiceMultiplier:
+    valid_types = {"brand", "fuel", "drive", "gearbox"}
+    if multi_type not in valid_types:
+        raise HTTPException(status_code=400, detail="Invaild multiplier type")
 
+    table_name = f"samar_service_{multi_type}_multipliers"
+    col_name = f"{multi_type}_normalized"
 
-@router.get("/brand-corrections")
-async def get_brand_corrections_crud() -> list[dict[str, Any]]:
     try:
-        response = (
-            supabase.table("ltr_admin_korekta_wr_markas")
-            .select("*")
-            .order("samar_class_id")
-            .order("brand_name")
-            .execute()
-        )
-        return cast(list[dict[str, Any]], response.data or [])
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        data = {
+            col_name: item.name_normalized.strip().upper(),
+            "multiplier": item.multiplier,
+        }
+        if item.id:
+            data["id"] = item.id
 
-
-@router.post("/brand-corrections")
-async def upsert_brand_correction(item: BrandCorrection) -> dict[str, Any]:
-    try:
-        data = item.model_dump(exclude_unset=True)
-        data["brand_name"] = (data.get("brand_name") or "").strip().upper()
-        if data.get("model_name"):
-            data["model_name"] = data["model_name"].strip()
-        if not data.get("id"):
-            data.pop("id", None)
         response = (
-            supabase.table("ltr_admin_korekta_wr_markas")
-            .upsert(
-                data,
-                on_conflict="samar_class_id,rodzaj_paliwa,brand_name",
-            )
-            .execute()
+            supabase.table(table_name).upsert(data, on_conflict=col_name).execute()
         )
         if not response.data:
-            raise HTTPException(
-                status_code=500, detail="Nie udało się zapisać korekty marki"
-            )
-        return cast(dict[str, Any], response.data[0])
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Failed to upsert multiplier")
 
-
-@router.delete("/brand-corrections/{item_id}")
-async def delete_brand_correction(item_id: int) -> Dict[str, str]:
-    try:
-        supabase.table("ltr_admin_korekta_wr_markas").delete().eq(
-            "id", item_id
-        ).execute()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ── Body Types Dictionary CRUD ──
-
-
-@router.get("/body-types")
-async def get_body_types() -> List[BodyType]:
-    try:
-        response = (
-            supabase.table("body_types")
-            .select("*")
-            .order("vehicle_class")
-            .order("name")
-            .execute()
+        row = cast(Dict[str, Any], response.data[0])
+        return ServiceMultiplier(
+            id=str(row.get("id")),
+            name_normalized=str(row.get(col_name, "")),
+            multiplier=float(row.get("multiplier", 1.0)),
         )
-        response_data = cast(Any, response.data)
-        return [BodyType(**row) for row in response_data]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/body-types")
-async def upsert_body_type(body_type: BodyType) -> BodyType:
-    try:
-        data = body_type.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("body_types").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to upsert body type")
-        response_data = cast(Any, response.data[0])
-        return BodyType(**response_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.delete("/service-multipliers/{multi_type}/{item_id}")
+async def delete_service_multiplier(multi_type: str, item_id: str) -> Dict[str, str]:
+    valid_types = {"brand", "fuel", "drive", "gearbox"}
+    if multi_type not in valid_types:
+        raise HTTPException(status_code=400, detail="Invaild multiplier type")
 
-
-@router.delete("/body-types/{body_type_id}")
-async def delete_body_type(body_type_id: int) -> Dict[str, str]:
+    table_name = f"samar_service_{multi_type}_multipliers"
     try:
-        supabase.table("body_types").delete().eq("id", body_type_id).execute()
+        supabase.table(table_name).delete().eq("id", item_id).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -481,28 +696,45 @@ async def get_replacement_car_rates() -> List[ReplacementCarRate]:
         response = (
             supabase.table("replacement_car_rates")
             .select("*")
-            .order("samar_class_id")
+            .order("klasa_samar_fk")
             .execute()
         )
-        response_data = cast(Any, response.data)
-        return [ReplacementCarRate(**row) for row in response_data]
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                ReplacementCarRate(
+                    id=str(row["id"]),
+                    samar_class_id=row["klasa_samar_fk"],
+                    average_days_per_year=row["srednia_l_dni_rok"],
+                    daily_rate_net=row["stawka_dzienna_netto_zl"],
+                )
+            )
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/replacement-car-rates")
-async def upsert_replacement_car_rate(item: ReplacementCarRate) -> ReplacementCarRate:
+@router.post("/replacement-car-rates/bulk")
+async def bulk_upsert_replacement_car_rates(
+    items: List[ReplacementCarRate],
+) -> Dict[str, Any]:
     try:
-        data = item.model_dump(exclude_unset=True)
-        if not data.get("id"):
-            data.pop("id", None)
-        response = supabase.table("replacement_car_rates").upsert(data).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=500, detail="Nie udało się zapisać stawki zastępczego"
-            )
-        response_data = cast(Any, response.data[0])
-        return ReplacementCarRate(**response_data)
+        updated = 0
+        for item in items:
+            d = {
+                "klasa_samar_fk": item.samar_class_id,
+                "srednia_l_dni_rok": item.average_days_per_year,
+                "stawka_dzienna_netto_zl": item.daily_rate_net,
+            }
+            if item.id:
+                supabase.table("replacement_car_rates").upsert(
+                    {**d, "id": item.id}
+                ).execute()
+            else:
+                supabase.table("replacement_car_rates").insert(d).execute()
+            updated += 1
+        return {"status": "success", "count": updated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -516,78 +748,111 @@ async def delete_replacement_car_rate(item_id: str) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Body Type WR Corrections CRUD (Sparse) ──
-
-
-# ── Zabudowa Types Dictionary CRUD ──
-
-
-# ── Paint Types WR Correction CRUD ──
-
-
-@router.get("/paint-types")
-async def get_paint_types() -> List[PaintType]:
+@router.get("/samar-class-service-rates")
+async def get_samar_class_service_rates() -> List[SamarClassServiceRate]:
     try:
         response = (
-            supabase.table("paint_types")
-            .select("id, name, wr_correction")
-            .order("id")
+            supabase.table("samar_class_service_rates")
+            .select("*")
+            .order("klasa_samar_fk")
+            .order("przebieg_do")
             .execute()
         )
-        response_data = cast(Any, response.data)
-        return [PaintType(**row) for row in response_data]
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                SamarClassServiceRate(
+                    id=str(row["id"]),
+                    samar_class_id=row["klasa_samar_fk"],
+                    mileage_up_to=row["przebieg_do"],
+                    cost_aso_per_km=row["stawka_aso_per_km"],
+                    cost_non_aso_per_km=row["stawka_non_aso_per_km"],
+                )
+            )
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/paint-types/bulk")
-async def bulk_update_paint_types(
-    items: List[PaintType],
+@router.post("/samar-class-service-rates/bulk")
+async def bulk_upsert_samar_class_service_rates(
+    rates: List[SamarClassServiceRate],
 ) -> Dict[str, Any]:
     try:
         updated = 0
-        for item in items:
-            if item.id is None:
-                continue
-            supabase.table("paint_types").update(
-                {"wr_correction": item.wr_correction}
-            ).eq("id", item.id).execute()
+        for item in rates:
+            d = {
+                "klasa_samar_fk": item.samar_class_id,
+                "przebieg_do": item.mileage_up_to,
+                "stawka_aso_per_km": item.cost_aso_per_km,
+                "stawka_non_aso_per_km": item.cost_non_aso_per_km,
+            }
+            if item.id:
+                supabase.table("samar_class_service_rates").upsert(
+                    {**d, "id": item.id}
+                ).execute()
+            else:
+                supabase.table("samar_class_service_rates").insert(d).execute()
             updated += 1
         return {"status": "success", "count": updated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Vintage (Rocznik) Correction CRUD ──
-
-
-@router.get("/vintage-corrections")
-async def get_vintage_corrections() -> List[VintageCorrection]:
+@router.delete("/samar-class-service-rates/{rate_id}")
+async def delete_samar_class_service_rate(rate_id: str) -> Dict[str, str]:
     try:
-        response = (
-            supabase.table("ltr_admin_korekta_wr_roczniks")
-            .select("id, rocznik, korekta_procent")
-            .order("id")
-            .execute()
-        )
-        response_data = cast(Any, response.data)
-        return [VintageCorrection(**row) for row in response_data]
+        supabase.table("samar_class_service_rates").delete().eq("id", rate_id).execute()
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/vintage-corrections/bulk")
-async def bulk_update_vintage_corrections(
-    items: List[VintageCorrection],
+@router.get("/mileage-corrections")
+async def get_mileage_corrections() -> List[MileageCorrection]:
+    try:
+        response = (
+            supabase.table("samar_class_mileage_corrections")
+            .select("*")
+            .order("klasa_samar")
+            .execute()
+        )
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                MileageCorrection(
+                    id=row["id"],
+                    samar_class_id=row["klasa_samar"],
+                    fuel_type_id=1,  # Global default for online schema
+                    under_threshold_percent=row["korekta_lt_prog"],
+                    over_threshold_percent=row["korekta_gt_prog"],
+                )
+            )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/mileage-corrections/bulk")
+async def bulk_upsert_mileage_corrections(
+    items: List[MileageCorrection],
 ) -> Dict[str, Any]:
     try:
         updated = 0
         for item in items:
-            if item.id is None:
-                continue
-            supabase.table("ltr_admin_korekta_wr_roczniks").update(
-                {"korekta_procent": item.korekta_procent}
-            ).eq("id", item.id).execute()
+            d = {
+                "klasa_samar": item.samar_class_id,
+                "korekta_lt_prog": item.under_threshold_percent,
+                "korekta_gt_prog": item.over_threshold_percent,
+            }
+            if item.id:
+                supabase.table("samar_class_mileage_corrections").upsert(
+                    {**d, "id": item.id}
+                ).execute()
+            else:
+                supabase.table("samar_class_mileage_corrections").insert(d).execute()
             updated += 1
         return {"status": "success", "count": updated}
     except Exception as e:

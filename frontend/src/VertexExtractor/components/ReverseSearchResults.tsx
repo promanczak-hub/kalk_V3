@@ -1,5 +1,5 @@
 import { Search, X, Loader2, Car } from "lucide-react";
-import { SearchFilter, SearchResult } from "../types";
+import type { SearchFilter, SearchResult } from "../types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ReverseSearchResults({ state, actions }: { state: any; actions: any }) {

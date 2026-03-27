@@ -132,7 +132,7 @@ def test_llm_match_empty_inputs() -> None:
 # ── enrich_vehicle_features ───────────────────────────────────────────────
 
 
-def test_enrich_vehicle_features_uses_llm_for_equipment(mocker: Any) -> None:
+def test_enrich_vehicle_features_uses_llm_for_equipment() -> None:
     """End-to-end: enrich calls _llm_match_equipment for std_equipment."""
     synthesis_data = {
         "card_summary": {
@@ -140,31 +140,33 @@ def test_enrich_vehicle_features_uses_llm_for_equipment(mocker: Any) -> None:
             "paid_options": [],
         }
     }
-    mocker.patch(
-        "core.feature_enrichment._load_feature_catalog",
-        return_value=SAMPLE_FEATURES,
-    )
-    mocker.patch(
-        "core.feature_enrichment._llm_match_equipment",
-        return_value=[
-            {
-                "item": "felga aluminiowa",
-                "feature_key": "felga_aluminiowa",
-                "confidence": 0.95,
-            }
-        ],
-    )
-    mock_sb = mocker.patch("core.feature_enrichment.sb_client")
-    mock_sb.schema.return_value.table.return_value.upsert.return_value.execute.return_value = MagicMock()
-    mocker.patch(
-        "core.feature_enrichment.resolve_vehicle_features",
-        return_value={"resolved": 1},
-    )
+    with (
+        patch(
+            "core.feature_enrichment._load_feature_catalog",
+            return_value=SAMPLE_FEATURES,
+        ),
+        patch(
+            "core.feature_enrichment._llm_match_equipment",
+            return_value=[
+                {
+                    "item": "felga aluminiowa",
+                    "feature_key": "felga_aluminiowa",
+                    "confidence": 0.95,
+                }
+            ],
+        ),
+        patch("core.feature_enrichment.sb_client") as mock_sb,
+        patch(
+            "core.feature_enrichment.resolve_vehicle_features",
+            return_value={"resolved": 1},
+        ),
+    ):
+        mock_sb.schema.return_value.table.return_value.upsert.return_value.execute.return_value = MagicMock()
 
-    result = enrich_vehicle_features("vehicle-uuid", synthesis_data)
+        result = enrich_vehicle_features("vehicle-uuid", synthesis_data)
 
-    assert result["evidence_created"] == 1
-    assert result["errors"] == []
+        assert result["evidence_created"] == 1
+        assert result["errors"] == []
 
 
 def test_enrich_returns_error_on_missing_card_summary() -> None:

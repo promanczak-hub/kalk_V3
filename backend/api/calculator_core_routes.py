@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("/calculate-matrix")
-async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
+def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
     try:
         from domain.calculations.service import CalculationService
 
@@ -25,7 +25,7 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
         # Wykorzystanie wzorca UseCase/Service z domeny calculations
         calc_service = CalculationService(data=data, settings=settings)
         matrix_cells = calc_service.calculate_matrix()
-        
+
         # Opcjonalny zrzut do konsoli, izolowany wewnątrz serwisu
         calc_service.print_terminal_trace(matrix_cells)
 
@@ -43,7 +43,7 @@ async def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
 
 
 @router.post("/calculate-trace")
-async def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
+def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
     """Przelicza matrycę i zwraca pełen obiekt ze śladem diagnostycznym."""
     try:
         from domain.calculations.service import CalculationService
@@ -74,7 +74,7 @@ async def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
 
 
 @router.get("/match-body-type", tags=["Calculator"])
-async def match_body_type_endpoint(
+def match_body_type_endpoint(
     body_style_raw: str = "",
 ) -> Dict[str, Any]:
     """Fuzzy-match raw body_style → body_types with score."""
@@ -98,45 +98,67 @@ _engine_name_cache: Optional[Dict[str, int]] = None
 
 def _load_engine_name_map() -> Dict[str, int]:
     global _engine_name_cache
-    if _engine_name_cache is not None:
+    if _engine_name_cache:
         return _engine_name_cache
     try:
         resp = supabase.table("engines").select("id, name").execute()
         data = cast(Any, resp.data) or []
-        _engine_name_cache = {row["name"].strip().upper(): row["id"] for row in data}
-    except Exception:
-        logging.warning("Nie udało się załadować tabeli engines – pusty cache")
-        _engine_name_cache = {}
+        # Normalizujemy klucze do wielkich liter bez zbędnych spacji
+        _engine_name_cache = {
+            str(row["name"]).strip().upper(): int(row["id"]) for row in data
+        }
+    except Exception as exc:
+        logging.warning(f"Nie udało się załadować tabeli engines: {exc}")
+        return {}
     return _engine_name_cache
 
 
 def _resolve_engine_id(engine_name: str) -> Optional[int]:
+    if not engine_name or not engine_name.strip():
+        return None
+
     mapping = _load_engine_name_map()
     normalized = engine_name.strip().upper()
+
+    # 1. Dokładne dopasowanie (case-insensitive)
     if normalized in mapping:
         return mapping[normalized]
+
+    # 2. Częściowe dopasowanie (zawiera się w kluczu lub na odwrót)
     for key, fid in mapping.items():
         if key in normalized or normalized in key:
             return fid
 
+    # 3. Fallback: dopasowanie po tagu w nawiasach, np. (PB), (ON), (PHEV)
     import re
-    match = re.search(r'\(([A-Za-z0-9\-]+)\)', normalized)
+
+    match = re.search(r"\(([A-Z0-9\-]+)\)", normalized)
     if match:
         tag = f"({match.group(1)})"
         for key, fid in mapping.items():
             if tag in key:
                 return fid
+
+    # 4. Jeśli nadal nic, a mamy pusty cache (np. błąd DB), spróbujmy przeładować raz jeszcze
+    if not mapping:
+        global _engine_name_cache
+        _engine_name_cache = None
+        mapping = _load_engine_name_map()
+        if normalized in mapping:
+            return mapping[normalized]
+
     return None
 
 
 @router.get("/readiness-check", tags=["Calculator"])
-async def readiness_check(
+def readiness_check(
     samar_class_name: str,
     engine_name: str,
     brand_name: str = "",
     body_type_name: str = "",
     paint_type_name: str = "",
     vehicle_id: str = "",
+    zabudowa_type_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     from core.samar_rv import check_rv_readiness, get_samar_class_id
 
@@ -218,22 +240,22 @@ async def readiness_check(
         body_type_id=resolved_body_type_id,
         paint_type_id=resolved_paint_type_id,
         rocznik="2026",
+        zabudowa_type_id=zabudowa_type_id,
     )
 
     try:
         svc_res = (
-            supabase.table("samar_service_costs")
-            .select("power_band")
-            .eq("samar_class_id", samar_class_id)
-            .eq("engine_type_id", fuel_type_id)
+            supabase.table("samar_class_service_rates")
+            .select("przebieg_do")
+            .eq("klasa_samar_fk", samar_class_id)
             .execute()
         )
-        svc_bands = {r["power_band"] for r in (svc_res.data or [])}
-        if svc_bands:
+        svc_thresholds = [r["przebieg_do"] for r in (svc_res.data or [])]
+        if svc_thresholds:
             svc_item = type(checks[0])(
                 param="Stawki serwisowe",
                 status="ok",
-                value=f"{', '.join(sorted(svc_bands))}",
+                value=f"TAK, {len(svc_thresholds)} progów",
             )
         else:
             svc_item = type(checks[0])(
@@ -286,7 +308,11 @@ async def readiness_check(
                     error_count += 1
                 else:
                     items.append(
-                        {"param": "Marka pojazdu", "status": "ok", "value": vrow["brand"]}
+                        {
+                            "param": "Marka pojazdu",
+                            "status": "ok",
+                            "value": vrow["brand"],
+                        }
                     )
 
                 if not vrow.get("model"):
@@ -296,7 +322,11 @@ async def readiness_check(
                     error_count += 1
                 else:
                     items.append(
-                        {"param": "Model pojazdu", "status": "ok", "value": vrow["model"]}
+                        {
+                            "param": "Model pojazdu",
+                            "status": "ok",
+                            "value": vrow["model"],
+                        }
                     )
 
                 # Sprawdz cene bazowa (sciezka identyczna jak w build_calculator_input)
@@ -309,16 +339,28 @@ async def readiness_check(
                 )
                 if not base_price:
                     synthesis_errors.append(
-                        {"param": "Cena bazowa (katalogowa)", "status": "error", "value": "BRAK"}
+                        {
+                            "param": "Cena bazowa (katalogowa)",
+                            "status": "error",
+                            "value": "BRAK",
+                        }
                     )
                     error_count += 1
                 else:
                     items.append(
-                        {"param": "Cena bazowa (katalogowa)", "status": "ok", "value": str(base_price)}
+                        {
+                            "param": "Cena bazowa (katalogowa)",
+                            "status": "ok",
+                            "value": str(base_price),
+                        }
                     )
             else:
                 synthesis_errors.append(
-                    {"param": "Pojazd w bazie", "status": "error", "value": "Nie znaleziono ID"}
+                    {
+                        "param": "Pojazd w bazie",
+                        "status": "error",
+                        "value": "Nie znaleziono ID",
+                    }
                 )
                 error_count += 1
         except Exception as exc:

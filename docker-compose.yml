@@ -11,8 +11,6 @@ services:
       - APP_ENV=production
       - AUTH_ENABLED=false
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_URL=http://postgrest:3000
-      - SUPABASE_KEY=local_parity_key
     depends_on:
       - redis
       - postgrest
@@ -78,12 +76,9 @@ services:
       - APP_ENV=production
       - AUTH_ENABLED=false
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_URL=http://postgrest:3000
-      - SUPABASE_KEY=local_parity_key
       - PYTHONPATH=/app
     depends_on:
       - redis
-      - postgrest
     healthcheck:
       test: ["CMD", "celery", "-A", "core.celery_app", "inspect", "ping", "--timeout", "5"]
       interval: 60s
@@ -103,13 +98,11 @@ services:
       - APP_ENV=production
       - AUTH_ENABLED=false
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_URL=http://postgrest:3000
-      - SUPABASE_KEY=local_parity_key
       - PYTHONPATH=/app
     depends_on:
       - redis
-      - postgrest
     restart: unless-stopped
+
 
 volumes:
   redis_data:

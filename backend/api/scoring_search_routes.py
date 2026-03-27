@@ -292,10 +292,13 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
             },
         ).execute()
 
-        results: dict[str, list[SimilarVehicleMatch]] = {vid: [] for vid in req.vehicle_ids}
-        
+        results: dict[str, list[SimilarVehicleMatch]] = {
+            vid: [] for vid in req.vehicle_ids
+        }
+
         if response.data:
             from typing import cast, Any
+
             rows = cast(list[dict[str, Any]], response.data)
             for row in rows:
                 source_id = str(row.pop("source_vehicle_id"))
@@ -305,14 +308,24 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                     brand=str(row.get("brand")) if row.get("brand") else None,
                     model=str(row.get("model")) if row.get("model") else None,
                     version=str(row.get("version")) if row.get("version") else None,
-                    samar_category=str(row.get("samar_category")) if row.get("samar_category", row.get("v_samar")) else None,
-                    fuel=str(row.get("fuel")) if row.get("fuel", row.get("v_fuel")) else None,
-                    transmission=str(row.get("transmission")) if row.get("transmission", row.get("v_transmission")) else None,
-                    best_monthly_price=float(row.get("min_price")) if row.get("min_price") is not None else None,
+                    samar_category=str(row.get("samar_category"))
+                    if row.get("samar_category", row.get("v_samar"))
+                    else None,
+                    fuel=str(row.get("fuel"))
+                    if row.get("fuel", row.get("v_fuel"))
+                    else None,
+                    transmission=str(row.get("transmission"))
+                    if row.get("transmission", row.get("v_transmission"))
+                    else None,
+                    best_monthly_price=float(row.get("min_price"))
+                    if row.get("min_price") is not None
+                    else None,
                     image_url=str(row.get("v_image")) if row.get("v_image") else None,
-                    similarity_score_pct=float(row.get("similarity_score_pct")) if row.get("similarity_score_pct") is not None else None,
+                    similarity_score_pct=float(row.get("similarity_score_pct"))
+                    if row.get("similarity_score_pct") is not None
+                    else None,
                 )
-                
+
                 if source_id in results:
                     results[source_id].append(match)
 
@@ -324,7 +337,6 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
         )
 
 
-
 class BatchPricesRequest(BaseModel):
     vehicle_ids: List[str]
     duration_months_min: int
@@ -333,8 +345,6 @@ class BatchPricesRequest(BaseModel):
     annual_mileage_max: int
     discount_mode: str = "custom"  # 'catalog', 'offer', 'custom'
     custom_discount_pct: float = 0.0
-
-
 
 
 class VehiclePrices(BaseModel):
@@ -350,7 +360,7 @@ class BatchPricesResponse(BaseModel):
     "/scoring-search/cache/batch-prices",
     response_model=BatchPricesResponse,
 )
-async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
+def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
     """Return base LTR prices (0% margin) and variants for multiple vehicles.
 
     Prices are returned WITHOUT margin — the frontend applies
@@ -365,7 +375,9 @@ async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
         # ── Fetch all matrix cache entries ──
         resp = (
             sb.table("vehicle_matrix_cache")
-            .select("vehicle_id, kalkulacja_id, duration_months, annual_mileage, monthly_price_net, tire_class, service_type, calculated_at")
+            .select(
+                "vehicle_id, kalkulacja_id, duration_months, annual_mileage, monthly_price_net, tire_class, service_type, calculated_at"
+            )
             .in_("vehicle_id", req.vehicle_ids)
             .limit(10000)
             .execute()
@@ -447,15 +459,11 @@ async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
 
             best_match = min(
                 valid_rows,
-                key=lambda x: float(
-                    x.get("monthly_price_net") or float("inf")
-                ),
+                key=lambda x: float(x.get("monthly_price_net") or float("inf")),
             )
 
             # Return raw cache price — no margin applied
-            display_price = float(
-                best_match["monthly_price_net"] or 0
-            )
+            display_price = float(best_match["monthly_price_net"] or 0)
 
             v_prices.price_for_params = PriceForParamsResponse(
                 vehicle_id=vid,
@@ -483,9 +491,7 @@ async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                 if valid_kid_rows:
                     kid_match = min(
                         valid_kid_rows,
-                        key=lambda x: float(
-                            x.get("monthly_price_net") or float("inf")
-                        ),
+                        key=lambda x: float(x.get("monthly_price_net") or float("inf")),
                     )
 
                 if kid_match:
@@ -514,25 +520,21 @@ async def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                         )
                     )
 
-            variant_responses.sort(
-                key=lambda x: x.calculated_at or "", reverse=True
-            )
+            variant_responses.sort(key=lambda x: x.calculated_at or "", reverse=True)
             v_prices.variants = variant_responses
             results[vid] = v_prices
 
         return BatchPricesResponse(prices=results)
     except Exception as e:
         logger.exception("Error in get_batch_prices: %s", e)
-        raise HTTPException(
-            status_code=500, detail=f"Batch prices failed: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Batch prices failed: {e}")
 
 
 @router.get(
     "/scoring-search/vehicle/{vehicle_id}/price-for-params",
     response_model=PriceForParamsResponse,
 )
-async def get_price_for_params(
+def get_price_for_params(
     vehicle_id: str,
     duration_months: int,
     annual_mileage: int,
@@ -545,7 +547,9 @@ async def get_price_for_params(
     try:
         resp = (
             sb.table("vehicle_matrix_cache")
-            .select("duration_months, annual_mileage, monthly_price_net, calculated_at, kalkulacja_id, tire_class, service_type")
+            .select(
+                "duration_months, annual_mileage, monthly_price_net, calculated_at, kalkulacja_id, tire_class, service_type"
+            )
             .eq("vehicle_id", vehicle_id)
             .execute()
         )
@@ -555,7 +559,7 @@ async def get_price_for_params(
             return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
 
         from collections import defaultdict
-        
+
         # Group by kalkulacja_id to find the latest
         calc_map = defaultdict(list)
         kalk_times = {}
@@ -567,7 +571,7 @@ async def get_price_for_params(
                 dt = datetime.fromisoformat(r["calculated_at"].replace("Z", "+00:00"))
                 if kid_str not in kalk_times or dt > kalk_times[kid_str]:
                     kalk_times[kid_str] = dt
-        
+
         # Find the latest kalkulacja_id
         latest_kid = None
         if kalk_times:
@@ -594,7 +598,9 @@ async def get_price_for_params(
             return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
 
         base_price_best = (
-            float(best_match["monthly_price_net"]) if best_match["monthly_price_net"] else 0.0
+            float(best_match["monthly_price_net"])
+            if best_match["monthly_price_net"]
+            else 0.0
         )
         display_price_best = base_price_best / (1.0 - (margin / 100.0))
 
@@ -608,7 +614,7 @@ async def get_price_for_params(
             variants_count=variants_count,
             tire_class=best_match.get("tire_class"),
             service_type=best_match.get("service_type"),
-            kalkulacja_id=best_match.get("kalkulacja_id")
+            kalkulacja_id=best_match.get("kalkulacja_id"),
         )
     except Exception as e:
         logger.exception("Error in get_price_for_params [%s]: %s", vehicle_id, e)
@@ -681,7 +687,6 @@ def get_price_variants(
 def get_search_cache_stats() -> dict[str, Any]:
     """Zwraca statystyki Redis (dostępność, liczba kluczy, pamięć)."""
     return get_cache_stats()
-
 
 
 @router.get("/scoring-search/readiness-check")

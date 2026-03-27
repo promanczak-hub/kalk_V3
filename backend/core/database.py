@@ -1,7 +1,6 @@
 import logging
 
 
-
 from supabase import create_client, Client, ClientOptions
 from core.settings import SUPABASE_URL, SUPABASE_KEY
 

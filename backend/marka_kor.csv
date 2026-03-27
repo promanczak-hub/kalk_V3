@@ -1,0 +1,196 @@
+KLASA SAMAR,MARKA,MODEL,SILNIK,KOREKTA
+Kombivany - H KOMBI-VANY,DACIA,,Diesel (ON),0
+Kombivany - H KOMBI-VANY,DACIA,,Hybryda (HEV),"0,1"
+Kombivany - H KOMBI-VANY,FORD,,Diesel (ON),"-0,04"
+Kombivany - H KOMBI-VANY,MERCEDES,,Diesel (ON),0
+Kombivany - H KOMBI-VANY,OPEL,,Benzyna (PB),"0,02"
+Kombivany - H KOMBI-VANY,OPEL,,Hybryda (HEV),"0,02"
+Kombivany - H KOMBI-VANY,RENAULT,,Diesel (ON),"-0,06"
+Kombivany - H KOMBI-VANY,TOYOTA,,Benzyna (PB),"0,01"
+Kombivany - H KOMBI-VANY,TOYOTA,,Hybryda (HEV),"0,03"
+Kombivany - H KOMBI-VANY,VOLKSWAGEN,,Benzyna (PB),"0,02"
+Kombivany - H KOMBI-VANY,VOLKSWAGEN,,Hybryda (HEV),"0,02"
+Lekkie dostawcze - KOMBI VAN,FIAT,,Diesel (ON),"0,04"
+Lekkie dostawcze - KOMBI VAN,FORD,,Diesel (ON),"-0,1"
+Lekkie dostawcze - KOMBI VAN,OPEL,,Diesel (ON),0
+Lekkie dostawcze - KOMBI VAN,RENAULT,,Elektryczny (BEV),"-0,04"
+Lekkie dostawcze - KOMBI VAN,TOYOTA,,Diesel (ON),"0,03"
+Minibusy - I MINIBUSY,MERCEDES,,Diesel (ON),"0,04"
+Minibusy - I MINIBUSY,MERCEDES,,Elektryczny (BEV),"-0,06"
+Minibusy - I MINIBUSY,PEUGEOT,,Elektryczny (BEV),"-0,03"
+Minibusy - I MINIBUSY,RENAULT,,Diesel (ON),"0,09"
+Minibusy - I MINIBUSY,TOYOTA,,Diesel (ON),"0,03"
+Minibusy - I MINIBUSY,VOLKSWAGEN,,Diesel (ON),0
+Pick-up - PICK-UP,FIAT,,Diesel (ON),"0,05"
+Pick-up - PICK-UP,FORD,,Diesel (ON),"0,02"
+Pick-up - PICK-UP,IVECO,,Diesel (ON),"0,01"
+Pick-up - PICK-UP,MAN,,Diesel (ON),"-0,03"
+Pick-up - PICK-UP,MERCEDES,,Diesel (ON),0
+Pick-up - PICK-UP,MERCEDES,,Elektryczny (BEV),"-0,01"
+Pick-up - PICK-UP,OPEL,,Diesel (ON),"0,02"
+Pick-up - PICK-UP,OPEL,,Elektryczny (BEV),"-0,05"
+Pick-up - PICK-UP,RENAULT,,Diesel (ON),"0,05"
+Pick-up - PICK-UP,TOYOTA,,Diesel (ON),"0,03"
+Pick-up - PICK-UP,VOLKSWAGEN,,Diesel (ON),"-0,01"
+Podstawowa - B MAŁE,DACIA,,Hybryda (HEV),"-0,03"
+Podstawowa - B MAŁE,RENAULT,,Elektryczny (BEV),"-0,06"
+Podstawowa - B MAŁE,SKODA,,Benzyna (PB),"-0,06"
+Podstawowa - B MAŁE,SKODA,,Hybryda (HEV),"0,01"
+Podstawowa - B MAŁE,TOYOTA,,Benzyna (PB),"-0,05"
+Podstawowa - B MAŁE,TOYOTA,,Hybryda (HEV),"0,02"
+Podstawowa - C NIŻSZA ŚREDNIA,AUDI,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,AUDI,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,AUDI,,Hybryda (HEV),0
+Podstawowa - C NIŻSZA ŚREDNIA,AUDI,,Plug-in Hybrid (PHEV),0
+Podstawowa - C NIŻSZA ŚREDNIA,CITROEN,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,CITROEN,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,CITROEN,,Hybryda (HEV),0
+Podstawowa - C NIŻSZA ŚREDNIA,CUPRA,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,DACIA,,Benzyna (PB),"-0,04"
+Podstawowa - C NIŻSZA ŚREDNIA,DACIA,,Hybryda (HEV),"-0,04"
+Podstawowa - C NIŻSZA ŚREDNIA,FIAT,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,FIAT,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,FIAT,,Hybryda (HEV),0
+Podstawowa - C NIŻSZA ŚREDNIA,FORD,,Benzyna (PB),"-0,06"
+Podstawowa - C NIŻSZA ŚREDNIA,FORD,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,FORD,,Hybryda (HEV),"-0,06"
+Podstawowa - C NIŻSZA ŚREDNIA,HYUNDAI,,Benzyna (PB),"0,04"
+Podstawowa - C NIŻSZA ŚREDNIA,HYUNDAI,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,HYUNDAI,,Hybryda (HEV),"0,01"
+Podstawowa - C NIŻSZA ŚREDNIA,KIA,,Benzyna (PB),"0,03"
+Podstawowa - C NIŻSZA ŚREDNIA,KIA,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,KIA,,Hybryda (HEV),"-0,02"
+Podstawowa - C NIŻSZA ŚREDNIA,MERCEDES,,Benzyna (PB),"-0,02"
+Podstawowa - C NIŻSZA ŚREDNIA,MERCEDES,,Diesel (ON),"-0,02"
+Podstawowa - C NIŻSZA ŚREDNIA,OPEL,,Benzyna (PB),"-0,01"
+Podstawowa - C NIŻSZA ŚREDNIA,OPEL,,Diesel (ON),"-0,03"
+Podstawowa - C NIŻSZA ŚREDNIA,OPEL,,Hybryda (HEV),"-0,01"
+Podstawowa - C NIŻSZA ŚREDNIA,PEUGEOT,,Benzyna (PB),"-0,07"
+Podstawowa - C NIŻSZA ŚREDNIA,PEUGEOT,,Diesel (ON),"0,02"
+Podstawowa - C NIŻSZA ŚREDNIA,PEUGEOT,,Hybryda (HEV),"-0,07"
+Podstawowa - C NIŻSZA ŚREDNIA,RENAULT,,Benzyna (PB),"-0,05"
+Podstawowa - C NIŻSZA ŚREDNIA,RENAULT,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,RENAULT,,Elektryczny (BEV),"-0,04"
+Podstawowa - C NIŻSZA ŚREDNIA,RENAULT,,Hybryda (HEV),"-0,1"
+Podstawowa - C NIŻSZA ŚREDNIA,SEAT,,Benzyna (PB),"-0,03"
+Podstawowa - C NIŻSZA ŚREDNIA,SEAT,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,SEAT,,Hybryda (HEV),"-0,03"
+Podstawowa - C NIŻSZA ŚREDNIA,SKODA,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,SKODA,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,SKODA,,Hybryda (HEV),"0,03"
+Podstawowa - C NIŻSZA ŚREDNIA,TOYOTA,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,TOYOTA,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,TOYOTA,,Hybryda (HEV),"0,02"
+Podstawowa - C NIŻSZA ŚREDNIA,TOYOTA,,Plug-in Hybrid (PHEV),"0,04"
+Podstawowa - C NIŻSZA ŚREDNIA,VOLKSWAGEN,,Benzyna (PB),0
+Podstawowa - C NIŻSZA ŚREDNIA,VOLKSWAGEN,,Diesel (ON),0
+Podstawowa - C NIŻSZA ŚREDNIA,VOLKSWAGEN,,Hybryda (HEV),"0,03"
+Podstawowa - D ŚREDNIA,BYD,,Elektryczny (BEV),"-0,1"
+Podstawowa - D ŚREDNIA,CITROEN,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,CITROEN,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,CITROEN,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,FIAT,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,FIAT,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,FIAT,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,FORD,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,FORD,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,FORD,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,HYUNDAI,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,HYUNDAI,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,HYUNDAI,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,KIA,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,KIA,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,KIA,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,OPEL,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,OPEL,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,OPEL,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,PEUGEOT,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,PEUGEOT,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,PEUGEOT,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,RENAULT,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,RENAULT,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,RENAULT,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,SEAT,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,SEAT,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,SEAT,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,SKODA,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,SKODA,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,SKODA,,Hybryda (HEV),0
+Podstawowa - D ŚREDNIA,SKODA,,Plug-in Hybrid (PHEV),0
+Podstawowa - D ŚREDNIA,TOYOTA,,Benzyna (PB),"0,04"
+Podstawowa - D ŚREDNIA,TOYOTA,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,TOYOTA,,Hybryda (HEV),"0,04"
+Podstawowa - D ŚREDNIA,VOLKSWAGEN,,Benzyna (PB),0
+Podstawowa - D ŚREDNIA,VOLKSWAGEN,,Diesel (ON),0
+Podstawowa - D ŚREDNIA,VOLKSWAGEN,,Elektryczny (BEV),"-0,06"
+Podstawowa - D ŚREDNIA,VOLKSWAGEN,,Hybryda (HEV),"0,07"
+Podstawowa - E WYŻSZA,AUDI,,Benzyna (PB),"0,07"
+Podstawowa - E WYŻSZA,AUDI,,Diesel (ON),"-0,03"
+Podstawowa - E WYŻSZA,AUDI,,Hybryda (HEV),"-0,03"
+Podstawowa - E WYŻSZA,BMW,,Benzyna (PB),0
+Podstawowa - E WYŻSZA,BMW,,Hybryda (HEV),0
+Podstawowa - E WYŻSZA,VOLVO,,Benzyna (PB),"-0,05"
+Podstawowa - E WYŻSZA,VOLVO,,Hybryda (HEV),"0,01"
+Podstawowa - F LUKSUSOWE,AUDI,,Benzyna (PB),"0,03"
+Podstawowa - F LUKSUSOWE,AUDI,,Diesel (ON),"0,08"
+Podstawowa - F LUKSUSOWE,AUDI,,Elektryczny (BEV),"-0,03"
+Podstawowa - F LUKSUSOWE,AUDI,,Hybryda (HEV),"-0,05"
+Podstawowa - F LUKSUSOWE,AUDI,,Plug-in Hybrid (PHEV),0
+Podstawowa - F LUKSUSOWE,BMW,,Benzyna (PB),0
+Podstawowa - F LUKSUSOWE,BMW,,Diesel (ON),"0,01"
+Podstawowa - F LUKSUSOWE,BMW,,Hybryda (HEV),"0,08"
+Podstawowa - F LUKSUSOWE,MERCEDES,,Diesel (ON),"0,05"
+Podstawowa - F LUKSUSOWE,VOLVO,,Benzyna (PB),"0,01"
+Podstawowa - F LUKSUSOWE,VOLVO,,Diesel (ON),"-0,08"
+Podstawowa - F LUKSUSOWE,VOLVO,,Hybryda (HEV),"-0,02"
+Terenowo-rekreacyjne (SUV) - B MAŁE,TOYOTA,,Hybryda (HEV),"0,02"
+Terenowo-rekreacyjne (SUV) - B MAŁE,VOLKSWAGEN,,Benzyna (PB),0
+Terenowo-rekreacyjne (SUV) - B MAŁE,VOLKSWAGEN,,Hybryda (HEV),"-0,02"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,ALFA,,Hybryda (HEV),"-0,07"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,BMW,,Benzyna (PB),"-0,15"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,CUPRA,,Benzyna (PB),"0,05"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,CUPRA,,Diesel (ON),"0,05"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,CUPRA,,Hybryda (HEV),"0,05"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,DACIA,,Diesel (ON),"0,07"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,DACIA,,Hybryda (HEV),"-0,09"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,FORD,,Benzyna (PB),"0,03"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,FORD,,Hybryda (HEV),"-0,09"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,FORD,,Plug-in Hybrid (PHEV),"0,05"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,HYUNDAI,,Benzyna (PB),0
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,HYUNDAI,,Hybryda (HEV),"-0,03"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,KIA,,Elektryczny (BEV),"-0,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,NISSAN,,Hybryda (HEV),"-0,1"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,RENAULT,,Benzyna (PB),"-0,02"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,RENAULT,,Hybryda (HEV),0
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,SKODA,,Diesel (ON),"0,045"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,SUZUKI,,Hybryda (HEV),0
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,TOYOTA,,Benzyna (PB),"0,03"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,TOYOTA,,Hybryda (HEV),"0,06"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,VOLKSWAGEN,,Diesel (ON),"0,05"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,ALFA,,Benzyna (PB),"-0,02"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,ALFA,,Diesel (ON),"-0,03"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,BYD,,Elektryczny (BEV),"-0,1"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,KIA,,Hybryda (HEV),"-0,02"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,PEUGEOT,,Benzyna (PB),"0,04"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,RENAULT,,Hybryda (HEV),"-0,02"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,SKODA,,Benzyna (PB),"0,04"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,SUBARU,,Benzyna (PB),"-0,02"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,TOYOTA,,Benzyna (PB),"-0,01"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,TOYOTA,,Diesel (ON),"0,16"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,TOYOTA,,Hybryda (HEV),"0,06"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,VOLKSWAGEN,,Diesel (ON),"0,08"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,VOLVO,,Benzyna (PB),"-0,1"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,VOLVO,,Diesel (ON),0
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,VOLVO,,Plug-in Hybrid (PHEV),0
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,AUDI,,Benzyna (PB),"0,03"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,AUDI,,Hybryda (HEV),0
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,BMW,,Benzyna (PB),"-0,04"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,BMW,,Diesel (ON),"0,05"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,MERCEDES,,Benzyna (PB),"0,06"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,MERCEDES,,Diesel (ON),"0,08"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,MERCEDES,,Hybryda (HEV),"0,06"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,VOLVO,,Benzyna (PB),0
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,VOLVO,,Hybryda (HEV),"0,08"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,BMW,,Benzyna (PB),"0,07"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,BMW,,Hybryda (HEV),"0,07"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,MERCEDES,,Diesel (ON),"0,08"

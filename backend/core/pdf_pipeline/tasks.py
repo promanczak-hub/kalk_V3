@@ -33,7 +33,10 @@ def extract_pdf_pricelist_task(self, temp_file_path: str) -> dict:
         # Step 1: PDF → Markdown Extraction (pymupdf4llm)
         self.update_state(
             state="PROCESSING",
-            meta={"status": "Ekstrakcja tekstu z dokumentu (pymupdf4llm)", "progress": 10},
+            meta={
+                "status": "Ekstrakcja tekstu z dokumentu (pymupdf4llm)",
+                "progress": 10,
+            },
         )
         raw_markdown = extractor.extract_to_markdown(temp_file_path)
 

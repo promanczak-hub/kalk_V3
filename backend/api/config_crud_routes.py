@@ -41,6 +41,7 @@ ALLOWED_TABLES: dict[str, str] = {
     "replacement_car_rates": "Stawki Samochodu Zastępczego",
     "service_rates_config": "Stawki Serwisowe",
     "service_base_costs_config": "Koszty Bazowe Serwisu",
+    "ltr_admin_ubezpieczenia": "Stawki Ubezpieczeniowe AC/OC",
     # RMS _czak tables
     "LTRAdminParametry_czak": "RMS: Parametry",
     "CennikOpon_czak": "RMS: Cennik Opon",
@@ -238,7 +239,7 @@ def _build_protected_xlsx(rows: list[dict[str, Any]], sheet_title: str) -> io.By
 
 
 @config_crud_router.get("/config/{table_name}/export-xlsx")
-async def export_table_xlsx(table_name: str) -> StreamingResponse:
+def export_table_xlsx(table_name: str) -> StreamingResponse:
     """Export a config table as a protected XLSX file."""
     label = _validate_table(table_name)
 
@@ -371,7 +372,7 @@ async def import_table_xlsx(
 
 
 @config_crud_router.get("/config/{table_name}/versions")
-async def list_versions(table_name: str) -> list[VersionInfo]:
+def list_versions(table_name: str) -> list[VersionInfo]:
     """List all saved versions/snapshots for a config table."""
     _validate_table(table_name)
 
@@ -417,7 +418,7 @@ async def list_versions(table_name: str) -> list[VersionInfo]:
 
 
 @config_crud_router.post("/config/{table_name}/snapshot")
-async def create_manual_snapshot(
+def create_manual_snapshot(
     table_name: str, body: SnapshotRequest | None = None
 ) -> dict[str, Any]:
     """Manually create a named snapshot of current table state."""
@@ -437,7 +438,7 @@ async def create_manual_snapshot(
 
 
 @config_crud_router.post("/config/{table_name}/restore/{version_id}")
-async def restore_version(table_name: str, version_id: int) -> dict[str, Any]:
+def restore_version(table_name: str, version_id: int) -> dict[str, Any]:
     """Restore table data from a specific version snapshot.
 
     1. Creates a 'before restore' snapshot of current data
@@ -505,7 +506,7 @@ async def restore_version(table_name: str, version_id: int) -> dict[str, Any]:
 
 
 @config_crud_router.get("/config/{table_name}/versions/{version_id}/export-xlsx")
-async def export_version_xlsx(table_name: str, version_id: int) -> StreamingResponse:
+def export_version_xlsx(table_name: str, version_id: int) -> StreamingResponse:
     """Export a specific historical version as XLSX."""
     label = _validate_table(table_name)
 

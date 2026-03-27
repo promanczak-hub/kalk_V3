@@ -41,6 +41,27 @@ class SamarClass(BaseModel):
     size_class: Optional[str] = None
 
 
+class SamarClassBaseRV(BaseModel):
+    id: Optional[int] = None
+    samar_class_id: int
+    engine_type_id: int
+    base_rv_percent: float = 0.0
+
+
+class SamarClassServiceRate(BaseModel):
+    id: Optional[str] = None
+    samar_class_id: int
+    mileage_up_to: int
+    cost_aso_per_km: float
+    cost_non_aso_per_km: float
+
+
+class ServiceMultiplier(BaseModel):
+    id: Optional[str] = None
+    name_normalized: str
+    multiplier: float
+
+
 class SamarServiceCost(BaseModel):
     id: Optional[str] = None
     samar_class_id: int

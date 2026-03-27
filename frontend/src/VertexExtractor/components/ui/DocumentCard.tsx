@@ -1,12 +1,22 @@
 import {
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  IconButton,
+  LinearProgress,
+  Chip,
+  alpha,
+  useTheme,
+} from "@mui/material";
+import {
+  FileText,
+  FileSpreadsheet,
+  X,
   CheckCircle2,
   ChevronRight,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-  X,
+  AlertCircle,
 } from "lucide-react";
-import { cn } from "../../../lib/utils";
 import type { UploadedDocument } from "../../types";
 
 export function DocumentCard({
@@ -19,93 +29,195 @@ export function DocumentCard({
   onRemove?: () => void;
 }) {
   const isExcel = doc.type === "excel";
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
 
   return (
-    <div className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center text-center relative group overflow-hidden">
-      {/* Icon Area */}
-      <div
-        className={cn(
-          "relative p-4 rounded-2xl mb-4 transition-transform duration-300 group-hover:scale-110",
-          isExcel
-            ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-            : "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
-        )}
+    <Card
+      sx={{
+        borderRadius: 4,
+        position: "relative",
+        overflow: "hidden",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        "&:hover": {
+          transform: "translateY(-6px)",
+          boxShadow: isDark 
+            ? "0 12px 24px rgba(0,0,0,0.4)" 
+            : "0 12px 24px rgba(0,0,0,0.1)",
+          "& .document-icon-box": {
+            transform: "scale(1.1) rotate(-5deg)",
+          },
+        },
+        bgcolor: isDark ? alpha(theme.palette.background.paper, 0.4) : alpha(theme.palette.background.paper, 0.8),
+        backdropFilter: "blur(12px)",
+        border: "1px solid",
+        borderColor: isDark ? alpha("#ffffff", 0.08) : alpha("#000000", 0.05),
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 200,
+      }}
+    >
+      {/* Remove Button */}
+      {onRemove && (
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          sx={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 2,
+            opacity: 0.6,
+            "&:hover": { opacity: 1, bgcolor: alpha(theme.palette.error.main, 0.1) },
+          }}
+        >
+          <X size={16} />
+        </IconButton>
+      )}
+
+      <CardContent
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          flexGrow: 1,
+          pt: 4,
+        }}
       >
-        {isExcel ? (
-          <FileSpreadsheet className="w-10 h-10" />
-        ) : (
-          <FileText className="w-10 h-10" />
-        )}
-
-        {/* Status Badge overlaying the icon */}
-        {doc.status === "completed" && (
-          <div className="absolute -bottom-2 -right-2 bg-white dark:bg-slate-900 rounded-full p-0.5 shadow-sm">
-            <CheckCircle2 className="w-6 h-6 text-indigo-500 fill-indigo-100 dark:fill-indigo-900/50" />
-          </div>
-        )}
-      </div>
-
-      <p
-        className="font-medium text-slate-800 dark:text-slate-200 text-sm truncate w-full mb-3"
-        title={doc.name}
-      >
-        {doc.name}
-      </p>
-
-      {/* Status Indicators */}
-      <div className="w-full mt-auto">
-        {doc.status === "idle" && (
-          <span className="inline-flex items-center text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
-            W kolejce
-          </span>
-        )}
-        {doc.status === "uploading" && (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20 px-2.5 py-1 rounded-full">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Wgrywanie...
-          </span>
-        )}
-        {doc.status === "processing" && (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-900/20 px-2.5 py-1 rounded-full">
-            <div className="w-3 h-3 flex items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-indigo-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
-            </div>
-            AI Analiza...
-          </span>
-        )}
-        {doc.status === "completed" && (
-          <button
-            className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:text-indigo-300 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 px-3 py-1.5 rounded-full transition-colors w-full justify-center group/btn"
-            onClick={onOpenJson}
-          >
-            JSON Zapisany
-            <ChevronRight className="w-3 h-3 group-hover/btn:translate-x-0.5 transition-transform" />
-          </button>
-        )}
-        {doc.status === "error" && (
-          <div className="flex gap-2 w-full">
-            <button
-              className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full transition-colors flex-1 justify-center"
-              onClick={onOpenJson}
+        <Box
+          className="document-icon-box"
+          sx={{
+            width: 64,
+            height: 64,
+            borderRadius: 3,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            mb: 2,
+            transition: "all 0.4s ease",
+            bgcolor: isExcel 
+              ? alpha(theme.palette.success.main, 0.1) 
+              : alpha(theme.palette.error.main, 0.1),
+            color: isExcel ? "success.main" : "error.main",
+            position: "relative",
+          }}
+        >
+          {isExcel ? <FileSpreadsheet size={32} /> : <FileText size={32} />}
+          
+          {doc.status === "completed" && (
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: -6,
+                right: -6,
+                bgcolor: "background.paper",
+                borderRadius: "50%",
+                lineHeight: 0,
+                boxShadow: theme.shadows[2],
+              }}
             >
-              Błąd Analizy
-            </button>
-            {onRemove && (
-              <button
-                className="inline-flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-full transition-colors shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove();
+              <CheckCircle2 size={20} className="text-emerald-500 fill-emerald-50" />
+            </Box>
+          )}
+        </Box>
+
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 700,
+            width: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            mb: 1,
+          }}
+          title={doc.name}
+        >
+          {doc.name}
+        </Typography>
+
+        {/* Status Indicators */}
+        <Box sx={{ width: "100%", mt: "auto" }}>
+          {doc.status === "processing" && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, mb: 1, display: "block" }}>
+                AI ANALIZA...
+              </Typography>
+              <LinearProgress
+                sx={{
+                  height: 6,
+                  borderRadius: 3,
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: 3,
+                    background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
+                  },
                 }}
-                title="Usuń proces"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+              />
+            </Box>
+          )}
+
+          {doc.status === "uploading" && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 700, mb: 1, display: "block" }}>
+                WGRYWANIE...
+              </Typography>
+              <LinearProgress color="warning" sx={{ height: 4, borderRadius: 2 }} />
+            </Box>
+          )}
+
+          {doc.status === "completed" && (
+            <Box
+              component="button"
+              onClick={onOpenJson}
+              sx={{
+                mt: 2,
+                width: "100%",
+                py: 1,
+                bgcolor: alpha(theme.palette.primary.main, 0.05),
+                border: "none",
+                borderRadius: 2,
+                color: "primary.main",
+                fontSize: "0.75rem",
+                fontWeight: 800,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 0.5,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                  transform: "scale(1.02)",
+                },
+              }}
+            >
+              JSON ZAPISANY
+              <ChevronRight size={14} />
+            </Box>
+          )}
+
+          {doc.status === "error" && (
+            <Chip
+              icon={<AlertCircle size={14} />}
+              label="BŁĄD ANALIZY"
+              color="error"
+              size="small"
+              onClick={onOpenJson}
+              sx={{ width: "100%", mt: 2, cursor: "pointer" }}
+            />
+          )}
+
+          {doc.status === "idle" && (
+            <Chip label="W KOLEJCE" variant="outlined" size="small" sx={{ mt: 2, opacity: 0.6 }} />
+          )}
+        </Box>
+      </CardContent>
+    </Card>
   );
 }

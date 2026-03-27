@@ -84,8 +84,19 @@ def _load_body_types() -> list[dict]:
     if _BODY_TYPES_CACHE is not None:
         return _BODY_TYPES_CACHE
     try:
-        res = supabase.table("body_types").select("id, name, vehicle_class").execute()
-        _BODY_TYPES_CACHE = res.data or []
+        res = (
+            supabase.table("body_types")
+            .select("id, nazwa_nadwozia, typ_pojazdu")
+            .execute()
+        )
+        _BODY_TYPES_CACHE = [
+            {
+                "id": r["id"],
+                "name": r["nazwa_nadwozia"],
+                "vehicle_class": r["typ_pojazdu"],
+            }
+            for r in (res.data or [])
+        ]
     except Exception as exc:
         logger.warning("Failed to load body_types: %s", exc)
         _BODY_TYPES_CACHE = []

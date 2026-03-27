@@ -107,7 +107,7 @@ def map_to_engine_class(
 
     prompt = f"""Jesteś ekspertem motoryzacyjnym. Twoim zadaniem jest klasyfikacja układu napędowego.
 
-Oto PEŁNY słownik typów układów napędowych:
+Oto PEŁNY słownik typów układów napędowych dostępny w systemie:
 {dict_text}
 
 Dane wyekstrahowane z dokumentu dla tego pojazdu:
@@ -119,17 +119,10 @@ Dane wyekstrahowane z dokumentu dla tego pojazdu:
 - Pojemność: {capacity or "brak danych"}
 
 ZADANIE: Oceń prawdopodobieństwo przynależności tego pojazdu do KAŻDEGO opisanego typu napędu z powyższego słownika.
-Dla KAŻDEGO napędu z listy przypisz confidence (0.0-1.0) — jak bardzo ten układ pasuje.
+Dla KAŻDEGO napędu z listy przypisz confidence (0.0-1.0).
 
-KRYTYCZNE WSKAZÓWKI:
-1. Słowa kluczowe: mHEV, Mild Hybrid, miękka hybryda, e-TEC, eTSI mają WYŻSZY priorytet niż ogólne "Benzyna" lub "Diesel". Jeśli widzisz te słowa w jakimkolwiek polu (szczególnie w technologii lub trimie), SZUKAJ odpowiednika mHEV w słowniku (np. "Benzyna mHEV (PB-mHEV)").
-2. Zwróć uwagę na Plug-In Hybrid (PHEV) (auto z wtyczką, zazwyczaj wyższa moc systemowa i dopisek e-Hybrid, TFSIe, PHEV, Recharge).
-3. Klasyczna Hybryda HEV nie ma wtyczki (Toyota Hybrid, Renault E-Tech pełen).
-4. Jeśli widzisz tylko "Benzyna" i brak jakichkolwiek dopisków hybrydowych (mHEV, Hybrid itp.), to najprawdopodobniej czyste ICE ("Benzyna (PB)").
-5. "Elektryczny (BEV)" stosuj tylko dla pełnych elektryków (brak silnika spalinowego).
-
-WAŻNE: Musisz ocenić WSZYSTKIE {len(unique_names)} klas, używając DOKŁADNIE nazwy pola 'name' (np. "Benzyna (PB)", "Benzyna mHEV (PB-mHEV)"). Klasy, do których to absolutnie nie pasuje, powinny dostać confidence 0.0.
-Posortuj wyniki od najwyższego do najniższego confidence.
+WAŻNE: Musisz ocenić WSZYSTKIE {len(unique_names)} klas, używając DOKŁADNIE nazwy pola 'name' ze słownika.
+Wybież typ, który najlepiej opisuje układ napędowy na podstawie powyższych danych.
 """
 
     try:

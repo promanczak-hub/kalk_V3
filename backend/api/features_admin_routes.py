@@ -157,7 +157,7 @@ def _build_xlsx(
 
 
 @router.get("/features/admin/categories")
-async def list_categories() -> list[dict[str, Any]]:
+def list_categories() -> list[dict[str, Any]]:
     """List all feature categories."""
     resp = (
         _sb_rs()
@@ -170,7 +170,7 @@ async def list_categories() -> list[dict[str, Any]]:
 
 
 @router.post("/features/admin/categories")
-async def upsert_category(item: CategoryIn) -> dict[str, Any]:
+def upsert_category(item: CategoryIn) -> dict[str, Any]:
     """Create or update a feature category."""
     data = item.model_dump(exclude_none=True)
     try:
@@ -187,7 +187,7 @@ async def upsert_category(item: CategoryIn) -> dict[str, Any]:
 
 
 @router.delete("/features/admin/categories/{category_id}")
-async def delete_category(category_id: int) -> dict[str, str]:
+def delete_category(category_id: int) -> dict[str, str]:
     """Delete a feature category."""
     try:
         _sb_rs().table("universal_feature_categories").delete().eq(
@@ -206,7 +206,7 @@ async def delete_category(category_id: int) -> dict[str, str]:
 
 
 @router.get("/features/admin/features")
-async def list_features(
+def list_features(
     category_id: Optional[int] = None,
 ) -> list[dict[str, Any]]:
     """List all features, optionally filtered by category."""
@@ -217,7 +217,7 @@ async def list_features(
 
 
 @router.post("/features/admin/features")
-async def upsert_feature(item: FeatureIn) -> dict[str, Any]:
+def upsert_feature(item: FeatureIn) -> dict[str, Any]:
     """Create or update a feature."""
     data = item.model_dump(exclude_none=True)
     try:
@@ -234,7 +234,7 @@ async def upsert_feature(item: FeatureIn) -> dict[str, Any]:
 
 
 @router.delete("/features/admin/features/{feature_id}")
-async def delete_feature(feature_id: int) -> dict[str, str]:
+def delete_feature(feature_id: int) -> dict[str, str]:
     """Delete a feature."""
     try:
         _sb_rs().table("universal_features").delete().eq(
@@ -253,7 +253,7 @@ async def delete_feature(feature_id: int) -> dict[str, str]:
 
 
 @router.get("/features/admin/categories/export-xlsx")
-async def export_categories_xlsx() -> StreamingResponse:
+def export_categories_xlsx() -> StreamingResponse:
     """Export all categories as protected XLSX."""
     rows = (
         _sb_rs()
@@ -277,7 +277,7 @@ async def export_categories_xlsx() -> StreamingResponse:
 
 
 @router.get("/features/admin/features/export-xlsx")
-async def export_features_xlsx() -> StreamingResponse:
+def export_features_xlsx() -> StreamingResponse:
     """Export all features as protected XLSX."""
     rows = (
         _sb_rs().table("universal_features").select("*").order("sort_order").execute()

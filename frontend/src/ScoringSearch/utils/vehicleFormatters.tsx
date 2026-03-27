@@ -1,4 +1,3 @@
-import React from 'react';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import BoltIcon from '@mui/icons-material/Bolt';
 

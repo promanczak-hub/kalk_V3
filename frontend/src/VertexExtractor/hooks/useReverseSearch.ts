@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { API_BASE_URL } from "../../config/env";
-import { CatalogCategory, SearchFilter, SearchResult, CatalogFeature } from "../types";
+import type { CatalogCategory, SearchFilter, SearchResult, CatalogFeature } from "../types";
 import { apiClient } from "../../lib/apiClient";
 
 export function useReverseSearch() {
@@ -172,7 +172,11 @@ export function useReverseSearch() {
     setFeatureSearchQuery("");
   };
 
-  const handleExtractionSuccess = useCallback((extractedFilters: SearchFilter[], newExpandedCats: Set<string>) => {
+  const handleExtractionSuccess = useCallback((
+    extractedFilters: SearchFilter[], 
+    newExpandedCats: Set<string>,
+    financials?: { price_max?: number | null; duration_months?: number | null; annual_mileage?: number | null }
+  ) => {
     setActiveFilters(prev => {
         const merged = [...prev];
         extractedFilters.forEach(newFilter => {
@@ -187,6 +191,12 @@ export function useReverseSearch() {
         newExpandedCats.forEach(cat => merged.add(cat));
         return merged;
     });
+
+    if (financials) {
+        if (financials.price_max) setPriceMax(financials.price_max);
+        if (financials.duration_months) setPriceMonths(financials.duration_months);
+        if (financials.annual_mileage) setPriceMileage(financials.annual_mileage);
+    }
   }, []);
 
   return {

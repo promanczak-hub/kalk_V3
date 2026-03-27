@@ -1,0 +1,232 @@
+Klasa SAMAR (FK),Rok,Stawka Bazowa AC,Składka OC (zł),Wsp. Średni Przebieg,Wsp. Wartość Szkody
+Lekkie dostawcze - KOMBI VAN,1,"0,015",1476,1,"0,93"
+Lekkie dostawcze - KOMBI VAN,2,"0,015",1476,1,"0,93"
+Lekkie dostawcze - KOMBI VAN,3,"0,015",1476,1,"0,93"
+Lekkie dostawcze - KOMBI VAN,4,"0,015",1476,1,"0,93"
+Lekkie dostawcze - KOMBI VAN,5,"0,015",1476,1,"0,93"
+Lekkie dostawcze - KOMBI VAN,6,"0,015",1476,1,"0,93"
+Lekkie dostawcze - KOMBI VAN,7,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,1,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,2,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,3,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,4,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,5,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,6,"0,015",1476,1,"0,93"
+Lekkie dostawcze - VAN,7,"0,015",1476,1,"0,93"
+Pick-up - PICK-UP,1,"0,015",1476,1,"2,62"
+Pick-up - PICK-UP,2,"0,015",1476,1,"2,62"
+Pick-up - PICK-UP,3,"0,015",1476,1,"2,62"
+Pick-up - PICK-UP,4,"0,015",1476,1,"2,62"
+Pick-up - PICK-UP,5,"0,015",1476,1,"2,62"
+Pick-up - PICK-UP,6,"0,015",1476,1,"2,62"
+Pick-up - PICK-UP,7,"0,015",1476,1,"2,62"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,1,"0,015",1476,1,"0,91"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,2,"0,015",1476,1,"0,91"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,3,"0,015",1476,1,"0,91"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,4,"0,015",1476,1,"0,91"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,5,"0,015",1476,1,"0,91"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,6,"0,015",1476,1,"0,91"
+Średnie dostawcze - ŚREDNIE DOSTAWCZE,7,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,1,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,2,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,3,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,4,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,5,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,6,"0,015",1476,1,"0,91"
+Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE,7,"0,015",1476,1,"0,91"
+Autobusy - AUTOBUSY,1,"0,015",1476,1,1
+Autobusy - AUTOBUSY,2,"0,015",1476,1,1
+Autobusy - AUTOBUSY,3,"0,015",1476,1,1
+Autobusy - AUTOBUSY,4,"0,015",1476,1,1
+Autobusy - AUTOBUSY,5,"0,015",1476,1,1
+Autobusy - AUTOBUSY,6,"0,015",1476,1,1
+Autobusy - AUTOBUSY,7,"0,015",1476,1,1
+Podstawowa - A MINI,1,"0,015",1476,1,"0,91"
+Podstawowa - A MINI,2,"0,015",1476,1,"0,91"
+Podstawowa - A MINI,3,"0,015",1476,1,"0,91"
+Podstawowa - A MINI,4,"0,015",1476,1,"0,91"
+Podstawowa - A MINI,5,"0,015",1476,1,"0,91"
+Podstawowa - A MINI,6,"0,015",1476,1,"0,91"
+Podstawowa - A MINI,7,"0,015",1476,1,"0,91"
+Podstawowa - B MAŁE,1,"0,015",1476,1,1
+Podstawowa - B MAŁE,2,"0,015",1476,1,1
+Podstawowa - B MAŁE,3,"0,015",1476,1,1
+Podstawowa - B MAŁE,4,"0,015",1476,1,1
+Podstawowa - B MAŁE,5,"0,015",1476,1,1
+Podstawowa - B MAŁE,6,"0,015",1476,1,1
+Podstawowa - B MAŁE,7,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,1,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,2,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,3,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,4,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,5,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,6,"0,015",1476,1,1
+Podstawowa - C NIŻSZA ŚREDNIA,7,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,1,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,2,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,3,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,4,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,5,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,6,"0,015",1476,1,1
+Podstawowa - D ŚREDNIA,7,"0,015",1476,1,1
+Podstawowa - E WYŻSZA,1,"0,015",1476,1,"1,31"
+Podstawowa - E WYŻSZA,2,"0,015",1476,1,"1,31"
+Podstawowa - E WYŻSZA,3,"0,015",1476,1,"1,31"
+Podstawowa - E WYŻSZA,4,"0,015",1476,1,"1,31"
+Podstawowa - E WYŻSZA,5,"0,015",1476,1,"1,31"
+Podstawowa - E WYŻSZA,6,"0,015",1476,1,"1,31"
+Podstawowa - E WYŻSZA,7,"0,015",1476,1,"1,31"
+Podstawowa - F LUKSUSOWE,1,"0,015",1476,1,"2,62"
+Podstawowa - F LUKSUSOWE,2,"0,015",1476,1,"2,62"
+Podstawowa - F LUKSUSOWE,3,"0,015",1476,1,"2,62"
+Podstawowa - F LUKSUSOWE,4,"0,015",1476,1,"2,62"
+Podstawowa - F LUKSUSOWE,5,"0,015",1476,1,"2,62"
+Podstawowa - F LUKSUSOWE,6,"0,015",1476,1,"2,62"
+Podstawowa - F LUKSUSOWE,7,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,1,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,2,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,3,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,4,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,5,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,6,"0,015",1476,1,"2,62"
+Podstawowa - G SUPER LUKSUSOWE,7,"0,015",1476,1,"2,62"
+Vany - B MICROVANY,1,"0,015",1476,1,"0,91"
+Vany - B MICROVANY,2,"0,015",1476,1,"0,91"
+Vany - B MICROVANY,3,"0,015",1476,1,"0,91"
+Vany - B MICROVANY,4,"0,015",1476,1,"0,91"
+Vany - B MICROVANY,5,"0,015",1476,1,"0,91"
+Vany - B MICROVANY,6,"0,015",1476,1,"0,91"
+Vany - B MICROVANY,7,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,1,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,2,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,3,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,4,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,5,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,6,"0,015",1476,1,"0,91"
+Vany - C MINIVANY,7,"0,015",1476,1,"0,91"
+Vany - D VANY,1,"0,015",1476,1,"0,91"
+Vany - D VANY,2,"0,015",1476,1,"0,91"
+Vany - D VANY,3,"0,015",1476,1,"0,91"
+Vany - D VANY,4,"0,015",1476,1,"0,91"
+Vany - D VANY,5,"0,015",1476,1,"0,91"
+Vany - D VANY,6,"0,015",1476,1,"0,91"
+Vany - D VANY,7,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,1,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,2,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,3,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,4,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,5,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,6,"0,015",1476,1,"0,91"
+Vany - E WYŻSZA,7,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,1,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,2,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,3,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,4,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,5,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,6,"0,015",1476,1,"0,91"
+Vany - F LUKSUSOWE,7,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,1,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,2,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,3,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,4,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,5,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,6,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - A MINI,7,"0,015",1476,1,"0,91"
+Sportowo-rekreacyjne - B MAŁE,1,"0,015",1476,1,1
+Sportowo-rekreacyjne - B MAŁE,2,"0,015",1476,1,1
+Sportowo-rekreacyjne - B MAŁE,3,"0,015",1476,1,1
+Sportowo-rekreacyjne - B MAŁE,4,"0,015",1476,1,1
+Sportowo-rekreacyjne - B MAŁE,5,"0,015",1476,1,1
+Sportowo-rekreacyjne - B MAŁE,6,"0,015",1476,1,1
+Sportowo-rekreacyjne - B MAŁE,7,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,1,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,2,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,3,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,4,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,5,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,6,"0,015",1476,1,1
+Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA,7,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,1,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,2,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,3,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,4,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,5,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,6,"0,015",1476,1,1
+Sportowo-rekreacyjne - D ŚREDNIA,7,"0,015",1476,1,1
+Sportowo-rekreacyjne - E WYŻSZA,1,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - E WYŻSZA,2,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - E WYŻSZA,3,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - E WYŻSZA,4,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - E WYŻSZA,5,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - E WYŻSZA,6,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - E WYŻSZA,7,"0,015",1476,1,"1,31"
+Sportowo-rekreacyjne - F LUKSUSOWE,1,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - F LUKSUSOWE,2,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - F LUKSUSOWE,3,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - F LUKSUSOWE,4,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - F LUKSUSOWE,5,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - F LUKSUSOWE,6,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - F LUKSUSOWE,7,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,1,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,2,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,3,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,4,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,5,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,6,"0,015",1476,1,"2,62"
+Sportowo-rekreacyjne - G SUPER LUKSUSOWE,7,"0,015",1476,1,"2,62"
+Terenowo-rekreacyjne (SUV) - B MAŁE,1,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - B MAŁE,2,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - B MAŁE,3,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - B MAŁE,4,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - B MAŁE,5,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - B MAŁE,6,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - B MAŁE,7,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,1,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,2,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,3,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,4,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,5,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,6,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA,7,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,1,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,2,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,3,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,4,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,5,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,6,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - D ŚREDNIA,7,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,1,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,2,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,3,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,4,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,5,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,6,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - E WYŻSZA,7,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,1,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,2,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,3,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,4,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,5,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,6,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - F LUKSUSOWE,7,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,1,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,2,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,3,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,4,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,5,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,6,"0,015",1476,1,"1,12"
+Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE,7,"0,015",1476,1,"1,12"
+Kombivany - H KOMBI-VANY,1,"0,015",1476,1,"0,93"
+Kombivany - H KOMBI-VANY,2,"0,015",1476,1,"0,93"
+Kombivany - H KOMBI-VANY,3,"0,015",1476,1,"0,93"
+Kombivany - H KOMBI-VANY,4,"0,015",1476,1,"0,93"
+Kombivany - H KOMBI-VANY,5,"0,015",1476,1,"0,93"
+Kombivany - H KOMBI-VANY,6,"0,015",1476,1,"0,93"
+Kombivany - H KOMBI-VANY,7,"0,015",1476,1,"0,93"
+Minibusy - I MINIBUSY,1,"0,015",1476,1,1
+Minibusy - I MINIBUSY,2,"0,015",1476,1,1
+Minibusy - I MINIBUSY,3,"0,015",1476,1,1
+Minibusy - I MINIBUSY,4,"0,015",1476,1,1
+Minibusy - I MINIBUSY,5,"0,015",1476,1,1
+Minibusy - I MINIBUSY,6,"0,015",1476,1,1
+Minibusy - I MINIBUSY,7,"0,015",1476,1,1

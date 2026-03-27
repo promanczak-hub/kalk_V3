@@ -14,7 +14,7 @@ class CalculatorExcelData(BaseModel):
 
 
 @router.get("/calculator-excel-data", tags=["Calculator Excel Data"])
-async def get_calculator_excel_data() -> List[CalculatorExcelData]:
+def get_calculator_excel_data() -> List[CalculatorExcelData]:
     try:
         response = (
             supabase.table("calculator_excel_data")
@@ -31,7 +31,7 @@ async def get_calculator_excel_data() -> List[CalculatorExcelData]:
 
 
 @router.post("/calculator-excel-data", tags=["Calculator Excel Data"])
-async def update_calculator_excel_data(
+def update_calculator_excel_data(
     data: CalculatorExcelData,
 ) -> CalculatorExcelData:
     try:

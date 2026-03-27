@@ -18,8 +18,10 @@ class TestServiceCalculator(unittest.TestCase):
             pakiet_serwisowy=0.0,
             inne_koszty_serwisowania_netto=0.0,
             samar_class_id=2,
-            engine_type_id=1,
-            power_kw=110.0,
+            brand_normalized="SKODA",
+            fuel_type="DIESEL",
+            drive_type="2WD",
+            gearbox_type="AUTOMATYCZNA",
             przebieg=120000,
             okres=36,
         )
@@ -61,12 +63,14 @@ class TestServiceCalculator(unittest.TestCase):
 
     # --- Km-based logic ---
 
-    @patch("core.LTRSubCalculatorSerwisNew.ServiceCalculator._fetch_rate_from_db")
+    @patch(
+        "core.LTRSubCalculatorSerwisNew.ServiceCalculator._calculate_progressive_service_total"
+    )
     def test_standard_mileage_aso(self, mock_fetch: unittest.mock.MagicMock) -> None:
         """Standard km-based logic with ASO."""
 
-        def side_effect() -> None:
-            calc._rate_per_km = 0.10
+        def side_effect(effective_km: int, trace: list) -> float:
+            return 12000.0  # mock 120k * 0.10
 
         mock_fetch.side_effect = side_effect
 
@@ -76,15 +80,17 @@ class TestServiceCalculator(unittest.TestCase):
         # 120,000 km * 0.10 = 12,000 PLN. 12000 / 36 months ~= 333.33
         self.assertAlmostEqual(self._monthly(result), 12000 / 36, places=2)
 
-    @patch("core.LTRSubCalculatorSerwisNew.ServiceCalculator._fetch_rate_from_db")
+    @patch(
+        "core.LTRSubCalculatorSerwisNew.ServiceCalculator._calculate_progressive_service_total"
+    )
     def test_standard_mileage_non_aso(
         self, mock_fetch: unittest.mock.MagicMock
     ) -> None:
         """Standard km-based logic with NON-ASO."""
         self.default_input.opcja_serwisowa = "NON-ASO"
 
-        def side_effect() -> None:
-            calc._rate_per_km = 0.05
+        def side_effect(effective_km: int, trace: list) -> float:
+            return 6000.0
 
         mock_fetch.side_effect = side_effect
 
@@ -96,14 +102,16 @@ class TestServiceCalculator(unittest.TestCase):
 
     # --- Inne Koszty Serwisowania ---
 
-    @patch("core.LTRSubCalculatorSerwisNew.ServiceCalculator._fetch_rate_from_db")
+    @patch(
+        "core.LTRSubCalculatorSerwisNew.ServiceCalculator._calculate_progressive_service_total"
+    )
     def test_inne_koszty_dodane_do_km(
         self, mock_fetch: unittest.mock.MagicMock
     ) -> None:
         """InneKoszty are added on top of km-based result."""
 
-        def side_effect() -> None:
-            calc._rate_per_km = 0.10
+        def side_effect(effective_km: int, trace: list) -> float:
+            return 12000.0
 
         mock_fetch.side_effect = side_effect
         self.default_input.inne_koszty_serwisowania_netto = 50.0  # 50 PLN/month
@@ -115,23 +123,20 @@ class TestServiceCalculator(unittest.TestCase):
         expected = 12000 / 36 + 50.0
         self.assertAlmostEqual(self._monthly(result), expected, places=2)
 
-    # --- Power band ---
+    def test_fake_brand_multiplier_survives(self) -> None:
+        """Testuje zasadę systemową (Rule 4), że zmyślona marka nie wyrzuca wyjątku, ale stosuje mnożnik bazowy 1.0 (z pomocą realnego lookupu w DB lub mocka jeśli live-DB wyłączono)."""
+        from core.LTRSubCalculatorSerwisNew import get_service_multiplier
 
-    def test_power_band_determination(self) -> None:
-        calc = ServiceCalculator(self.default_input)
-
-        calc.data.power_kw = 90
-        self.assertEqual(calc._determine_power_band(), "LOW")
-
-        calc.data.power_kw = 120
-        self.assertEqual(calc._determine_power_band(), "MID")
-
-        calc.data.power_kw = 200
-        self.assertEqual(calc._determine_power_band(), "HIGH")
+        multiplier = get_service_multiplier(
+            "samar_service_brand_multipliers", "brand_normalized", "MarkaX_Zmyslona"
+        )
+        self.assertEqual(multiplier, 1.0)
 
     # --- Floor normatywny ---
 
-    @patch("core.LTRSubCalculatorSerwisNew.ServiceCalculator._fetch_rate_from_db")
+    @patch(
+        "core.LTRSubCalculatorSerwisNew.ServiceCalculator._calculate_progressive_service_total"
+    )
     def test_floor_normatywny_applied(
         self, mock_fetch: unittest.mock.MagicMock
     ) -> None:
@@ -140,8 +145,9 @@ class TestServiceCalculator(unittest.TestCase):
         self.default_input.normatywny_przebieg_mc = 2916  # 2916 * 36 = 104,976 km
         self.default_input.okres = 36
 
-        def side_effect() -> None:
-            calc._rate_per_km = 0.10
+        def side_effect(effective_km: int, trace: list) -> float:
+            # 2916 * 36 is ~104976. Returns 104976 * 0.10
+            return 104976 * 0.10
 
         mock_fetch.side_effect = side_effect
 

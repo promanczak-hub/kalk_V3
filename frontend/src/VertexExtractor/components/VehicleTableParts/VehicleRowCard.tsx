@@ -122,7 +122,8 @@ export function VehicleRowCard({
   const [catalogBasePriceNet, setCatalogBasePriceNet] = useState<number>(() => {
     const aiBase = parsePriceToNumber(vehicle.base_price);
     const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
-    return isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100;
+    const val = isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100;
+    return isNaN(val) ? 0 : val;
   });
 
   // Hook 1: Synchronizacja bazy danych / zmiana parametrów (Direct Save / Remap AI)
@@ -176,13 +177,31 @@ export function VehicleRowCard({
   } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet, globalSettings);
 
   // Hook 3: Readiness Check API
-  const { readinessResult } = useVehicleReadiness(vehicle, mappedData, isMetalic);
+  const resolvedBodyType = localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined;
+  const { readinessResult } = useVehicleReadiness(vehicle, mappedData, isMetalic, resolvedBodyType);
+
+  // Extract drive type from card_summary (needed for hook 4)
+  const DRIVE_TYPE_MAP: Record<string, string> = {
+    "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
+    "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
+  };
+  const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
+    ?.card_summary?.drive_type as string | undefined;
+  const detectedDriveType = rawDriveType
+    ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
+    : "";
+  const driveType = mappedData?.drive_type || detectedDriveType;
 
   // Hook 4: Param Preview API
   const { paramPreview, controlCenter } = useVehicleParamPreview(
     readinessResult?.samar_class_id,
     readinessResult?.fuel_type_id,
+    vehicle.brand,
+    vehicle.fuel,
+    driveType,
+    vehicle.transmission,
     serviceCostType,
+    60000, // Default target mileage for preview
     tireClass,
     rimDiameter,
     vehicleVintage,
@@ -306,8 +325,10 @@ export function VehicleRowCard({
     handleEngineCategoryChange,
     handleDriveTypeChange,
     handleBodyTypeChange,
+    handleVehicleTypeChange,
     handleMapDataSilent,
   } = useVehicleMetaManager(
+
     vehicle,
     serverMappedData,
     localMappedData,
@@ -444,14 +465,8 @@ export function VehicleRowCard({
 
   if (vehicle.verification_status?.startsWith("error")) {
     const handleDeleteError = async () => {
-      if (!window.confirm("Czy na pewno chcesz usunąć ten wpis z błędem?")) return;
-      try {
-        await supabase.from("vehicle_synthesis").delete().eq("id", vehicle.id);
-        window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
-      } catch (err) {
-        console.error("Direct Supabase cleanup failed:", err);
-        alert("Nie udało się skasować wiersza.");
-      }
+      // Dispatch event to let parent (useVehicles via VehicleTable) handle it through the backend API
+      window.dispatchEvent(new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } }));
     };
 
     return (
@@ -501,7 +516,9 @@ export function VehicleRowCard({
     const activeIndex = normalizedStatus === "processing" ? 0 : currentStageIndex;
 
     const handleCancel = async () => {
-      if (!window.confirm("Czy na pewno chcesz anulować przetwarzanie tego dokumentu?")) return;
+      // Potwierdzenie usunięcia dokumentu odbywa się natywnie przez modale VehicleTable (jeśli odpalane jest cancel = delete)
+      // Ponieważ "Cancel" wymaga wywołania endpointu `/api/cancel-processing`, zrobimy to hybrydowo: 
+      // anulowanie usuwa wpis wizualnie z db.
       try {
         const response = await apiClient.fetch(`/api/cancel-processing`, {
           method: "POST",
@@ -601,17 +618,7 @@ export function VehicleRowCard({
   const engineCandidates: { klasa: string; confidence: number }[] =
     ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
 
-  // Extract drive type from card_summary
-  const DRIVE_TYPE_MAP: Record<string, string> = {
-    "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
-    "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
-  };
-  const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
-    ?.card_summary?.drive_type as string | undefined;
-  const detectedDriveType = rawDriveType
-    ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
-    : "";
-  const driveType = mappedData?.drive_type || detectedDriveType;
+  // driveType moved up
 
   return (
     <div
@@ -639,14 +646,17 @@ export function VehicleRowCard({
         allEngineTypes={ALL_ENGINE_TYPES}
         driveType={driveType}
         onDriveTypeChange={handleDriveTypeChange}
-        bodyType={localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined}
+        bodyType={resolvedBodyType}
         onBodyTypeChange={handleBodyTypeChange}
+        onVehicleTypeChange={handleVehicleTypeChange}
         bodyTypeOptions={bodyTypes}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
         readinessResult={readinessResult}
+        paramPreview={paramPreview}
       />
+
 
       {isExpanded && (
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
@@ -658,7 +668,9 @@ export function VehicleRowCard({
               isSaving={isSavingFields}
               onRemapClassification={handleRemapClassification}
               isRemapping={isRemappingClassification}
+              readinessResult={readinessResult}
             />
+
 
             <VehicleEquipmentCard
               vehicle={vehicle}
@@ -792,11 +804,8 @@ export function VehicleRowCard({
                vehicle={vehicle}
                isSavingSetup={isSavingSetup}
                handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPriceNet, catalogBasePriceNet)}
-               wiborPct={wiborPct}
-               marginPct={marginPct}
                pricingMarginPct={pricingMarginPct}
                initialDepositPct={initialDepositPct}
-               otherServiceCosts={otherServiceCosts}
                expressPaysInsurance={expressPaysInsurance}
                replacementCar={replacementCar}
                gpsRequired={gpsRequired}

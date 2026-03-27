@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { API_BASE_URL } from "../../config/env";
-import { CatalogCategory, SearchFilter } from "../types";
+import type { CatalogCategory, SearchFilter } from "../types";
 import { apiClient } from "../../lib/apiClient";
 
 export function useVertexExtraction(
   catalog: CatalogCategory[],
-  onExtractionSuccess: (extractedFilters: SearchFilter[], newExpandedCats: Set<string>) => void
+  onExtractionSuccess: (
+    extractedFilters: SearchFilter[], 
+    newExpandedCats: Set<string>,
+    financials?: { price_max?: number | null; duration_months?: number | null; annual_mileage?: number | null }
+  ) => void
 ) {
   const [extractionText, setExtractionText] = useState("");
   const [extracting, setExtracting] = useState(false);
@@ -25,7 +29,7 @@ export function useVertexExtraction(
       if (data.status === "success" && data.extracted_filters) {
          const newExpanded = new Set<string>();
          data.extracted_filters.forEach((f: { feature_key: string }) => {
-             const cat = catalog.find(c => c.features.some(cf => cf.feature_key === f.feature_key));
+             const cat = catalog.find(c => c.features.some((cf: any) => cf.feature_key === f.feature_key));
              if (cat) newExpanded.add(cat.id);
          });
 
@@ -35,7 +39,7 @@ export function useVertexExtraction(
             value_bool: f.value_bool
          }));
 
-         onExtractionSuccess(mappedFilters, newExpanded);
+         onExtractionSuccess(mappedFilters, newExpanded, data.extracted_financials);
       }
     } catch (err) {
       console.error("Extraction failed:", err);

@@ -4,17 +4,16 @@ Usage:
     poetry run python run_dev.py
 """
 
-from granian import Granian
+import uvicorn
 
 
 def main() -> None:
-    Granian(
+    uvicorn.run(
         "main:app",
-        address="0.0.0.0",
+        host="0.0.0.0",
         port=8000,
-        interface="asgi",
         reload=True,
-    ).serve()
+    )
 
 
 if __name__ == "__main__":

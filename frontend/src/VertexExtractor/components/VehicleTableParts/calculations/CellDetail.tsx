@@ -1,10 +1,19 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Chip } from "@mui/material";
 import { TrendingUp, RotateCcw, Loader2, FileCode2, Settings } from "lucide-react";
 import type { MiniMatrixCell } from "../decision-center/decision-center.types";
-import { CostRow, ExpertNumber, ExpertToggle, ExpertSelect } from "./ExpertControls";
+import { ExpertNumber, ExpertToggle, ExpertSelect } from "./ExpertControls";
 import { InlineTargetPrice } from "./InlineTargetPrice";
 import { fmtPLN } from "./calculations.utils";
+
+function SimpleCostRow({ label, price }: { label: string; price: number }) {
+  return (
+    <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-100/50 transition-colors">
+      <td className="py-1 text-xs text-slate-600">{label}</td>
+      <td className="py-1 text-xs text-right font-medium text-slate-700 tabular-nums">{fmtPLN(price)}</td>
+    </tr>
+  );
+}
 import type { CellOverrides } from "./useVehicleCalculations";
 
 interface CellDetailProps {
@@ -76,12 +85,12 @@ export function CellDetail({
           </tr>
         </thead>
         <tbody>
-          <CostRow label="Finansowanie (PMT)" price={cell.CzynszFinansowy} />
-          <CostRow label="Serwis" price={cell.Serwis} />
-          <CostRow label="Opony" price={cell.Opony} />
-          <CostRow label="Ubezpieczenie" price={cell.Ubezpieczenie} />
-          <CostRow label="Samochód zastępczy" price={cell.SamochodZastepczy} />
-          <CostRow label="Inne koszty" price={cell.Admin} />
+          <SimpleCostRow label="Finansowanie (PMT)" price={cell.CzynszFinansowy} />
+          <SimpleCostRow label="Serwis" price={cell.Serwis} />
+          <SimpleCostRow label="Opony" price={cell.Opony} />
+          <SimpleCostRow label="Ubezpieczenie" price={cell.Ubezpieczenie} />
+          <SimpleCostRow label="Samochód zastępczy" price={cell.SamochodZastepczy} />
+          <SimpleCostRow label="Inne koszty" price={cell.Admin} />
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-slate-300">

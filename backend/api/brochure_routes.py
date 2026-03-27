@@ -65,7 +65,9 @@ async def _html_to_pdf(html: str) -> bytes:
         ) from exc
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+        browser = await pw.chromium.launch(
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
         page = await browser.new_page()
         await page.set_content(html, wait_until="networkidle")
         pdf_bytes: bytes = await page.pdf(
@@ -78,7 +80,7 @@ async def _html_to_pdf(html: str) -> bytes:
 
 
 @router.post("/brochure/preview-html", response_class=Response)
-async def brochure_preview_html(data: BrochureRequest) -> Response:
+def brochure_preview_html(data: BrochureRequest) -> Response:
     """Return rendered HTML for iframe preview (no PDF overhead)."""
     html = _render_html(data)
     return Response(content=html, media_type="text/html; charset=utf-8")
@@ -93,7 +95,9 @@ async def brochure_generate_pdf(data: BrochureRequest) -> Response:
         pdf_bytes = await _html_to_pdf(html)
     except Exception as exc:
         logger.error("PDF generation failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"PDF generation failed: {exc}"
+        ) from exc
 
     filename = f"Broszura_{data.brand}_{data.model}.pdf".replace(" ", "_")
     return Response(

@@ -1,0 +1,139 @@
+python : INFO: HTTP Req
+uest: GET https://gnpsd
+iarmwvqhqbyetce.supabas
+e.co/rest/v1/samar_clas
+ses?select=id%2Cname "H
+TTP/2 401 Unauthorized"
+At line:1 char:1
++ python d:\kalk_v3\bac
+kend\migrate_v3_drafts_
+to_prod.py 2>&1 | Out-S
+tr ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (INFO: HTTP Re   
+ qu...1 Unauthorize    
+d":String) [], Rem    o
+teException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+Traceback (most recent 
+call last):
+  File "C:\Users\proma\
+AppData\Local\Programs\
+Python\Python312\Lib\si
+te-packages\postgrest\_
+sync\request_builder.py
+", line 52, in execute
+    json_obj = model_va
+lidate_json(APIErrorFro
+mJSON, r.content)
+               ^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\
+AppData\Local\Programs\
+Python\Python312\Lib\si
+te-packages\postgrest\u
+tils.py", line 56, in m
+odel_validate_json
+    return model.model_
+validate_json(contents)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\
+AppData\Local\Programs\
+Python\Python312\Lib\si
+te-packages\pydantic\ma
+in.py", line 766, in mo
+del_validate_json
+    return cls.__pydant
+ic_validator__.validate
+_json(
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+pydantic_core._pydantic
+_core.ValidationError: 
+2 validation errors for
+ APIErrorFromJSON
+code
+  Field required [type=
+missing, input_value={'
+message': 'Invalid API 
+...ther Supabase projec
+t.'}, input_type=dict]
+    For further informa
+tion visit https://erro
+rs.pydantic.dev/2.12/v/
+missing
+details
+  Field required [type=
+missing, input_value={'
+message': 'Invalid API 
+...ther Supabase projec
+t.'}, input_type=dict]
+    For further informa
+tion visit https://erro
+rs.pydantic.dev/2.12/v/
+missing
+
+During handling of the 
+above exception, anothe
+r exception occurred:
+
+Traceback (most recent 
+call last):
+  File "d:\kalk_v3\back
+end\migrate_v3_drafts_t
+o_prod.py", line 174, i
+n <module>
+    migrate_all()
+  File "d:\kalk_v3\back
+end\migrate_v3_drafts_t
+o_prod.py", line 167, i
+n migrate_all
+    class_map = _load_s
+amar_classes(supabase)
+                ^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\kalk_v3\back
+end\migrate_excel_to_pr
+od.py", line 75, in _lo
+ad_samar_classes
+    res = supabase.tabl
+e("samar_classes").sele
+ct("id, name").execute(
+)
+          ^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^
+  File "C:\Users\proma\
+AppData\Local\Programs\
+Python\Python312\Lib\si
+te-packages\postgrest\_
+sync\request_builder.py
+", line 55, in execute
+    raise APIError(gene
+rate_default_error_mess
+age(r))
+postgrest.exceptions.AP
+IError: {'message': 'JS
+ON could not be generat
+ed', 'code': 401, 'hint
+': 'Refer to full messa
+ge for details', 'detai
+ls': 'b\'{"message":"In
+valid API key","hint":"
+Double check the provid
+ed API key for typos. T
+his API key might also 
+be owned by another Sup
+abase project."}\''}
+

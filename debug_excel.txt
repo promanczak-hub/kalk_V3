@@ -1,0 +1,90 @@
+A (L.p.): 0312/03/26
+B (Klasa): D
+C (Silnik + Klasa): =B1679&G1679
+D (Silnik + Klasa + Marka): =B1679&E1679&G1679
+E (Marka): SKODA
+F (Model): SKODA Superb 2,0 TDI ON 4x4 AT 
+G (Silnik): ON
+H (Kolor): niemetalik
+I (Zabudowa): ND
+J (Rocznik): bieżący
+K (Data Kalkulacji): 2026-03-16 00:00:00
+L (Cena katalogowa [Brutto]): 247850
+M (Doposażenie pozostałe [Brutto]): 34500
+N (Lakier [Brutto]): 0
+O (Łączna cena doposażenia [Brutto]): =M1679+N1679
+P (Łączna cena zakupu [Brutto]): =L1679+O1679
+Q (Okres standard.): 48
+R (Przebieg standard.): 140
+S (Okres): 36
+T (Przebieg): 150
+U (Data Zakończenia Kontraktu): =K1679+(S1679*30.5)
+V (Miesiąć): =MONTH(U1679)
+W (Okres (do kalkulacji)): = S1679+AA1679
+X (Data kontaktu (po korekcie)): =K1679+(W1679*30.5)
+Y (Rok (początek)): =YEAR(K1679)
+Z (Rok (koniec)): =YEAR(X1679)
+AA (Czas przygotowania): 2
+AB (Wiek): =Z1679-Y1679
+AC (Nadprzebieg / Niedobieg (tyś.km)): =T1679-R1679
+AD (Przebieg <190): =T1679-R1679-AF1679
+AE (Przebieg >190): =AC1679-50
+AF (Przebieg >190): =IF(AC1679-50<0,0,AE1679)
+AG (Przebieg % utrata wartości <190): =VLOOKUP(B1679,'TAB. PRZEBIEG'!$A:$C,2,FALSE)
+AH (Przebieg % utrata wartości >190): =VLOOKUP(B1679,'TAB. PRZEBIEG'!$A:$C,3,FALSE)
+AI (Przebieg <190): =AG1679*BR1679
+AJ (Przebieg >190): =AH1679*BR1679
+AK (Korekta przebiegu): =AI1679*(AD1679/10)+AJ1679*(AF1679/10)
+AL (Deprecjacja % Okres [0 rok]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,2,FALSE)
+AM (Deprecjacja $ Okres    [0 rok]): =AR1679*AL1679
+AN (WR [0 rok]): =AR1679+AM1679
+AO (None): =AN1679/L1679
+AP (Deprecjacja % Okres [1 rok]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,3,FALSE)
+AQ (Deprecjacja $ Okres    [1 rok]): =AV1679*AP1679
+AR (WR [1 rok]): =AV1679+AQ1679
+AS (None): =AR1679/L1679
+AT (Deprecjacja % Okres    [2 lata]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,4,FALSE)
+AU (Deprecjacja $ Okres [2 lata]): =AZ1679*AT1679
+AV (WR  [2 lata]): =AZ1679+AU1679
+AW (None): =AV1679/L1679
+AX (Deprecjacja % Okres    [3 lata]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,5,FALSE)
+AY (Deprecjacja $ Okres    [3 lata]): =BC1679*AX1679
+AZ (WR  [3 lata]): =BC1679+AY1679
+BA (None): =AZ1679/L1679
+BB (Deprecjacja % Okres [4 lata]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,6,FALSE)
+BC (Deprecjacja $ Okres [4 lata]): =BS1679
+BD (None): =BC1679/L1679
+BE (Deprecjacja % Okres    [5 lat]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,7,FALSE)
+BF (Deprecjacja $ Okres    [5 lat]): =BE1679*BS1679
+BG (WR           [5 lat]): =BS1679-BF1679
+BH (None): =BG1679/L1679
+BI (Deprecjacja % Okres    [6 lat]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,7,FALSE)
+BJ (Deprecjacja $ Okres   [6 lat]): =BG1679*BI1679
+BK (WR [6 lat]): =BG1679-BJ1679
+BL (None): =BK1679/L1679
+BM (Deprecjacja % Okres   [7 lat]): =VLOOKUP(C1679,'TAB. OKRES FINAL'!$A:$I,8,FALSE)
+BN (Deprecjacja $ Okres [7 lat]): =BK1679*BM1679
+BO (WR [7 lat]): =BK1679-BN1679
+BP (None): =BO1679/L1679
+BQ (% Doposażenia): =IF(AB1679<=0,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,2,FALSE),IF(AB1679=1,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,3,FALSE),IF(AB1679=2,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,4,FALSE),IF(AB1679=3,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,5,FALSE),IF(AB1679=4,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,6,FALSE),IF(AB1679=5,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,7,FALSE),IF(AB1679=6,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,8,FALSE),IF(AB1679=7,VLOOKUP(C1679,'TAB. DOPOSAŻENIA'!$A:$I,9,FALSE)))))))))
+BR (Okres + doposażenie): =IF(AB1679=0,AN1679+O1679*BQ1679,IF(AB1679=1,AR1679+O1679*BQ1679,IF(AB1679=2,AV1679+O1679*BQ1679,IF(AB1679=3,AZ1679+O1679*BQ1679,IF(AB1679=4,BC1679+O1679*BQ1679,IF(AB1679=5,BG1679+O1679*BQ1679,IF(AB1679=6,BK1679+O1679*BQ1679,IF(AB1679=7,BO1679+O1679*BQ1679))))))))
+BS (48 M-CY 140 tyś. km [Brutto]): =L1679*BT1679
+BT (48WR%): =VLOOKUP(C1679,'TAB.WR KLASA'!A:B,2,FALSE)+BU1679
+BU (Korekta Marka): =IFERROR(VLOOKUP(D1679,'KOR. MARKA'!$D:$E,2,0),"0")
+BV (Wartość RV [Brutto]): =BR1679+(VLOOKUP(H1679,KOLOR!$A:$B,2,FALSE)*L1679+(VLOOKUP(I1679,NADWOZIE!$A:$B,2,FALSE)*P1679+(VLOOKUP(J1679,ROCZNIK!$A:$B,2,FALSE)*L1679))-AK1679)
+BW (Korekta WR): 0
+BX (RV [Brutto] + Korekta WR): =BV1679+BW1679
+BY (RV (po korektach)): =BX1679/P1679
+BZ (WR (Nowy Kalkulator)): None
+CA (Link do kalkulacji NK): None
+CB (Uwagi): None
+CC (WR (Stary kalkulator)): None
+CD (Link do kalkulacji SK): None
+CE (DATA): None
+CF (KOREKTA): None
+CG (WR): None
+CH (WR %): None
+CI (RÓŻNICA): None
+CJ (LINK): None
+CK (None): None
+CL (RÓŻNICA %): None

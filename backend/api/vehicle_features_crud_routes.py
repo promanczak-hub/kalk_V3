@@ -41,7 +41,7 @@ class FeatureBatchUpdate(BaseModel):
 
 
 @router.get("/vehicles/{vehicle_id}/features")
-async def get_vehicle_features(
+def get_vehicle_features(
     vehicle_id: str,
 ) -> dict[str, Any]:
     """Return all resolved features for a vehicle.
@@ -125,7 +125,7 @@ async def get_vehicle_features(
 
 
 @router.put("/vehicles/{vehicle_id}/features")
-async def upsert_vehicle_features(
+def upsert_vehicle_features(
     vehicle_id: str,
     body: FeatureBatchUpdate,
 ) -> dict[str, Any]:
@@ -203,7 +203,7 @@ async def upsert_vehicle_features(
 
 
 @router.delete("/vehicles/{vehicle_id}/features/{feature_key}")
-async def delete_vehicle_feature(
+def delete_vehicle_feature(
     vehicle_id: str,
     feature_key: str,
 ) -> dict[str, Any]:

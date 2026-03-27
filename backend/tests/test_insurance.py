@@ -15,7 +15,7 @@ class MockSettings:
 def _make_rates(years: int = 7, ac: float = 0.015, oc: float = 1496.0):
     """Helper: generates insurance rate rows for N years."""
     return [
-        {"KolejnyRok": y, "StawkaBazowaAC": ac, "SkladkaOC": oc}
+        {"rok": y, "stawka_bazowa_ac": ac, "skladka_oc_zl": oc}
         for y in range(1, years + 1)
     ]
 
@@ -75,7 +75,7 @@ def test_insurance_raises_on_missing_rate():
     """Kalkulator MUSI rzucić ValueError gdy brak stawki dla danego roku."""
     settings = MockSettings()
     # Tylko 1 rok zamiast wymaganych 7 — nawet dla 12mc pętla iteruje 7 lat
-    insurance_rates = [{"KolejnyRok": 1, "StawkaBazowaAC": 0.015, "SkladkaOC": 1496.0}]
+    insurance_rates = [{"rok": 1, "stawka_bazowa_ac": 0.015, "skladka_oc_zl": 1496.0}]
     damage_coefficients = {
         "WspSredniPrzebieg": 1.0,
         "WspWartoscSzkody": 1.0,

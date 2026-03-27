@@ -38,7 +38,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const vehicleId = car.vehicle_id as string;
-  const hasSpecs = car.fuel_type || car.power_hp || car.transmission || car.body_style || car.drive_type;
+  const hasSpecs = car.fuel || car.power_hp || car.transmission || car.body_style || car.drive_type;
   const matchedFeatures = (car.matched_features || []) as string[];
   const missingFeatures = (car.missing_features || []) as string[];
 
@@ -53,7 +53,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
       id: crypto.randomUUID(),
       brand: (car.brand as string) || '',
       model: (car.model as string) || '',
-      powertrain: (car.fuel_type as string) || '',
+      powertrain: (car.fuel as string) || '',
       vin_or_config: (car.configuration_code as string) || (car.offer_number as string) || 'Brak',
       term: variantPriceData?.duration_months || targetDuration,
       mileage: variantPriceData?.annual_mileage || targetAnnualMileage,
@@ -98,10 +98,10 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
 
             {!!hasSpecs && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                {!!car.fuel_type && (
-                  <Chip icon={fuelIcon(car.fuel_type as string)} label={car.fuel_type as string} size="small"
-                    color={fuelColor(car.fuel_type as string)}
-                    variant={fuelColor(car.fuel_type as string) !== 'default' ? 'filled' : 'outlined'}
+                {!!car.fuel && (
+                  <Chip icon={fuelIcon(car.fuel as string)} label={car.fuel as string} size="small"
+                    color={fuelColor(car.fuel as string)}
+                    variant={fuelColor(car.fuel as string) !== 'default' ? 'filled' : 'outlined'}
                     sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
                 )}
                 {!!car.power_hp && (

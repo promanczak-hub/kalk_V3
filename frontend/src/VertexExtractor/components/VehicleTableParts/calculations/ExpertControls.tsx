@@ -24,11 +24,11 @@ export const CostRow = ({ label, original, expert, diff, formatter = (v: number)
   </div>
 );
 
-export const ExpertNumber = ({ label, value, onChange, placeholder = "", disabled = false, tooltip = "" }: { label: string, value: number | "", onChange: (v: number | "") => void, placeholder?: string, disabled?: boolean, tooltip?: string }) => (
+export const ExpertNumber = ({ label, value, onChange, placeholder = "", disabled = false, tooltip = "", step, min, suffix }: { label: string, value: number | "", onChange: (v: number | "") => void, placeholder?: string, disabled?: boolean, tooltip?: string, step?: number | string, min?: number, suffix?: string }) => (
   <div className="flex flex-col gap-1">
     <label className="text-xs font-medium text-gray-600 flex items-center gap-1">
       {label}
-      {tooltip && <Info className="w-3 h-3 text-gray-400 cursor-help" title={tooltip} />}
+      {tooltip && <div title={tooltip}><Info className="w-3 h-3 text-gray-400 cursor-help" /></div>}
     </label>
     <input
       type="number"
@@ -36,9 +36,11 @@ export const ExpertNumber = ({ label, value, onChange, placeholder = "", disable
       onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
       placeholder={placeholder}
       disabled={disabled}
-      className="w-full text-sm p-1.5 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400 outline-none transition-shadow"
-      step="any"
+      className="w-full text-sm p-1.5 pr-8 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400 outline-none transition-shadow"
+      step={step ?? "any"}
+      min={min}
     />
+    {suffix && <span className="absolute right-2 top-1/2 translate-y-2 text-[10px] text-gray-400">{suffix}</span>}
   </div>
 );
 
@@ -46,7 +48,7 @@ export const ExpertToggle = ({ label, checked, onChange, disabled = false, toolt
   <div className="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors">
     <label className="text-xs font-medium text-gray-600 cursor-pointer flex items-center gap-1 select-none">
       {label}
-      {tooltip && <Info className="w-3 h-3 text-gray-400 cursor-help" title={tooltip} />}
+      {tooltip && <div title={tooltip}><Info className="w-3 h-3 text-gray-400 cursor-help" /></div>}
     </label>
     <input
       type="checkbox"
@@ -62,7 +64,7 @@ export const ExpertSelect = ({ label, value, onChange, options, disabled = false
   <div className="flex flex-col gap-1">
     <label className="text-xs font-medium text-gray-600 flex items-center gap-1">
       {label}
-      {tooltip && <Info className="w-3 h-3 text-gray-400 cursor-help" title={tooltip} />}
+      {tooltip && <div title={tooltip}><Info className="w-3 h-3 text-gray-400 cursor-help" /></div>}
     </label>
     <select
       value={value}

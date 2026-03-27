@@ -10,11 +10,14 @@ class ReplacementCarCalculator:
         rate_data pochodzi z tabeli replacement_car_rates (per klasa SAMAR).
         """
         self.average_days_per_year = float(
-            rate_data.get("average_days_per_year", 0.0)
+            rate_data.get("srednia_l_dni_rok")
+            or rate_data.get("average_days_per_year", 0.0)
             or rate_data.get("SredniaIloscDobWRoku", 0.0)
         )
         self.daily_rate_net = float(
-            rate_data.get("daily_rate_net", 0.0) or rate_data.get("DobaNetto", 0.0)
+            rate_data.get("stawka_dzienna_netto_zl")
+            or rate_data.get("daily_rate_net", 0.0)
+            or rate_data.get("DobaNetto", 0.0)
         )
 
     def calculate_cost(self, months: int, enabled: bool) -> Dict[str, Any]:

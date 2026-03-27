@@ -22,10 +22,15 @@ def test_extract_to_markdown_delegates_to_hybrid() -> None:
     os.close(fd)
 
     try:
-        with patch.dict("sys.modules", {"pymupdf4llm": __import__("unittest.mock", fromlist=["MagicMock"])}):
+        with patch.dict(
+            "sys.modules",
+            {"pymupdf4llm": __import__("unittest.mock", fromlist=["MagicMock"])},
+        ):
             import sys
+
             mock_mod = sys.modules["pymupdf4llm"]
             from unittest.mock import MagicMock
+
             mock_mod.to_markdown = MagicMock(return_value="# Test Markdown Output")  # type: ignore[attr-defined]
 
             # Need fresh extractor to pick up the mocked module
@@ -47,6 +52,7 @@ def test_extract_hybrid_returns_tuple() -> None:
     try:
         with patch.dict("sys.modules", {"pymupdf4llm": MagicMock()}):
             import sys
+
             sys.modules["pymupdf4llm"].to_markdown.return_value = "# Hybrid Test"
 
             extractor = PDFExtractor()
@@ -68,7 +74,10 @@ def test_extractor_failure() -> None:
     try:
         with patch.dict("sys.modules", {"pymupdf4llm": MagicMock()}):
             import sys
-            sys.modules["pymupdf4llm"].to_markdown.side_effect = RuntimeError("pymupdf4llm crash")
+
+            sys.modules["pymupdf4llm"].to_markdown.side_effect = RuntimeError(
+                "pymupdf4llm crash"
+            )
 
             extractor = PDFExtractor()
             with pytest.raises(RuntimeError, match="pymupdf4llm crash"):

@@ -73,6 +73,10 @@ async def get_current_user(
     if not AUTH_ENABLED:
         return None
 
+    # Preflight requests and public health checks are exempt.
+    if request.method == "OPTIONS" or request.url.path == "/health":
+        return None
+
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -6,6 +6,7 @@ Ghost record = wpis gdzie synthesis_data jest pusty ({}) lub brak brand i model.
 Uruchom z --dry-run aby zobaczyc co zostanie usuniete.
 Uruchom z --confirm aby faktycznie usunac.
 """
+
 import sys
 import os
 
@@ -16,9 +17,11 @@ from core.database import supabase
 
 def find_ghosts() -> list[dict]:
     """Zwraca liste ghost record'ow do usuniecia."""
-    res = supabase.table("vehicle_synthesis").select(
-        "id, brand, model, created_at, synthesis_data, verification_status"
-    ).execute()
+    res = (
+        supabase.table("vehicle_synthesis")
+        .select("id, brand, model, created_at, synthesis_data, verification_status")
+        .execute()
+    )
 
     ghosts = []
     for row in res.data or []:
@@ -32,14 +35,18 @@ def find_ghosts() -> list[dict]:
 
         # Ghost = pusty synthesis_data LUB brak marki i modelu jednoczesnie
         if is_empty_synthesis or (is_no_brand and is_no_model):
-            ghosts.append({
-                "id": row["id"],
-                "brand": brand or "?",
-                "model": model or "?",
-                "created_at": (row.get("created_at") or "?")[:10],
-                "status": row.get("verification_status", "?"),
-                "reason": "pusty synthesis_data" if is_empty_synthesis else "brak marki i modelu",
-            })
+            ghosts.append(
+                {
+                    "id": row["id"],
+                    "brand": brand or "?",
+                    "model": model or "?",
+                    "created_at": (row.get("created_at") or "?")[:10],
+                    "status": row.get("verification_status", "?"),
+                    "reason": "pusty synthesis_data"
+                    if is_empty_synthesis
+                    else "brak marki i modelu",
+                }
+            )
 
     return ghosts
 
@@ -49,9 +56,9 @@ def delete_ghosts(ghost_ids: list[str]) -> int:
     deleted = 0
     for vid in ghost_ids:
         # 1. Usun powiazane auto-extract kalkulacje
-        supabase.table("ltr_kalkulacje").delete().eq(
-            "stan_json->>vehicle_id", vid
-        ).eq("stan_json->>source", "auto_extract").execute()
+        supabase.table("ltr_kalkulacje").delete().eq("stan_json->>vehicle_id", vid).eq(
+            "stan_json->>source", "auto_extract"
+        ).execute()
 
         # 2. Usun vehicle_matrix_cache entries
         supabase.table("vehicle_matrix_cache").delete().eq("vehicle_id", vid).execute()
@@ -76,10 +83,12 @@ def main() -> None:
 
     print(f"\nZnaleziono {len(ghosts)} ghost record(s):\n")
     print(f"  {'DATA':<12} {'MARKA/MODEL':<40} {'STATUS':<20} {'POWOD':<25} ID")
-    print(f"  {'-'*12} {'-'*40} {'-'*20} {'-'*25} {'-'*36}")
+    print(f"  {'-' * 12} {'-' * 40} {'-' * 20} {'-' * 25} {'-' * 36}")
     for g in ghosts:
         label = f"{g['brand']} {g['model']}".strip()
-        print(f"  [{g['created_at']}]  {label:<40} {g['status']:<20} {g['reason']:<25} {g['id']}")
+        print(
+            f"  [{g['created_at']}]  {label:<40} {g['status']:<20} {g['reason']:<25} {g['id']}"
+        )
 
     if dry_run:
         print(f"\n[DRY-RUN] Aby usunac te {len(ghosts)} rekordow, uruchom:")

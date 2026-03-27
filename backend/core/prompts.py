@@ -87,19 +87,18 @@ Jeśli widzisz zużycie paliwa lub cykl WLTP, podepnij to pod emisję (emissions
 KRYTYCZNE DANE FINANSOWE (WYMAGA TWOJEJ INTELIGENCJI I DETERMINISTYCZNYCH OBLICZEŃ):
 W wejściowym JSONie `digital_twin` otrzymujesz wierne odwzorowanie dokumentu. Ponieważ dane finansowe mogą być rozrzucone jako "brudne dane", wprowadzamy rygorystyczny proces weryfikacji. ZACZNIJ od wypełnienia pola `financial_reasoning`. W tym polu wykonaj "myślenie głośno" stawiając przed sobą kwoty, które znalazłeś i testując ich matematyczne powiązania:
 1. NAJPIERW przeszukaj CAŁY dokument i wypisz wszystkie liczby mające charakter kwot (np. 150 000 PLN, 130 000 PLN, 20 000 PLN, itd.). Wypisz obok nich etykiety z dokumentu.
-2. SPRAWDŹ relacje matematyczne: czy A + B = C? Czy Kwota A odjęta od B daje C? Zrób to w tekście by zweryfikować czy nie popełniasz błędu logicznego.
-3. Czy cena bazowa widniejąca w dokumencie, po dodaniu do niej opcji (i ewentualnych akcesoriów) sumuje się do ceny "Przed rabatami"? 
-4. ZAAKCEPTUJ to jako ostateczny podział, BEZ uwzględniania upustów i rabatów dealerskich w tych składowych. Rabat nie ma prawa być ukryty w `base_price` ani w opcjach.
+2. SPRAWDŹ relacje matematyczne: czy A + B = C? Czy Cena Bazowa + Wszystkie Opcje = Cena Całkowita przed Rabatem? Zrób to w tekście.
+3. KRYTYCZNE: UWAGA! Od tego momentu masz BEZWZGLĘDNY ZAKAZ fałszowania wyników wyjściowych! Jeśli zauważysz, że pominąłeś opcję płatną (np. lakier) i równanie matematyczne z punktu drugiego DLA TWOICH DANYCH SIĘ NIE POKRYWA - zostaw to tak. Nie próbuj na własną rękę korygować matematycznie ceny bazowej czy opcji z równania "Total - Baza". Twój zadaniem jest 100% OCR!
 
-Dopiero PO poprawnym matematycznym uzasadnieniu zbuduj zmienne liczbowe:
-1. `base_price` - faktyczna CENA KATALOGOWA BAZOWA (bez opcji i ZAWSZE BEZ ZNIŻEK). Szukaj jej pod etykietami typu "Cena bazowa", "Cena modelu przed upustem", "Wartość auta wg. cennika". Zdarza się że "Cena łączna" w tabeli na pierwszych stronach to już cena obniżona! Upewnij się, że Twoje `base_price` to czysta, cennikowa wartość startowa pojazdu wynikająca z konfiguratora. Jeśli musisz, wylicz to matematycznie (Cena Całkowita Przed Rabatem minus suma znalezionych Opcji). NIGDY nie przypisuj tu kwoty "po rabatach".
-2. `options_price` - łączna cena opcji dodatkowo płatnych. Zsumuj sumiennie ceny wszystkich opcji płatnych, pakietów i akcesoriów z całego dokumentu lub odejmij bazę od ceny całkowitej przed rabatami.
-3. `total_price` - ostateczna cena pojazdu doliczająca rabaty i zniżki (czyli kwota finalna podana na ofercie).
+Dopiero PO poprawnym zlokalizowaniu kwot w tabelach, wypisz zmienne:
+1. `base_price` - faktyczna CENA KATALOGOWA BAZOWA (bez opcji i ZAWSZE BEZ ZNIŻEK). Odczytaj ją WPROST Z ODDZIELNEJ komórki cennika. ABSOLUTNY ZAKAZ wyliczania Bazy matematycznie z różnicy `Total - Opcje`. Jeśli pominąłeś lakier w opcjach, naprawiając równanie zawyżysz bazę i zepsujesz kalkulację. Wpisuj tylko to, co jawnie widzisz u dealera.
+2. `options_price` - łączna cena opcji dodatkowo płatnych. Znajdź tę kwotę WPROST w podsumowaniu dokumentu (np. 'Wartość wyposażenia opcjonalnego') lub po prostu zsumuj ceny znalezionych opcji. ZAKAZ wyciągania tego ze wzoru "Total - Baza".
+3. `total_price` - ostateczna cena pojazdu doliczająca rabaty i zniżki (czyli kwota finalna podana na ofercie). Odczytaj ją literalnie.
 
 ZASADA SPÓJNOŚCI (BARDZO WAŻNE): 
-Jeśli widzisz w dokumencie kilka tabel z podsumowaniami cen, BEZWZGLĘDNIE trzymaj się kwot z JEDNEJ, obranej tabeli/logiki. Przed podaniem ostatecznych cyfr ZAWSZE wykonaj testowe sprawdzenie matematyczne w `financial_reasoning`. Twoje `base_price` + `options_price` ZAWSZE ZBUDUJĄ WARTOŚĆ CENNIKOWĄ, a Twoje `total_price` ukaże końcową ofertę.
+Masz zakaz fałszowania i dopasowywania kwot na siłę do siebie! Jeśli suma opcji + baza nie daje wyniku Total, NIE naprawiaj tego w ukryciu - nasz dedykowany system (Walidator Finansowy) sam wychwyci anomalię i rzuci klientowi alertem w aplikacji. Zawsze przepisuj wartości w całości tak jak widnieją na papierze.
 
-Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Nigdy nie zostawiaj 'Brak' w tych trzech polach jeśli dokument zawiera jakiekolwiek ceny, wylicz to matematycznie na podstawie pozostałych liczb. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
+Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
 
 DETEKCJA DOMENY CENOWEJ (price_domain / price_type):
 Ustal globalną domenen cenową całego dokumentu (pole `price_domain`):

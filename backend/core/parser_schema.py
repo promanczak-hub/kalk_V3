@@ -16,8 +16,8 @@ class MappedOption(BaseModel):
 class MappedOffer(BaseModel):
     brand: str = Field(description="Marka pojazdu.")
     model: str = Field(description="Model pojazdu.")
-    trim: Optional[str] = Field(
-        None, description="Pełna linia wyposażenia lub typ nadwozia."
+    trim_level: Optional[str] = Field(
+        default=None, description="Pełna linia wyposażenia lub typ nadwozia."
     )
     body_style: Optional[str] = Field(
         None, description="Wywnioskowany Typ Nadwozia (np. SUV, Hatchback, Kombi, VAN)."
@@ -30,11 +30,12 @@ class MappedOffer(BaseModel):
         None,
         description="Zmapowana Nazwa Klasy SAMAR (Wypełniana automatycznie na backendzie, nie przez LLM).",
     )
-    fuel_type: str = Field(
+    fuel: str = Field(
+        ...,
         description="Rodzaj paliwa wywnioskowany z opisu. Oczekiwane wartości ściśle z listy: "
         "'Benzyna (PB)', 'Diesel (ON)', 'Benzyna mHEV (PB-mHEV)', "
         "'Diesel mHEV (ON-mHEV)', 'Hybryda (HEV)', 'Hybryda Plug-in (PHEV)', "
-        "'Elektryczny (BEV)', 'Wodór (FCEV)', 'Autogaz (LPG)'"
+        "'Elektryczny (BEV)', 'Wodór (FCEV)', 'Autogaz (LPG)'",
     )
     color: Optional[str] = Field(
         None, description="Surowa nazwa lakieru / koloru nadwozia wyciągnięta z oferty."
@@ -75,6 +76,22 @@ class MappedOffer(BaseModel):
     )
     transmission: Optional[str] = Field(
         None, description="Rodzaj skrzyni biegów ('manualna' lub 'automatyczna')"
+    )
+    drive_type: Optional[str] = Field(
+        None,
+        description="Rodzaj napędu (np. FWD, RWD, AWD, 4x4).",
+    )
+    number_of_seats: Optional[int] = Field(
+        None, description="Liczba miejsc siedzących (np. 2, 5, 7, 9)."
+    )
+    has_tow_hook: Optional[bool] = Field(
+        None, description="Czy pojazd posiada hak holowniczy?"
+    )
+    has_automatic_ac: Optional[bool] = Field(
+        None, description="Czy pojazd posiada klimatyzację automatyczną?"
+    )
+    is_metalic_paint: Optional[bool] = Field(
+        None, description="Czy lakier jest metalizowany?"
     )
     service_interval_km: Optional[int] = Field(
         None,

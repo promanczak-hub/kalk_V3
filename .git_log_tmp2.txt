@@ -1,0 +1,12 @@
+﻿commit 9ba5b88dcb0998f833e5b9eaa114490bfd502405
+Author: promanczak-hub <p.romanczak@gmail.com>
+Date:   Fri Mar 20 17:39:11 2026 +0100
+
+    fix: batch-prices Supabase limit + has_ltr_cache filter + LtrPriceBlock hasPriceFromAPI priority
+    
+    - backend/scoring_search_routes.py: add .limit(10000) to vehicle_matrix_cache query
+      (Supabase default 1000 rows was silently truncating 42+ vehicles x 29 variants)
+    - frontend/ScoringResults.tsx: remove has_ltr_cache filter from vehicleIdsToFetchPrices
+      (was always empty when Redis cache had stale data without the flag)
+    - frontend/ScoringResults.tsx: LtrPriceBlock uses hasPriceFromAPI over hasCache flag
+      (price.found=true now always shows price regardless of hasCache=null)

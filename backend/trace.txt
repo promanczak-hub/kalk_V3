@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\core\LTRKalkulator.py", line 460, in get_samar_klasa_from_db
+    raise ValueError(f"Nie znaleziono danych konfiguracyjnych w 'samar_klasa_wr' dla id={klasa_id}. Fail-Fast.")
+ValueError: Nie znaleziono danych konfiguracyjnych w 'samar_klasa_wr' dla id=103. Fail-Fast.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\kalk_v3\backend\test_kalk.py", line 25, in main
+    kalk = LTRKalkulator(input_data=calc_input, settings=cc_settings)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\kalk_v3\backend\core\LTRKalkulator.py", line 572, in __init__
+    get_samar_klasa_from_db(samar_id_str)
+  File "D:\kalk_v3\backend\core\LTRKalkulator.py", line 462, in get_samar_klasa_from_db
+    raise ValueError(f"Błąd bazy danych dla 'samar_klasa_wr': {e}. Fail-Fast.") from e
+ValueError: Błąd bazy danych dla 'samar_klasa_wr': Nie znaleziono danych konfiguracyjnych w 'samar_klasa_wr' dla id=103. Fail-Fast.. Fail-Fast.

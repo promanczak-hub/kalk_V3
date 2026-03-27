@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import type { FleetVehicleView } from "../../types";
+import { useState } from "react";
+import type { FleetVehicleView } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
 
 interface UseVehiclePricingProps {

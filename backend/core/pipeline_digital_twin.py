@@ -18,28 +18,65 @@ from core.extractor_models import UtilityFeatureItem
 
 class EquipmentItem(BaseModel):
     name: str = Field(description="Nazwa wyposażenia rzetelnie odczytana z dokumentu")
-    price: Optional[str] = Field(None, description="Cena wyposażenia, jeśli przypisana wprost")
+    price: Optional[str] = Field(
+        None, description="Cena wyposażenia, jeśli przypisana wprost"
+    )
+
 
 class VehicleExtractionSchema(BaseModel):
-    brand: str = Field(description="Zidentyfikowana marka pojazdu, np. Skoda, Audi, Tayron")
-    model: str = Field(description="Zidentyfikowany model i ewentualnie wersja, np. Kodiaq L&K")
-    offer_number: Optional[str] = Field(None, description="Numer oferty widoczny na dokumencie (jeśli występuje)")
-    configuration_code: Optional[str] = Field(None, description="Kod konfiguracji producenta (jeśli występuje)")
-    total_price: Optional[str] = Field(None, description="Pełna cena brutto/netto podana jako wynikowa")
-    base_price: Optional[str] = Field(None, description="Cena bazowa pojazdu wynikająca z cenników przed opcjami")
-    options_price: Optional[str] = Field(None, description="Cena wariantów/opcji dodatkowych")
+    brand: str = Field(
+        description="Zidentyfikowana marka pojazdu, np. Skoda, Audi, Tayron"
+    )
+    model: str = Field(
+        description="Zidentyfikowany model i ewentualnie wersja, np. Kodiaq L&K"
+    )
+    offer_number: Optional[str] = Field(
+        None, description="Numer oferty widoczny na dokumencie (jeśli występuje)"
+    )
+    configuration_code: Optional[str] = Field(
+        None, description="Kod konfiguracji producenta (jeśli występuje)"
+    )
+    total_price: Optional[str] = Field(
+        None, description="Pełna cena brutto/netto podana jako wynikowa"
+    )
+    base_price: Optional[str] = Field(
+        None, description="Cena bazowa pojazdu wynikająca z cenników przed opcjami"
+    )
+    options_price: Optional[str] = Field(
+        None, description="Cena wariantów/opcji dodatkowych"
+    )
     engine_power_hp: Optional[str] = Field(None, description="Moc silnika (np. 150 KM)")
-    engine_capacity_cm3: Optional[str] = Field(None, description="Pojemność silnika (np. 1498 cm3)")
+    engine_capacity_cm3: Optional[str] = Field(
+        None, description="Pojemność silnika (np. 1498 cm3)"
+    )
     fuel_consumption: Optional[str] = Field(None, description="Zużycie paliwa / WLTP")
     co2_emissions: Optional[str] = Field(None, description="Emisje CO2 w g/km")
-    transmission: Optional[str] = Field(None, description="Rodzaj skrzyni biegów (np. Automatyczna DSG)")
-    drive_type: Optional[str] = Field(None, description="Typ napędu (np. 4x4, oś przednia)")
-    paint_color: Optional[str] = Field(None, description="Kolor zewnętrzny nadwozia (najlepiej z cennikiem obok)")
-    wheels: Optional[str] = Field(None, description="Szczegóły dotyczące kół/obręczy aluminiowych")
-    upholstery: Optional[str] = Field(None, description="Informacje o wyposażeniu tapicerki/wnętrza")
-    standard_equipment: List[str] = Field(description="Kompletne wylistowanie wyposażenia standardowego / seryjnego z dokumentu")
-    optional_equipment: List[EquipmentItem] = Field(description="Lista płatnego i darmowego wybranego wyposażenia (opcje/akcesoria/pakiety)")
-    utility_features: List[UtilityFeatureItem] = Field(default_factory=list, description="Parametry fizyczne (np. pojemność bagażnika, długość, masa) - Bądź agresywny w szukaniu!")
+    transmission: Optional[str] = Field(
+        None, description="Rodzaj skrzyni biegów (np. Automatyczna DSG)"
+    )
+    drive_type: Optional[str] = Field(
+        None, description="Typ napędu (np. 4x4, oś przednia)"
+    )
+    paint_color: Optional[str] = Field(
+        None, description="Kolor zewnętrzny nadwozia (najlepiej z cennikiem obok)"
+    )
+    wheels: Optional[str] = Field(
+        None, description="Szczegóły dotyczące kół/obręczy aluminiowych"
+    )
+    upholstery: Optional[str] = Field(
+        None, description="Informacje o wyposażeniu tapicerki/wnętrza"
+    )
+    standard_equipment: List[str] = Field(
+        description="Kompletne wylistowanie wyposażenia standardowego / seryjnego z dokumentu"
+    )
+    optional_equipment: List[EquipmentItem] = Field(
+        description="Lista płatnego i darmowego wybranego wyposażenia (opcje/akcesoria/pakiety)"
+    )
+    utility_features: List[UtilityFeatureItem] = Field(
+        default_factory=list,
+        description="Parametry fizyczne (np. pojemność bagażnika, długość, masa) - Bądź agresywny w szukaniu!",
+    )
+
 
 def _format_unified_data(extracted_data: dict) -> dict:
     return {
@@ -87,7 +124,9 @@ def _call_gemini_pro(client, contents) -> dict:
             thinking_budget=16384,
         ),
     )
-    print("Attempting primary standard JSON extraction with Pro (Thinking + Structured Outputs)...")
+    print(
+        "Attempting primary standard JSON extraction with Pro (Thinking + Structured Outputs)..."
+    )
     try:
         response = client.models.generate_content(
             model=model_id,

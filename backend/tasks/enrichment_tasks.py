@@ -108,3 +108,80 @@ def enrich_vehicle_features_from_catalog(vehicle_id: str) -> dict:
         "matched_variant": match_result.matched_variant_name,
         "features_extracted": len(match_result.features),
     }
+
+
+@celery_app.task
+def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
+    """Generates and saves a semantic embedding vector for a vehicle."""
+    logger.info(f"Generating embedding for vehicle {vehicle_id}")
+    sb = supabase
+    from core.embeddings import generate_embedding, build_vehicle_document
+
+    v_resp = (
+        sb.table("vehicle_synthesis")
+        .select("brand, model, synthesis_data")
+        .eq("id", vehicle_id)
+        .execute()
+    )
+    if not v_resp.data:
+        return {"status": "error", "message": "Vehicle not found"}
+
+    row = v_resp.data[0]
+    brand = row.get("brand") or ""
+    model = row.get("model") or ""
+    synthesis = row.get("synthesis_data") or {}
+
+    doc_text = build_vehicle_document(brand, model, synthesis)
+    vector = generate_embedding(doc_text)
+
+    if not vector:
+        logger.error(f"Failed to generate embedding for vehicle {vehicle_id}")
+        return {"status": "error", "message": "Embedding generation returned None"}
+
+    # Format vector for Postgres literal e.g., '[0.1, 0.2, ...]'
+    vec_str = f"[{','.join(str(v) for v in vector)}]"
+
+    # Update the vehicle_synthesis table with the new vector
+    try:
+        sb.table("vehicle_synthesis").update({"semantic_embedding": vec_str}).eq(
+            "id", vehicle_id
+        ).execute()
+        logger.info(f"Successfully saved embedding for vehicle {vehicle_id}")
+        return {"status": "success", "vehicle_id": vehicle_id}
+    except Exception as e:
+        logger.exception(f"DB Error saving embedding for {vehicle_id}")
+        return {"status": "error", "message": str(e)}
+
+
+@celery_app.task
+def backfill_vehicle_embeddings() -> dict:
+    """Fills the semantic_embedding column for all vehicles that don't have one."""
+    logger.info("Starting vehicle embedding backfill process")
+    sb = supabase
+
+    # Fetch vehicles lacking an embedding
+    # Note: is.null is Supabase python syntax for IS NULL
+    v_resp = (
+        sb.table("vehicle_synthesis")
+        .select("id")
+        .is_("semantic_embedding", "null")
+        .execute()
+    )
+
+    vehicles = v_resp.data or []
+    logger.info(f"Found {len(vehicles)} vehicles missing embeddings.")
+
+    success_count = 0
+    for v in vehicles:
+        res = generate_embedding_for_vehicle(v["id"])
+        if res.get("status") == "success":
+            success_count += 1
+
+    logger.info(
+        f"Backfill complete: generated {success_count}/{len(vehicles)} embeddings."
+    )
+    return {
+        "status": "success",
+        "processed": len(vehicles),
+        "successful": success_count,
+    }

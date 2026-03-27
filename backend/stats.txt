@@ -1,0 +1,12 @@
+Wszystkich pojazdów: 82
+Wszystkich rekordów matrix_cache: 1000
+Znaleziono 3 Skod Fabia.
+Fabia 3ec82f6d-1b43-4967-b511-8bfd65266fcc -> 0 wariantow
+Fabia 9253346a-7757-464f-9f41-6cef924f6e3c -> 0 wariantow
+Fabia 0d41a04d-0a17-48a6-8beb-9d682c36182a -> 0 wariantow
+Pojazdy z macierzami: 5
+Auto 2577c0ed-edbd-4689-b97f-84192e3751b1 ma 308 wariantow
+Auto 059d9963-c18a-45f4-8b4e-36bba4b9b34d ma 308 wariantow
+Auto 4d93be3f-353c-4707-ae4c-3123579c3b32 ma 23 wariantow
+Auto 26940c32-e86f-4f0d-98c8-3f749d0b389f ma 308 wariantow
+Auto 47022336-bf17-4bcc-b4a7-9438dee55072 ma 53 wariantow

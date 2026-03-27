@@ -22,11 +22,9 @@ if not os.path.exists(filepath):
 file_id = str(uuid.uuid4())
 
 print(f"Reserving vehicle_synthesis row with ID: {file_id}")
-sb.table("vehicle_synthesis").insert({
-    "id": file_id,
-    "verification_status": "processing",
-    "file_hash": file_id
-}).execute()
+sb.table("vehicle_synthesis").insert(
+    {"id": file_id, "verification_status": "processing", "file_hash": file_id}
+).execute()
 
 print(f"Sending file to API {api_url}...")
 with open(filepath, "rb") as f:

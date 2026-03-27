@@ -50,7 +50,6 @@ export const useScoringSearch = () => {
       // Build requirements payload out of selectedFeatures and context
       const payload = buildScoringPayload(searchContext, selectedFeatures);
 
-      const { apiFetch } = await import('../../lib/api');
       const res = await apiClient.fetch('/api/scoring-search/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

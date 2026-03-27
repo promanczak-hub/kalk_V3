@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 from core.models import ControlCenterSettings
 from api.schemas.calculator import CalculatorInput
 
+
 class CalculationService:
     """
     Orkiestrator domenowy (UseCase) dla rdzennnego potoku LTRKalkulator.
@@ -14,6 +15,7 @@ class CalculationService:
 
     def calculate_matrix(self) -> List[Dict[str, Any]]:
         from core.LTRKalkulator import LTRKalkulator
+
         engine = LTRKalkulator(input_data=self.data, settings=self.settings)
         return engine.build_matrix()
 
@@ -67,5 +69,5 @@ class CalculationService:
 
         if not trace_data and matrix_cells:
             trace_data = matrix_cells[-1].get("calculation_trace", [])
-            
+
         return matrix_cells, trace_data

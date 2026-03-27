@@ -16,7 +16,7 @@ input_data = LTRInputData(
     catalog_tire_class="Premium",
     samar_class_id=31,  # Assuming SUV C
     is_premium_class=False,
-    engine_id=903, # EV
+    engine_id=903,  # EV
     power_kw=250,
     vehicle_year="current",
     body_type="SUV",
@@ -24,7 +24,7 @@ input_data = LTRInputData(
     options_total_netto=42898.37,
     # others
     WartoscRynkowaOtwarty=0,
-    CzynszProcent=0.0
+    CzynszProcent=0.0,
 )
 
 kalkulator = LTRKalkulator(input_data)

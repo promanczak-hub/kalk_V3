@@ -4,7 +4,7 @@ base_url = "http://localhost:8000/api/excel-drafts/TAB. PRZEBIEG"
 
 payload = {
     "columns_def": [{"field": "col_1", "headerName": "Test", "width": 150}],
-    "data_rows": [{"id": 1, "col_1": "abc"}]
+    "data_rows": [{"id": 1, "col_1": "abc"}],
 }
 
 try:

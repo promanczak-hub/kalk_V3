@@ -1,0 +1,50 @@
+﻿Traceback (most recent call last):
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\docling\pipeline\standard_pdf_pipeline.py", line 296, in _process_batch
+    processed_pages = list(self.model(good[0].conv_res, pages))  # type: ignore[arg-type]
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\docling\models\stages\ocr\auto_ocr_model.py", line 128, in __call__
+    yield from self._engine(conv_res, page_batch)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\docling\models\stages\ocr\rapid_ocr_model.py", line 268, in __call__
+    high_res_image = page._backend.get_page_image(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\docling\backend\docling_parse_backend.py", line 175, in get_page_image
+    .resize(
+     ^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\PIL\Image.py", line 2321, in resize
+    return self._new(self.im.resize(size, resample, box))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+MemoryError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\logging\__init__.py", line 1163, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\colorama\ansitowin32.py", line 47, in write
+    self.__convertor.write(text)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\colorama\ansitowin32.py", line 177, in write
+    self.write_and_convert(text)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\colorama\ansitowin32.py", line 202, in write_and_convert
+    self.write_plain_text(text, cursor, start)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\colorama\ansitowin32.py", line 210, in write_plain_text
+    self.wrapped.write(text[start:end])
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1250.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>
+Call stack:
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1032, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\docling\pipeline\standard_pdf_pipeline.py", line 248, in _run
+    processed = self._process_batch(batch)
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\docling\pipeline\standard_pdf_pipeline.py", line 321, in _process_batch
+    _log.error(
+Message: 'Stage %s failed for run %d: %s'
+Arguments: ('ocr', 1, MemoryError())
+Stage preprocess failed for run 1, pages [15]: std::bad_alloc
+Stage preprocess failed for run 1, pages [18]: std::bad_alloc
+Stage preprocess failed for run 1, pages [17]: std::bad_alloc

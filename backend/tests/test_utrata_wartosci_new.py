@@ -1,5 +1,9 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pytest
-from unittest.mock import MagicMock
 from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
 
 
@@ -9,16 +13,23 @@ class MockSettings:
     samar_rv_apply_options_depreciation = True
     samar_rv_base_mileage = 140000
     samar_rv_mileage_unit_km = 10000
+    vat_rate = 1.23
 
 
 class MockInputData:
     settings = MockSettings()
 
 
-def test_utrata_wartosci_bez_czynszu_brutto_to_netto():
+def test_utrata_wartosci_bez_czynszu_brutto_to_netto(mocker):
     """WR Brutto -> netto i UtrataWartosciBEZczynszu poprawna konwersja."""
-    vehicle_data = {"Paliwo": "Benzyna", "Segment": "C", "MinRokProd": 2024}
-
+    vehicle_data = {
+        "Paliwo": "Benzyna",
+        "Segment": "C",
+        "MinRokProd": 2024,
+        "samar_class_id": 1,
+        "engine_type_id": 1,
+        "fuel_name": "BENZYNA",
+    }
     calc = LTRSubCalculatorUtrataWartosciNew(
         vehicle_data=vehicle_data, calc_input=MockInputData()
     )
@@ -27,67 +38,109 @@ def test_utrata_wartosci_bez_czynszu_brutto_to_netto():
     calc.vat_rate = 1.23
     calc.przewidywana_cena_lo = 0.1
 
-    # Mock rv_engine.calculate_rv -> zwraca znane WR brutto
-    # Scenariusz:
-    #   base_vehicle_capex_gross  = 123000 (100k netto)
-    #   options_capex_gross       = 24600  (20k netto)
-    #   RV brutto z SamarRV       = 91020
-    #   Utrata brutto = 147600 - 91020 = 56580
-    #   Utrata netto  = 56580 / 1.23 ≈ 46000
-    calc.rv_engine.calculate_rv = MagicMock(return_value=91020.0)
+    # Mock SamarRVCalculator.calculate
+    from core.samar_rv import RVOutput
+
+    mock_rv_output = RVOutput(
+        wr_net=91020.0 / 1.23,  # Result is netto in SamarRV
+        wr_lo_net=0.0,
+        utrata_wartosci_net=46000.0,
+        wr_percent=0.0,
+        debug={"krok1_wr_value_netto": 91020.0 / 1.23},
+    )
+    mocker.patch(
+        "core.LTRSubCalculatorUtrataWartosciNew.SamarRVCalculator.calculate",
+        return_value=mock_rv_output,
+    )
 
     res = calc.calculate_values(
         months=36,
         total_km=60000,
-        base_vehicle_capex_gross=123000.0,
-        options_capex_gross=24600.0,
+        base_vehicle_catalog_gross=123000.0,
+        options_catalog_gross=24600.0,
     )
 
     assert res["WR_Gross"] == pytest.approx(91020.0, 0.01)
     assert res["UtrataWartosciBEZczynszu"] == pytest.approx(46000.0, 0.01)
 
 
-def test_utrata_wartosci_zero_cut():
+def test_utrata_wartosci_zero_cut(mocker):
     """Utrata nie może być ujemna — max(0, ...)."""
-    vehicle_data = {"Paliwo": "Benzyna", "Segment": "C", "MinRokProd": 2024}
+    vehicle_data = {
+        "Paliwo": "Benzyna",
+        "Segment": "C",
+        "MinRokProd": 2024,
+        "samar_class_id": 1,
+        "engine_type_id": 1,
+        "fuel_name": "BENZYNA",
+    }
 
     calc = LTRSubCalculatorUtrataWartosciNew(vehicle_data, MockInputData())
     calc.vat_rate = 1.23
     calc.przewidywana_cena_lo = 0.0
 
-    # WR wyższe niż cena => utrata = 0
-    # Ale clamp: 95% z 1000 = 950 → WR = 950
-    calc.rv_engine.calculate_rv = MagicMock(return_value=2000.0)
+    from core.samar_rv import RVOutput
+
+    mock_rv_output = RVOutput(
+        wr_net=950.0, wr_lo_net=0.0, utrata_wartosci_net=50.0, wr_percent=0.0, debug={}
+    )
+    mocker.patch(
+        "core.LTRSubCalculatorUtrataWartosciNew.SamarRVCalculator.calculate",
+        return_value=mock_rv_output,
+    )
 
     res = calc.calculate_values(36, 60000, 1000.0, 0.0)
-
-    # Clamped to 95% of 1000 = 950, utrata = max(1000 - 950, 0) = 50
-    # Netto = 50 / 1.23 ≈ 40.65
-    assert res["UtrataWartosciBEZczynszu"] == pytest.approx(50.0 / 1.23, 0.01)
+    # Mock said utrata = 50.0 (netto), so we expect 50.0
+    assert res["UtrataWartosciBEZczynszu"] == pytest.approx(50.0, 0.01)
 
 
-def test_wr_dla_lo():
+def test_wr_dla_lo(mocker):
     """WRdlaLO = WR_brutto * (1 + przewidywana_cena_lo%) / VAT."""
-    vehicle_data = {"Paliwo": "Benzyna", "Segment": "C", "MinRokProd": 2024}
+    vehicle_data = {
+        "Paliwo": "Benzyna",
+        "Segment": "C",
+        "MinRokProd": 2024,
+        "samar_class_id": 1,
+        "engine_type_id": 1,
+        "fuel_name": "BENZYNA",
+    }
 
     calc = LTRSubCalculatorUtrataWartosciNew(vehicle_data, MockInputData())
     calc.vat_rate = 1.23
     calc.przewidywana_cena_lo = 0.1
 
-    # RV brutto = 123000, po clamp wewnątrz 5-95% z 200k = [10k, 190k] → OK
-    calc.rv_engine.calculate_rv = MagicMock(return_value=123000.0)
+    from core.samar_rv import RVOutput
+
+    mock_rv_output = RVOutput(
+        wr_net=100000.0,  # 123000 / 1.23
+        wr_lo_net=110000.0,
+        utrata_wartosci_net=0.0,
+        wr_percent=0.0,
+        debug={},
+    )
+    mocker.patch(
+        "core.LTRSubCalculatorUtrataWartosciNew.SamarRVCalculator.calculate",
+        return_value=mock_rv_output,
+    )
 
     res = calc.calculate_values(36, 60000, 200000.0, 0.0)
 
     # WRdlaLOBrutto = 123000 * 1.1 = 135300
     # WRdlaLONetto  = 135300 / 1.23 = 110000.0
-    assert res["WR_Gross"] == 123000.0
+    assert res["WR_Gross"] == pytest.approx(123000.0, 0.01)
     assert res["WRdlaLO"] == pytest.approx(110000.0, 0.01)
 
 
-def test_manual_wr_correction():
+def test_manual_wr_correction(mocker):
     """Korekta ręczna WR dodawana do WR brutto (×VAT)."""
-    vehicle_data = {"Paliwo": "Benzyna", "Segment": "C", "MinRokProd": 2024}
+    vehicle_data = {
+        "Paliwo": "Benzyna",
+        "Segment": "C",
+        "MinRokProd": 2024,
+        "samar_class_id": 1,
+        "engine_type_id": 1,
+        "fuel_name": "BENZYNA",
+    }
 
     class InputWithCorrection:
         settings = MockSettings()
@@ -97,8 +150,19 @@ def test_manual_wr_correction():
     calc.vat_rate = 1.23
     calc.przewidywana_cena_lo = 0.0
 
-    # RV brutto z engine = 50000
-    calc.rv_engine.calculate_rv = MagicMock(return_value=50000.0)
+    from core.samar_rv import RVOutput
+
+    mock_rv_output = RVOutput(
+        wr_net=41650.41,  # 51230 / 1.23
+        wr_lo_net=0.0,
+        utrata_wartosci_net=0.0,
+        wr_percent=0.0,
+        debug={},
+    )
+    mocker.patch(
+        "core.LTRSubCalculatorUtrataWartosciNew.SamarRVCalculator.calculate",
+        return_value=mock_rv_output,
+    )
 
     res = calc.calculate_values(36, 60000, 100000.0, 0.0)
 

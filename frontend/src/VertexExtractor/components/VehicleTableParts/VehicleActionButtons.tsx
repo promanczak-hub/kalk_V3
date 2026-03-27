@@ -4,7 +4,8 @@ import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
 import { apiClient } from '../../../lib/apiClient';
-import { extractOptionsFromPaidOptions } from "./calculations/calculations.utils";
+import { supabase } from "../../../lib/supabaseClient";
+import { buildCalculationPayload } from "./calculations/payloadBuilder";
 
 interface HistoricalCalculation {
   id: string;
@@ -17,11 +18,8 @@ interface VehicleActionButtonsProps {
   vehicle: FleetVehicleView;
   isSavingSetup: boolean;
   handleSaveSetup: () => Promise<void>;
-  wiborPct: number;
-  marginPct: number;
   pricingMarginPct: number;
   initialDepositPct: number;
-  otherServiceCosts: number;
   expressPaysInsurance: boolean;
   replacementCar: boolean;
   gpsRequired: boolean;
@@ -64,11 +62,8 @@ export function VehicleActionButtons({
   vehicle,
   isSavingSetup,
   handleSaveSetup,
-  wiborPct,
-  marginPct,
   pricingMarginPct,
   initialDepositPct,
-  otherServiceCosts,
   expressPaysInsurance,
   replacementCar,
   gpsRequired,
@@ -165,108 +160,73 @@ export function VehicleActionButtons({
       await handleSaveSetup();
       setPhase('calculating');
       const baseUrl = API_BASE_URL;
-      const existingCalculatorSetup = ((vehicle.synthesis_data as Record<string, unknown>)?.calculator_setup as Record<string, unknown>) || {};
-      const existingFinancialParams = (existingCalculatorSetup.financial_params as Record<string, unknown>) || {};
-      const existingToggles = (existingCalculatorSetup.toggles as Record<string, unknown>) || {};
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cardSummary = (vehicle.synthesis_data as Record<string, any>)?.card_summary || {};
-      const isDemo = String(cardSummary.is_demo || "").toLowerCase() === "true";
-      const rawBasePrice = isDemo 
-        ? (cardSummary.demo_price || cardSummary.base_price)
-        : cardSummary.base_price;
-        
-      const cleanBasePrice = parseFloat(String(rawBasePrice || "").replace(/\s+/g, "").replace(",", ".")) || 0;
-      const priceDomain = cardSummary._price_domain || "unknown";
-      const isBrutto = String(rawBasePrice || "").toLowerCase().includes("brutto") || priceDomain === "brutto";
-      
-      const basePriceNet = isBrutto ? parseFloat((cleanBasePrice / 1.23).toFixed(2)) : cleanBasePrice;
-
-      const fallbackFromPaid = extractOptionsFromPaidOptions(
-        cardSummary.paid_options || [],
-        String(cardSummary._price_domain || cardSummary.price_domain || "")
-      );
+      const payload = buildCalculationPayload({
+          vehicle,
+          wiborPct: null, // Force fallback to DB ControlCenterSettings
+          marginPct: null, // Force fallback to DB ControlCenterSettings
+          pricingMarginPct,
+          initialDepositPct,
+          otherServiceCosts: null, // Let backend calculate from Matrix or CC
+          expressPaysInsurance,
+          replacementCar,
+          gpsRequired,
+          includeServicing,
+          hookInstallation,
+          tireClass,
+          tireCountMode,
+          tireCostCorrectionEnabled,
+          tireCostCorrection,
+          rimDiameter,
+          serviceCostType,
+          vehicleVintage,
+          isMetalic,
+          activeDiscountPct,
+          activeFinalPrice,
+          priceAudit,
+      });
 
       const resp = await apiClient.fetch(`${baseUrl}/api/kalkulacje`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortControllerRef.current.signal,
-        body: JSON.stringify({
-          stan_json: {
-            ...(vehicle.synthesis_data || {}),
-            vehicle_id: vehicle.id,
-            base_price_net: basePriceNet,
-            factory_options: fallbackFromPaid.factory,
-            service_options: fallbackFromPaid.service,
-            brand: vehicle.brand || "",
-            model: vehicle.model || "",
-
-            // Flattened fields strictly required by backend's CalculatorInput model cache job
-            wibor_pct: wiborPct,
-            margin_pct: marginPct,
-            pricing_margin_pct: pricingMarginPct,
-            discount_pct: activeDiscountPct,
-            depreciation_pct: null,
-            initial_deposit_pct: initialDepositPct,
-            inne_koszty_serwisowania_netto: otherServiceCosts,
-            replacement_car_enabled: replacementCar,
-            add_gsm_subscription: gpsRequired,
-            add_hook_installation: hookInstallation,
-            include_servicing: includeServicing,
-            z_oponami: true,
-            klasa_opony_string: tireClass || "Medium",
-            liczba_kompletow_opon: tireCountMode === "auto" ? null : (isNaN(parseFloat(tireCountMode)) ? null : parseFloat(tireCountMode)),
-            korekta_kosztu_opon: tireCostCorrectionEnabled,
-            koszt_opon_korekta: tireCostCorrection,
-            srednica_felgi: rimDiameter || (cardSummary.wheels ? parseInt(String(cardSummary.wheels).replace(/\D/g, "")) : 16) || 16,
-            
-            financial_params: {
-              ...existingFinancialParams,
-              wibor_pct: wiborPct,
-              margin_pct: marginPct,
-              pricing_margin_pct: pricingMarginPct,
-              depreciation_pct: null,
-              initial_deposit_pct: initialDepositPct,
-              other_service_costs: otherServiceCosts,
-            },
-            toggles: {
-              ...existingToggles,
-              express_pays_insurance: expressPaysInsurance,
-              replacement_car: replacementCar,
-              gps_required: gpsRequired,
-              include_servicing: includeServicing,
-              hook_installation: hookInstallation,
-            },
-            tire_params: {
-              tire_class: tireClass,
-              tire_count_mode: tireCountMode,
-              tire_cost_correction_enabled: tireCostCorrectionEnabled,
-              tire_cost_correction: tireCostCorrection,
-              rim_diameter: rimDiameter,
-            },
-            service_cost_type: serviceCostType,
-            vehicle_vintage: vehicleVintage,
-            is_metalic: isMetalic,
-            discount: {
-              active_discount_pct: activeDiscountPct,
-              active_final_price: activeFinalPrice,
-            },
-            pricing_governance: {
-              ai_as_suggestion_only: true,
-              manual_review_required: priceAudit?.manual_review_required ?? false,
-              ai_price_alert_threshold_pln: priceAudit?.threshold_pln ?? null,
-              ai_base_price_netto: priceAudit?.ai_base_price_netto ?? null,
-              final_base_price_netto: priceAudit?.final_base_price_netto ?? null,
-              delta_pln: priceAudit?.delta_pln ?? null,
-              reviewed_at: new Date().toISOString(),
-            },
-          }
-        }),
+        body: JSON.stringify({ stan_json: payload }),
       });
       
-      if (!resp.ok) throw new Error("B\u0142\u0105d przy tworzeniu kalkulacji");
+      if (!resp.ok) throw new Error("Błąd przy tworzeniu kalkulacji");
       const data = await resp.json();
       const numerKalkulacji = data.numer_kalkulacji || `ID: ${data.id}`;
+
+      // Asynchronous polling for celery task completion
+      let isReady = false;
+      let attempts = 0;
+      while (!isReady && attempts < 15) { // max 30 seconds
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        if (abortControllerRef.current.signal.aborted) break;
+        
+        // Wait for matrix cache to be populated for THIS kalkulacja_id
+        const { count, error } = await supabase
+           .from("vehicle_matrix_cache")
+           .select("*", { count: "exact", head: true })
+           .eq("kalkulacja_id", data.id);
+           
+        if (!error && count && count > 0) {
+            isReady = true;
+        } else {
+            // Also check if Celery job for this vehicle failed
+            const { data: jobData } = await supabase
+               .from("calculation_jobs")
+               .select("status, error_detail")
+               .eq("vehicle_id", vehicle.id)
+               .order("queued_at", { ascending: false })
+               .limit(1)
+               .maybeSingle();
+            if (jobData?.status === "failed") {
+                throw new Error(jobData.error_detail || "Błąd podczas przeliczania w Celery.");
+            }
+        }
+      }
 
       onCalculationCreated(data.id, numerKalkulacji);
       setPhase('done');
@@ -444,10 +404,8 @@ export function VehicleActionButtons({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          if (window.confirm("Czy na pewno chcesz usunąć tę plakietkę? Istniejące kalkulacje na jej bazie nie zostaną usunięte.")) {
-            const event = new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } });
-            window.dispatchEvent(event);
-          }
+          const event = new CustomEvent('deleteVehicle', { detail: { vehicleId: vehicle.id } });
+          window.dispatchEvent(event);
         }}
         className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 hover:border-red-200 hover:shadow-sm transition-all shadow-sm"
       >

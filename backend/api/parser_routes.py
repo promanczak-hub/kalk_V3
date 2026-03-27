@@ -32,7 +32,7 @@ class ParseRequest(BaseModel):
 
 
 @router.post("", response_model=MappedOffer)
-async def parse_offer_endpoint(req: ParseRequest):
+def parse_offer_endpoint(req: ParseRequest):
     """
     Przyjmuje tekst (strukturę JSON lub surowy zrzut PDF z oferty handlowej)
     i za pomocą API Google GenAI zamienia/waliduje w ustrukturyzowany format LTR V1 (MappedOffer).
@@ -53,15 +53,17 @@ surowego tekstu z oferty handlowej lub struktury JSONa na precyzyjny schemat wym
 Przeanalizuj poniższe dane i wyciągnij pożądane informacje. 
 Zwróć uwagę:
 - Złóż odpowiednią markę (np. 'Volkswagen', 'Skoda').
-- Model to głowna nazwa auta, trim to wersja nadwoziowa/silnikowa.
+- Model to główna nazwa auta, trim_level to wersja wyposażenia (np. Comfort, M-Sport).
 - Podaj segment (np. A, B, C, D) i body_style (np. SUV, Hatchback), o ile można je wywnioskować.
 - Wyciągnij surową nazwę lakieru / koloru do pola `color`.
 - Podaj `base_price_net` przed wszelkimi rabatami (cena cennikowa).
-- Opcje fabryczne (doliczane do auta przez fabrykę) umieść w `factory_options`. Ceny ujemne traktuj jako rabat/brak elementu w pakiecie.
+- Opcje fabryczne (doliczane do auta przez fabrykę) umieść v `factory_options`.
 - Opcje serwisowe / dealerskie umieść w `dealer_options`.
 - Znajdź główny sumaryczny rabat (kwotowy `discount_amount_net` lub procentowy `discount_pct`).
 - Wywnioskuj główne koła wycinając format "AAA/BB RCC" (np. 205/55 R16) do pola `tire_size`.
 - Moc uzupełnij w KM. Skrzynię na 'automatyczna' lub 'manualna'.
+- Wykryj napęd (`drive_type`): FWD, RWD, AWD, 4x4.
+- Wykryj liczbę miejsc (`number_of_seats`), hak (`has_tow_hook`), klimatyzację automatyczną (`has_automatic_ac`) oraz lakier metalizowany (`is_metalic_paint`).
 
 Tekst / Dane oferty:
 ---
@@ -101,7 +103,7 @@ Tekst / Dane oferty:
             search_context = get_service_interval_from_search(
                 brand=offer_data.brand,
                 model=offer_data.model,
-                trim=offer_data.trim or "",
+                trim=offer_data.trim_level or "",
             )
 
             if search_context:
@@ -166,7 +168,7 @@ Wyniki z Google:
             model=offer_data.model,
             segment=offer_data.segment,
             body_style=offer_data.body_style,
-            trim=offer_data.trim,
+            trim=offer_data.trim_level,
             transmission=offer_data.transmission,
         )
         offer_data.samar_class_name = klasa_nazwa
@@ -191,7 +193,7 @@ class SamarCategoryResponse(BaseModel):
 
 
 @router.post("/samar-category", response_model=SamarCategoryResponse)
-async def classify_samar_category(req: SamarCategoryRequest):
+def classify_samar_category(req: SamarCategoryRequest):
     """
     Przyjmuje podstawowe dane pojazdu i używając wewnętrznej wiedzy LLM o macierzy SAMAR,
     klasyfikuje go do odgórnie zdefiniowanej grupy m.in.: 'GRUPA PODSTAWOWA', 'VANY',
@@ -259,7 +261,7 @@ Pamiętaj:
 
 
 @router.post("/extract-brochure", response_model=VehicleBrochureSchema)
-async def extract_brochure_endpoint(req: ParseRequest):
+def extract_brochure_endpoint(req: ParseRequest):
     """
     Ekstrahuje czyste informacje, klasyfikuje i zrzuca kategorie
     wyposażenia pozbawione jakichkolwiek cen czy danych identyfikujących ofertę

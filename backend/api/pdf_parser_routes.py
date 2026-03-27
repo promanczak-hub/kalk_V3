@@ -55,7 +55,7 @@ async def extract_pdf_pricelist(file: UploadFile = File(...)):
 
 
 @router.get("/extract/status/{task_id}")
-async def get_extraction_status(task_id: str):
+def get_extraction_status(task_id: str):
     """
     Sprawdza status zadania Celery. Zwraca aktualny stan przetwarzania
     lub ustrukturyzowane wyniki w przypadku sukcesu.

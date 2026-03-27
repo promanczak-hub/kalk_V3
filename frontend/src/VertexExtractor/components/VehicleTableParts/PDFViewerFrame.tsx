@@ -62,7 +62,7 @@ export function PDFViewerFrame({ url }: PDFViewerFrameProps) {
           const context = canvas.getContext("2d");
           if (!context) continue;
 
-          const renderTask = page.render({ canvasContext: context, viewport });
+          const renderTask = page.render({ canvasContext: context, viewport } as any);
           activeTasks.push(renderTask);
           await renderTask.promise;
         }

@@ -236,3 +236,15 @@ class ExtractedReverseSearchFeatures(BaseModel):
             "Jeśli nie znaleziono żadnych cech, zwróć pustą listę."
         ),
     )
+    price_max: int | None = Field(
+        default=None,
+        description="Maksymalna miesięczna rata netto (np. 'rata do 2500', 'leasing za 1500'). Jeśli brak w tekście, wpisz null.",
+    )
+    duration_months: int | None = Field(
+        default=None,
+        description="Czas trwania leasingu w miesiącach (np. 'na 4 lata', '48 miesięcy' -> wpisz 48). Jeśli brak, wpisz null.",
+    )
+    annual_mileage: int | None = Field(
+        default=None,
+        description="Roczny limit kilometrów (np. '30 tyś rocznie' -> 30000). Uwaga: Jeśli klient poda limit na cały okres (np. '160 tys przez 4 lata'), oblicz roczny limit (160000/4 = 40000). Jeśli brak, wpisz null.",
+    )

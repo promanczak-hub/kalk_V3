@@ -1,0 +1,30 @@
+
+--- Sprawdzanie CBGM55VH ---\nZnaleziono vehicle_id: 8390ff7f-4a9e-4ce0-aaf1-8284649ac733\nBłąd parsera Pydantic: 1 validation error for CalculatorInput
+base_price_net
+  Field required [type=missing, input_value={'brand': 'SKODA', 'model...z błędów podziału.'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing\nTraceback (most recent call last):
+  File "D:\kalk_v3\backend\check_failures.py", line 39, in check_vehicle
+    calc_input = CalculatorInput(**stan_json)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for CalculatorInput
+base_price_net
+  Field required [type=missing, input_value={'brand': 'SKODA', 'model...z błędów podziału.'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+\n
+--- Sprawdzanie CBQDKGWL ---\nZnaleziono vehicle_id: dd091416-8900-45cd-bf07-a945e4d1a596\nBłąd parsera Pydantic: 1 validation error for CalculatorInput
+base_price_net
+  Field required [type=missing, input_value={'brand': 'SKODA', 'model...thinking_tokens': 2547}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing\nTraceback (most recent call last):
+  File "D:\kalk_v3\backend\check_failures.py", line 39, in check_vehicle
+    calc_input = CalculatorInput(**stan_json)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for CalculatorInput
+base_price_net
+  Field required [type=missing, input_value={'brand': 'SKODA', 'model...thinking_tokens': 2547}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing

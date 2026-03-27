@@ -128,24 +128,6 @@ Algorytmy w systemie (np. ubezpieczenie czy symulacja wartości rezydualnej) his
 - **NIGDY** nie optymalizuj kodu poprzez przerywanie (`break`) 7-letniej (lub innej, sztywno zdefiniowanej) pętli tylko dlatego, że okres trwania leasingu jest krótszy (np. 4 lata / 48 miesięcy).
 - Obliczenia zawsze muszą przejść przez wymaganą liczbę iteracji (np. `self.LICZBA_LAT = 7`).
 - Jeśli w bazie dla wyższych lat (np. rok 7) brakuje wpisów w stawkach, **ZASTOSUJ FALLBACK** z ostatniego dostępnego roku lub pierwszego roku bazowego (by zapewnić "miękkie lądowanie" z zachowaniem struktury algorytmu), ale nie wykraczaj poza zdefiniowaną liczbę potrąceń i nie skracaj obliczeń przestrzennych.
-
-## 6. 🔒 ZAMROŻONE MODUŁY (NIE MODYFIKOWAĆ)
-
-Poniższe pliki przeszły pełen audyt V1↔V3 i są zatwierdzone przez użytkownika.
-**AI NIE MOŻE modyfikować tych plików bez wyraźnej komendy: "Odmroź moduł X".**
-
-| Plik                                                  | Audyt      | Opis zmian                                                                         |
-| ----------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
-| `backend/core/LTRSubCalculatorOpony.py`               | 2026-03-05 | ×4 usunięto (DB = cena za komplet), fallbacki → ValueError                         |
-| `backend/core/LTRSubCalculatorKosztyDodatkowe.py`     | 2026-03-05 | korekta przygotowania dodana, cost_sales_prep=1040, TODO mock czynszu              |
-| `backend/core/LTRSubCalculatorSamochodZastepczy.py`   | 2026-03-05 | logika identyczna V1=V3, stawki potwierdzone                                       |
-| `backend/core/samar_rv.py`                            | 2026-03-18 | V1 PARITY (100%): Brak limitu max(0) dla pod-przebiegu (bonusy na minusie), opcje z bazy 25%, pełna izolacja opon (ZAMROŻONE) |
-| `backend/core/LTRKalkulator.py`                       | 2026-03-16 | ZAMROŻONY, potwierdzona logika matrixa WR, capex i V1 parity                       |
-| `backend/core/LTRSubCalculatorUtrataWartosciNew.py`   | 2026-03-16 | wrapper SAMAR→LTR, konwersja brutto/netto, resolver class/engine ID (ZAMROŻONE)    |
-| `backend/core/LTRSubCalculatorSerwisNew.py`           | 2026-03-05 | stawka km SAMAR, floor=1667 km/mc (20k/yr), korekta%, power_band                   |
-| `backend/core/LTRSubCalculatorCenaZakupu.py`          | 2026-03-05 | netto-based CAPEX, transport+opony+GSM+pakiet, rabat discountable/non-disc         |
-| `backend/core/LTRSubCalculatorAmortyzacja.py`         | 2026-03-05 | logika identyczna V1=V3, guard okres≤0                                             |
-| `backend/core/LTRSubCalculatorKosztDzienny.py`        | 2026-03-05 | logika identyczna V1=V3, coeff=30.4, wymaga suma_odsetek_bez_czynszu z Finanse     |
 | `backend/core/LTRSubCalculatorBudzetMarketingowy.py`  | 2026-03-05 | logika identyczna V1=V3, jedno mnożenie WR×VAT×budżet%                             |
 | `backend/core/LTRSubCalculatorUbezpieczenie.py`       | 2026-03-05 | pętla 7-lat, doubezp kradzież/nauka=False (OK), fallback stawek                    |
 | `DB: koszty_opon` (tabela danych)                     | 2026-03-09 | 11 rozmiarów (13-23") × 13 kategorii, RLS=read-only, dane z CSV Budżet             |
@@ -163,3 +145,19 @@ Użytkownik ma analityczne podejście i musi mieć możliwość audytowania każ
 - **Artefakt Logiki na KAŻDYM KROKU (Wymóg Kategoryczny)** — Zastrzegasz, że przy każdym wyliczeniu matematycznym na poziomie pojedynczego matrixa (np. Osobny widok/zmienna z pełnym JSON/HTML dla opon, dla ubezpieczenia, dla serwisu itd.) ma się wypluwać osobny artefakt tego przeliczenia. Oczekiwana jest precyzyjna granulacja, wyszczególniająca jakie dokładnie działania matematyczne oraz kroki powołały do życia otrzymaną dla tego węzła liczbę.
 - **Wymagania dla Nowych Logik:** Zmieniając stary plik z logiką powinieneś wdrożyć wewnątrz niego kolekcjoner zdarzeń (np. dopisywanie do lokalnej listy typu `self.trace.append("Wyliczenie opon = CENA * ILOSC...")`). Wynik tego śladu ma wracać na frontend lub być dostępny w formie pobieralnego artefaktu w panelu kontrolnym. 
 - **Złota reguła debugowania finansów:** Na każde wyliczenie końcowe w systemie MUSI dać się odpowiedzieć pytaniem: "Z jakiego dokładnie mnożenia lub dodawania wzięła się ta liczba?". Brak takiej możliwości = dług technologiczny.
+
+## 8. ⚡ ZERO HALUCYNACJI / TEMPERATURE 0.0
+
+Wszelkie odpowiedzi, ekstrakcje danych oraz kod generowany przez agentów AI (Cursor, Gemini) **MUSZĄ być przesyłane ze stopniem halucynacji (temperature) równym 0.0** (lub minimalnym możliwym). 
+- Absolutnie ZABRONIONE jest "kreatywne dopisywanie", zgadywanie pakietów, których nie ma na fakturach, czy łagodzenie wyników dla wyrównywania błędów na wydruku (self-healing matematyczny polegający na naciąganiu cen bazowych by sumy kontrolne się zgadzały = zdrada systemu).
+- Oczekuję maszynowego, twardego mapowania danych. Jeśli czegoś brakuje w PDF — ma być poinformowane jawnie, a walidacja systemu ma odrzucić taką kalkulację. W razie wątpliwości z logiką legacy zapytaj o kontekst biznesowy z parametrami `temperature=0.0`.
+
+## 9. 🚧 ZERO SKRÓTÓW I PEŁNA IMPLEMENTACJA (Definition of Done)
+
+Projekt jest zbyt duży, aby był "czarną skrzynką". Użytkownik nie może domyślać się, co AI miało na myśli, ani dokańczać urwanych fragmentów. Masz **kategoryczny zakaz ucinania kodu, stosowania placeholderów i pójścia na skróty**. 
+
+**Zasady "Definition of Done" (DoD) pod rygorem odrzucenia zadania:**
+1. **Pełny kod bez wymówek:** Jeśli zapytanie wymaga kodu, piszesz pełne, działające bloki. Żadnych komentarzy typu `// TODO: dodaj resztę logiki`, `# ... reszta kodu bez zmian`. Żadnego lenistwa programistycznego. Zawsze implementuj funkcje do końca.
+2. **Koniec z "Czarną Skrzynką" (Jawna Architektura):** Przy każdym ukończonym zadaniu musisz wyraźnie napisać, **jakie pliki zostały zmienione, jak teraz działa nowy moduł i dlaczego podjąłeś taką decyzję architektoniczną**. Tłumaczenie co dokładnie się zmieniło w przepływie aplikacji jest obowiązkowe.
+3. **Prawdziwa Weryfikacja:** Zanim poinformujesz o wykonaniu zadania ("Zrobiłem wszystko, gotowe"), MUSISZ mieć pewność. Kod musi w ujęciu systemowym działać ze sobą - lintery (`ruff` / `tslint`), typowanie (`mypy` / `tsc`), brak regresji na styku backend/frontend.
+4. **Zakaz przedwczesnego ogłaszania sukcesu:** Meldunek o ukończeniu zdania podajesz **TYLKO** i wyłącznie po sfinalizowaniu całości. Cząstkowe postępy raportuj jako WIP (Work In Progress).

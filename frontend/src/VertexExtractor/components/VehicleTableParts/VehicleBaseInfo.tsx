@@ -5,57 +5,60 @@ import type { FleetVehicleView } from "../../types";
 import { PriceDualFormat } from "./PriceDualFormat";
 import { SamarCategoryDropdown } from "./SamarCategoryDropdown";
 import { EngineCategoryDropdown } from "./EngineCategoryDropdown";
+import { VehicleTypeDropdown } from "./VehicleTypeDropdown";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
+import { ServiceCostMeter } from "./ServiceCostMeter";
 
 export interface MappedData {
   brand: string;
-  model: string;
-  fuel: string;
-  vehicle_type: string;
-  trim_level: string;
-  transmission: string;
-  samar_category?: string;
-  engine_class?: string;
-  drive_type?: string;
-  body_type?: string;
-  body_candidates?: { klasa: string; confidence: number }[];
+model: string;
+fuel: string;
+vehicle_type: string;
+trim_level: string;
+transmission: string;
+samar_category?: string;
+engine_class?: string;
+drive_type?: string;
+body_type?: string;
+body_candidates?: { klasa: string; confidence: number }[];
 }
 
 interface SamarCandidate {
-  klasa: string;
-  confidence: number;
+klasa: string;
+confidence: number;
 }
 
 export interface EngineCandidate {
-  klasa: string;
-  confidence: number;
+klasa: string;
+confidence: number;
 }
 
 interface VehicleBaseInfoProps {
-  vehicle: FleetVehicleView;
-  mappedData?: MappedData | null;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  activeFinalPriceNet: number;
-  totalCatalogPriceNet: number;
-  formatCalculatedPrice: (val: number) => string;
-  samarCandidates?: SamarCandidate[];
-  onSamarCategoryChange?: (newCategory: string) => void;
-  allSamarClasses?: string[];
-  engineCandidates?: EngineCandidate[];
-  onEngineCategoryChange?: (newCategory: string) => void;
-  allEngineTypes?: string[];
-  driveType?: string;
-  onDriveTypeChange?: (newDriveType: string) => void;
-  bodyType?: string;
-  onBodyTypeChange?: (newBodyType: string) => void;
-  /** DB body_types — single source of truth for dropdown options */
-  bodyTypeOptions?: { name: string; vehicle_class: string }[];
-  isSelected?: boolean;
-  onToggleSelect?: () => void;
-  crossCardAlerts?: DiscountAlert[];
-  onScrollToVehicle?: (vehicleId: string) => void;
-  readinessResult?: {
+vehicle: FleetVehicleView;
+mappedData?: MappedData | null;
+isExpanded: boolean;
+onToggleExpand: () => void;
+activeFinalPriceNet: number;
+totalCatalogPriceNet: number;
+formatCalculatedPrice: (val: number) => string;
+samarCandidates?: SamarCandidate[];
+onSamarCategoryChange?: (newCategory: string) => void;
+allSamarClasses?: string[];
+engineCandidates?: EngineCandidate[];
+onEngineCategoryChange?: (newCategory: string) => void;
+allEngineTypes?: string[];
+driveType?: string;
+onDriveTypeChange?: (newDriveType: string) => void;
+bodyType?: string;
+onBodyTypeChange?: (newBodyType: string) => void;
+onVehicleTypeChange?: (newType: string) => void;
+/** DB body_types — single source of truth for dropdown options */
+bodyTypeOptions?: { name: string; vehicle_class: string }[];
+isSelected?: boolean;
+onToggleSelect?: () => void;
+crossCardAlerts?: DiscountAlert[];
+onScrollToVehicle?: (vehicleId: string) => void;
+readinessResult?: {
     overall_status: "ready" | "partial" | "not_ready";
     samar_class_id: number | null;
     fuel_type_id: number | null;
@@ -71,14 +74,27 @@ interface VehicleBaseInfoProps {
       raw_input: string;
     };
   } | null;
+  paramPreview?: {
+    service: {
+      found: boolean;
+      rate_per_km: number;
+      base_rate: number;
+      m_brand: number;
+      m_fuel: number;
+      m_drive: number;
+      m_gearbox: number;
+      total_multiplier: number;
+      type: string;
+    };
+  } | null;
 }
 
 function detectPowerBand(
-  vehicle: FleetVehicleView,
+vehicle: FleetVehicleView,
 ): string | null {
-  const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
+const synth = vehicle.synthesis_data as Record<string, unknown> | undefined;
 
-  if (synth) {
+if (synth) {
     const cardSummary = synth.card_summary as Record<string, unknown> | undefined;
     if (cardSummary && typeof cardSummary.power_range === "string") {
       const match = cardSummary.power_range.match(/(LOW|MID|HIGH)/i);
@@ -88,9 +104,9 @@ function detectPowerBand(
       const match = synth.power_range.match(/(LOW|MID|HIGH)/i);
       if (match) return match[1].toUpperCase();
     }
-  }
+}
 
-  if (vehicle.powertrain) {
+if (vehicle.powertrain) {
     const kmMatch = vehicle.powertrain.match(/(\d{2,3})\s*(KM|HP|PS)/i);
     if (kmMatch) {
       const hp = parseInt(kmMatch[1]);
@@ -105,37 +121,37 @@ function detectPowerBand(
       if (hp <= 200) return "MID";
       return "HIGH";
     }
-  }
+}
 
-  return null;
+return null;
 }
 
 function hasValue(v: string | null | undefined): boolean {
-  return Boolean(v && v !== "Brak" && v !== "-");
+return Boolean(v && v !== "Brak" && v !== "-");
 }
 
 function Tag({ children, connected }: { children: React.ReactNode; connected?: boolean }) {
-  return (
+return (
     <span
       className={`inline-flex items-center font-medium text-slate-600 ${connected ? "justify-center h-full px-2.5 py-1 text-[11px] bg-slate-50/50" : "bg-slate-50 px-2 py-1 text-xs border border-slate-200 rounded"}`}
       style={{ fontFamily: "'Geist Mono', monospace", lineHeight: 1 }}
     >
       {children}
     </span>
-  );
+);
 }
 
 const DRIVE_TYPE_OPTIONS = [
-  { value: "4x2 (FWD)", label: "4x2 (FWD)" },
-  { value: "4x2 (RWD)", label: "4x2 (RWD)" },
-  { value: "4x4 (AWD)", label: "4x4 (AWD)" },
+{ value: "4x2 (FWD)", label: "4x2 (FWD)" },
+{ value: "4x2 (RWD)", label: "4x2 (RWD)" },
+{ value: "4x4 (AWD)", label: "4x4 (AWD)" },
 ];
 
 function DriveTypeTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
-  if (!onChange) {
+if (!onChange) {
     return current ? <Tag connected={connected}>Oś: {current}</Tag> : null;
-  }
-  return (
+}
+return (
     <span className="inline-flex items-center h-full">
       <select
         className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
@@ -150,67 +166,77 @@ function DriveTypeTag({ current, onChange, connected }: { current: string; onCha
         ))}
       </select>
     </span>
-  );
+);
 }
 
 /** Fallback body type options — used only when DB data hasn't loaded yet */
 const BODY_TYPE_FALLBACK = [
-  "Hatchback", "Sedan", "Kombi", "SUV", "Liftback", "Coupe", "Cabrio", "Minivan",
-  "Wieloosobowy", "Pickup", "Furgon", "Podwozie",
+"Hatchback", "Sedan", "Kombi", "SUV", "Liftback", "Coupe", "Cabrio", "Minivan",
+"Wieloosobowy", "Pickup", "Furgon", "Podwozie",
 ];
 
 const BODY_TYPE_ALIAS_MAP: Record<string, string> = {
-  "SPORTSTOURER": "Kombi",
-  "SPORTS TOURER": "Kombi",
-  "TOURING": "Kombi",
-  "AVANT": "Kombi",
-  "ESTATE": "Kombi",
-  "WAGON": "Kombi",
-  "VARIANT": "Kombi",
-  "SPORTSWAGON": "Kombi",
-  "PANEL VAN": "Furgon",
-  "VAN": "Furgon",
-  "CARGO": "Furgon",
-  "PICK-UP": "Pickup",
+"SPORTSTOURER": "Kombi",
+"SPORTS TOURER": "Kombi",
+"TOURING": "Kombi",
+"AVANT": "Kombi",
+"ESTATE": "Kombi",
+"WAGON": "Kombi",
+"VARIANT": "Kombi",
+"SPORTSWAGON": "Kombi",
+"PANEL VAN": "Furgon",
+"VAN": "Furgon",
+"CARGO": "Furgon",
+"PICK-UP": "Pickup",
 };
 
 function normalizeBodyTypeValue(value: string): string {
-  const trimmed = (value || "").trim();
-  if (!trimmed) return "";
-  const upper = trimmed.toUpperCase();
-  return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
+const trimmed = (value || "").trim();
+if (!trimmed) return "";
+const upper = trimmed.toUpperCase();
+return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
 }
 
-function BodyTypeTag({ current, dbOptions, onChange, connected }: {
-  current: string;
-  dbOptions?: string[];
-  onChange?: (v: string) => void;
-  connected?: boolean;
+function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleType }: {
+current: string;
+dbOptions?: { name: string; vehicle_class: string }[];
+onChange?: (v: string) => void;
+connected?: boolean;
+currentVehicleType?: string;
 }) {
-  if (!onChange) {
+if (!onChange) {
     const normalizedCurrent = normalizeBodyTypeValue(current || "");
     return normalizedCurrent ? <Tag connected={connected}>{normalizedCurrent}</Tag> : null;
-  }
+}
 
-  // Build options list from DB (single source of truth), falling back to hardcoded if DB not loaded
-  const baseOptions = dbOptions && dbOptions.length > 0 ? dbOptions : BODY_TYPE_FALLBACK;
-  const normalizedCurrent = normalizeBodyTypeValue(current || "");
+// Build options list from DB (single source of truth), falling back to hardcoded if DB not loaded
+const baseOptions = dbOptions && dbOptions.length > 0 
+    ? (currentVehicleType 
+        ? dbOptions.filter(bt => bt.vehicle_class === currentVehicleType).map(bt => bt.name)
+        : dbOptions.map(bt => bt.name))
+    : BODY_TYPE_FALLBACK;
+    
+const normalizedCurrent = normalizeBodyTypeValue(current || "");
 
-  // Ensure the current value is always in the list (even if not in DB yet)
-  const allOptions = normalizedCurrent && !baseOptions.includes(normalizedCurrent)
+// Ensure the current value is always in the list (even if not in DB yet)
+const allOptions = normalizedCurrent && !baseOptions.includes(normalizedCurrent)
     ? [normalizedCurrent, ...baseOptions]
     : baseOptions;
 
-  const selectedValue = allOptions.includes(normalizedCurrent) ? normalizedCurrent : "";
+const selectedValue = allOptions.includes(normalizedCurrent) ? normalizedCurrent : "";
 
-  return (
-    <span className="inline-flex items-center h-full">
+// Validation mismatch warning
+const isMismatch = currentVehicleType && dbOptions && dbOptions.length > 0 && normalizedCurrent && !dbOptions.some(bt => bt.name === normalizedCurrent && bt.vehicle_class === currentVehicleType);
+
+return (
+    <span className={`inline-flex items-center h-full ${isMismatch ? 'ring-1 ring-red-400 rounded-r-[5px]' : ''}`}>
       <select
-        className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0 rounded-r-[5px]" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
+        className={`bg-slate-50/50 font-medium ${isMismatch ? 'text-red-600 animate-pulse' : 'text-slate-600'} cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0 rounded-r-[5px]" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
         style={{ fontFamily: "'Geist Mono', monospace" }}
         value={selectedValue}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => { e.stopPropagation(); onChange(normalizeBodyTypeValue(e.target.value)); }}
+        title={isMismatch ? `Uwaga: Typ nadwozia "${normalizedCurrent}" zwykle nie pasuje do kategorii "${currentVehicleType}"` : ""}
       >
         <option value="" disabled>Typ nadwozia...</option>
         {allOptions.map((optionValue) => (
@@ -218,25 +244,26 @@ function BodyTypeTag({ current, dbOptions, onChange, connected }: {
         ))}
       </select>
     </span>
-  );
+);
 }
+
 
 
 /** Readiness badge - shows SAMAR data availability with hover tooltip */
 function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
-  const [showTooltip, setShowTooltip] = useState(false);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+const [showTooltip, setShowTooltip] = useState(false);
+const tooltipRef = useRef<HTMLDivElement>(null);
 
-  const statusConfig = {
+const statusConfig = {
     ready:     { icon: CheckCircle,  color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Gotowe" },
     partial:   { icon: AlertCircle,  color: "text-amber-600",   bg: "bg-amber-50",   border: "border-amber-200",   label: "Częściowo" },
     not_ready: { icon: XCircle,      color: "text-red-600",     bg: "bg-red-50",     border: "border-red-200",     label: "Brak danych" },
-  };
+};
 
-  const cfg = statusConfig[result.overall_status];
-  const Icon = cfg.icon;
+const cfg = statusConfig[result.overall_status];
+const Icon = cfg.icon;
 
-  return (
+return (
     <span
       className="relative inline-flex items-center"
       onMouseEnter={() => setShowTooltip(true)}
@@ -322,14 +349,14 @@ function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["
         </div>
       )}
     </span>
-  );
+);
 }
 
 /** Monospace VT323 tag for offer/config codes - click to copy */
 function CodeTag({ children }: { children: React.ReactNode }) {
-  const [copied, setCopied] = useState(false);
+const [copied, setCopied] = useState(false);
 
-  const handleCopy = useCallback(
+const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       const text = typeof children === "string" ? children : ((e.currentTarget as HTMLElement).textContent || "");
@@ -339,9 +366,9 @@ function CodeTag({ children }: { children: React.ReactNode }) {
       });
     },
     [children],
-  );
+);
 
-  return (
+return (
     <span
       className={`inline-flex items-center gap-1 border px-2.5 py-1 rounded text-sm tracking-wide cursor-pointer transition-colors ${
         copied
@@ -359,37 +386,40 @@ function CodeTag({ children }: { children: React.ReactNode }) {
         <Copy className="w-3 h-3 text-slate-400" />
       )}
     </span>
-  );
+);
 }
 
 export function VehicleBaseInfo({
-  vehicle,
-  mappedData,
-  isExpanded,
-  onToggleExpand,
-  activeFinalPriceNet,
-  totalCatalogPriceNet,
-  formatCalculatedPrice,
-  samarCandidates = [],
-  onSamarCategoryChange,
-  allSamarClasses = [],
-  engineCandidates = [],
-  onEngineCategoryChange,
-  allEngineTypes = [],
-  driveType = "",
-  onDriveTypeChange,
-  bodyType = "",
-  onBodyTypeChange,
-  bodyTypeOptions = [],
-  isSelected = false,
-  onToggleSelect,
-  crossCardAlerts = [],
-  onScrollToVehicle,
-  readinessResult,
-}: VehicleBaseInfoProps) {
-  const powerBand = detectPowerBand(vehicle);
+vehicle,
+mappedData,
+isExpanded,
+onToggleExpand,
+activeFinalPriceNet,
+totalCatalogPriceNet,
+formatCalculatedPrice,
+samarCandidates = [],
+onSamarCategoryChange,
+allSamarClasses = [],
+engineCandidates = [],
+onEngineCategoryChange,
+allEngineTypes = [],
+driveType = "",
+onDriveTypeChange,
+bodyType = "",
+onBodyTypeChange,
+onVehicleTypeChange,
+bodyTypeOptions = [],
 
-  return (
+isSelected = false,
+onToggleSelect,
+crossCardAlerts = [],
+onScrollToVehicle,
+readinessResult,
+paramPreview,
+}: VehicleBaseInfoProps) {
+const powerBand = detectPowerBand(vehicle);
+
+return (
     <div
       className="p-4 sm:p-5 cursor-pointer select-none"
       onClick={onToggleExpand}
@@ -438,9 +468,10 @@ export function VehicleBaseInfo({
                 className="text-xs text-slate-500 hidden sm:inline-block"
                 title="Klasyfikacja AI"
               >
-                {mappedData.vehicle_type} · {mappedData.fuel} · {mappedData.transmission}
+                {mappedData.fuel} · {mappedData.transmission}
               </span>
             )}
+
           </div>
 
           <p className="text-xs text-slate-600 line-clamp-1 mt-0.5">
@@ -539,10 +570,42 @@ export function VehicleBaseInfo({
             ) : mappedData?.engine_class ? (
               <Tag connected={true}>{mappedData.fuel} / {mappedData.engine_class}</Tag>
             ) : null}
-            {powerBand && <Tag connected={true}>Serwis: {powerBand}</Tag>}
+            {(paramPreview?.service?.found || powerBand) && (
+              <div className="flex items-center px-3 bg-slate-50/50 h-full">
+                <ServiceCostMeter 
+                  mode="flat" 
+                  totalMultiplier={paramPreview?.service?.total_multiplier || (powerBand === "HIGH" ? 1.25 : powerBand === "LOW" ? 0.75 : 1.0)}
+                  multipliers={paramPreview?.service?.found ? {
+                    brand: paramPreview.service.m_brand,
+                    fuel: paramPreview.service.m_fuel,
+                    drive: paramPreview.service.m_drive,
+                    gearbox: paramPreview.service.m_gearbox
+                  } : {
+                    brand: 1.0,
+                    fuel: 1.0,
+                    drive: 1.0,
+                    gearbox: 1.0
+                  }}
+                />
+              </div>
+            )}
             <DriveTypeTag current={driveType} onChange={onDriveTypeChange} connected={true} />
-            <BodyTypeTag current={bodyType} dbOptions={bodyTypeOptions.map(bt => bt.name)} onChange={onBodyTypeChange} connected={true} />
+            {onVehicleTypeChange && (
+              <VehicleTypeDropdown
+                currentType={mappedData?.vehicle_type || ""}
+                onTypeChange={onVehicleTypeChange}
+                connected={true}
+              />
+            )}
+            <BodyTypeTag
+              current={bodyType}
+              dbOptions={bodyTypeOptions}
+              onChange={onBodyTypeChange}
+              currentVehicleType={mappedData?.vehicle_type}
+              connected={true}
+            />
           </div>
+
           {readinessResult && <ReadinessBadge result={readinessResult} />}
           {crossCardAlerts.length > 0 && (
             <button
@@ -571,7 +634,5 @@ export function VehicleBaseInfo({
         </div>
       </div>
     </div>
-  );
+);
 }
-
-

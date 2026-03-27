@@ -1,4 +1,5 @@
-import { UploadCloud } from "lucide-react";
+import { Box, Typography, Grid } from "@mui/material";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import type { UploadedDocument } from "../types";
 import { DocumentCard } from "./ui/DocumentCard";
 
@@ -16,21 +17,25 @@ export function DocumentList({
   if (documents.length === 0) return null;
 
   return (
-    <div className="w-full mt-8">
-      <h2 className="text-xl font-semibold mb-6 text-slate-800 dark:text-slate-200 px-2 flex items-center gap-2">
-        <UploadCloud className="w-5 h-5 text-indigo-500" /> Przetwarzane
-        dokumenty
-      </h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <Box sx={{ w: "100%", mt: 6 }}>
+      <Box sx={{ mb: 3, px: 1, display: "flex", alignItems: "center", gap: 1.5 }}>
+        <FileUploadOutlinedIcon color="primary" sx={{ fontSize: "1.5rem" }} />
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Przetwarzane dokumenty
+        </Typography>
+      </Box>
+
+      <Grid container spacing={3}>
         {documents.map((doc) => (
-          <DocumentCard
-            key={doc.id}
-            doc={doc}
-            onOpenJson={() => onOpenJson(doc)}
-            onRemove={() => onRemoveDocument(doc.id)}
-          />
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={doc.id}>
+            <DocumentCard
+              doc={doc}
+              onOpenJson={() => onOpenJson(doc)}
+              onRemove={() => onRemoveDocument(doc.id)}
+            />
+          </Grid>
         ))}
-      </div>
-    </div>
+      </Grid>
+    </Box>
   );
 }
