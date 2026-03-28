@@ -21,15 +21,42 @@ async def main():
     vehicle_dict["samar_class_id"] = class_id or 10  # fallback
     
     # Fix engine id if missing
-    if not vehicle_dict.get('engine_type_id'):
-        vehicle_dict['engine_type_id'] = 1  # 1 is Benzyna usually
-
+    # Exact inputs matching Excel row 1680:
+    samar_class_id = 10
+    engine_id = 1
+    total_km = 120000
+    months = 48
+    
+    # Netto based on Brutto from Excel (181300 / 1.23) and (41600 / 1.23)
     base_gross = 181300.0
-    options_gross = 48420.0
+    options_gross = 41600.0
+    catalog_base_net = base_gross / 1.23
+    catalog_options_net = options_gross / 1.23
+    capex_base_net = catalog_base_net
+    capex_options_net = catalog_options_net
+    paint_type_id = 2  # Assuming 2 is standard/niemetalik
+    is_metalic = False
+    body_type_id = 1
+    rocznik = "current"
+    # Inject missing fields into vehicle_dict to avoid errors in SubCalc fallback
+    vehicle_dict["engine_type_id"] = engine_id
+    vehicle_dict["samar_class_id"] = samar_class_id
     
     calc_input = type('CalcInput', (), {
-        'vehicle_vintage': 'current',
-        'is_metalic': True,
+        'vehicle_vintage': rocznik,
+        'months': months,
+        'total_km': total_km,
+        'engine_id': engine_id,
+        'brand_name': 'Skoda',
+        'model_name': 'Octavia',
+        'paint_type_id': 1,
+        'is_metalic': False,
+        'body_type_id': 3,
+        'samar_class_id': samar_class_id,
+        'capex_base_gross': base_gross,
+        'capex_options_gross': options_gross,
+        'catalog_base_gross': base_gross,
+        'catalog_options_gross': options_gross,
         'settings': type('Settings', (), {'vat_rate': 1.23})()
     })()
 

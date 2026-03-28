@@ -109,7 +109,7 @@ class InsuranceCalculator:
 
             podstawa_naliczania = base_price * depreciation_factor
 
-            skladka_ac_kwota = round(podstawa_naliczania * stawka_ac, 2)
+            skladka_ac_kwota = round(podstawa_naliczania * stawka_ac, 0)
             skladka_oc_kwota = skladka_oc
 
             suma_skladki_rok = skladka_ac_kwota + skladka_oc_kwota

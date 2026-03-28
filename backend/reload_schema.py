@@ -1,11 +1,15 @@
-import os
+﻿import os
 import psycopg2
+from dotenv import load_dotenv
 
-conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
+load_dotenv('d:/kalk_v3/backend/.env')
+db_url = os.environ.get('SUPABASE_DB_URL')
+if not db_url:
+    print('No SUPABASE_DB_URL found')
+    exit(1)
+
+conn = psycopg2.connect(db_url)
 conn.autocommit = True
 cur = conn.cursor()
-cur.execute("GRANT SELECT ON body_types TO anon;")
-cur.execute("GRANT SELECT ON body_types TO authenticated;")
-cur.execute("GRANT SELECT ON body_types TO service_role;")
 cur.execute("NOTIFY pgrst, 'reload schema';")
-print("Grants applied and schema reloaded!")
+print('Schema reloaded successfully.')

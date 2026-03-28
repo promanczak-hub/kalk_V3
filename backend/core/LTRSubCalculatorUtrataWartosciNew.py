@@ -192,7 +192,7 @@ class LTRSubCalculatorUtrataWartosciNew:
         trace.append(
             {
                 "krok": "WR Krok 4: Korekta Przebiegu",
-                "rownanie": f"Paczki 10k: Under {d.get('krok4_paczki_under', 0)} ({d.get('krok4_under_rate', 0) * 100:.2f}%), Over: {d.get('krok4_paczki_over', 0)} ({d.get('krok4_over_rate', 0) * 100:.2f}%)",
+                "rownanie": f"Paczki 10k: Under {d.get('krok4_p1', 0)} ({d.get('krok4_under_rate', 0) * 100:.2f}%), Over: {d.get('krok4_p2', 0)} ({d.get('krok4_over_rate', 0) * 100:.2f}%)",
                 "wynik": -d.get("krok4_korekta_przebieg_netto", 0.0),
             }
         )

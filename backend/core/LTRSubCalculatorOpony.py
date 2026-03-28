@@ -388,11 +388,11 @@ class LTRSubCalculatorOpony:
 
         # W V1 świadomym zabiegiem było to, że opony w CAPEX generowały tylko koszt odsetkowy
         # a całe zużycie/koszt sprzętu opon wędrował do czynszu technicznego (OponyNetto)
-        capex_initial = self.tire_set_price
+        capex_initial = self.budget_tire_cost
         trace.append(
             {
-                "krok": "Opony: Preshift do CAPEX (Initial Set)",
-                "rownanie": f"Dodanie kwoty do raty finansowej (leasingowej): {self.tire_set_price:.2f} PLN",
+                "krok": "Opony: Preshift do CAPEX (Initial Set - Klasa Budżet)",
+                "rownanie": f"Dodanie kwoty do raty finansowej (leasingowej): {self.budget_tire_cost:.2f} PLN",
                 "wynik": capex_initial,
             }
         )

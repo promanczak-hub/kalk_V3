@@ -69,7 +69,8 @@ def get_service_multiplier(table_name: str, key_column: str, key_val: str) -> fl
             .execute()
         )
         if response.data and len(response.data) > 0:
-            return float(response.data[0]["multiplier"])
+            data = cast(list[dict[str, Any]], response.data)
+            return float(data[0]["multiplier"])
     except Exception as e:
         logger.error(f"Error fetching service multiplier from {table_name}: {e!s}")
     return 1.0
@@ -89,9 +90,9 @@ class ServiceCalculatorInput(BaseModel):
 
     # Normatywny przebieg floty (floor) — z control_center
     normatywny_przebieg_mc: int = Field(
-        default=1667,
+        default=1666,
         description=(
-            "Normatywny przebieg floty km/mc (= 20 000 km/rok). "
+            "Normatywny przebieg floty km/mc (= ok. 20 000 km/rok). "
             "Floor dla kosztu serwisu."
         ),
     )

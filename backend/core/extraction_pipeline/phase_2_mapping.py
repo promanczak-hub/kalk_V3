@@ -11,6 +11,7 @@ from core.extraction_pipeline.utils import (
     is_cancelled,
     normalize_brand,
 )
+from tasks.enrichment_tasks import generate_embedding_for_vehicle
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,12 @@ def finalize_vehicle_pipeline(
     supabase.table("vehicle_synthesis").update({"verification_status": "completed"}).eq(
         "id", vehicle_id
     ).execute()
+
+    try:
+        logger.info(f"[BG TASK] Kolejkowanie generowania wektorów (Celery) dla {vehicle_id}")
+        generate_embedding_for_vehicle.delay(vehicle_id)
+    except Exception as emb_e:
+        logger.error(f"[BG TASK] Błąd przy uruchamianiu celery dla wektorów: {emb_e}")
 
     cache_invalidate_pattern("initial_data")
     cache_invalidate_pattern("filters:*")

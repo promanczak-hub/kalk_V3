@@ -136,6 +136,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 "p_models": request.models,
                 "p_samar_class_ids": request.samar_class_ids,
                 "p_trims": request.trims,
+                "p_vehicle_ids": request.vehicle_ids,
                 "p_requirements": req_list,
             },
         ).execute()

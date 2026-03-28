@@ -20,6 +20,7 @@ class ScoringSearchRequest(BaseModel):
     models: Optional[List[str]] = None
     trims: Optional[List[str]] = None
     samar_class_ids: Optional[List[int]] = None
+    vehicle_ids: Optional[List[str]] = None
     requirements: List[ScoringRequirement]
     limit: int = 50
     offset: int = 0

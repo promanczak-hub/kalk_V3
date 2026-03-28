@@ -38,7 +38,7 @@ class ControlCenterSettings(BaseModel):
     cost_transport: float = 0.0
 
     # Normatywny przebieg floty (floor dla kosztu serwisu)
-    normatywny_przebieg_mc: int = 1667  # km/mc (= 20 000 km/rok)
+    normatywny_przebieg_mc: int = 1666  # km/mc (ok. 20 000 km/rok)
 
     # Współczynnik WR dla ceny sprzedaży LO: WRdlaLO = WR × (1 + lo_param)
     przewidywana_cena_sprzedazy_lo: float = 0.15

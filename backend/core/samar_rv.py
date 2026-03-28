@@ -443,23 +443,36 @@ class RVOutput:
 
 @lru_cache(maxsize=128)
 def fetch_base_rv_percent_cached(samar_class_id: int, engine_type_id: int) -> float:
-    """Pobiera 4-letnią bazę WR% (base_rv_percent) z samar_class_base_rv dla danej klasy i silnika."""
+    """Pobiera 4-letnią bazę WR% z samar_class_depreciation_rates dla danej klasy i silnika."""
+    COLUMN_MAP = {
+        1: "benzyna_pb",
+        2: "diesel_on",
+        3: "benzyna_mhev_pb_mhev",
+        4: "diesel_mhev_on_mhev",
+        5: "hybryda_hev",
+        6: "plug_in_hybrid_phev",
+        7: "elektryczny_bev",
+        8: "wodor_fcev",
+        9: "lpg"
+    }
+    col_name = COLUMN_MAP.get(engine_type_id, "benzyna_pb")
     try:
         from core.database import supabase
         res = (
-            supabase.table("samar_class_base_rv")
-            .select("base_rv_percent")
-            .eq("samar_class_id", samar_class_id)
-            .eq("engine_type_id", engine_type_id)
+            supabase.table("samar_class_depreciation_rates")
+            .select(col_name)
+            .eq("klasa_samar", samar_class_id)
             .limit(1)
             .execute()
         )
         if res.data and len(res.data) > 0:
-            return float(res.data[0].get("base_rv_percent", 0.0))
+            val = res.data[0].get(col_name)
+            if val is not None:
+                return float(val)
     except Exception as exc:
-        logger.warning(f"Błąd pobierania base_rv_percent dla klasy {samar_class_id}, silnik {engine_type_id}: {exc}")
+        logger.warning(f"Błąd pobierania base_rv_percent z samar_class_depreciation_rates dla klasy {samar_class_id}, silnik {engine_type_id}: {exc}")
     # Fallback fail-fast na wypadek błędu logicznego
-    raise ValueError(f"Brak przypisanego Base RV dla klasy={samar_class_id}, silnik={engine_type_id}")
+    raise ValueError(f"Brak przypisanego Base RV w samar_class_depreciation_rates dla klasy={samar_class_id}, silnik={engine_type_id}")
 
 @lru_cache(maxsize=128)
 def fetch_depreciation_rates_cached(
@@ -727,41 +740,58 @@ class SamarRVCalculator:
         years = max(0, min(years, self.LICZBA_LAT))
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 1 & 2: ODCZYT DIRECT WR% (1:1 z GSheets - tab_okres_final)
+        # KROK 1 & 2: ODCZYT BAZY I WYLICZENIE DELT Z tab_okres_final
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         brand_correction = self._fetch_brand_correction()
-
-        # Znajdujemy najbliższy przebieg w km_35000...km_245000
-        mileage_rates = rates  # { 'km_35000': 0.65, ... }
+        base_rate_4y = self._fetch_base_rv_percent()  # Pobrane dla 4 lat (140,000 km) z samar_class_base_rv
+        
+        mileage_rates = rates  # Słownik pobrany z tab_okres_final
         if not mileage_rates:
-            raise ValueError(
-                f"Brak stawek w tab_okres_final dla klasy {self.data.samar_class_id}"
-            )
+            raise ValueError(f"Brak stawek w tab_okres_final dla klasy {self.data.samar_class_id}")
+            
+        ordered_keys = ["km_35000", "km_70000", "km_105000", "km_140000", "km_175000", "km_210000", "km_245000"]
+        base_key = "km_140000"
+        base_idx = ordered_keys.index(base_key)
 
-        # Interpolacja lub wybór najbliższego (uproszczone: bierzemy najbliższy w dół)
-        target_km = self.data.total_km
-        sorted_keys = sorted(
-            [
-                int(k.replace("km_", ""))
-                for k in mileage_rates.keys()
-                if k.startswith("km_")
-            ]
-        )
-        chosen_km = sorted_keys[0]
-        for sk in sorted_keys:
-            if sk <= target_km:
-                chosen_km = sk
-            else:
-                break
+        def get_wr_percent_for_year(yr: int) -> float:
+            """Oblicza skumulowane WR% (Base_4Y + delty) dla zadanego roku (1-7)."""
+            if yr < 1:
+                yr = 1
+            if yr > 7:
+                yr = 7
+            target_key = ordered_keys[yr - 1]
+            target_idx = ordered_keys.index(target_key)
+            modifier_sum = 0.0
+            
+            if target_idx < base_idx:
+                for i in range(target_idx, base_idx):
+                    modifier_sum += float(mileage_rates.get(ordered_keys[i], 0.0))
+            elif target_idx > base_idx:
+                for i in range(base_idx + 1, target_idx + 1):
+                    # W tabeli wpisane są dodatnie kwoty utraty wartości dla lat > 4, więc je odejmujemy
+                    modifier_sum -= float(mileage_rates.get(ordered_keys[i], 0.0))
+            return base_rate_4y + modifier_sum
 
-        base_rate = float(mileage_rates.get(f"km_{chosen_km}") or 0.0)
+        years_exact = self.data.months / 12.0
+        
+        import math
+        lower_yr = max(1, math.floor(years_exact))
+        upper_yr = min(7, math.ceil(years_exact))
+        
+        if lower_yr == upper_yr:
+            effective_base_pct = get_wr_percent_for_year(lower_yr)
+        else:
+            p_lower = get_wr_percent_for_year(lower_yr)
+            p_upper = get_wr_percent_for_year(upper_yr)
+            ratio = years_exact - lower_yr
+            effective_base_pct = p_lower + ratio * (p_upper - p_lower)
 
-        # Nowy silnik: WR% z tabeli + korekta_marki
-        effective_pct = base_rate + brand_correction
+        # FINALNY WSPÓŁCZYNNIK:
+        effective_pct = effective_base_pct + brand_correction
         rv_base_netto = base_netto * effective_pct
 
-        debug["krok1_chosen_km"] = chosen_km
-        debug["krok1_base_rate"] = base_rate
+        debug["krok1_years_exact"] = years_exact
+        debug["krok1_interpolated_base_pct"] = effective_base_pct
         debug["krok1_brand_correction"] = brand_correction
         debug["krok1_effective_pct"] = effective_pct
         debug["krok1_wr_value_netto"] = round(rv_base_netto, 2)
@@ -793,20 +823,27 @@ class SamarRVCalculator:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         under_rate, over_rate, threshold_km = self._fetch_mileage_corrections()
 
-        # Obliczamy różnicę względem progu (zamiast sztywnego 140k)
-        diff_km = self.data.total_km - threshold_km
-        paczki_10k = diff_km / 10000.0
+        base_mileage = (self.data.months / 12.0) * 35000.0
+        
+        przebieg_ponizej = min(self.data.total_km, threshold_km) - base_mileage
+        przebieg_powyzej = max(self.data.total_km - threshold_km, 0.0)
 
-        if diff_km < 0:
-            # Bonus za niski przebieg
-            korekta_przebieg_netto = under_rate * rv_total_netto * paczki_10k
-        else:
-            # Kara za wysoki przebieg
-            korekta_przebieg_netto = over_rate * rv_total_netto * paczki_10k
+        p1 = przebieg_ponizej / 10000.0
+        p2 = przebieg_powyzej / 10000.0
 
+        # Wzór: korektaProcentPonizej190 * okresPlusDoposazenie * (przebiegPonizej190 / 10000.0m) 
+        #       + korektaProcentPowyzej190 * okresPlusDoposazenie * (przebiegPowyzej190 / 10000.0m)
+        korekta_przebieg_netto = (under_rate * rv_total_netto * p1) + (over_rate * rv_total_netto * p2)
+        
+        # Odejmowanie ujemnej wartości tworzy aprecjację (zwiększa rv_netto_post_krok4).
+        rv_netto_post_krok4 = rv_total_netto - korekta_przebieg_netto
+
+        debug["krok4_base_mileage"] = base_mileage
         debug["krok4_threshold_km"] = threshold_km
-        debug["krok4_diff_km"] = diff_km
-        debug["krok4_paczki_10k"] = round(paczki_10k, 2)
+        debug["krok4_przebieg_ponizej"] = przebieg_ponizej
+        debug["krok4_przebieg_powyzej"] = przebieg_powyzej
+        debug["krok4_p1"] = p1
+        debug["krok4_p2"] = p2
         debug["krok4_under_rate"] = under_rate
         debug["krok4_over_rate"] = over_rate
         debug["krok4_korekta_przebieg_netto"] = round(korekta_przebieg_netto, 2)
@@ -827,10 +864,9 @@ class SamarRVCalculator:
         krok5_body_netto = body_value_netto + zabudowa_value_netto
 
         rv_netto_pre_manual = (
-            rv_total_netto
+            rv_netto_post_krok4
             + color_value_netto
             + krok5_body_netto
-            - korekta_przebieg_netto
         )
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -857,11 +893,19 @@ class SamarRVCalculator:
         lo_param = self.fetch_lo_param()
         wr_lo_netto = final_rv_netto * (1.0 + lo_param)
 
-        utrata = max(catalog_total_netto - final_rv_netto, 0.0)
+        # Utrata wartości jest różnicą pomiędzy prawdziwymi kosztami zakupu (CAPEX z rabatami) 
+        # powiększonymi o opcje netto, a Wartością Rezydualną obliczoną powyżej z ceny katalogowej.
+        capex_total = self.data.capex_base_net + self.data.capex_options_net
+        # V1 Parity Fallback: If capex is missing (legacy API call), substitute with catalog value.
+        if capex_total <= 0:
+            capex_total = catalog_total_netto
+            
+        utrata = max(capex_total - final_rv_netto, 0.0)
         wr_pct = (
             final_rv_netto / catalog_total_netto if catalog_total_netto > 0 else 0.0
         )
 
+        debug["krok6_capex_total"] = round(capex_total, 2)
         debug["krok6_utrata"] = round(utrata, 2)
         debug["krok6_wr_pct"] = round(wr_pct, 4)
 
@@ -911,27 +955,6 @@ def fetch_body_correction_cached(
         return 0.0
 
     brand = brand_name.strip().upper() if brand_name else ""
-    utrata_wartosci_fallback = 0.0
-
-    # 0. Pobierz globalny fallback z body_types (z nowej kolumny)
-    try:
-        from core.database import supabase
-
-        res_bt = (
-            supabase.table("body_types")
-            .select("utrata_wartosci")
-            .eq("id", body_type_id)
-            .limit(1)
-            .execute()
-        )
-        if res_bt.data:
-            utrata_wartosci_fallback = float(
-                res_bt.data[0].get("utrata_wartosci") or 0.0
-            )
-    except Exception as exc:
-        logger.warning(
-            "Błąd pobierania globalnej korekty nadwozia z body_types: %s", exc
-        )
 
     def _extract(rows: list[dict]) -> float:
         return float(rows[0].get("correction_percent") or 0.0)
@@ -1001,8 +1024,7 @@ def fetch_body_correction_cached(
     except Exception as exc:
         logger.warning("Błąd kaskady body correction: %s", exc)
 
-    # Jeśli nie znaleziono specyficznej korekty, zwróć bazową wartość z body_types
-    return utrata_wartosci_fallback
+    return 0.0
 
 
 @lru_cache(maxsize=128)
