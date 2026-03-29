@@ -384,7 +384,7 @@ class LTRKalkulator:
             # V3 Matrix Strategy: Use contract mileage mode with 1250km step (MESH size)
             # This ensures we hit points like 40000km total / 60 months (8000km/yr) perfectly.
             contract_km_min = 10000
-            contract_km_max = 200000
+            contract_km_max = 300000
             contract_km_step = 1250
 
             for m in (24, 36, 48, 60):

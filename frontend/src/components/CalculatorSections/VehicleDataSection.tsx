@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Accordion,
   AccordionSummary,
@@ -12,13 +12,13 @@ import {
   MenuItem,
   InputAdornment,
   ListSubheader,
+  Box,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
-import type { V1DataOption } from "../../types";
-import { Calendar, Tag } from "lucide-react";
+import type { CalculatorInput } from "../../types";
+import { Car, Calendar, Tag, Activity } from "lucide-react";
 import { API_BASE_URL } from "../../config/env";
-import { apiClient } from "../../lib/apiClient";
 
 interface EngineOption {
   id: number;
@@ -34,21 +34,20 @@ interface BodyTypeOption {
 }
 
 interface VehicleDataSectionProps {
-  data: V1DataOption;
-  expanded: string | false;
-  handleChange: (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handleUpdate: (field: keyof V1DataOption, value: any) => void;
+  data: CalculatorInput;
+  expanded?: boolean;
+  onToggle?: (expanded: boolean) => void;
+  handleUpdate: (field: keyof CalculatorInput, value: any) => void;
   handleUpdateNetto: (netto: number) => void;
   handleUpdateBrutto: (brutto: number) => void;
-  handleChangeTypRabatu: (typ: string) => void;
+  handleChangeTypRabatu: (typ: "Procentowo" | "Kwotowo") => void;
   handleUpdateRabat: (typ: string, value: number) => void;
 }
 
 export default function VehicleDataSection({
   data,
-  expanded,
-  handleChange,
+  expanded = true,
+  onToggle,
   handleUpdate,
   handleUpdateNetto,
   handleUpdateBrutto,
@@ -59,151 +58,157 @@ export default function VehicleDataSection({
   const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
 
   useEffect(() => {
-    axios
-      .get<EngineOption[]>(`${API_BASE_URL}/api/engines`)
-      .then((res) => setEngines(res.data))
-      .catch((err) => console.error("Failed to load engines:", err));
-
-    apiClient.fetch(`${API_BASE_URL}/api/body-types`)
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setBodyTypes(data); })
-      .catch((err) => console.error("Failed to load body types:", err));
+    const fetchData = async () => {
+      try {
+        const [engRes, bodyRes] = await Promise.all([
+          axios.get<EngineOption[]>(`${API_BASE_URL}/api/engines`),
+          axios.get<BodyTypeOption[]>(`${API_BASE_URL}/api/body-types`),
+        ]);
+        setEngines(engRes.data);
+        setBodyTypes(bodyRes.data);
+      } catch (err) {
+        console.error("Failed to load vehicle metadata:", err);
+      }
+    };
+    fetchData();
   }, []);
 
   return (
     <Accordion
-      expanded={expanded === "panel1"}
-      onChange={handleChange("panel1")}
-      defaultExpanded
+      expanded={expanded}
+      onChange={(_, isExpanded) => onToggle?.(isExpanded)}
       sx={{
-        borderRadius: "8px !important",
+        borderRadius: "12px !important",
         overflow: "hidden",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+        boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)",
+        border: "1px solid rgba(0,0,0,0.05)",
+        mb: 2,
         "&:before": { display: "none" },
       }}
     >
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
         sx={{
-          bgcolor: "rgba(30, 58, 138, 0.03)",
+          bgcolor: "rgba(15, 23, 42, 0.02)",
           borderBottom: "1px solid rgba(0,0,0,0.06)",
+          transition: "background-color 0.2s",
+          "&:hover": { bgcolor: "rgba(15, 23, 42, 0.04)" }
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-        >
-          <Calendar size={20} color="#1e3a8a" />
-          Dane Pojazdu
-        </Typography>
-      </AccordionSummary>
-      <AccordionDetails sx={{ p: 3, pt: 4 }}>
-        <Grid container spacing={3}>
-<Grid size={{ xs: 12 }}>
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
-              Identyfikacja pojazdu
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box 
+            sx={{ 
+              p: 1, 
+              borderRadius: "8px", 
+              bgcolor: "primary.main", 
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            <Car size={18} />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "text.primary" }}>
+              Dane Pojazdu
             </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Marka, Model, Silnik i Cena Bazowa
+            </Typography>
+          </Box>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails sx={{ p: 4 }}>
+        <Grid container spacing={4}>
+          {/* IDENTYFIKACJA */}
+          <Grid item xs={12}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+              <Tag size={16} color="#64748b" />
+              <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 1, color: "text.secondary" }}>
+                Identyfikacja i Typowe Dane
+              </Typography>
+            </Box>
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
+
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               label="Marka"
-              value={data.Marka}
-              onChange={(e) => handleUpdate("Marka", e.target.value)}
-              size="small"
+              value={data.brand}
+              onChange={(e) => handleUpdate("brand", e.target.value)}
+              variant="outlined"
+              placeholder="np. Toyota"
             />
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
-              label="Model (DN)"
-              value={data.Model.DN}
+              label="Model"
+              value={typeof data.model === "object" ? data.model.dn : data.model}
               onChange={(e) =>
-                handleUpdate("Model", { ...data.Model, DN: e.target.value })
+                handleUpdate("model", typeof data.model === "object" ? { ...data.model, dn: e.target.value } : e.target.value)
               }
-              size="small"
+              variant="outlined"
+              placeholder="np. Corolla"
             />
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <FormControl fullWidth size="small">
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
               <InputLabel>Nadwozie</InputLabel>
               <Select
-                value={data.WersjaNadwozia}
+                value={data.body_type}
                 label="Nadwozie"
-                onChange={(e) =>
-                  handleUpdate("WersjaNadwozia", e.target.value)
-                }
+                onChange={(e) => handleUpdate("body_type", e.target.value)}
               >
-              {(() => {
-                  // Map HomologacjaSelected → vehicle_class filter
-                  const classFilter =
-                    data.HomologacjaSelected === "Osobowy" ? "Osobowy"
-                    : data.HomologacjaSelected === "Dostawczy" || data.HomologacjaSelected === "Cieżarowy" ? "Dostawczy"
-                    : null; // show all if unknown
-
-                  const filtered = classFilter
-                    ? bodyTypes.filter((bt) => bt.vehicle_class === classFilter)
-                    : bodyTypes;
-
-                  if (filtered.length === 0 && bodyTypes.length === 0) {
-                    return <MenuItem disabled>{"Ładowanie..."}</MenuItem>;
-                  }
-
-                  if (filtered.length === 0) {
-                    return <MenuItem disabled>Brak typów nadwozia dla tej homologacji</MenuItem>;
-                  }
-
-                  return Object.entries(
-                    filtered.reduce<Record<string, BodyTypeOption[]>>((acc, bt) => {
-                      (acc[bt.vehicle_class] = acc[bt.vehicle_class] || []).push(bt);
-                      return acc;
-                    }, {})
-                  ).flatMap(([vc, items]) => [
-                    <ListSubheader key={vc}>{vc}</ListSubheader>,
-                    ...items.map((bt) => (
-                      <MenuItem key={bt.id} value={bt.name}>
-                        {bt.name}
-                      </MenuItem>
-                    )),
-                  ]);
-                })()}
+                {bodyTypes.map((bt) => (
+                  <MenuItem key={bt.id} value={bt.name}>
+                    {bt.name}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
-              label="Wersja Wyposażenia"
-              value={data.WersjaWyposazenia}
-              onChange={(e) =>
-                handleUpdate("WersjaWyposazenia", e.target.value)
-              }
-              size="small"
+              label="Wersja"
+              value={data.trim_level}
+              onChange={(e) => handleUpdate("trim_level", e.target.value)}
+              variant="outlined"
+              placeholder="np. Executive"
             />
           </Grid>
 
-          {/* PARAMETRY TECHNICZNE */}
-<Grid sx={{ mt: 2 }} size={{ xs: 12 }}>
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
-              Parametry techniczne
-            </Typography>
+          {/* TECHNICZNE */}
+          <Grid item xs={12} sx={{ mt: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+              <Activity size={16} color="#64748b" />
+              <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 1, color: "text.secondary" }}>
+                Parametry Techniczne
+              </Typography>
+            </Box>
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
+
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
-              label="Moc silnika (KM)"
-              value={data.MocSilnika}
-              onChange={(e) => handleUpdate("MocSilnika", e.target.value)}
-              size="small"
+              label="Moc (KM)"
+              type="number"
+              value={data.engine_power_hp}
+              onChange={(e) => handleUpdate("engine_power_hp", e.target.value)}
+              InputProps={{
+                endAdornment: <InputAdornment position="end">KM</InputAdornment>,
+              }}
             />
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Napęd</InputLabel>
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Rodzaj Napędu / Paliwo</InputLabel>
               <Select
-                value={data.RodzajPaliwa}
-                label="Napęd"
-                onChange={(e) => handleUpdate("RodzajPaliwa", e.target.value)}
+                value={data.fuel_type}
+                label="Rodzaj Napędu / Paliwo"
+                onChange={(e) => handleUpdate("fuel_type", e.target.value)}
               >
                 {engines.length > 0 ? (
                   Object.entries(
@@ -220,157 +225,96 @@ export default function VehicleDataSection({
                     )),
                   ])
                 ) : (
-                  <MenuItem disabled>{"Ładowanie..."}</MenuItem>
+                  <MenuItem disabled>Ładowanie...</MenuItem>
                 )}
               </Select>
             </FormControl>
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <FormControl fullWidth size="small">
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
               <InputLabel>Homologacja</InputLabel>
               <Select
-                value={data.HomologacjaSelected}
+                value={data.homologation_type}
                 label="Homologacja"
-                onChange={(e) =>
-                  handleUpdate("HomologacjaSelected", e.target.value)
-                }
+                onChange={(e) => handleUpdate("homologation_type", e.target.value)}
               >
                 <MenuItem value="Osobowy">Osobowy</MenuItem>
-                <MenuItem value="Cieżarowy">Ciężarowy</MenuItem>
+                <MenuItem value="Ciężarowy">Ciężarowy (N1)</MenuItem>
                 <MenuItem value="Dostawczy">Dostawczy</MenuItem>
               </Select>
             </FormControl>
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
-              disabled
               fullWidth
-              label="Kategoria SAMAR (Auto)"
-              value={data.KategoriaSamar || ""}
-              size="small"
-              sx={{ bgcolor: "#f5f5f5" }}
+              label="Rocznik"
+              value={data.production_year}
+              onChange={(e) => handleUpdate("production_year", e.target.value)}
+              variant="outlined"
             />
           </Grid>
 
-          {/* CENA I RABAT */}
-<Grid sx={{ mt: 2 }} size={{ xs: 12 }}>
-            <Typography
-              variant="subtitle2"
-              color="primary"
-              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <Tag size={16} /> Wartość pojazdu bazowego
-            </Typography>
+          {/* CENA */}
+          <Grid item xs={12} sx={{ mt: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+              <Calendar size={16} color="#64748b" />
+              <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 1, color: "text.secondary" }}>
+                Wycena i Rabat
+              </Typography>
+            </Box>
           </Grid>
 
-          {/* CENA BAZOWA */}
-<Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
+              label="Cena Cennikowa Netto"
               type="number"
-              label="Cena cennikowa Netto"
-              value={data.CenaCennikowaNetto ? data.CenaCennikowaNetto.toFixed(2) : ""}
-              onChange={(e) =>
-                handleUpdateNetto(parseFloat(e.target.value) || 0)
-              }
-              size="small"
+              value={data.base_price_net}
+              onChange={(e) => handleUpdateNetto(parseFloat(e.target.value) || 0)}
               InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">PLN</InputAdornment>
-                ),
+                endAdornment: <InputAdornment position="end">PLN</InputAdornment>,
               }}
             />
           </Grid>
-<Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
+              label="Cena Cennikowa Brutto"
               type="number"
-              label="Cena cennikowa Brutto"
-              value={data.CenaCennikowa ? data.CenaCennikowa.toFixed(2) : ""}
-              onChange={(e) =>
-                handleUpdateBrutto(parseFloat(e.target.value) || 0)
-              }
-              size="small"
+              value={data.base_price_gross}
+              onChange={(e) => handleUpdateBrutto(parseFloat(e.target.value) || 0)}
               InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">PLN</InputAdornment>
-                ),
+                endAdornment: <InputAdornment position="end">PLN</InputAdornment>,
               }}
             />
           </Grid>
-
-          {/* PUSTY BLOK DLA WYRÓWNANIA */}
-          <Grid size={{ xs: 12, sm: 12, md: 4 }} />
-
-          {/* RABAT WARTOŚĆ BAZOWA */}
-<Grid size={{ xs: 12, sm: 4, md: 3 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Typ rabatu</InputLabel>
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Typ Rabatu</InputLabel>
               <Select
-                value={data.TypRabatu}
-                label="Typ rabatu"
-                onChange={(e) => handleChangeTypRabatu(e.target.value)}
+                value={data.discount_type}
+                label="Typ Rabatu"
+                onChange={(e) => handleChangeTypRabatu(e.target.value as any)}
               >
                 <MenuItem value="Procentowo">Procentowo (%)</MenuItem>
-                <MenuItem value="Kwotowo">Kwotowo (PLN Brutto)</MenuItem>
+                <MenuItem value="Kwotowo">Kwotowo (PLN)</MenuItem>
               </Select>
             </FormControl>
           </Grid>
-<Grid size={{ xs: 12, sm: 4, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
+              label={data.discount_type === "Procentowo" ? "Rabat %" : "Rabat PLN"}
               type="number"
-              label="Wartość rabatu"
-              value={
-                data.TypRabatu === "Procentowo"
-                  ? (data.RabatProcent * 100).toFixed(2)
-                  : data.RabatKwota.toFixed(2)
-              }
-              onChange={(e) =>
-                handleUpdateRabat(
-                  data.TypRabatu,
-                  parseFloat(e.target.value) || 0,
-                )
-              }
-              size="small"
+              value={data.discount_type === "Procentowo" ? data.discount_pct * 100 : data.discount_amount_net}
+              onChange={(e) => handleUpdateRabat(data.discount_type, parseFloat(e.target.value) || 0)}
               InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {data.TypRabatu === "Procentowo" ? "%" : "PLN"}
-                  </InputAdornment>
-                ),
+                endAdornment: <InputAdornment position="end">{data.discount_type === "Procentowo" ? "%" : "PLN"}</InputAdornment>,
               }}
             />
-          </Grid>
-<Grid size={{ xs: 12, sm: 4, md: 3 }}>
-            <TextField
-              fullWidth
-              disabled
-              label="Kwota rabatu Netto (podgląd)"
-              value={data.RabatKwotaNetto?.toFixed(2) || "0.00"}
-              size="small"
-              sx={{ bgcolor: "#f5f5f5" }}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">PLN</InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-<Grid size={{ xs: 12, sm: 4, md: 3 }}>
-             <TextField
-              fullWidth
-              disabled
-              label="Stawka VAT"
-              value={(data.StawkaVat * 100).toFixed(0) + "%"}
-              size="small"
-              sx={{ bgcolor: "#fafafa" }}
-             />
           </Grid>
         </Grid>
       </AccordionDetails>
     </Accordion>
   );
 }
-
-

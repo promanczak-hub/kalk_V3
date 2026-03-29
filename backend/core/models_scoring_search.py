@@ -132,6 +132,7 @@ class SimilarBatchRequest(BaseModel):
     limit: int = 5
     duration_months: Optional[int] = None
     annual_mileage: Optional[int] = None
+    mode: str = "rule-based"  # "rule-based" or "semantic"
 
 
 class SimilarBatchItem(SimilarVehicleMatch):

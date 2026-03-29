@@ -4,128 +4,206 @@ import {
   AccordionDetails,
   Typography,
   Grid,
-  FormControlLabel,
-  Switch,
   TextField,
-  InputAdornment,
+  IconButton,
+  Button,
   Box,
+  Divider,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { Settings2 } from "lucide-react";
-import type { V1DataOption } from "../../types";
+import { Plus, Trash2, Package, Wrench } from "lucide-react";
+import type { FactoryOption, ServiceOption } from "../../types";
 
 interface AdditionalOptionsSectionProps {
-  data: V1DataOption;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handleUpdate: (field: keyof V1DataOption, value: any) => void;
+  factoryOptions: FactoryOption[];
+  serviceOptions: ServiceOption[];
+  addFactoryOption: () => void;
+  removeFactoryOption: (id: number) => void;
+  addServiceOption: () => void;
+  removeServiceOption: (id: number) => void;
+  handleUpdate: (field: any, value: any) => void;
+  expanded?: boolean;
+  onToggle?: (expanded: boolean) => void;
 }
 
 export default function AdditionalOptionsSection({
-  data,
+  factoryOptions,
+  serviceOptions,
+  addFactoryOption,
+  removeFactoryOption,
+  addServiceOption,
+  removeServiceOption,
   handleUpdate,
+  expanded = false,
+  onToggle,
 }: AdditionalOptionsSectionProps) {
+
+  const updateOption = (type: 'factory' | 'service', id: number, field: string, value: any) => {
+    const list = type === 'factory' ? factoryOptions : serviceOptions;
+    const updated = list.map(opt => opt.id === id ? { ...opt, [field]: value } : opt);
+    handleUpdate(type === 'factory' ? 'factory_options' : 'service_options', updated);
+  };
+
   return (
     <Accordion
+      expanded={expanded}
+      onChange={(_, isExpanded) => onToggle?.(isExpanded)}
       sx={{
-        borderRadius: "8px !important",
+        borderRadius: "12px !important",
         overflow: "hidden",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+        boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)",
+        border: "1px solid rgba(0,0,0,0.05)",
+        mb: 2,
         "&:before": { display: "none" },
       }}
     >
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
         sx={{
-          bgcolor: "rgba(30, 58, 138, 0.03)",
+          bgcolor: "rgba(15, 23, 42, 0.02)",
           borderBottom: "1px solid rgba(0,0,0,0.06)",
+          transition: "background-color 0.2s",
+          "&:hover": { bgcolor: "rgba(15, 23, 42, 0.04)" }
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-        >
-          <Settings2 size={20} color="#1e3a8a" />
-          Opcje Dodatkowe / Reguły
-        </Typography>
-      </AccordionSummary>
-      <AccordionDetails sx={{ p: 3 }}>
-        <Grid container spacing={4}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 2 }}>
-              Ubezpieczenie i Ryzyko
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box 
+            sx={{ 
+              p: 1, 
+              borderRadius: "8px", 
+              bgcolor: "success.main", 
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            <Plus size={18} />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "text.primary" }}>
+              Opcje Dodatkowe
             </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={data.ExpressPlaciUbezpieczenie}
-                    onChange={(e) =>
-                      handleUpdate("ExpressPlaciUbezpieczenie", e.target.checked)
-                    }
-                  />
-                }
-                label="Express płaci ubezpieczenie"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={data.SamochodZastepczy}
-                    onChange={(e) =>
-                      handleUpdate("SamochodZastepczy", e.target.checked)
-                    }
-                  />
-                }
-                label="Samochód Zastępczy (w pakiecie)"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={data.CzyGPS}
-                    onChange={(e) => handleUpdate("CzyGPS", e.target.checked)}
-                  />
-                }
-                label="Urządzenie GPS wymagane"
-              />
+            <Typography variant="caption" color="text.secondary">
+              Wyposażenie fabryczne i Usługi Dealera
+            </Typography>
+          </Box>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails sx={{ p: 4 }}>
+        <Grid container spacing={4}>
+          {/* OPCJE FABRYCZNE */}
+          <Grid item xs={12} md={6}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Package size={18} color="#059669" />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Wyposażenie Fabryczne</Typography>
+              </Box>
+              <Button 
+                startIcon={<Plus size={16} />} 
+                onClick={addFactoryOption}
+                size="small"
+                variant="outlined"
+                color="success"
+              >
+                Dodaj
+              </Button>
             </Box>
+            
+            {factoryOptions.length === 0 && (
+              <Box sx={{ py: 4, textAlign: "center", bgcolor: "rgba(0,0,0,0.02)", borderRadius: "8px", border: "1px dashed rgba(0,0,0,0.1)" }}>
+                <Typography variant="body2" color="text.secondary">Brak dodanych opcji fabrycznych</Typography>
+              </Box>
+            )}
+
+            {factoryOptions.map((opt) => (
+              <Box key={opt.id} sx={{ mb: 2, p: 2, bgcolor: "rgba(0,0,0,0.01)", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.03)" }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Nazwa opcji"
+                      value={opt.name}
+                      onChange={(e) => updateOption('factory', opt.id, 'name', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={10} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Cena Netto"
+                      type="number"
+                      value={opt.price_net}
+                      onChange={(e) => updateOption('factory', opt.id, 'price_net', parseFloat(e.target.value) || 0)}
+                    />
+                  </Grid>
+                  <Grid item xs={2}>
+                    <IconButton color="error" onClick={() => removeFactoryOption(opt.id)}>
+                      <Trash2 size={18} />
+                    </IconButton>
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 2 }}>
-              Serwisowanie
-            </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={data.CzyUwzgledniaSerwisowanie}
-                    onChange={(e) =>
-                      handleUpdate("CzyUwzgledniaSerwisowanie", e.target.checked)
-                    }
-                  />
-                }
-                label="Uwzględniaj serwisowanie (TR)"
-              />
+          <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", md: "block" }, mx: 1 }} />
 
-              <Box sx={{ mt: 2, display: "flex", gap: 2 }}>
-                <TextField
-                  label="Inne Koszty Serwisowania"
-                  type="number"
-                  size="small"
-                  value={data.InneKosztySerwisowania}
-                  onChange={(e) =>
-                    handleUpdate(
-                      "InneKosztySerwisowania",
-                      parseFloat(e.target.value) || 0,
-                    )
-                  }
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">PLN/mc</InputAdornment>
-                    ),
-                  }}
-                />
+          {/* USŁUGI SERWISOWE */}
+          <Grid item xs={12} md={5.5}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Wrench size={18} color="#2563eb" />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Usługi Dealera / Serwis</Typography>
               </Box>
+              <Button 
+                startIcon={<Plus size={16} />} 
+                onClick={addServiceOption}
+                size="small"
+                variant="outlined"
+                color="primary"
+              >
+                Dodaj
+              </Button>
             </Box>
+
+            {serviceOptions.length === 0 && (
+              <Box sx={{ py: 4, textAlign: "center", bgcolor: "rgba(0,0,0,0.02)", borderRadius: "8px", border: "1px dashed rgba(0,0,0,0.1)" }}>
+                <Typography variant="body2" color="text.secondary">Brak dodanych usług</Typography>
+              </Box>
+            )}
+
+            {serviceOptions.map((opt) => (
+              <Box key={opt.id} sx={{ mb: 2, p: 2, bgcolor: "rgba(0,0,0,0.01)", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.03)" }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Nazwa usługi"
+                      value={opt.name}
+                      onChange={(e) => updateOption('service', opt.id, 'name', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={10} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Cena Netto"
+                      type="number"
+                      value={opt.price_net}
+                      onChange={(e) => updateOption('service', opt.id, 'price_net', parseFloat(e.target.value) || 0)}
+                    />
+                  </Grid>
+                  <Grid item xs={2}>
+                    <IconButton color="error" onClick={() => removeServiceOption(opt.id)}>
+                      <Trash2 size={18} />
+                    </IconButton>
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
           </Grid>
         </Grid>
       </AccordionDetails>

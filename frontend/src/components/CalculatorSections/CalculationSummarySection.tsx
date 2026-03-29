@@ -9,14 +9,14 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Calculator } from "lucide-react";
-import type { V1DataOption } from "../../types";
+import type { CalculatorInput } from "../../types";
 
 interface CalculationSummarySectionProps {
-  data: V1DataOption;
+  data: CalculatorInput;
   expanded: string | false;
   handleChange: (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handleUpdate: (field: keyof V1DataOption, value: any) => void;
+  handleUpdate: (field: keyof CalculatorInput, value: any) => void;
 }
 
 export default function CalculationSummarySection({
@@ -63,7 +63,7 @@ export default function CalculationSummarySection({
                   fullWidth
                   disabled
                   label="Okres używania (Mce)"
-                  value={data.OkresUzytkowania}
+                  value={data.duration_months}
                   size="small"
                 />
               </Grid>
@@ -72,7 +72,7 @@ export default function CalculationSummarySection({
                   fullWidth
                   disabled
                   label="Dekl. przebieg całkowity (km)"
-                  value={data.Przebieg}
+                  value={data.annual_mileage}
                   size="small"
                 />
               </Grid>
@@ -82,7 +82,7 @@ export default function CalculationSummarySection({
                   disabled
                   label="Czynsz inicjalny"
                   type="number"
-                  value={data.CzynszInicjalny}
+                  value={data.initial_rent}
                   size="small"
                   InputProps={{
                     endAdornment: (
@@ -105,8 +105,8 @@ export default function CalculationSummarySection({
                   label="Bieżący WIBOR"
                   type="number"
                   inputProps={{ step: 0.01 }}
-                  value={(data.WiborProcent * 100).toFixed(2)}
-                  onChange={(e) => handleUpdate("WiborProcent", (parseFloat(e.target.value) || 0) / 100)}
+                  value={(data.wibor_pct * 100).toFixed(2)}
+                  onChange={(e) => handleUpdate("wibor_pct", (parseFloat(e.target.value) || 0) / 100)}
                   size="small"
                   InputProps={{
                     endAdornment: <InputAdornment position="end">%</InputAdornment>,
@@ -120,8 +120,8 @@ export default function CalculationSummarySection({
                   label="Marża Finansowa"
                   type="number"
                   inputProps={{ step: 0.01 }}
-                  value={(data.MarzaFinansowaProcent * 100).toFixed(2)}
-                  onChange={(e) => handleUpdate("MarzaFinansowaProcent", (parseFloat(e.target.value) || 0) / 100)}
+                  value={(data.financial_margin_pct * 100).toFixed(2)}
+                  onChange={(e) => handleUpdate("financial_margin_pct", (parseFloat(e.target.value) || 0) / 100)}
                   size="small"
                   InputProps={{
                     endAdornment: <InputAdornment position="end">%</InputAdornment>,
@@ -134,7 +134,7 @@ export default function CalculationSummarySection({
                   fullWidth
                   disabled
                   label="Procent Amortyzacji (Auto)"
-                  value={data.ProcentAmortyzacji ? (data.ProcentAmortyzacji * 100).toFixed(2) : "—"}
+                  value={data.amortization_pct ? (data.amortization_pct * 100).toFixed(2) : "—"}
                   size="small"
                   InputProps={{
                     endAdornment: <InputAdornment position="end">%</InputAdornment>,
@@ -149,3 +149,4 @@ export default function CalculationSummarySection({
     </Accordion>
   );
 }
+

@@ -1,131 +1,103 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import type { V1DataOption } from "../types";
+import type { CalculatorInput, ControlCenterSettings } from "../types";
 import { API_BASE_URL } from "../config/env";
 
-export interface ControlCenterSettings {
-  default_wibor: number;
-  default_ltr_margin: number;
-  default_depreciation_pct?: number;
-  vat_rate?: number;
-  bank_spread?: number;
+export interface CalculationStep {
+  krok: string;
+  wynik: number;
+  rownanie?: string;
+  details?: Record<string, any>;
 }
 
-const INITIAL_DATA: V1DataOption = {
-  Numer: "0467/02/26",
-  KalkulacjaId: 170315,
-  OpcjeFabryczne: [
-    {
-      Id: 1,
-      Nazwa: "Szary Graphite metalizowany",
-      CenaNetto: 2926.83,
-      Cena: 3600.0,
-      isNierabatowany: false,
-      WR: false,
-    },
-    {
-      Id: 2,
-      Nazwa: "PakietInfotainment(RN0)",
-      CenaNetto: 4146.34,
-      Cena: 5100.0,
-      isNierabatowany: false,
-      WR: false,
-    },
-  ],
-  OpcjeSerwisowe: [],
-  StawkaVat: 0.23,
-  Marza: 0.13,
-  RodzajCzynszu: "Kwotowo",
-  CzynszKwota: 0.0,
-  CzynszProcent: 0.0,
-  CzynszInicjalny: 0.0,
-  OkresUzytkowania: 36,
-  Przebieg: 120000,
-  Rocznik: "bieżący",
-  Marka: "SKODA",
-  Model: {
-    Id: 12161,
-    Typ: "Model",
-    DN: "SKODA Superb 1,5 PHEV Hybrydowy 2x4 AT",
-  },
-  WersjaNadwozia: "5 drzwiowy",
-  KategoriaSamar: "GRUPA PODSTAWOWA",
-  MocSilnika: "264",
-  WersjaWyposazenia: "Drive",
-  RodzajPaliwa: "Hybrydowy",
-  HomologacjaSelected: "Osobowy",
-  KlasaWR: "D",
-  ZOponami: true,
-  RozmiarOpon: { Szerokosc: "215", Profil: "60", Litera: "R", Srednica: "16" },
-  KlasaOpon: "BLIZNIACZE",
-  LiczbaKompletowOponSelected: "Automatycznie",
-  InneKosztySerwisowania: 0.0,
-  PakietSerwisowy: 0.0,
-  PakietSerwisowyNazwa: null,
-  KorektaRV: 0.0,
-  KalkulacjaWolumenowa: null,
-  WiborProcent: 0.0482,
-  MarzaFinansowaProcent: 0.022,
+export interface CalculationResult {
+  total_rent: number;
+  steps: CalculationStep[];
+  summary?: {
+    base_price_net: number;
+    total_discount_net: number;
+    final_price_net: number;
+  }
+}
 
-  Opis: null,
-  Prywatna: false,
-  CenaCennikowaNetto: 164430.89,
-  CenaCennikowa: 202250.0,
-  Metalik: true,
-  TypRabatu: "Procentowo",
-  RabatProcent: 0.24,
-  RabatKwotaNetto: 41160.98,
-  RabatKwota: 50628.0,
-  SamochodZastepczy: true,
-  ExpressPlaciUbezpieczenie: true,
-  CzyUwzgledniaSerwisowanie: true,
-  CzyGPS: true,
-  DoubezpieczenieKradziezy: null,
-  NaukaJazdy: null,
-  KosztUbezpieczeniaKorekta: 0.0,
-  KosztPrzygotowaniaDosprzedazyKorekta: 0.0,
-  KosztOponKorekta: 0.0,
-  GlownyMatrixParameters: {
-    CzynszFinansowyRazem: { Wartosc: 64660.0 },
-    CzynszTechnicznyRazem: { Wartosc: 21650.0 },
-    KosztRazem: { Wartosc: 86310.0 },
-    LacznieUbezpieczenie: { Wartosc: 13952.0 },
-    KosztTechnicznySerwis: { Wartosc: 0.0 },
-    KosztTechnicznyOpony: { Wartosc: 3891.0 },
-    KosztTechnicznySamochodZastepczy: { Wartosc: 2145.0 },
-    KosztyDodatkowe: { Wartosc: 1662.0 },
-  },
+const INITIAL_DATA: CalculatorInput = {
+  vehicle_id: "0",
+  calculation_number: "NEW/2026",
+  id: "temp-id",
+  factory_options: [],
+  service_options: [],
+  vat_rate: 0.23,
+  margin: 0.13,
+  rent_type: "Kwotowo",
+  rent_amount: 0.0,
+  rent_pct: 0.0,
+  initial_rent: 0.0,
+  duration_months: 48,
+  annual_mileage: 20000,
+  production_year: "bieżący",
+  brand: "",
+  model: "",
+  body_type: "",
+  samar_class: "",
+  engine_power_hp: "",
+  trim_level: "",
+  fuel_type: "",
+  homologation_type: "",
+  residual_value_class: "",
+  has_tires: true,
+  tire_size: { width: "225", profile: "45", letter: "R", diameter: "17" },
+  tire_class: "MEDIUM",
+  tire_sets_count: "Automatycznie",
+  other_service_costs: 0.0,
+  service_package_amount: 0.0,
+  service_package_name: null,
+  rv_correction: 0.0,
+  volume_discount_id: null,
+  wibor_pct: 0.05,
+  financial_margin_pct: 0.02,
+  notes: null,
+  is_private: false,
+  base_price_net: 0,
+  base_price_gross: 0,
+  is_metallic_paint: false,
+  discount_type: "Procentowo",
+  discount_pct: 0,
+  discount_amount_net: 0,
+  discount_amount_gross: 0,
+  has_replacement_car: true,
+  is_insurance_included: true,
+  is_service_included: true,
+  has_gps: true,
+  has_theft_insurance: null,
+  is_driving_school: null,
+  insurance_cost_correction: 0.0,
+  preparation_cost_correction: 0.0,
+  tires_cost_correction: 0.0,
 };
 
 export function useCalculator() {
-  const [data, setData] = useState<V1DataOption>(INITIAL_DATA);
-  const [expanded, setExpanded] = useState<string | false>("panel1");
+  const [data, setData] = useState<CalculatorInput>(INITIAL_DATA);
   const [isParserOpen, setIsParserOpen] = useState(false);
   const [parserText, setParserText] = useState("");
   const [isParsing, setIsParsing] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
+  const [steps, setSteps] = useState<CalculationStep[]>([]);
+  const [expandedPanel, setExpandedPanel] = useState<string | false>("panel1");
 
   useEffect(() => {
     fetchSettings();
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
-    if (id) {
-      loadKalkulacja(id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSettings = async () => {
     try {
-      const resp = await axios.get<ControlCenterSettings>(
-        `${API_BASE_URL}/api/control-center`,
-      );
+      const resp = await axios.get<ControlCenterSettings>(`${API_BASE_URL}/api/control-center`);
       if (resp.data) {
         setData((prev) => ({
           ...prev,
-          StawkaVat: (resp.data.vat_rate || 23) / 100,
-          WiborProcent: (resp.data.default_wibor || 4.82) / 100,
-          MarzaFinansowaProcent: (resp.data.bank_spread || 2.0) / 100,
-
+          vat_rate: (resp.data.vat_rate || 23) / 100,
+          wibor_pct: (resp.data.default_wibor || 5.0) / 100,
+          financial_margin_pct: (resp.data.bank_spread || 2.0) / 100,
         }));
       }
     } catch (e) {
@@ -133,474 +105,152 @@ export function useCalculator() {
     }
   };
 
-  const loadKalkulacja = async (id: string) => {
-    try {
-      const resp = await axios.get(
-        `${API_BASE_URL}/api/kalkulacje/${id}`,
-      );
-      if (resp.data && resp.data.stan_json) {
-        applyParsedOffer(resp.data.stan_json, resp.data.numer_kalkulacji);
-      }
-    } catch (e) {
-      console.error("Failed to load kalkulacja", e);
-    }
-  };
-
-  const handleChange =
-    (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
-      setExpanded(isExpanded ? panel : false);
-    };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleUpdate = (field: keyof V1DataOption, value: any) => {
+  const handleUpdate = (field: keyof CalculatorInput, value: any) => {
     setData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleUpdateNetto = (netto: number) => {
     setData((prev) => {
-      const vat = prev.StawkaVat || 0.23;
+      const vat = prev.vat_rate || 0.23;
       const brutto = netto * (1 + vat);
-      let rabatProcent = prev.RabatProcent;
-      let rabatKwota = prev.RabatKwota;
-      let rabatKwotaNetto = prev.RabatKwotaNetto;
-
-      if (prev.TypRabatu === "Procentowo") {
-        rabatKwota = brutto * rabatProcent;
-        rabatKwotaNetto = netto * rabatProcent;
-      } else {
-        rabatProcent = brutto > 0 ? rabatKwota / brutto : 0;
-      }
       return {
         ...prev,
-        CenaCennikowaNetto: netto,
-        CenaCennikowa: brutto,
-        RabatProcent: rabatProcent,
-        RabatKwota: rabatKwota,
-        RabatKwotaNetto: rabatKwotaNetto,
+        base_price_net: netto,
+        base_price_gross: brutto,
       };
     });
   };
 
   const handleUpdateBrutto = (brutto: number) => {
     setData((prev) => {
-      const vat = prev.StawkaVat || 0.23;
+      const vat = prev.vat_rate || 0.23;
       const netto = brutto / (1 + vat);
-      let rabatProcent = prev.RabatProcent;
-      let rabatKwota = prev.RabatKwota;
-      let rabatKwotaNetto = prev.RabatKwotaNetto;
-
-      if (prev.TypRabatu === "Procentowo") {
-        rabatKwota = brutto * rabatProcent;
-        rabatKwotaNetto = netto * rabatProcent;
-      } else {
-        rabatProcent = brutto > 0 ? rabatKwota / brutto : 0;
-      }
       return {
         ...prev,
-        CenaCennikowaNetto: netto,
-        CenaCennikowa: brutto,
-        RabatProcent: rabatProcent,
-        RabatKwota: rabatKwota,
-        RabatKwotaNetto: rabatKwotaNetto,
+        base_price_net: netto,
+        base_price_gross: brutto,
       };
     });
+  };
+
+  const handleChangeTypRabatu = (typ: "Procentowo" | "Kwotowo") => {
+    handleUpdate("discount_type", typ);
   };
 
   const handleUpdateRabat = (typ: string, value: number) => {
-    setData((prev) => {
-      const vat = prev.StawkaVat || 0.23;
-      const brutto = prev.CenaCennikowa;
-      const netto = prev.CenaCennikowaNetto;
-      let rabatProcent = prev.RabatProcent;
-      let rabatKwota = prev.RabatKwota;
-      let rabatKwotaNetto = prev.RabatKwotaNetto;
-
-      if (typ === "Procentowo") {
-        rabatProcent = value / 100;
-        rabatKwota = brutto * rabatProcent;
-        rabatKwotaNetto = netto * rabatProcent;
-      } else {
-        rabatKwota = value;
-        rabatKwotaNetto = value / (1 + vat);
-        rabatProcent = brutto > 0 ? rabatKwota / brutto : 0;
-      }
-      return {
-        ...prev,
-        TypRabatu: typ,
-        RabatProcent: rabatProcent,
-        RabatKwota: rabatKwota,
-        RabatKwotaNetto: rabatKwotaNetto,
-      };
-    });
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleUpdateFactoryOption = (id: number, field: string, value: any) => {
-    setData((prev) => ({
-      ...prev,
-      OpcjeFabryczne: prev.OpcjeFabryczne.map((opt) =>
-        opt.Id === id ? { ...opt, [field]: value } : opt
-      ),
-    }));
-  };
-
-  const handleAddFactoryOption = () => {
-    setData((prev) => {
-      const nextId =
-        prev.OpcjeFabryczne.length > 0
-          ? Math.max(...prev.OpcjeFabryczne.map((o) => o.Id)) + 1
-          : 1;
-      return {
-        ...prev,
-        OpcjeFabryczne: [
-          ...prev.OpcjeFabryczne,
-          {
-            Id: nextId,
-            Nazwa: "Nowa opcja",
-            CenaNetto: 0,
-            Cena: 0,
-            isNierabatowany: false,
-            WR: false,
-          },
-        ],
-      };
-    });
-  };
-
-  const handleRemoveFactoryOption = (id: number) => {
-    setData((prev) => ({
-      ...prev,
-      OpcjeFabryczne: prev.OpcjeFabryczne.filter((opt) => opt.Id !== id),
-    }));
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleUpdateServiceOption = (id: number, field: string, value: any) => {
-    setData((prev) => ({
-      ...prev,
-      OpcjeSerwisowe: prev.OpcjeSerwisowe.map((opt) =>
-        opt.Id === id ? { ...opt, [field]: value } : opt
-      ),
-    }));
-  };
-
-  const handleAddServiceOption = () => {
-    setData((prev) => {
-      const nextId =
-        prev.OpcjeSerwisowe.length > 0
-          ? Math.max(...prev.OpcjeSerwisowe.map((o) => o.Id)) + 1
-          : 1;
-      return {
-        ...prev,
-        OpcjeSerwisowe: [
-          ...prev.OpcjeSerwisowe,
-          {
-            Id: nextId,
-            Nazwa: "Nowa usługa",
-            CenaNetto: 0,
-            Cena: 0,
-            isNierabatowany: false,
-            WR: false,
-          },
-        ],
-      };
-    });
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleAddExtractedServiceOption = (extracted: any) => {
-    const extractedList = Array.isArray(extracted?.service_options)
-      ? extracted.service_options
-      : Array.isArray(extracted)
-        ? extracted
-        : extracted
-          ? [extracted]
-          : [];
-
-    if (extractedList.length === 0) return;
-
-    setData((prev) => {
-      const vat = prev.StawkaVat || 0.23;
-      let nextId =
-        prev.OpcjeSerwisowe.length > 0
-          ? Math.max(...prev.OpcjeSerwisowe.map((o) => o.Id)) + 1
-          : 1;
-
-      const mapped = extractedList
-        .filter(
-          (item: any) =>
-            item &&
-            typeof item.name === "string" &&
-            Number.isFinite(Number(item.net_price))
-        )
-        .map((item: any) => {
-          const net = Number(item.net_price) || 0;
-          const row = {
-            Id: nextId,
-            Nazwa: item.name,
-            CenaNetto: net,
-            Cena: net * (1 + vat),
-            isNierabatowany: false,
-            WR: false,
-          };
-          nextId += 1;
-          return row;
-        });
-
-      if (mapped.length === 0) return prev;
-
-      return {
-        ...prev,
-        OpcjeSerwisowe: [...prev.OpcjeSerwisowe, ...mapped],
-      };
-    });
-  };
-
-  const handleRemoveServiceOption = (id: number) => {
-    setData((prev) => ({
-      ...prev,
-      OpcjeSerwisowe: prev.OpcjeSerwisowe.filter((opt) => opt.Id !== id),
-    }));
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const applyParsedOffer = (parsedRaw: any, numer_kalkulacji?: string) => {
-    let parsed = parsedRaw;
-
-    if (parsedRaw && parsedRaw.card_summary && !parsedRaw.factory_options) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsePrice = (val: any) => {
-        if (typeof val === "number") return val;
-        if (!val) return 0;
-        let s = String(val).replace(/\s/g, "").replace(/[^\d,.-]/g, "");
-        if (s.includes(".") && s.includes(",")) s = s.replace(/\./g, "");
-        s = s.replace(",", ".");
-        return parseFloat(s) || 0;
-      };
-
-      const cs = parsedRaw.card_summary;
-
-      const factoryOptions = (cs.paid_options || [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((o: any) => o.category === "Fabryczna")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((o: any) => ({ name: o.name, price_net: parsePrice(o.price) }));
-
-      const dealerOptions = (cs.paid_options || [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((o: any) => o.category !== "Fabryczna")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((o: any) => ({ name: o.name, price_net: parsePrice(o.price) }));
-
-      let discountAmt = 0;
-      try {
-        const pages = parsedRaw.digital_twin?.pages || [];
-        for (const p of pages) {
-          for (const s of p.sections || []) {
-            if (s.data && Array.isArray(s.data)) {
-              for (const item of s.data) {
-                if (item.category === "Rabat" || item.item === "Rabat") {
-                  discountAmt = parsePrice(item.price_net || item.price || 0);
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      }
-
-      parsed = {
-        brand: parsedRaw.brand || "",
-        model: parsedRaw.model || "",
-        trim_level: parsedRaw.trim_level || parsedRaw.trim || "",
-        base_price_net: parsePrice(cs.base_price),
-        factory_options: factoryOptions,
-        dealer_options: dealerOptions,
-        tire_size: cs.wheels || "",
-        discount_amount_net: Math.abs(discountAmt),
-        discount_pct: discountAmt > 0 ? 0 : (cs.suggested_discount_pct || 0),
-        fuel: "Diesel",
-        body_style: cs.body_style || "",
-        samar_category: "KLASYFIKACJA...",
-        power_hp: parsedRaw.digital_twin?.technical_data?.power_hp || "",
-        vehicle_class: cs.vehicle_class || "",
-        manual_wr_correction: cs.manual_wr_correction || 0,
-      };
-    }
-
-    setData((prev) => {
-      const vat = prev.StawkaVat || 0.23;
-
-      let nextFactoryId =
-        prev.OpcjeFabryczne.length > 0
-          ? Math.max(...prev.OpcjeFabryczne.map((o) => o.Id)) + 1
-          : 1;
-      const newFactoryOptions = (parsed.factory_options || []).map(
-        (fo: { name: string; price_net: number }) => ({
-          Id: nextFactoryId++,
-          Nazwa: fo.name,
-          CenaNetto: fo.price_net,
-          Cena: fo.price_net * (1 + vat),
-          isNierabatowany: false,
-          WR: false,
-        }),
-      );
-
-      let nextServiceId =
-        prev.OpcjeSerwisowe.length > 0
-          ? Math.max(...prev.OpcjeSerwisowe.map((o) => o.Id)) + 1
-          : 1;
-      const newServiceOptions = (parsed.dealer_options || []).map(
-        (so: { name: string; price_net: number }) => ({
-          Id: nextServiceId++,
-          Nazwa: so.name,
-          CenaNetto: so.price_net,
-          Cena: so.price_net * (1 + vat),
-          isNierabatowany: false,
-          WR: false,
-        }),
-      );
-
-      const bruttoBase = (parsed.base_price_net || 0) * (1 + vat);
-
-      let opony = prev.RozmiarOpon;
-      let klasaOpon = prev.KlasaOpon;
-      if (parsed.tire_size) {
-        const regex = /^(\d{3})\/(\d{2})\s*(R)(\d{2})/i;
-        const match = parsed.tire_size.match(regex);
-        if (match) {
-          opony = {
-            Szerokosc: match[1],
-            Profil: match[2],
-            Litera: match[3],
-            Srednica: match[4],
-          };
-
-          const diameter = parseInt(match[4], 10);
-          if (parsed.vehicle_class === "Dostawczy") {
-            klasaOpon = "WZMOCNIONE";
-          } else {
-            if (diameter <= 16) klasaOpon = "BUDGET";
-            else if (diameter >= 17 && diameter <= 18) klasaOpon = "MEDIUM";
-            else if (diameter >= 19) klasaOpon = "PREMIUM";
-          }
-        }
-      }
-
-      let rabatKwotaNetto = parsed.discount_amount_net || 0;
-      let rabatKwota = rabatKwotaNetto * (1 + vat);
-      let rabatProcent = bruttoBase > 0 ? rabatKwota / bruttoBase : 0;
-
-      if (parsed.discount_pct && parsed.discount_pct > 0) {
-        rabatProcent = parsed.discount_pct;
-        rabatKwotaNetto = parsed.base_price_net * rabatProcent;
-        rabatKwota = bruttoBase * rabatProcent;
-      }
-
-      return {
-        ...prev,
-        Numer: numer_kalkulacji || prev.Numer,
-        Marka: parsed.brand || prev.Marka,
-        Model: {
-          ...prev.Model,
-          DN: parsed.model + (parsed.trim_level ? ` ${parsed.trim_level}` : ""),
-        },
-        WersjaNadwozia: parsed.body_style || prev.WersjaNadwozia,
-        KategoriaSamar: parsed.samar_category || prev.KategoriaSamar,
-        MocSilnika: parsed.power_hp ? String(parsed.power_hp) : prev.MocSilnika,
-        RodzajPaliwa: parsed.fuel || prev.RodzajPaliwa,
-        CenaCennikowaNetto: parsed.base_price_net || 0,
-        CenaCennikowa: bruttoBase || 0,
-        OpcjeFabryczne: newFactoryOptions,
-        OpcjeSerwisowe: newServiceOptions,
-        HomologacjaSelected: parsed.vehicle_class || prev.HomologacjaSelected,
-        TypRabatu: "Kwotowo",
-        RabatKwotaNetto: rabatKwotaNetto,
-        RabatKwota: rabatKwota,
-        RabatProcent: rabatProcent,
-        RozmiarOpon: opony,
-        KlasaOpon: klasaOpon,
-        KorektaRV: parsed.manual_wr_correction || 0,
-      };
-    });
-
-    const classificationBrand = parsedRaw.brand || parsed.brand || "";
-    const classificationModel = parsedRaw.model || parsed.model || "";
-    const classificationBody =
-      parsedRaw.card_summary?.body_style || parsed.body_style || parsed.trim || "";
-
-    if (classificationBrand || classificationModel) {
-      axios
-        .post(`${API_BASE_URL}/api/parse-offer/samar-category`, {
-          brand: classificationBrand,
-          model: classificationModel,
-          body_style: classificationBody || "",
-        })
-        .then((resp) => {
-          if (resp.data?.samar_category) {
-            setData((prev) => ({
-              ...prev,
-              KategoriaSamar: resp.data.samar_category,
-            }));
-          }
-        })
-        .catch((err) => {
-          console.error("SAMAR LLM error", err);
-          setData((prev) => ({ ...prev, KategoriaSamar: "INNE" }));
-        });
+    if (typ === "Procentowo") {
+      handleUpdate("discount_pct", value / 100);
+    } else {
+      handleUpdate("discount_amount_net", value);
     }
   };
 
-  const handleParseOffer = async () => {
-    if (!parserText.trim()) return;
-    setIsParsing(true);
+  const addFactoryOption = () => {
+    const nextId = Date.now();
+    setData(prev => ({
+      ...prev,
+      factory_options: [...prev.factory_options, {
+        id: nextId,
+        name: "Nowa opcja fabryczna",
+        price_net: 0,
+        price_gross: 0,
+        is_non_discountable: false,
+        is_residual_impacting: false
+      }]
+    }));
+  };
+
+  const removeFactoryOption = (id: number) => {
+    setData(prev => ({
+      ...prev,
+      factory_options: prev.factory_options.filter(o => o.id !== id)
+    }));
+  };
+
+  const addServiceOption = () => {
+    const nextId = Date.now();
+    setData(prev => ({
+      ...prev,
+      service_options: [...prev.service_options, {
+        id: nextId,
+        name: "Nowa opcja serwisowa",
+        price_net: 0,
+        price_gross: 0,
+        is_non_discountable: false,
+        is_residual_impacting: false
+      }]
+    }));
+  };
+
+  const removeServiceOption = (id: number) => {
+    setData(prev => ({
+      ...prev,
+      service_options: prev.service_options.filter(o => o.id !== id)
+    }));
+  };
+
+  const calculate = async () => {
+    setIsCalculating(true);
     try {
-      const resp = await axios.post(`${API_BASE_URL}/api/parse-offer`, {
-        raw_text: parserText,
-      });
-      applyParsedOffer(resp.data);
+      const payload = {
+        ...data,
+        base_price_net: data.base_price_net || 0,
+        okres_bazowy: data.duration_months,
+        przebieg_bazowy: data.duration_months * (data.annual_mileage / 12 * 12), // normalize to contract total if needed
+        samar_category: data.samar_class,
+        engine_name: data.fuel_type,
+        body_type_name: data.body_type,
+        power_hp: Number(data.engine_power_hp) || 0,
+      };
 
-      setIsParserOpen(false);
-      setParserText("");
+      const response = await axios.post(`${API_BASE_URL}/api/ltr/calculate-manual`, payload);
+      if (response.data) {
+        setCalculationResult({
+          total_rent: response.data.total_rent || 0,
+          steps: response.data.steps || [],
+          summary: response.data.summary
+        });
+        setSteps(response.data.steps || []);
+      }
     } catch (err) {
-      console.error("Parse offer error", err);
-      alert("Błąd podczas przetwarzania oferty. Sprawdź logi serwera.");
+      console.error("Calculation failed", err);
     } finally {
-      setIsParsing(false);
+      setIsCalculating(false);
     }
   };
 
-  const handleChangeTypRabatu = (typ: string) => {
-    if (typ !== "Procentowo" && typ !== "Kwotowo") return;
-    setData((prev) => {
-      return { ...prev, TypRabatu: typ as "Procentowo" | "Kwotowo" };
-    });
+  const updateVehicle = (updates: Partial<CalculatorInput>) => {
+    setData(prev => ({ ...prev, ...updates }));
+  };
+
+  const handleAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedPanel(isExpanded ? panel : false);
   };
 
   return {
-    data,
-    setData,
-    expanded,
+    vehicle: data,
+    updateVehicle,
+    factoryOptions: data.factory_options,
+    serviceOptions: data.service_options,
+    handleUpdate,
+    handleUpdateNetto,
+    handleUpdateBrutto,
+    handleUpdateRabat,
+    handleChangeTypRabatu,
+    addFactoryOption,
+    removeFactoryOption,
+    addServiceOption,
+    removeServiceOption,
+    calculationResult,
+    steps,
+    isCalculating,
+    calculate,
     isParserOpen,
     setIsParserOpen,
     parserText,
     setParserText,
     isParsing,
-    handleChange,
-    handleUpdate,
-    handleUpdateNetto,
-    handleUpdateBrutto,
-    handleUpdateRabat,
-    handleUpdateFactoryOption,
-    handleAddFactoryOption,
-    handleRemoveFactoryOption,
-    handleUpdateServiceOption,
-    handleAddServiceOption,
-    handleAddExtractedServiceOption,
-    handleRemoveServiceOption,
-    handleParseOffer,
-    handleChangeTypRabatu,
+    expandedPanel,
+    handleAccordionChange,
   };
 }
-

@@ -22,7 +22,9 @@ interface ScoringResultsProps {
 }
 
 export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext }) => {
+  console.log("SCORING_RESULTS_RENDERED", { resultsCount: results.length, loading, useMatrix: searchContext.useMatrixFilters });
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
+  const [similarityMode, setSimilarityMode] = useState<'rule-based' | 'semantic'>('rule-based');
 
   let searchDurationMin = searchContext.duration_months_range[0];
   let searchDurationMax = searchContext.duration_months_range[1];
@@ -65,7 +67,8 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     vehicleIdsToFetchPrices,
     targetDuration,
     targetAnnualMileage,
-    results.length > 0 && matrixFiltersActive
+    results.length > 0 && matrixFiltersActive,
+    similarityMode
   );
 
   const sortedResults = useMemo(() => {
@@ -111,19 +114,35 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Sort Toolbar */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
-        <Typography variant="caption" color="textSecondary">Sortuj:</Typography>
-        <FormControl size="small" sx={{ minWidth: 180 }}>
-          <Select
-            value={sortBy}
-            onChange={(e: SelectChangeEvent) => setSortBy(e.target.value as SortOption)}
-            sx={{ fontSize: '0.85rem' }}
-          >
-            {SORT_OPTIONS.map(opt => (
-              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="caption" color="textSecondary">Podobne (Alternatywy):</Typography>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <Select
+              value={similarityMode}
+              onChange={(e: SelectChangeEvent) => setSimilarityMode(e.target.value as 'rule-based' | 'semantic')}
+              sx={{ fontSize: '0.8rem' }}
+            >
+              <MenuItem value="rule-based">W tej klasie (⚙️)</MenuItem>
+              <MenuItem value="semantic">Inteligentne (AI ✨)</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="caption" color="textSecondary">Sortuj:</Typography>
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <Select
+              value={sortBy}
+              onChange={(e: SelectChangeEvent) => setSortBy(e.target.value as SortOption)}
+              sx={{ fontSize: '0.85rem' }}
+            >
+              {SORT_OPTIONS.map(opt => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
       </Box>
 
       {/* Results mapped to isolated Card Component */}

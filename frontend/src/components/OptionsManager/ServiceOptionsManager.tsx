@@ -8,18 +8,10 @@ import {
   IconButton,
 } from "@mui/material";
 import { Trash2, Plus } from "lucide-react";
-
-interface Option {
-  Id: number;
-  Nazwa: string;
-  CenaNetto: number;
-  Cena: number;
-  isNierabatowany: boolean;
-  WR: boolean;
-}
+import type { ServiceOption } from "../../types";
 
 interface ServiceOptionsManagerProps {
-  options: Option[];
+  options: ServiceOption[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onUpdate: (id: number, field: string, value: any) => void;
   onAdd: () => void;
@@ -51,14 +43,14 @@ export default function ServiceOptionsManager({
       </Box>
 
       {options.map((opt) => (
-        <Box key={opt.Id} sx={{ display: "flex", gap: 2, mb: 1, alignItems: "center", flexWrap: "wrap" }}>
+        <Box key={opt.id} sx={{ display: "flex", gap: 2, mb: 1, alignItems: "center", flexWrap: "wrap" }}>
           <Box sx={{ flex: "1 1 250px" }}>
             <TextField
               fullWidth
               size="small"
               label="Nazwa"
-              value={opt.Nazwa}
-              onChange={(e) => onUpdate(opt.Id, "Nazwa", e.target.value)}
+              value={opt.name}
+              onChange={(e) => onUpdate(opt.id, "name", e.target.value)}
             />
           </Box>
           <Box sx={{ flex: "1 1 120px" }}>
@@ -67,8 +59,8 @@ export default function ServiceOptionsManager({
               size="small"
               type="number"
               label="Cena Netto"
-              value={opt.CenaNetto}
-              onChange={(e) => onUpdate(opt.Id, "CenaNetto", parseFloat(e.target.value) || 0)}
+              value={opt.price_net}
+              onChange={(e) => onUpdate(opt.id, "price_net", parseFloat(e.target.value) || 0)}
             />
           </Box>
           <Box sx={{ flex: "1 1 120px" }}>
@@ -77,16 +69,16 @@ export default function ServiceOptionsManager({
               size="small"
               type="number"
               label="Cena Brutto"
-              value={opt.Cena}
-              onChange={(e) => onUpdate(opt.Id, "Cena", parseFloat(e.target.value) || 0)}
+              value={opt.price_gross}
+              onChange={(e) => onUpdate(opt.id, "price_gross", parseFloat(e.target.value) || 0)}
             />
           </Box>
           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={opt.isNierabatowany}
-                  onChange={(e) => onUpdate(opt.Id, "isNierabatowany", e.target.checked)}
+                  checked={opt.is_non_discountable}
+                  onChange={(e) => onUpdate(opt.id, "is_non_discountable", e.target.checked)}
                 />
               }
               label="Nierabatowana"
@@ -94,13 +86,13 @@ export default function ServiceOptionsManager({
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={opt.WR}
-                  onChange={(e) => onUpdate(opt.Id, "WR", e.target.checked)}
+                  checked={opt.is_residual_impacting}
+                  onChange={(e) => onUpdate(opt.id, "is_residual_impacting", e.target.checked)}
                 />
               }
               label="WR"
             />
-            <IconButton color="error" onClick={() => onRemove(opt.Id)}>
+            <IconButton color="error" onClick={() => onRemove(opt.id)}>
               <Trash2 size={20} />
             </IconButton>
           </Box>
@@ -114,3 +106,4 @@ export default function ServiceOptionsManager({
     </Box>
   );
 }
+

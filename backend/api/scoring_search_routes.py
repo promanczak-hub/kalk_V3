@@ -289,26 +289,36 @@ def get_similar_vehicles(
     limit: int = 5,
     duration_months: int | None = None,
     annual_mileage: int | None = None,
+    mode: str = "rule-based",
 ) -> list[SimilarVehicleMatch]:
-    """Get similar vehicles sorted by best monthly price net."""
+    """Get similar vehicles sorted by best monthly price net. Supports 'rule-based' (default) and 'semantic' modes."""
     sb = supabase
+    method = (
+        "rpc_get_similar_vehicles_semantic"
+        if mode == "semantic"
+        else "rpc_get_similar_vehicles"
+    )
+
     try:
-        resp = sb.rpc(
-            "rpc_get_similar_vehicles",
-            {
-                "p_vehicle_id": vehicle_id,
-                "p_limit": limit,
-                "p_duration_months": duration_months,
-                "p_annual_mileage": annual_mileage,
-            },
-        ).execute()
+        resp = _supabase_execute_with_retry(
+            sb.rpc(
+                method,
+                {
+                    "p_vehicle_id": vehicle_id,
+                    "p_limit": limit,
+                    "p_duration_months": duration_months,
+                    "p_annual_mileage": annual_mileage,
+                },
+            )
+        )
 
         if not resp.data:
             return []
 
+        # Backend already returns clean fields from both RPCs
         return [SimilarVehicleMatch(**row) for row in resp.data]
     except Exception as e:
-        logger.exception("Error calling rpc_get_similar_vehicles: %s", e)
+        logger.exception("Error calling %s: %s", method, e)
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch similar vehicles: {e}"
         )
@@ -319,15 +329,21 @@ def get_similar_vehicles(
     response_model=SimilarBatchResponse,
 )
 def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse:
-    """Return similar vehicles for multiple vehicle IDs in one DB query."""
+    """Return similar vehicles for multiple vehicle IDs in one DB query. Supports 'rule-based' and 'semantic'."""
     sb = supabase
+    method = (
+        "rpc_get_similar_vehicles_batch_semantic"
+        if req.mode == "semantic"
+        else "rpc_get_similar_vehicles_batch"
+    )
+
     try:
         if not req.vehicle_ids:
             return SimilarBatchResponse(results={})
 
         response = _supabase_execute_with_retry(
             sb.rpc(
-                "rpc_get_similar_vehicles_batch",
+                method,
                 {
                     "p_vehicle_ids": req.vehicle_ids,
                     "p_limit": req.limit,
@@ -347,28 +363,26 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
             rows = cast(list[dict[str, Any]], response.data)
             for row in rows:
                 source_id = str(row.pop("source_vehicle_id"))
-                # Map the RPC return columns to SimilarVehicleMatch fields
+
+                # Standard rpc return vs semantic rpc return might have slight naming diffs
+                # Normalizing here to match SimilarVehicleMatch pydantic model
                 match = SimilarVehicleMatch(
-                    vehicle_id=str(row.get("v_id")),
-                    brand=str(row.get("brand")) if row.get("brand") else None,
-                    model=str(row.get("model")) if row.get("model") else None,
-                    version=str(row.get("version")) if row.get("version") else None,
-                    samar_category=str(row.get("samar_category"))
-                    if row.get("samar_category", row.get("v_samar"))
-                    else None,
-                    fuel=str(row.get("fuel"))
-                    if row.get("fuel", row.get("v_fuel"))
-                    else None,
-                    transmission=str(row.get("transmission"))
-                    if row.get("transmission", row.get("v_transmission"))
-                    else None,
-                    best_monthly_price=float(row.get("min_price"))
-                    if row.get("min_price") is not None
-                    else None,
-                    image_url=str(row.get("v_image")) if row.get("v_image") else None,
-                    similarity_score_pct=float(row.get("similarity_score_pct"))
-                    if row.get("similarity_score_pct") is not None
-                    else None,
+                    vehicle_id=str(row.get("vehicle_id") or row.get("v_id")),
+                    brand=str(row.get("brand")),
+                    model=str(row.get("model")),
+                    version=str(row.get("version")),
+                    samar_category=str(
+                        row.get("samar_category") or row.get("v_samar", "N/A")
+                    ),
+                    fuel=str(row.get("fuel") or row.get("v_fuel", "N/A")),
+                    transmission=str(
+                        row.get("transmission") or row.get("v_transmission", "N/A")
+                    ),
+                    best_monthly_price=float(
+                        row.get("best_monthly_price") or row.get("min_price") or 0
+                    ),
+                    image_url=str(row.get("image_url") or row.get("v_image") or ""),
+                    similarity_score_pct=float(row.get("similarity_score_pct") or 0),
                 )
 
                 if source_id in results:
@@ -376,7 +390,7 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
 
         return SimilarBatchResponse(results=results)
     except Exception as e:
-        logger.exception("Error calling rpc_get_similar_vehicles_batch: %s", e)
+        logger.exception("Error calling %s: %s", method, e)
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch batch similar vehicles: {e}"
         )

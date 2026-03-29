@@ -34,6 +34,7 @@ from api.oferty_routes import router as oferty_router
 from api.brochure_routes import router as brochure_router
 from api.sheets_sync_routes import router as sheets_sync_router
 from api.router_tasks import router as router_tasks
+from api.ltr_manual_routes import router as ltr_manual_router
 from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
@@ -94,6 +95,7 @@ app.include_router(brochure_router, prefix="/api")
 app.include_router(mileage_adjustments_router, prefix="/api")
 app.include_router(sheets_sync_router, prefix="/api")
 app.include_router(router_tasks)
+app.include_router(ltr_manual_router)
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

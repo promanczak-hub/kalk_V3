@@ -1,125 +1,136 @@
-export interface V1FactoryOption {
-  Id: number;
-  Nazwa: string;
-  CenaNetto: number;
-  Cena: number;
-  isNierabatowany: boolean;
-  WR: boolean;
+export interface FactoryOption {
+  id: number;
+  name: string;
+  price_net: number;
+  price_gross: number;
+  is_non_discountable: boolean;
+  is_residual_impacting: boolean;
 }
 
-export interface V1ServiceOption {
-  Id: number;
-  Nazwa: string;
-  CenaNetto: number;
-  Cena: number;
-  isNierabatowany: boolean;
-  WR: boolean;
+export interface ServiceOption {
+  id: number;
+  name: string;
+  price_net: number;
+  price_gross: number;
+  is_non_discountable: boolean;
+  is_residual_impacting: boolean;
 }
 
-export interface V1FinancialComponent {
-  Wartosc?: number;
-  RozkladMarzy?: number;
-  KwotaMarzy?: number;
-  KosztPlusMarza?: number;
-  RozkladMarzyKorekta?: number;
-  KwotaMarzyKorekta?: number;
-  KosztPlusMarzaKorekta?: number;
+export interface FinancialComponent {
+  value?: number;
+  margin_distribution?: number;
+  margin_amount?: number;
+  cost_plus_margin?: number;
+  margin_distribution_correction?: number;
+  margin_amount_correction?: number;
+  cost_plus_margin_correction?: number;
 }
 
-export interface V1GlownyMatrixParameters {
-  LacznyKosztCzesciOdsetkowejRaty?: V1FinancialComponent;
-  UtrataWartosci?: V1FinancialComponent;
-  OkresUzytkowania?: number;
-  LacznieUbezpieczenie?: V1FinancialComponent;
-  KosztTechnicznySamochodZastepczy?: V1FinancialComponent;
-  KosztTechnicznySerwis?: V1FinancialComponent;
-  KosztTechnicznyOpony?: V1FinancialComponent;
-  KosztyDodatkowe?: V1FinancialComponent;
-  CzynszFinansowyRazem?: V1FinancialComponent;
-  CzynszTechnicznyRazem?: V1FinancialComponent;
-  KosztRazem?: V1FinancialComponent;
-  KosztFinansowy?: V1FinancialComponent;
-  KosztTechniczny?: V1FinancialComponent;
-  KosztUbezpieczenie?: V1FinancialComponent;
-  KosztSamochodZastepczy?: V1FinancialComponent;
-  KosztSerwis?: V1FinancialComponent;
-  KosztOpony?: V1FinancialComponent;
-  KosztAdmin?: V1FinancialComponent;
-  KosztRazemMarza?: V1FinancialComponent;
+export interface MainMatrixParameters {
+  total_interest_cost?: FinancialComponent;
+  residual_value_loss?: FinancialComponent;
+  duration_months?: number;
+  total_insurance?: FinancialComponent;
+  replacement_car_cost?: FinancialComponent;
+  service_cost?: FinancialComponent;
+  tires_cost?: FinancialComponent;
+  additional_costs?: FinancialComponent;
+  total_financial_rent?: FinancialComponent;
+  total_technical_rent?: FinancialComponent;
+  total_cost?: FinancialComponent;
+  financial_cost?: FinancialComponent;
+  technical_cost?: FinancialComponent;
+  insurance_cost?: FinancialComponent;
+  replacement_car_node?: FinancialComponent;
+  service_node?: FinancialComponent;
+  tires_node?: FinancialComponent;
+  admin_cost?: FinancialComponent;
+  total_cost_with_margin?: FinancialComponent;
 }
 
-export interface V1DataOption {
-  Numer: string;
-  KalkulacjaId: number;
-  OpcjeFabryczne: V1FactoryOption[];
-  OpcjeSerwisowe: V1ServiceOption[];
-  StawkaVat: number;
+export interface CalculatorInput {
+  vehicle_id: string;
+  calculation_number: string;
+  id: string; // Changed to string for UUID compatibility
+  factory_options: FactoryOption[];
+  service_options: ServiceOption[];
+  vat_rate: number;
 
-  // Dane kontraktu
-  Marza: number;
-  RodzajCzynszu: string;
-  CzynszKwota: number;
-  CzynszProcent: number;
-  CzynszInicjalny: number;
-  OkresUzytkowania: number;
-  Przebieg: number;
-  Rocznik: string;
-  Marka: string;
-  Model: { Id: number; Typ: string; DN: string };
-  WersjaNadwozia: string;
-  KategoriaSamar: string;
-  MocSilnika: string;
-  WersjaWyposazenia: string;
-  RodzajPaliwa: string;
-  HomologacjaSelected: string;
-  KlasaWR: string;
+  // Contract data
+  margin: number;
+  rent_type: string;
+  rent_amount: number;
+  rent_pct: number;
+  initial_rent: number;
+  duration_months: number;
+  annual_mileage: number;
+  production_year: string;
+  brand: string;
+  model: { id: number; type: string; dn: string } | string;
+  body_type: string;
+  samar_class: string;
+  engine_power_hp: string;
+  trim_level: string;
+  fuel_type: string;
+  homologation_type: string;
+  residual_value_class: string;
 
-  // Opony
-  ZOponami: boolean;
-  RozmiarOpon: {
-    Szerokosc: string;
-    Profil: string;
-    Litera: string;
-    Srednica: string;
+  // Tires
+  has_tires: boolean;
+  tire_size: {
+    width: string;
+    profile: string;
+    letter: string;
+    diameter: string;
   };
-  KlasaOpon: string;
-  LiczbaKompletowOponSelected: string;
+  tire_class: string;
+  tire_sets_count: string;
 
-  // Korekty
-  InneKosztySerwisowania: number;
-  PakietSerwisowy: number;
-  PakietSerwisowyNazwa: string | null;
-  KorektaRV: number;
-  KalkulacjaWolumenowa: string | null;
-  WiborProcent: number;
-  MarzaFinansowaProcent: number;
-  ProcentAmortyzacji?: number;
-  Opis: string | null;
-  Prywatna: boolean;
+  // Corrections
+  other_service_costs: number;
+  service_package_amount: number;
+  service_package_name: string | null;
+  rv_correction: number;
+  volume_discount_id: string | null;
+  wibor_pct: number;
+  financial_margin_pct: number;
+  amortization_pct?: number;
+  notes: string | null;
+  is_private: boolean;
 
-  // Kalkulacja samochodu
-  CenaCennikowaNetto: number;
-  CenaCennikowa: number;
-  Metalik: boolean;
-  TypRabatu: string;
-  RabatProcent: number;
-  RabatKwotaNetto: number;
-  RabatKwota: number;
+  // Pricing
+  base_price_net: number;
+  base_price_gross: number;
+  is_metallic_paint: boolean;
+  discount_type: string;
+  discount_pct: number;
+  discount_amount_net: number;
+  discount_amount_gross: number;
 
-  // Opcje dodatkowe
-  SamochodZastepczy: boolean;
-  ExpressPlaciUbezpieczenie: boolean;
-  CzyUwzgledniaSerwisowanie: boolean;
-  CzyGPS: boolean;
-  DoubezpieczenieKradziezy: boolean | null;
-  NaukaJazdy: boolean | null;
-  ZielonaKarta?: boolean;
-  NNW?: boolean;
-  ASS?: boolean;
-  KosztUbezpieczeniaKorekta: number;
-  KosztPrzygotowaniaDosprzedazyKorekta: number;
-  KosztOponKorekta: number;
+  // Options
+  has_replacement_car: boolean;
+  is_insurance_included: boolean;
+  is_service_included: boolean;
+  has_gps: boolean;
+  has_theft_insurance: boolean | null;
+  is_driving_school: boolean | null;
+  green_card?: boolean;
+  nnw?: boolean;
+  assistance?: boolean;
+  insurance_cost_correction: number;
+  preparation_cost_correction: number;
+  tires_cost_correction: number;
 
-  // Wyniki
-  GlownyMatrixParameters?: V1GlownyMatrixParameters;
+  // Results
+  calculation_results?: MainMatrixParameters;
 }
+
+export interface ControlCenterSettings {
+  id: number;
+  vat_rate: number;
+  default_wibor: number;
+  bank_spread: number;
+  insurance_rate_pct?: number;
+  provision_pct?: number;
+}
+

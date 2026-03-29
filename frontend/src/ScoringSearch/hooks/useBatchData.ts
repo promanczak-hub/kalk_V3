@@ -82,7 +82,8 @@ export function useBatchSimilarVehicles(
   vehicleIds: string[],
   durationMonths: number,
   annualMileage: number,
-  enabled: boolean
+  enabled: boolean,
+  mode: 'rule-based' | 'semantic' = 'rule-based'
 ): { similarVehicles: Record<string, SimilarVehicle[]>; loading: boolean } {
   const [similarVehicles, setSimilarVehicles] = useState<Record<string, SimilarVehicle[]>>({});
   const [loading, setLoading] = useState(false);
@@ -103,7 +104,8 @@ export function useBatchSimilarVehicles(
             vehicle_ids: vehicleIds, 
             duration_months: durationMonths, 
             annual_mileage: annualMileage,
-            limit: 3
+            limit: 3,
+            mode: mode
           }),
         });
         const data = await r.json();
@@ -126,7 +128,7 @@ export function useBatchSimilarVehicles(
       window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled]);
+  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, mode]);
 
   return { similarVehicles, loading };
 }
