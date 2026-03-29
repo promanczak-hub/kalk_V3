@@ -7,9 +7,7 @@ from core.parser_schema import MappedOffer
 from core.extractor_models import VehicleBrochureSchema
 from google import genai
 from google.genai import types
-from core.samar_rules import SAMAR_MARKDOWN
-
-from core.samar_mapper import map_to_samar_class
+from core.samar_mapper import map_to_samar_class, get_samar_markdown_from_db
 
 # This approach assumes you have set GEMINI_API_KEY in your env variables.
 # You could also load this from a .env file if using python-dotenv.
@@ -207,12 +205,14 @@ def classify_samar_category(req: SamarCategoryRequest):
 
     client = genai.Client(api_key=api_key)
 
+    rules_md = get_samar_markdown_from_db()
+
     prompt = f"""
 Jesteś ekspertem z branży motoryzacyjnej specjalizującym się w klasyfikacji pojazdów zgodnie z segmentacją rynkową IBRM SAMAR 2025.
 Twoim głównym zadaniem jest bezbłędne przypisanie wskazanego pojazdu do odpowiedniej Grupy SAMAR.
 
 Reguły segmentacji zawarte w specyfikacji:
-{SAMAR_MARKDOWN}
+{rules_md}
 
 Zwrócona kategoria w polu `samar_category` powinna brzmieć dokładnie tak, jak poniższe zatwierdzone wartości (wielkie litery!):
 - GRUPA PODSTAWOWA

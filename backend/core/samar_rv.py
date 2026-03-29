@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 _SAMAR_CACHE: Dict[str, int] = {}
 
+
 def get_samar_class_id(class_name: str) -> Optional[int]:
     """Mapuje nazwę klasy SAMAR na ID z tabeli samar_classes. Wspiera formaty nowe i stare."""
     global _SAMAR_CACHE
@@ -105,8 +106,8 @@ class RVInput:
     total_km: int = 140000
     catalog_base_net: float = 0.0
     catalog_options_net: float = 0.0
-    capex_base_net: float = 0.0      # Nowa zmienna dla utraty wartosci (CAPEX)
-    capex_options_net: float = 0.0   # Nowa zmienna dla utraty wartosci (CAPEX opcje)
+    capex_base_net: float = 0.0  # Nowa zmienna dla utraty wartosci (CAPEX)
+    capex_options_net: float = 0.0  # Nowa zmienna dla utraty wartosci (CAPEX opcje)
     paint_type_id: Optional[int] = None
     is_metalic: bool = True  # fallback when paint_type_id is None
     body_type_id: Optional[int] = None
@@ -125,7 +126,6 @@ class RVOutput:
     utrata_wartosci_net: float = 0.0
     wr_percent: float = 0.0
     debug: Dict[str, Any] = field(default_factory=dict)
-
 
 
 class SamarRVCalculator:
@@ -149,7 +149,9 @@ class SamarRVCalculator:
 
     def _fetch_base_rv_percent(self) -> float:
         """Pobiera 4-letnią bazę dla klasy + silnika (samar_class_base_rv)."""
-        return fetch_base_rv_percent_cached(self.data.samar_class_id, self.data.engine_id)
+        return fetch_base_rv_percent_cached(
+            self.data.samar_class_id, self.data.engine_id
+        )
 
     def _fetch_depreciation_rates(self) -> Dict[str, float]:
         """Pobiera mnożniki przyrostów modyfikujących (delta) z tab_okres_final (V3)."""
@@ -158,7 +160,9 @@ class SamarRVCalculator:
             self.data.samar_class_id, self.data.brand_name, engine_name
         )
         if not rates:
-            raise ValueError(f"Brak rekordów z tabeli tab_okres_final (delta) dla klasy={self.data.samar_class_id}, silnik={engine_name}")
+            raise ValueError(
+                f"Brak rekordów z tabeli tab_okres_final (delta) dla klasy={self.data.samar_class_id}, silnik={engine_name}"
+            )
         return rates
 
     def _fetch_brand_correction(self) -> float:
@@ -227,7 +231,6 @@ class SamarRVCalculator:
         base_netto = self.data.catalog_base_net
         options_netto = self.data.catalog_options_net
 
-
         # Przybliżenie dniowe stosowane w modelu Excelowym (~30.5 dnia)
         years = int((self.data.months * 30.5) / 365)
         years = max(0, min(years, self.LICZBA_LAT))
@@ -236,13 +239,25 @@ class SamarRVCalculator:
         # KROK 1 & 2: ODCZYT BAZY I WYLICZENIE DELT Z tab_okres_final
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         brand_correction = self._fetch_brand_correction()
-        base_rate_4y = self._fetch_base_rv_percent()  # Pobrane dla 4 lat (140,000 km) z samar_class_base_rv
-        
+        base_rate_4y = (
+            self._fetch_base_rv_percent()
+        )  # Pobrane dla 4 lat (140,000 km) z samar_class_base_rv
+
         mileage_rates = rates  # Słownik pobrany z tab_okres_final
         if not mileage_rates:
-            raise ValueError(f"Brak stawek w tab_okres_final dla klasy {self.data.samar_class_id}")
-            
-        ordered_keys = ["km_35000", "km_70000", "km_105000", "km_140000", "km_175000", "km_210000", "km_245000"]
+            raise ValueError(
+                f"Brak stawek w tab_okres_final dla klasy {self.data.samar_class_id}"
+            )
+
+        ordered_keys = [
+            "km_35000",
+            "km_70000",
+            "km_105000",
+            "km_140000",
+            "km_175000",
+            "km_210000",
+            "km_245000",
+        ]
         base_key = "km_140000"
         base_idx = ordered_keys.index(base_key)
 
@@ -255,7 +270,7 @@ class SamarRVCalculator:
             target_key = ordered_keys[yr - 1]
             target_idx = ordered_keys.index(target_key)
             modifier_sum = 0.0
-            
+
             if target_idx < base_idx:
                 for i in range(target_idx, base_idx):
                     modifier_sum += float(mileage_rates.get(ordered_keys[i], 0.0))
@@ -266,11 +281,12 @@ class SamarRVCalculator:
             return base_rate_4y + modifier_sum
 
         years_exact = self.data.months / 12.0
-        
+
         import math
+
         lower_yr = max(1, math.floor(years_exact))
         upper_yr = min(7, math.ceil(years_exact))
-        
+
         if lower_yr == upper_yr:
             effective_base_pct = get_wr_percent_for_year(lower_yr)
         else:
@@ -317,17 +333,19 @@ class SamarRVCalculator:
         under_rate, over_rate, threshold_km = self._fetch_mileage_corrections()
 
         base_mileage = (self.data.months / 12.0) * 35000.0
-        
+
         przebieg_ponizej = min(self.data.total_km, threshold_km) - base_mileage
         przebieg_powyzej = max(self.data.total_km - threshold_km, 0.0)
 
         p1 = przebieg_ponizej / 10000.0
         p2 = przebieg_powyzej / 10000.0
 
-        # Wzór: korektaProcentPonizej190 * okresPlusDoposazenie * (przebiegPonizej190 / 10000.0m) 
+        # Wzór: korektaProcentPonizej190 * okresPlusDoposazenie * (przebiegPonizej190 / 10000.0m)
         #       + korektaProcentPowyzej190 * okresPlusDoposazenie * (przebiegPowyzej190 / 10000.0m)
-        korekta_przebieg_netto = (under_rate * rv_total_netto * p1) + (over_rate * rv_total_netto * p2)
-        
+        korekta_przebieg_netto = (under_rate * rv_total_netto * p1) + (
+            over_rate * rv_total_netto * p2
+        )
+
         # Odejmowanie ujemnej wartości tworzy aprecjację (zwiększa rv_netto_post_krok4).
         rv_netto_post_krok4 = rv_total_netto - korekta_przebieg_netto
 
@@ -342,22 +360,25 @@ class SamarRVCalculator:
         debug["krok4_korekta_przebieg_netto"] = round(korekta_przebieg_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 5: Korekta administracyjna (V1 Parity — multiplikatywna)
-        # V1: korekta = naukaJazdy + metalik + kombi  (suma %)
-        #     WR = WRpoKorekcieZaPrzebieg * (1 - korekta)
-        # V3: korekty mają konwencję: ujemne = kara, dodatnie = bonus
-        #     WR = rv_netto_post_krok4 * (1 + suma_korekt)
+        # KROK 5: Korekta administracyjna (Zgodność V3)
+        # W nowym modelu procentowa stawka za kolor uderza wyłącznie
+        # w "gołą" cenę katalogową samochodu (bez opcji).
+        # Wyliczona sztywna kwota jest addytywnie dodawana do głównej puli WR.
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         color_correction_pct = self.fetch_color_correction()
         body_correction_pct = self.fetch_body_correction()
         zabudowa_correction_pct = self.fetch_zabudowa_correction()
         catalog_total_netto = base_netto + options_netto
 
-        # Suma korekt administracyjnych (V1: korektaNaukaJazdy + korektaMetalik + korektaKombi)
-        korekta_admin_sum = color_correction_pct + body_correction_pct + zabudowa_correction_pct
+        color_value_netto = color_correction_pct * base_netto
+        body_value_netto = body_correction_pct * base_netto
+        zabudowa_value_netto = zabudowa_correction_pct * base_netto
 
-        # V1 Parity: mnożenie multiplikatywne zamiast addytywnego
-        rv_netto_pre_manual = rv_netto_post_krok4 * (1.0 + korekta_admin_sum)
+        korekta_admin_sum_netto = (
+            color_value_netto + body_value_netto + zabudowa_value_netto
+        )
+
+        rv_netto_pre_manual = rv_netto_post_krok4 + korekta_admin_sum_netto
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 6: Korekta za Rocznik oraz na samym końcu Korekta Ręczna (V3 PARITY z Excelem)
@@ -372,10 +393,13 @@ class SamarRVCalculator:
         manual_correction_netto = self.data.manual_wr_correction
         final_rv_netto = rv_z_rocznikiem_netto + manual_correction_netto
 
+        debug["krok5_color_netto"] = round(color_value_netto, 2)
+        debug["krok5_body_netto"] = round(body_value_netto, 2)
+        debug["krok5_zabudowa_netto"] = round(zabudowa_value_netto, 2)
+        debug["krok5_korekta_admin_sum_netto"] = round(korekta_admin_sum_netto, 2)
         debug["krok5_color_correction_pct"] = color_correction_pct
         debug["krok5_body_correction_pct"] = body_correction_pct
         debug["krok5_zabudowa_correction_pct"] = zabudowa_correction_pct
-        debug["krok5_korekta_admin_sum"] = korekta_admin_sum
         debug["krok5_rv_netto_pre_manual"] = round(rv_netto_pre_manual, 2)
         debug["krok6_vintage_pct"] = vintage_correction_pct
         debug["krok6_vintage_netto"] = round(vintage_value_netto, 2)
@@ -386,13 +410,13 @@ class SamarRVCalculator:
         lo_param = self.fetch_lo_param()
         wr_lo_netto = final_rv_netto * (1.0 + lo_param)
 
-        # Utrata wartości jest różnicą pomiędzy prawdziwymi kosztami zakupu (CAPEX z rabatami) 
+        # Utrata wartości jest różnicą pomiędzy prawdziwymi kosztami zakupu (CAPEX z rabatami)
         # powiększonymi o opcje netto, a Wartością Rezydualną obliczoną powyżej z ceny katalogowej.
         capex_total = self.data.capex_base_net + self.data.capex_options_net
         # V1 Parity Fallback: If capex is missing (legacy API call), substitute with catalog value.
         if capex_total <= 0:
             capex_total = catalog_total_netto
-            
+
         utrata = max(capex_total - final_rv_netto, 0.0)
         wr_pct = (
             final_rv_netto / catalog_total_netto if catalog_total_netto > 0 else 0.0
@@ -409,6 +433,5 @@ class SamarRVCalculator:
             wr_percent=wr_pct,
             debug=debug,
         )
-
 
     # (cached functions are defined in core.samar_rv_fetchers for @redis_cache)

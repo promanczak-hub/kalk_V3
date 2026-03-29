@@ -9,7 +9,9 @@ from core.settings import APP_ENV
 
 logger = logging.getLogger(__name__)
 
-CLOUD_RUN_URL = os.environ.get("CLOUD_RUN_URL", "https://you-cloud-run-domain.a.run.app")
+CLOUD_RUN_URL = os.environ.get(
+    "CLOUD_RUN_URL", "https://you-cloud-run-domain.a.run.app"
+)
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "express-handlorz")
 GCP_LOCATION = os.environ.get("GCP_LOCATION", "europe-central2")
 CLOUD_TASKS_QUEUE = os.environ.get("CLOUD_TASKS_QUEUE", "kalk-tasks-queue")

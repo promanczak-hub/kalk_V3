@@ -33,7 +33,9 @@ async def execute_cloud_task(task_name: str, payload: TaskPayload, request: Requ
 
     try:
         # Wywołujemy funkcję synchronicznie na serwerze Cloud Run
-        logger.info(f"Executing task: {task_name} with args: {payload.args}, kwargs: {payload.kwargs}")
+        logger.info(
+            f"Executing task: {task_name} with args: {payload.args}, kwargs: {payload.kwargs}"
+        )
         result = task_func(*payload.args, **payload.kwargs)
         logger.info(f"Task executed successfully. Result: {result}")
         return {"status": "ok", "result": str(result)}

@@ -430,8 +430,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 {/* Cena końcowa */}
                 <tr className="border-t-2 border-slate-300">
                   <td className="py-2.5 text-sm font-semibold text-slate-900">Cena końcowa</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(toNetto(activeFinalPriceNet))}</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(toBrutto(activeFinalPriceNet))}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-700">{fmtPLN(activeFinalPriceNet)}</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">{fmtPLN(activeFinalPriceNet * 1.23)}</td>
                 </tr>
               </tbody>
             </table>

@@ -1,17 +1,17 @@
 import asyncio
 import json
-import decimal
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List
 
-from core.database import supabase
 from core.LTRKalkulator import LTRKalkulator
+
 
 class DummyOpt(BaseModel):
     price_net: float
     name: str = ""
     no_discount: bool = False
     include_in_wr: bool = True
+
 
 class DummyInput(BaseModel):
     base_price_net: float
@@ -42,6 +42,7 @@ class DummyInput(BaseModel):
     add_registration: bool = False
     add_sales_prep: bool = False
 
+
 class DummySettings(BaseModel):
     vat_rate: float = 1.23
     wibor_pct: float = 5.85
@@ -60,40 +61,47 @@ class DummySettings(BaseModel):
     cost_registration: float = 0.0
     cost_sales_prep: float = 0.0
 
+
 async def main():
     with open("stan_json.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Reconstruct input
-    base_price = data.get("base_price_net") if data.get("base_price_net") is not None else 0
+    base_price = (
+        data.get("base_price_net") if data.get("base_price_net") is not None else 0
+    )
     discount = data.get("discount_pct") if data.get("discount_pct") is not None else 0
     wibor = data.get("wibor_pct") if data.get("wibor_pct") is not None else 5.85
     margin = 0.0
-    
+
     factory_opts = []
     for opt in data.get("factory_options", []):
-        factory_opts.append(DummyOpt(
-            price_net=opt.get("price_net", 0),
-            name=opt.get("name", "Option"),
-            no_discount=opt.get("no_discount", False),
-            include_in_wr=opt.get("include_in_wr", True)
-        ))
-        
+        factory_opts.append(
+            DummyOpt(
+                price_net=opt.get("price_net", 0),
+                name=opt.get("name", "Option"),
+                no_discount=opt.get("no_discount", False),
+                include_in_wr=opt.get("include_in_wr", True),
+            )
+        )
+
     srv_opts = []
     for opt in data.get("service_options", []):
-        srv_opts.append(DummyOpt(
-            price_net=opt.get("price_net", 0),
-            name=opt.get("name", "Service"),
-            no_discount=opt.get("no_discount", False),
-            include_in_wr=opt.get("include_in_wr", False)
-        ))
-        
+        srv_opts.append(
+            DummyOpt(
+                price_net=opt.get("price_net", 0),
+                name=opt.get("name", "Service"),
+                no_discount=opt.get("no_discount", False),
+                include_in_wr=opt.get("include_in_wr", False),
+            )
+        )
+
     vehicle_id = data.get("vehicle_id", "")
     samar_cat = data.get("samar_category", "")
     okres = data.get("okres_bazowy", 48)
     przebieg = data.get("przebieg_bazowy", 120000)
     czynsz_pct = data.get("czynsz_inicjalny_pct", 0.0)
-    
+
     inp = DummyInput(
         base_price_net=base_price,
         discount_pct=discount,
@@ -108,27 +116,32 @@ async def main():
         CzynszProcent=czynsz_pct,
         z_oponami=data.get("z_oponami", True),
         include_servicing=data.get("include_servicing", True),
-        srednica_felgi=data.get("srednica_felgi", 19)
+        srednica_felgi=data.get("srednica_felgi", 19),
     )
-    
+
     settings = DummySettings()
-    
+
     kalkulator = LTRKalkulator(inp, settings)
-    
-    print(f"Vehicle: {kalkulator.vehicle.brand} {kalkulator.vehicle.model} (Klasa Samar = {kalkulator.samar_id})")
-    
+
+    print(
+        f"Vehicle: {kalkulator.vehicle.brand} {kalkulator.vehicle.model} (Klasa Samar = {kalkulator.samar_id})"
+    )
+
     # Przeliczenie dla konfiguracji
     res = kalkulator.build_matrix()
-    
+
     print("\n--- MATRIX DUMP (48 months) ---")
     for r in res:
-        if r["Okres"] == 48 and r['PrzebiegKontrakt'] == 120000:
-            print(f"Miesiące: {r['Okres']}, Przebieg Kontrakt: {r['PrzebiegKontrakt']}, Stawka: {r['LacznaStawka']}, WR: {r['WR']}")
-            print("Czynsz Finansowy:", r['CzynszFinansowy'])
-            print("Czynsz Techniczny:", r['CzynszTechniczny'])
-            print("Ubezpieczenie:", r['Ubezpieczenie'])
-            print("Serwis:", r['Serwis'])
-            print("Opony:", r['Opony'])
+        if r["Okres"] == 48 and r["PrzebiegKontrakt"] == 120000:
+            print(
+                f"Miesiące: {r['Okres']}, Przebieg Kontrakt: {r['PrzebiegKontrakt']}, Stawka: {r['LacznaStawka']}, WR: {r['WR']}"
+            )
+            print("Czynsz Finansowy:", r["CzynszFinansowy"])
+            print("Czynsz Techniczny:", r["CzynszTechniczny"])
+            print("Ubezpieczenie:", r["Ubezpieczenie"])
+            print("Serwis:", r["Serwis"])
+            print("Opony:", r["Opony"])
+
 
 if __name__ == "__main__":
     asyncio.run(main())

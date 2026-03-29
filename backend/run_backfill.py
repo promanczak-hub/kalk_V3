@@ -10,6 +10,8 @@ if __name__ == "__main__":
     print("Rozpoczynam ręczne generowanie osieroconych wektorów (synchronicznie)...")
     try:
         result = backfill_vehicle_embeddings()
-        print(f"Zakończono! Zaktualizowano pomyślnie {result.get('successful')}/{result.get('processed')} aut.")
+        print(
+            f"Zakończono! Zaktualizowano pomyślnie {result.get('successful')}/{result.get('processed')} aut."
+        )
     except Exception as e:
         print(f"Błąd krytyczny: {e}")

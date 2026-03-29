@@ -36,6 +36,7 @@ from core.ltr_vehicle_resolvers import (
     _resolve_zabudowa_type_id_from_name,
 )
 
+
 class LTRKalkulator:
     """RdzeĹ„ budujÄ…cy Matrix dla zadanego CalculatorInput"""
 

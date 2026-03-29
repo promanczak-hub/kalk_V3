@@ -1,4 +1,5 @@
 """HTML report builder for LTR matrix cells."""
+
 from __future__ import annotations
 
 from html import escape

@@ -2,6 +2,7 @@ import json
 import asyncio
 from core.LTRKalkulator import LTRKalkulator
 
+
 async def main():
     print("Loading stan_json.json...")
     with open("stan_json.json", "r", encoding="utf-8") as f:
@@ -12,30 +13,36 @@ async def main():
     toggles = stan.get("toggles", {})
     mapped_ai = stan.get("mapped_ai_data", {})
     tire_params = stan.get("tire_params", {})
-    
+
     # Base Price calculation exactly as useVehicleCalculations.ts
     c = stan.get("card_summary", {})
     raw_base = str(c.get("base_price") or c.get("total_price") or "0")
     import re
+
     clean_base = float(re.sub(r"[^\d.,]", "", raw_base.replace(",", ".")))
-    
+
     # This vehicle happens to have a "brutto" price domain
     price_domain = c.get("_price_domain", "unknown")
     is_brutto = "brutto" in raw_base.lower() or price_domain == "brutto"
     base_price_net = round(clean_base / 1.23, 2) if is_brutto else clean_base
-    
+
     # Options (Factory)
     persisted_factory = []
     from types import SimpleNamespace
+
     for o in stan.get("factory_options", []):
-        persisted_factory.append(SimpleNamespace(
-            name=o.get("name", "Opcja"),
-            price_net=o.get("price_net", 0.0),
-            price_gross=o.get("price_gross", round(o.get("price_net", 0.0) * 1.23, 2)),
-            no_discount=bool(o.get("no_discount", False)),
-            include_in_wr=False
-        ))
-    
+        persisted_factory.append(
+            SimpleNamespace(
+                name=o.get("name", "Opcja"),
+                price_net=o.get("price_net", 0.0),
+                price_gross=o.get(
+                    "price_gross", round(o.get("price_net", 0.0) * 1.23, 2)
+                ),
+                no_discount=bool(o.get("no_discount", False)),
+                include_in_wr=False,
+            )
+        )
+
     payload = {
         "calculation_id": "ab33d7b6-2310-474b-a87a-a5979e40da98",
         "vehicle_id": stan.get("vehicle_id") or "ab33d7b6-2310-474b-a87a-a5979e40da98",
@@ -56,7 +63,9 @@ async def main():
         "add_grid_dismantling": toggles.get("grid_dismantling", False),
         "add_registration": toggles.get("add_registration", True),
         "add_sales_prep": toggles.get("add_sales_prep", True),
-        "korekta_kosztu_przygotowania": float(stan.get("korekta_kosztu_przygotowania") or 0.0),
+        "korekta_kosztu_przygotowania": float(
+            stan.get("korekta_kosztu_przygotowania") or 0.0
+        ),
         "z_oponami": toggles.get("z_oponami", True),
         "klasa_opony_string": tire_params.get("tire_class", "Medium") or "Medium",
         "srednica_felgi": int(tire_params.get("rim_diameter") or 16),
@@ -69,7 +78,9 @@ async def main():
         "is_metalic": stan.get("is_metalic", False),
         "manual_wr_correction": 0.0,
         "pakiet_serwisowy": float(stan.get("pakiet_serwisowy", 0.0)),
-        "inne_koszty_serwisowania_netto": float(fin_params.get("other_service_costs") or 0.0),
+        "inne_koszty_serwisowania_netto": float(
+            fin_params.get("other_service_costs") or 0.0
+        ),
         "CzynszProcent": 0.0,
         "ubezpieczenie_is_pakiet": True,
         "opcja_serwisowa": "Aso",
@@ -84,23 +95,24 @@ async def main():
         "body_type_name": "",
         "zabudowa_type_id": None,
         "samar_category": stan.get("samar_category", ""),
-        "engine_name": stan.get("engine_category", "Dizel")
+        "engine_name": stan.get("engine_category", "Dizel"),
     }
-    
+
     # Przebiegi i miesiace
-    grid = [(48, 30000)] # 48m/120k
+    grid = [(48, 30000)]  # 48m/120k
     payload["wibor_pct"] = 5.85
 
     payload_obj = SimpleNamespace(**payload)
-    
+
     # Print what gets sent to matrix
     print(f"Base price net: {payload['base_price_net']}")
     print(f"Discount: {payload['discount_pct']}, Margin: {payload['margin_pct']}")
-    
+
     import sys
-    sys.path.append('.')
+
+    sys.path.append(".")
     from core.models import ControlCenterSettings
-    
+
     settings_obj = ControlCenterSettings(
         default_wibor=3.83,
         default_ltr_margin=15.0,
@@ -135,9 +147,9 @@ async def main():
         cost_transport=0.0,
         gsm_amortization_years=4.0,
         budzet_marketingowy_ltr=0.0,
-        last_settings_update="2026-03-24T10:25:20.203408+00:00"
+        last_settings_update="2026-03-24T10:25:20.203408+00:00",
     )
-    
+
     calc = LTRKalkulator(payload_obj, settings_obj)
     mat = calc.build_matrix()
     calc = LTRKalkulator(payload_obj, settings_obj)
@@ -145,9 +157,10 @@ async def main():
     for row in mat:
         if row["Okres"] == 48 and row["PrzebiegKontrakt"] == 120000:
             print(f"FOUND 48m/120k: {row['LacznaStawka']} PLN netto")
-            with open('d:/kalk_v3/backend/trace_ab33.json', 'w', encoding='utf-8') as f:
-                json.dump(row['calculation_trace'], f, indent=2, ensure_ascii=False)
+            with open("d:/kalk_v3/backend/trace_ab33.json", "w", encoding="utf-8") as f:
+                json.dump(row["calculation_trace"], f, indent=2, ensure_ascii=False)
             break
+
 
 if __name__ == "__main__":
     asyncio.run(main())

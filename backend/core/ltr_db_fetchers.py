@@ -3,6 +3,7 @@
 All lookups use @redis_cache with TTL for automatic refresh after
 admin updates rates tables without server restart.
 """
+
 from __future__ import annotations
 
 import logging
@@ -103,10 +104,14 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
         cs = sd.get("card_summary") or {}
         mai = sd.get("mapped_ai_data") or {}
 
-        samar_category = str(cs.get("samar_category") or mai.get("samar_category") or "")
+        samar_category = str(
+            cs.get("samar_category") or mai.get("samar_category") or ""
+        )
         samar_class_id = _resolve_samar_class_id_from_name(samar_category)
 
-        engine_category = str(cs.get("engine_category", "") or mai.get("fuel", "") or "")
+        engine_category = str(
+            cs.get("engine_category", "") or mai.get("fuel", "") or ""
+        )
         engine_type_id = _resolve_engine_type_id(engine_category)
 
         body_type_name = str(mai.get("body_type") or cs.get("body_style") or "")
@@ -159,7 +164,9 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
             "body_type_id": body_type_id,
             "body_type_name": body_type_name,
             "drive_type": mai.get("drive_type") or cs.get("drive_type") or "",
-            "zabudowa_apr_wr": bool(row.get("zabudowa_apr_wr", False) or zabudowa_type_id),
+            "zabudowa_apr_wr": bool(
+                row.get("zabudowa_apr_wr", False) or zabudowa_type_id
+            ),
             "zabudowa_type_id": zabudowa_type_id,
             "is_metalic": cs.get("is_metalic_paint", True),
             "rocznik": cs.get("rocznik", "current"),

@@ -233,37 +233,61 @@ def _fetch_replacement_car_preview(
 
 @router.get("/param-preview")
 def get_param_preview(
-    samar_class_id: int = Query(...),
+    samar_class_id: Any = Query(...),
     brand_normalized: Optional[str] = Query(default=None),
     fuel_type: Optional[str] = Query(default=None),
     drive_type: Optional[str] = Query(default=None),
     gearbox_type: Optional[str] = Query(default=None),
     service_type: str = Query(default="ASO"),
-    target_mileage: int = Query(default=60000),
-    rim_diameter: Optional[int] = Query(default=None),
+    target_mileage: Any = Query(default="60000"),
+    rim_diameter: Any = Query(default=None),
     tire_class: str = Query(default="Medium"),
     vehicle_vintage: str = Query(default="current"),
     is_metalic: bool = Query(default=False),
 ) -> ParamPreviewResponse:
-    """Returns live parameter preview for LinkedIndicator tooltips."""
+    # Safe parsing for numeric parameters which can be empty strings from frontend
+    try:
+        s_id = int(str(samar_class_id or "0"))
+    except (ValueError, TypeError):
+        return ParamPreviewResponse()
+
+    try:
+        # Handle potentially empty target_mileage
+        t_mileage_str = str(target_mileage or "60000")
+        if t_mileage_str.strip() == "":
+            t_mileage = 60000
+        else:
+            t_mileage = int(t_mileage_str)
+    except (ValueError, TypeError):
+        t_mileage = 60000
+
     service = _fetch_service_preview(
-        samar_class_id,
+        s_id,
         brand_normalized,
         fuel_type,
         drive_type,
         gearbox_type,
         service_type,
-        target_mileage,
+        t_mileage,
     )
 
+    # Safe rim_diameter parsing
+    r_diam: Optional[int] = None
+    try:
+        rim_str = str(rim_diameter or "")
+        if rim_str.strip() != "":
+            r_diam = int(rim_str)
+    except (ValueError, TypeError):
+        r_diam = None
+
     tires = (
-        _fetch_tires_preview(rim_diameter, tire_class)
-        if rim_diameter
+        _fetch_tires_preview(r_diam, tire_class)
+        if r_diam
         else TiresPreview(tire_class=tire_class)
     )
     vintage = _fetch_vintage_preview(vehicle_vintage)
     color = _fetch_color_preview(is_metalic)
-    replacement_car = _fetch_replacement_car_preview(samar_class_id)
+    replacement_car = _fetch_replacement_car_preview(s_id)
 
     return ParamPreviewResponse(
         service=service,

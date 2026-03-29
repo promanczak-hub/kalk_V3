@@ -2,6 +2,7 @@
 
 Sprawdza pokrycie parametrów w DB przed kalkulacją (6 monolitów).
 """
+
 from __future__ import annotations
 
 import logging
@@ -67,7 +68,9 @@ def check_rv_readiness(
                     pct = float(row.get("km_140000") or 0.0) * 100
                     checks.append(
                         ReadinessItem(
-                            "1. Bazowa Utrata Wartości", "ok", f"{pct:.1f}%, pełna macierz"
+                            "1. Bazowa Utrata Wartości",
+                            "ok",
+                            f"{pct:.1f}%, pełna macierz",
                         )
                     )
                 else:
@@ -122,7 +125,9 @@ def check_rv_readiness(
                 )
             )
         else:
-            checks.append(ReadinessItem("2. Korekta Przebiegu", "warn", "brak wpisu → 0"))
+            checks.append(
+                ReadinessItem("2. Korekta Przebiegu", "warn", "brak wpisu → 0")
+            )
     except Exception as exc:
         logger.warning("Błąd odczytu mileage corrections: %s", exc)
         checks.append(ReadinessItem("2. Korekta Przebiegu", "warn", "brak wpisu → 0"))
@@ -185,7 +190,9 @@ def check_rv_readiness(
 
         if found_val is not None:
             checks.append(
-                ReadinessItem("3. Korekta Marki", "ok", f"{found_val:+.1%} {found_type}")
+                ReadinessItem(
+                    "3. Korekta Marki", "ok", f"{found_val:+.1%} {found_type}"
+                )
             )
         else:
             checks.append(ReadinessItem("3. Korekta Marki", "warn", "brak wpisu → 0%"))
@@ -291,7 +298,9 @@ def check_rv_readiness(
                 if res_gen.data:
                     val = float(res_gen.data[0]["correction_percent"])
                     checks.append(
-                        ReadinessItem("5. Korekta Zabudowy", "ok", f"{val:+.1%} (Globalna)")
+                        ReadinessItem(
+                            "5. Korekta Zabudowy", "ok", f"{val:+.1%} (Globalna)"
+                        )
                     )
                 else:
                     checks.append(
@@ -329,6 +338,8 @@ def check_rv_readiness(
         except Exception:
             checks.append(ReadinessItem("6. Korekta Lakieru", "warn", "błąd odczytu"))
     else:
-        checks.append(ReadinessItem("6. Korekta Lakieru", "ok", "Brak kodu lakieru (0%)"))
+        checks.append(
+            ReadinessItem("6. Korekta Lakieru", "ok", "Brak kodu lakieru (0%)")
+        )
 
     return checks

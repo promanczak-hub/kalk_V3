@@ -250,7 +250,9 @@ def finalize_vehicle_pipeline(
     ).execute()
 
     try:
-        logger.info(f"[BG TASK] Kolejkowanie generowania wektorów (Celery) dla {vehicle_id}")
+        logger.info(
+            f"[BG TASK] Kolejkowanie generowania wektorów (Celery) dla {vehicle_id}"
+        )
         generate_embedding_for_vehicle.delay(vehicle_id)
     except Exception as emb_e:
         logger.error(f"[BG TASK] Błąd przy uruchamianiu celery dla wektorów: {emb_e}")

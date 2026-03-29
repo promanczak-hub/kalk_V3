@@ -414,7 +414,9 @@ def fetch_mileage_corrections_cached(
                 float(row.get("prog_przebiegu_km") or 190000.0),
             )
     except Exception as exc:
-        logger.warning("Błąd pobierania mileage corrections dla klasy=%s: %s", samar_class_id, exc)
+        logger.warning(
+            "Błąd pobierania mileage corrections dla klasy=%s: %s", samar_class_id, exc
+        )
     return 0.0, 0.0, 190000.0
 
 

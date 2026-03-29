@@ -6,6 +6,7 @@ paint type) to integer IDs used in the database.
 All DB lookups use @redis_cache with TTL for automatic cache expiry when
 admin updates reference data.
 """
+
 from __future__ import annotations
 
 import logging
@@ -290,7 +291,9 @@ def _extract_service_option_names(sd: Dict[str, Any]) -> List[str]:
     return names
 
 
-def _infer_zabudowa_type_id(sd: Dict[str, Any], body_type_name: str = "") -> Optional[int]:
+def _infer_zabudowa_type_id(
+    sd: Dict[str, Any], body_type_name: str = ""
+) -> Optional[int]:
     candidates: List[str] = []
     if body_type_name:
         candidates.append(body_type_name)

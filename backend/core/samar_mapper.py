@@ -63,6 +63,30 @@ def _fetch_samar_dictionary(client: Client) -> list[dict]:
     return rows
 
 
+def get_samar_markdown_from_db() -> str:
+    """Fetch all SAMAR classes from DB and format as a Markdown string.
+
+    This replaces the hardcoded SAMAR_MARKDOWN in samar_rules.py.
+    """
+    try:
+        sb_client = _build_samar_client()
+        samar_dict = _fetch_samar_dictionary(sb_client)
+        if not samar_dict:
+            return "Brak danych o klasach SAMAR w bazie danych."
+
+        # Build the same structure used in the prompt
+        lines = []
+        for row in samar_dict:
+            klasa = row["klasa"]
+            modele = row["modele"]
+            lines.append(f"### {klasa}\nModele: {modele}\n")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.error(f"[SAMAR MAPPER] Error generating markdown from DB: {exc}")
+        return "Błąd podczas pobierania danych SAMAR z bazy."
+
+
 def map_to_samar_class(
     brand: str,
     model: str,

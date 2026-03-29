@@ -194,6 +194,18 @@ Kanoniczna kolejność uruchamiania sub-kalkulatorów w pipeline `LTRKalkulator.
 > **Kroki 5–9** mają zależności kaskadowe (każdy zależy od poprzednich).
 > **Kroki 10–12** agregują wyniki wszystkich poprzednich.
 
+### 🛡️ Złota Reguła Kalkulacji Wartości Rezydualnej (V1 Parity)
+
+Zgodnie z historycznym Excelem (V1 Parity), mechanizm obliczania Wartości Rezydualnej bezwzględnie wymaga, aby **Krok 5. Korekty Administracyjne (kolor, nadwozie, zabudowa)** operował wyłącznie na "gołej" cenie katalogowej pojazdu (Netto bez opcji).
+Sztywna kwota kary lub nagrody (np. `-1%` za brak lakieru metalika) jest liczona na boku i **addytywnie dodawana** do wymodelowanej już (wg deprecjacji i przebiegu) puli WR:
+
+```python
+Korekta_Wartosc = (Kolor_% + Nadwozie_% + Zabudowa_%) * Cena_Katalogowa_Baza_Netto
+WR_po_Kroku_5 = WR_po_Korekcie_za_Przebieg + Korekta_Wartosc
+```
+
+**ZABRONIONE JEST:** Mnożenie odłożonej (zamortyzowanej) puli WR przez procenty korekty z Kroku 5 (czyli np. `WR * (1 - korekta_pct)`). Wprowadza to drastyczne rozbieżności z systemem legacy (rozstrzał testowy na poziomie ~1000 zł np. dla Skody Octavia RS czy Cupra Terramar).
+
 ---
 
 ## 🗄️ Rejestr Nazw Tabel Supabase

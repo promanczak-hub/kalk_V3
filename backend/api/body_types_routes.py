@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from core.database import supabase
@@ -12,32 +12,30 @@ class BodyTypeSchema(BaseModel):
     id: Optional[int] = None
     nazwa_nadwozia: str
     typ_pojazdu: str
-    utrata_wartosci: float = 0.0
-    description: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 @router.get("/body-types", response_model=List[BodyTypeSchema])
-async def get_body_types():
+def get_body_types():
     try:
         res = supabase.table("body_types").select("*").order("nazwa_nadwozia").execute()
         return res.data or []
     except Exception as e:
         logger.error(f"Error fetching body types: {e}")
-        raise HTTPException(status_code=500, detail="Database fetch error")
+        # Return clearer error details to help with diagnostics
+        raise HTTPException(status_code=500, detail=f"Database fetch error: {str(e)}")
 
 
 @router.post("/body-types", response_model=BodyTypeSchema)
-async def upsert_body_type(bt: BodyTypeSchema):
+def upsert_body_type(bt: BodyTypeSchema):
     try:
-        data = {
+        data: Dict[str, Any] = {
             "nazwa_nadwozia": bt.nazwa_nadwozia,
             "typ_pojazdu": bt.typ_pojazdu,
-            "utrata_wartosci": bt.utrata_wartosci,
-            "description": bt.description,
         }
         if bt.id:
             data["id"] = bt.id
-            res = supabase.table("body_types").update(data).eq("id", bt.id).execute()
+            res = supabase.table("body_types").upsert(data).execute()
         else:
             res = supabase.table("body_types").insert(data).execute()
 
@@ -50,7 +48,7 @@ async def upsert_body_type(bt: BodyTypeSchema):
 
 
 @router.delete("/body-types/{bt_id}")
-async def delete_body_type(bt_id: int):
+def delete_body_type(bt_id: int):
     try:
         supabase.table("body_types").delete().eq("id", bt_id).execute()
         return {"status": "ok", "deleted": True}

@@ -70,7 +70,13 @@ export function useReferenceData(): ReferenceData {
         }
         if (bodyTypesRes.ok) {
           const data = await bodyTypesRes.json();
-          cachedBodyTypes = Array.isArray(data) ? data : [];
+          // Map backend fields (nazwa_nadwozia, typ_pojazdu) to frontend fields (name, vehicle_class)
+          cachedBodyTypes = Array.isArray(data) ? data.map((item: { id: number; nazwa_nadwozia?: string; name?: string; typ_pojazdu?: string; vehicle_class?: string; description?: string }) => ({
+            id: item.id,
+            name: item.nazwa_nadwozia || item.name || "",
+            vehicle_class: item.typ_pojazdu || item.vehicle_class || "",
+            description: item.description
+          })) : [];
           setBodyTypes(cachedBodyTypes);
         }
       } catch (fetchError) {
