@@ -1,18 +1,36 @@
-from core.database import supabase
-import json
+import os
+import time
+from dotenv import load_dotenv
+from supabase import create_client
+
+load_dotenv()
+
+url = os.environ.get("SUPABASE_URL")
+key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+if not key:
+    key = os.environ.get("SUPABASE_KEY")
+
+supabase = create_client(url, key)
 
 try:
-    resp = supabase.rpc(
-        "rpc_get_available_filters",
-        {"p_segment": "Premium-Sport", "p_current_filters": {}},
-    ).execute()
-    result = {"status": "SUCCESS", "data": resp.data}
-except Exception as e:
-    result = {
-        "status": "ERROR",
-        "message": getattr(e, "message", str(e)),
-        "details": getattr(e, "details", None),
-    }
+    print("Fetching up to 1000 vehicle IDs from DB...")
+    res = supabase.table('vehicle_matrix_cache').select('vehicle_id').limit(1000).execute()
+    v_ids = [r['vehicle_id'] for r in res.data]
+    print(f"Found {len(v_ids)} IDs.")
 
-with open("rpc_err.json", "w", encoding="utf-8") as f:
-    json.dump(result, f, ensure_ascii=False, indent=2)
+    print(f"Executing rpc_get_similar_vehicles_batch with {len(v_ids)} IDs...")
+    t0 = time.time()
+    r = supabase.rpc('rpc_get_similar_vehicles_batch', {
+        'p_vehicle_ids': v_ids,
+        'p_limit': 5,
+        'p_duration_months': 36,
+        'p_annual_mileage': 20000
+    }).execute()
+    t1 = time.time()
+    
+    print(f"SUCCESS in {t1-t0:.2f} seconds")
+    print("Returned rows:", len(r.data))
+except Exception as e:
+    print("ERROR:")
+    import traceback
+    traceback.print_exc()

@@ -185,6 +185,11 @@ class FinanseCalculator:
         )
 
         # Oprocentowanie = WIBOR + Marża (V1 L67)
+        if self.data.WIBORProcent is None:
+            raise ValueError("Brak parametru WIBORProcent w konfiguracji finansowej.")
+        if self.data.MarzaFinansowaProcent is None:
+            raise ValueError("Brak parametru MarzaFinansowaProcent w konfiguracji finansowej.")
+
         oprocentowanie = (
             self.data.WIBORProcent + self.data.MarzaFinansowaProcent
         ) / 100.0

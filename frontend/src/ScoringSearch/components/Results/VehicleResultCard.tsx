@@ -12,7 +12,7 @@ import type { SearchContext } from '../../types';
 import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
 import { fuelColor, fuelIcon } from '../../utils/vehicleFormatters';
 import { LtrPriceBlock } from './LtrPriceBlock';
-import { SimilarVehiclesSection } from './SimilarVehiclesSection';
+import { SimilarVehiclesPanel } from '../SimilarVehiclesPanel';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
 
 interface VehicleResultCardProps {
@@ -23,7 +23,6 @@ interface VehicleResultCardProps {
   priceData?: { price_for_params?: PriceForParams, variants?: PriceForParams[] };
   pricesLoading: boolean;
   similarData?: SimilarVehicle[];
-  similarLoading: boolean;
 }
 
 export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
@@ -34,7 +33,6 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
   priceData,
   pricesLoading,
   similarData,
-  similarLoading,
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const vehicleId = car.vehicle_id as string;
@@ -237,10 +235,8 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
         )}
 
         {similarData && similarData.length > 0 && (
-          <SimilarVehiclesSection 
-            vehicleId={vehicleId}
-            similar={similarData}
-            loading={similarLoading}
+          <SimilarVehiclesPanel 
+            vehicles={similarData}
           />
         )}
       </CardContent>

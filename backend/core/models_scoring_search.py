@@ -22,6 +22,7 @@ class ScoringSearchRequest(BaseModel):
     samar_class_ids: Optional[List[int]] = None
     vehicle_ids: Optional[List[str]] = None
     requirements: List[ScoringRequirement]
+    semantic_query: Optional[str] = None
     limit: int = 50
     offset: int = 0
 

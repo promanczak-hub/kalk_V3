@@ -18,6 +18,7 @@ export const useScoringSearch = () => {
     exact_total_mileage: 80000,
     margin_pct: 10,
     monthly_budget: undefined,
+    semanticQuery: '',
   });
   
   const [selectedFeatures, setSelectedFeatures] = useState<SelectedFeature[]>([]);

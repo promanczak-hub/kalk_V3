@@ -446,7 +446,7 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
                         query = query.eq("model", model)
 
                     corrections_res = (
-                        query.order("created_at", desc=True).limit(5).execute()
+                        query.order("corrected_at", desc=True).limit(5).execute()
                     )
 
                     if corrections_res.data:

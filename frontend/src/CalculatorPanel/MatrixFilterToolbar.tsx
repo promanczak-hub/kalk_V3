@@ -6,7 +6,7 @@ import { SlidersHorizontal, RotateCcw, Gauge, Route, Percent } from "lucide-reac
 export interface MatrixFilters {
   monthsRange: [number, number];
   targetKmPerYear: number | null;
-  globalMarginPct: number;
+  globalMarginPct: number | null;
 }
 
 export type MileageMode = "annual" | "contract";
@@ -260,12 +260,13 @@ export function MatrixFilterToolbar({
     prevMileageModeRef.current = mileageMode;
   }, [mileageMode, exactMonths, exactKm]);
 
+  const MAX_CONTRACT_KM = 250_000;
   const sliderMin = mileageMode === "contract"
     ? Math.round((KM_MIN / 12) * safeReferenceMonths)
     : KM_MIN;
   const sliderMax = mileageMode === "contract"
-    ? Math.round((KM_MAX / 12) * safeReferenceMonths)
-    : KM_MAX;
+    ? Math.min(MAX_CONTRACT_KM, Math.round((KM_MAX / 12) * safeReferenceMonths))
+    : Math.min(KM_MAX, Math.floor(MAX_CONTRACT_KM / (safeReferenceMonths / 12)));
   const sliderStep = mileageMode === "contract" ? 10_000 : KM_STEP;
 
   const update = (partial: Partial<MatrixFilters>) => {
@@ -278,7 +279,7 @@ export function MatrixFilterToolbar({
   };
 
   const handleRecalculate = () => {
-    onMarginRecalculate(filters.globalMarginPct);
+    onMarginRecalculate(filters.globalMarginPct ?? defaultMarginPct);
     setMarginDirty(false);
   };
 
@@ -315,27 +316,21 @@ export function MatrixFilterToolbar({
     onExactRecalculate(m, kmPerYear, mar);
   };
 
-  const sliderValue = filters.targetKmPerYear !== null
+  const rawSliderValue = filters.targetKmPerYear !== null
     ? (mileageMode === "contract"
       ? Math.round((filters.targetKmPerYear / 12) * safeReferenceMonths)
       : filters.targetKmPerYear)
     : (mileageMode === "contract"
       ? Math.round((60_000 / 12) * safeReferenceMonths)
       : 60_000);
+      
+  const sliderValue = Math.min(rawSliderValue, sliderMax);
 
   const kmLow = filters.targetKmPerYear
-    ? Math.round(
-      (mileageMode === "contract"
-        ? (filters.targetKmPerYear / 12) * safeReferenceMonths
-        : filters.targetKmPerYear) * (1 - KM_MARGIN_PCT)
-    )
+    ? Math.round(rawSliderValue * (1 - KM_MARGIN_PCT))
     : null;
   const kmHigh = filters.targetKmPerYear
-    ? Math.round(
-      (mileageMode === "contract"
-        ? (filters.targetKmPerYear / 12) * safeReferenceMonths
-        : filters.targetKmPerYear) * (1 + KM_MARGIN_PCT)
-    )
+    ? Math.round(rawSliderValue * (1 + KM_MARGIN_PCT))
     : null;
 
   const isFiltered =
@@ -475,9 +470,9 @@ export function MatrixFilterToolbar({
             </span>
             <span
               className="ml-auto text-[10px] font-bold tabular-nums"
-              style={{ color: getMarginSliderColor(filters.globalMarginPct) }}
+              style={{ color: getMarginSliderColor(filters.globalMarginPct ?? defaultMarginPct) }}
             >
-              {filters.globalMarginPct.toFixed(1)}%
+              {(filters.globalMarginPct ?? defaultMarginPct).toFixed(1)}%
             </span>
           </div>
           {/* Colored zone margin slider */}
@@ -504,7 +499,7 @@ export function MatrixFilterToolbar({
               {/* Unselected overlay (dim area beyond current value) */}
               <div
                 className="absolute inset-y-0 right-0 bg-slate-200/60"
-                style={{ left: `${pctOfRange(filters.globalMarginPct, MARGIN_MIN, MARGIN_MAX)}%` }}
+                style={{ left: `${pctOfRange(filters.globalMarginPct ?? defaultMarginPct, MARGIN_MIN, MARGIN_MAX)}%` }}
               />
             </div>
             {/* Native range input */}
@@ -513,7 +508,7 @@ export function MatrixFilterToolbar({
               min={MARGIN_MIN}
               max={MARGIN_MAX}
               step={MARGIN_STEP}
-              value={filters.globalMarginPct}
+              value={filters.globalMarginPct ?? defaultMarginPct}
               onChange={(e) => handleMarginChange(parseFloat(e.target.value))}
               className="absolute inset-0 w-full opacity-0 cursor-pointer"
               style={{ top: "8px", height: "10px" }}
@@ -522,11 +517,11 @@ export function MatrixFilterToolbar({
             <div
               className="absolute w-5 h-5 rounded-full bg-white shadow-lg pointer-events-none transition-all duration-100"
               style={{
-                left: `calc(${pctOfRange(filters.globalMarginPct, MARGIN_MIN, MARGIN_MAX)}% - 10px)`,
+                left: `calc(${pctOfRange(filters.globalMarginPct ?? defaultMarginPct, MARGIN_MIN, MARGIN_MAX)}% - 10px)`,
                 top: "4px",
                 borderWidth: "3px",
                 borderStyle: "solid",
-                borderColor: getMarginSliderColor(filters.globalMarginPct),
+                borderColor: getMarginSliderColor(filters.globalMarginPct ?? defaultMarginPct),
               }}
             />
           </div>
@@ -541,7 +536,7 @@ export function MatrixFilterToolbar({
               onClick={handleRecalculate}
               disabled={isRecalculating}
               className="mt-2 w-full flex items-center justify-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg text-white hover:brightness-110 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: getMarginSliderColor(filters.globalMarginPct) }}
+              style={{ backgroundColor: getMarginSliderColor(filters.globalMarginPct ?? defaultMarginPct) }}
             >
               {isRecalculating ? (
                 <>
@@ -585,7 +580,7 @@ export function MatrixFilterToolbar({
                 id="exactKm"
                 type="number"
                 min={mileageMode === "contract" ? 10000 : 10000}
-                max={mileageMode === "contract" ? 600000 : 200000}
+                max={mileageMode === "contract" ? 250000 : 200000}
                 step={mileageMode === "contract" ? 10000 : 1000}
                 value={exactKm}
                 onChange={(e) => setExactKm(e.target.value)}

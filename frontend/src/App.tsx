@@ -36,8 +36,7 @@ import SheetsSyncPanel from "./SheetsSyncPanel/SheetsSyncPanel";
 import { NotificationProvider } from "./components/NotificationProvider";
 import { useAppStore } from "./stores/useAppStore";
 import OfferCartFab from "./components/OfferCart/OfferCartFab";
-import { ThemeToggle } from "./VertexExtractor/components/ui/ThemeToggle";
-import { useState } from "react";
+// Removed ThemeToggle
 
 /**
  * Route definitions — single source of truth for navigation.
@@ -54,10 +53,9 @@ const ROUTES = [
 
 interface AppContentProps {
   mode: "light" | "dark";
-  onToggleTheme: () => void;
 }
 
-function AppContent({ mode, onToggleTheme }: AppContentProps) {
+function AppContent({ mode }: AppContentProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -168,10 +166,8 @@ function AppContent({ mode, onToggleTheme }: AppContentProps) {
               flexShrink: 0,
               ml: 'auto' // Push to right
             }}>
-              {/* Theme Toggle (The Candle) */}
-              <Box sx={{ zIndex: 1200 }}>
-                <ThemeToggle mode={mode} onToggle={onToggleTheme} />
-              </Box>
+
+
 
               {/* Keyboard shortcut hint */}
               <Box
@@ -231,7 +227,7 @@ function AppContent({ mode, onToggleTheme }: AppContentProps) {
 }
 
 function App() {
-  const [mode, setMode] = useState<"light" | "dark">("dark");
+  const mode: "light" | "dark" = "light";
 
   const theme = useMemo(() => createTheme({
     palette: {
@@ -340,7 +336,7 @@ function App() {
         <ErrorBoundary fallbackTitle="Krytyczny błąd aplikacji">
           <CommandPalette />
           <OfferCartFab />
-          <AppContent mode={mode} onToggleTheme={() => setMode(m => m === "light" ? "dark" : "light")} />
+          <AppContent mode={mode} />
         </ErrorBoundary>
       </NotificationProvider>
     </ThemeProvider>

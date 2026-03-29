@@ -41,11 +41,7 @@ def test_samar_rv_calculate_base(mocker, mock_rv_input):
     mocker.patch.object(
         SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0, 140000)
     )
-    mocker.patch.object(
-        SamarRVCalculator,
-        "_fetch_class_config",
-        return_value={"base_mileage_km": 140000, "mileage_threshold_km": 190000},
-    )
+    mocker.patch.object(SamarRVCalculator, "_fetch_base_rv_percent", return_value=0.50)
     mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.80)
     mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.01)
     mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.02)
@@ -81,11 +77,7 @@ def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
     mocker.patch.object(
         SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0, 140000)
     )
-    mocker.patch.object(
-        SamarRVCalculator,
-        "_fetch_class_config",
-        return_value={"base_mileage_km": 140000, "mileage_threshold_km": 190000},
-    )
+    mocker.patch.object(SamarRVCalculator, "_fetch_base_rv_percent", return_value=0.00)
     mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.0)

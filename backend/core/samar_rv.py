@@ -1,36 +1,49 @@
 """
 Kalkulator Wartości Rezydualnej (SAMAR V3).
 
-Algorytm wiernie odtwarza formułę z Excela JŁ (KALKULATOR DH):
-  1. WR bazy = cena_bazowa × (WR_klasa% + korekta_marka%)
-  2. Kaskadowa deprecjacja rok→rok (compound, 7 lat)
-  3. RV opcji = opcje × stawka_opcji_per_rok[delta_lat]
-  4. Korekta przebiegu (2 pasma: ≤ próg / > próg nadprzebiegu)
-  5. Korekty: kolor, nadwozie (z zabudową), rocznik
-  6. Korekta ręczna + wynik końcowy
+Algorytm:
+  1. WR bazy = cena_bazowa x (WR_klasa% + korekta_marka%)
+  2. Kaskadowa deprecjacja rok->rok (compound, 7 lat)
+  3. RV opcji = opcje x stawka_opcji_per_rok[delta_lat]
+  4. Korekta przebiegu
+  5. Korekty: kolor, nadwozie (z zabudowa), rocznik
+  6. Korekta reczna + wynik koncowy
 
-Klucze w DB: samar_class_id (INT FK) + engine_id (INT FK).
-Tabele: samar_class_depreciation_rates, samar_class_mileage_corrections,
-        ltr_admin_korekta_wr_markas, body_type_wr_corrections,
-        paint_types, ltr_admin_korekta_wr_roczniks.
+Kluczowe tabele: samar_class_depreciation_rates,
+                 samar_class_mileage_corrections,
+                 body_type_wr_corrections, paint_types.
+
+Moduly pomocnicze:
+  - core.samar_rv_fetchers  -- cached DB fetchers + _normalize_fuel_name
+  - core.samar_rv_readiness -- ReadinessItem + check_rv_readiness
 """
 
 from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
-from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from core.database import supabase
+from core.samar_rv_fetchers import (
+    fetch_base_options_rate_cached,
+    fetch_base_rv_percent_cached,
+    fetch_brand_correction_cached,
+    fetch_body_correction_cached,
+    fetch_color_correction_cached,
+    fetch_depreciation_rates_cached,
+    fetch_lo_param_cached,
+    fetch_mileage_corrections_cached,
+    fetch_vintage_correction_cached,
+    fetch_zabudowa_correction_cached,
+)
 
 logger = logging.getLogger(__name__)
 
-# ═══════════════════════════════════════════════════════════════════
+# ===============================================================
 # Cache klasy SAMAR
-# ═══════════════════════════════════════════════════════════════════
+# ===============================================================
 
 _SAMAR_CACHE: Dict[str, int] = {}
-
 
 def get_samar_class_id(class_name: str) -> Optional[int]:
     """Mapuje nazwę klasy SAMAR na ID z tabeli samar_classes. Wspiera formaty nowe i stare."""
@@ -78,333 +91,6 @@ def get_samar_class_id(class_name: str) -> Optional[int]:
     return None
 
 
-# ═══════════════════════════════════════════════════════════════════
-# Readiness Check
-# ═══════════════════════════════════════════════════════════════════
-
-
-@dataclass
-class ReadinessItem:
-    """Wynik sprawdzenia jednego parametru."""
-
-    param: str
-    status: str  # "ok", "warn", "error"
-    value: str = ""
-
-
-def check_rv_readiness(
-    samar_class_id: int,
-    engine_id: int,
-    brand_name: str,
-    body_type_id: Optional[int] = None,
-    paint_type_id: Optional[int] = None,
-    rocznik: str = "current",
-    zabudowa_type_id: Optional[int] = None,
-    engine_name: str = "",
-    model_name: str = "",
-) -> list[ReadinessItem]:
-    """Sprawdza pokrycie parametrów w DB przed kalkulacją. Dostosowane do 6 Monolitów."""
-    checks: list[ReadinessItem] = []
-
-    # 1. Monolit: WR bazy (Tabela deprecjacji - Macierz Przebiegów)
-    try:
-        # V3 schema: km_35000, km_70000, km_105000, km_140000, km_175000, km_210000, km_245000
-        cols = [f"km_{km}" for km in range(35000, 245001, 35000)]
-        res = (
-            supabase.table("tab_okres_final")
-            .select(", ".join(cols))
-            .eq("klasa_samar", samar_class_id)
-            .ilike(
-                "rodzaj_silnika", f"%{_normalize_fuel_name(brand_name, engine_name)}%"
-            )
-            .execute()
-        )
-        if res.data:
-            row = res.data[0]
-            missing_cols = [c for c in cols if row.get(c) is None]
-            if not missing_cols:
-                # We show the 140k rate as the primary indicator
-                pct = float(row.get("km_140000") or 0.0) * 100
-                checks.append(
-                    ReadinessItem(
-                        "1. Bazowa Utrata Wartości", "ok", f"{pct:.1f}%, pełna macierz"
-                    )
-                )
-            else:
-                pct = float(row.get("km_140000") or 0.0) * 100
-                valid_count = len(cols) - len(missing_cols)
-                checks.append(
-                    ReadinessItem(
-                        "1. Bazowa Utrata Wartości",
-                        "warn",
-                        f"{pct:.1f}%, tylko {valid_count}/{len(cols)} progów",
-                    )
-                )
-        else:
-            checks.append(
-                ReadinessItem(
-                    "1. Bazowa Utrata Wartości",
-                    "error",
-                    "brak wpisu w tab_okres_final (Klasa/Silnik)",
-                )
-            )
-    except Exception as exc:
-        logger.error("Błąd odczytu tab_okres_final: %s", exc)
-        checks.append(
-            ReadinessItem("1. Bazowa Utrata Wartości", "error", "błąd odczytu DB")
-        )
-
-    # 2. Monolit: Korekta Przebiegu - samar_class_mileage_corrections (V3)
-    try:
-        res = (
-            supabase.table("samar_class_mileage_corrections")
-            .select("korekta_lt_prog, korekta_gt_prog")
-            .eq("klasa_samar", samar_class_id)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            u = float(res.data[0]["korekta_lt_prog"] or 0.0)
-            o = float(res.data[0]["korekta_gt_prog"] or 0.0)
-            checks.append(
-                ReadinessItem(
-                    "2. Korekta Przebiegu", "ok", f"poniżej: {u:.4f}, powyżej: {o:.4f}"
-                )
-            )
-        else:
-            checks.append(
-                ReadinessItem("2. Korekta Przebiegu", "warn", "brak wpisu → 0")
-            )
-    except Exception as exc:
-        logger.warning("Błąd odczytu mileage corrections: %s", exc)
-        checks.append(ReadinessItem("2. Korekta Przebiegu", "warn", "brak wpisu → 0"))
-
-    # 3. Monolit: Korekta Marki - samar_brand_corrections (V3)
-    try:
-        brand = brand_name.strip().upper()
-        # V3 column names: klasa_samar, marka, model, silnik, korekta
-        found_val = None
-        found_type = ""
-
-        # Use normalized fuel for silnik match
-        fuel_norm = _normalize_fuel_name(brand, engine_name)
-
-        if model_name:
-            model = model_name.strip().upper()
-            res_ex = (
-                supabase.table("samar_brand_corrections")
-                .select("korekta")
-                .eq("klasa_samar", samar_class_id)
-                .ilike("marka", brand)
-                .ilike("model", model)
-                .ilike("silnik", f"%{fuel_norm}%")
-                .limit(1)
-                .execute()
-            )
-            if res_ex.data:
-                found_val = float(res_ex.data[0]["korekta"] or 0.0)
-                found_type = "(Model+Fuel)"
-
-        if found_val is None:
-            res_gen = (
-                supabase.table("samar_brand_corrections")
-                .select("korekta")
-                .eq("klasa_samar", samar_class_id)
-                .ilike("marka", brand)
-                .is_("model", "null")
-                .ilike("silnik", f"%{fuel_norm}%")
-                .limit(1)
-                .execute()
-            )
-            if res_gen.data:
-                found_val = float(res_gen.data[0]["korekta"] or 0.0)
-                found_type = "(Brand+Fuel)"
-
-        if found_val is None:
-            # Absolute fallback: Brand only (any fuel)
-            res_br = (
-                supabase.table("samar_brand_corrections")
-                .select("korekta")
-                .eq("klasa_samar", samar_class_id)
-                .ilike("marka", brand)
-                .is_("model", "null")
-                .limit(1)
-                .execute()
-            )
-            if res_br.data:
-                found_val = float(res_br.data[0]["korekta"] or 0.0)
-                found_type = "(Brand Only)"
-
-        if found_val is not None:
-            checks.append(
-                ReadinessItem(
-                    "3. Korekta Marki", "ok", f"{found_val:+.1%} {found_type}"
-                )
-            )
-        else:
-            checks.append(ReadinessItem("3. Korekta Marki", "warn", "brak wpisu → 0%"))
-    except Exception as exc:
-        logger.warning("Błąd odczytu brand corrections: %s", exc)
-        checks.append(ReadinessItem("3. Korekta Marki", "warn", "błąd odczytu → 0%"))
-
-    # 4. Monolit: Korekta Nadwozia (Osobowe/Bazowe) - body_type_wr_corrections (Marka + Typ Nadwozia + Silnik)
-    if body_type_id:
-        try:
-            brand = brand_name.strip().upper() if brand_name else ""
-            found_val = None
-            found_type = ""
-
-            # Dokladne dopasowanie: Marka + Nadwozie + Silnik
-            if engine_id and brand:
-                res_ex = (
-                    supabase.table("body_type_wr_corrections")
-                    .select("correction_percent")
-                    .eq("brand_name", brand)
-                    .eq("body_type_id", body_type_id)
-                    .eq("engine_type_id", engine_id)
-                    .limit(1)
-                    .execute()
-                )
-                if res_ex.data:
-                    found_val = float(res_ex.data[0]["correction_percent"])
-                    found_type = "(Brand+Body+Engine)"
-
-            # Fallback 1: Marka + Nadwozie (Silnik IS NULL)
-            if found_val is None and brand:
-                res_gen = (
-                    supabase.table("body_type_wr_corrections")
-                    .select("correction_percent")
-                    .eq("brand_name", brand)
-                    .eq("body_type_id", body_type_id)
-                    .is_("engine_type_id", "null")
-                    .limit(1)
-                    .execute()
-                )
-                if res_gen.data:
-                    found_val = float(res_gen.data[0]["correction_percent"])
-                    found_type = "(Brand+Body)"
-
-            # Fallback 2: Tylko Marka (Nadwozie i Silnik IS NULL)
-            if found_val is None and brand:
-                res_br = (
-                    supabase.table("body_type_wr_corrections")
-                    .select("correction_percent")
-                    .eq("brand_name", brand)
-                    .is_("body_type_id", "null")
-                    .is_("engine_type_id", "null")
-                    .limit(1)
-                    .execute()
-                )
-                if res_br.data:
-                    found_val = float(res_br.data[0]["correction_percent"])
-                    found_type = "(Rozdz. Marki)"
-
-            if found_val is not None:
-                checks.append(
-                    ReadinessItem(
-                        "4. Korekta Nadwozia", "ok", f"{found_val:+.1%} {found_type}"
-                    )
-                )
-            else:
-                checks.append(
-                    ReadinessItem("4. Korekta Nadwozia", "warn", "brak wpisu → 0%")
-                )
-        except Exception:
-            checks.append(
-                ReadinessItem("4. Korekta Nadwozia", "warn", "błąd odczytu → 0%")
-            )
-    else:
-        checks.append(
-            ReadinessItem("4. Korekta Nadwozia", "warn", "nie podano typu nadwozia")
-        )
-
-    # 5. Monolit: Korekta ZABUDOWY (Dostawcze) - zabudowa_wr_corrections (Typ Zabudowy + Klasa SAMAR)
-    if zabudowa_type_id:
-        try:
-            res = (
-                supabase.table("zabudowa_wr_corrections")
-                .select("correction_percent")
-                .eq("zabudowa_type_id", zabudowa_type_id)
-                .eq("samar_class_id", samar_class_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                val = float(res.data[0]["correction_percent"])
-                checks.append(
-                    ReadinessItem(
-                        "5. Korekta Zabudowy", "ok", f"{val:+.1%} (Dostawcze/Specjalne)"
-                    )
-                )
-            else:
-                # Spróbuj bez klasyfikacji SAMAR (Globalny fallback)
-                res_gen = (
-                    supabase.table("zabudowa_wr_corrections")
-                    .select("correction_percent")
-                    .eq("zabudowa_type_id", zabudowa_type_id)
-                    .is_("samar_class_id", "null")
-                    .limit(1)
-                    .execute()
-                )
-                if res_gen.data:
-                    val = float(res_gen.data[0]["correction_percent"])
-                    checks.append(
-                        ReadinessItem(
-                            "5. Korekta Zabudowy", "ok", f"{val:+.1%} (Globalna)"
-                        )
-                    )
-                else:
-                    checks.append(
-                        ReadinessItem("5. Korekta Zabudowy", "warn", "brak wpisu → 0%")
-                    )
-        except Exception:
-            checks.append(
-                ReadinessItem("5. Korekta Zabudowy", "warn", "błąd odczytu → 0%")
-            )
-    else:
-        # Puste by uniknąć straszenia "WARN" jeśli to auto osobowe
-        # (Zabudowa ma sens tylko dla dostawczych, zrobimy info)
-        checks.append(
-            ReadinessItem("5. Korekta Zabudowy", "ok", "Brak zabudowy specjalnej (0%)")
-        )
-
-    # 6. Monolit: Korekta Lakieru - paint_types (Globalna)
-    if paint_type_id:
-        try:
-            res = (
-                supabase.table("paint_types")
-                .select("wr_correction, name")
-                .eq("id", paint_type_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                val = float(res.data[0].get("wr_correction") or 0)
-                name = res.data[0].get("name", "")
-                checks.append(
-                    ReadinessItem(
-                        "6. Korekta Lakieru", "ok", f"{name}: {val:+.1%} (Globalna)"
-                    )
-                )
-            else:
-                checks.append(ReadinessItem("6. Korekta Lakieru", "warn", "brak wpisu"))
-        except Exception:
-            checks.append(ReadinessItem("6. Korekta Lakieru", "warn", "błąd odczytu"))
-    else:
-        checks.append(
-            ReadinessItem(
-                "6. Korekta Lakieru", "warn", "nie podano identyfikatora lakieru"
-            )
-        )
-
-    return checks
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Główny kalkulator RV
-# ═══════════════════════════════════════════════════════════════════
-
-
 @dataclass
 class RVInput:
     """Dane wejściowe do kalkulacji RV."""
@@ -440,192 +126,6 @@ class RVOutput:
     wr_percent: float = 0.0
     debug: Dict[str, Any] = field(default_factory=dict)
 
-
-@lru_cache(maxsize=128)
-def fetch_base_rv_percent_cached(samar_class_id: int, engine_type_id: int) -> float:
-    """Pobiera 4-letnią bazę WR% z samar_class_depreciation_rates dla danej klasy i silnika."""
-    COLUMN_MAP = {
-        1: "benzyna_pb",
-        2: "diesel_on",
-        3: "benzyna_mhev_pb_mhev",
-        4: "diesel_mhev_on_mhev",
-        5: "hybryda_hev",
-        6: "plug_in_hybrid_phev",
-        7: "elektryczny_bev",
-        8: "wodor_fcev",
-        9: "lpg"
-    }
-    col_name = COLUMN_MAP.get(engine_type_id, "benzyna_pb")
-    try:
-        from core.database import supabase
-        res = (
-            supabase.table("samar_class_depreciation_rates")
-            .select(col_name)
-            .eq("klasa_samar", samar_class_id)
-            .limit(1)
-            .execute()
-        )
-        if res.data and len(res.data) > 0:
-            val = res.data[0].get(col_name)
-            if val is not None:
-                return float(val)
-    except Exception as exc:
-        logger.warning(f"Błąd pobierania base_rv_percent z samar_class_depreciation_rates dla klasy {samar_class_id}, silnik {engine_type_id}: {exc}")
-    # Fallback fail-fast na wypadek błędu logicznego
-    raise ValueError(f"Brak przypisanego Base RV w samar_class_depreciation_rates dla klasy={samar_class_id}, silnik={engine_type_id}")
-
-@lru_cache(maxsize=128)
-def fetch_depreciation_rates_cached(
-    samar_class_id: int, brand_name: str, engine_name: str
-) -> Dict[str, float]:
-    """Pobiera linię różnic z tab_okres_final (V3) aby narzucić ją na BAZĘ 140_000."""
-    try:
-        from core.database import supabase
-
-        fuel_norm = _normalize_fuel_name(brand_name, engine_name)
-        res = (
-            supabase.table("tab_okres_final")
-            .select(
-                "km_35000, km_70000, km_105000, km_140000, km_175000, km_210000, km_245000"
-            )
-            .eq("klasa_samar", samar_class_id)
-            .ilike("rodzaj_silnika", f"%{fuel_norm}%")
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return res.data[0]
-    except Exception as exc:
-        logger.warning("Błąd pobierania tab_okres_final: %s", exc)
-    return {}
-
-
-def _normalize_fuel_name(brand: str, engine_name: str) -> str:
-    """Ujednolica nazwy paliw na potrzeby lookupów w V3 (rodzaj_silnika)."""
-    normalized = engine_name.strip().upper()
-    if "BENZYNA" in normalized:
-        return "Benzyna"
-    if "DIESEL" in normalized:
-        return "Diesel"
-    if "ELEKTRYCZNY" in normalized or "BEV" in normalized:
-        return "Elektryczny"
-    if "HYBRYDA PLUG-IN" in normalized or "PHEV" in normalized:
-        return "Hybryda Plug-in"
-    if "HYBRYDA (HEV)" in normalized or "HEV" in normalized:
-        return "Hybryda (HEV)"
-    if "LPG" in normalized:
-        return "Benzyna+LPG"
-    return "Benzyna"  # Safe fallback per Rule 2
-
-
-@lru_cache(maxsize=128)
-def fetch_brand_correction_cached(
-    samar_class_id: int, brand: str, model: str, engine_name: str
-) -> float:
-    """Korekta za markę z samar_brand_corrections (V3)."""
-    if not brand:
-        return 0.0
-    try:
-        from core.database import supabase
-
-        brand_norm = brand.strip().upper()
-        model_norm = model.strip().upper() if model else ""
-        fuel_norm = _normalize_fuel_name(brand, engine_name)
-
-        # 1. Exact match with model + fuel
-        if model_norm:
-            res_exact = (
-                supabase.table("samar_brand_corrections")
-                .select("korekta")
-                .eq("klasa_samar", samar_class_id)
-                .ilike("marka", brand_norm)
-                .ilike("model", model_norm)
-                .ilike("silnik", f"%{fuel_norm}%")
-                .limit(1)
-                .execute()
-            )
-            if res_exact.data:
-                return float(res_exact.data[0].get("korekta") or 0.0)
-
-        # 2. Fallback to general brand + fuel (model IS NULL)
-        res_gen = (
-            supabase.table("samar_brand_corrections")
-            .select("korekta")
-            .eq("klasa_samar", samar_class_id)
-            .ilike("marka", brand_norm)
-            .is_("model", "null")
-            .ilike("silnik", f"%{fuel_norm}%")
-            .limit(1)
-            .execute()
-        )
-        if res_gen.data:
-            return float(res_gen.data[0].get("korekta") or 0.0)
-
-        # 3. Absolute fallback: Brand only
-        res_br = (
-            supabase.table("samar_brand_corrections")
-            .select("korekta")
-            .eq("klasa_samar", samar_class_id)
-            .ilike("marka", brand_norm)
-            .is_("model", "null")
-            .limit(1)
-            .execute()
-        )
-        if res_br.data:
-            return float(res_br.data[0].get("korekta") or 0.0)
-
-    except Exception as exc:
-        logger.warning("Błąd brand correction: %s", exc)
-    return 0.0
-
-
-@lru_cache(maxsize=128)
-def fetch_base_options_rate_cached(
-    samar_class_id: int, engine_type_id: int, years: int
-) -> float:
-    """Pobiera stawkę amortyzacji opcji z samar_class_options_rv."""
-    try:
-        from core.database import supabase
-
-        res = (
-            supabase.table("samar_class_options_rv")
-            .select("options_rv_percent")
-            .eq("samar_class_id", samar_class_id)
-            .eq("engine_type_id", engine_type_id)
-            .eq("year", years)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return float(res.data[0].get("options_rv_percent") or 0.0)
-    except Exception as exc:
-        logger.warning("Błąd options rate fetch: %s", exc)
-    return 0.0
-
-
-@lru_cache(maxsize=128)
-def fetch_mileage_corrections_cached(samar_class_id: int) -> tuple[float, float, int]:
-    """Stawki korekty przebiegu: (below, above, threshold_km)."""
-    try:
-        from core.database import supabase
-
-        res = (
-            supabase.table("samar_class_mileage_corrections")
-            .select("korekta_lt_prog, korekta_gt_prog, prog_przebiegu_km")
-            .eq("klasa_samar", samar_class_id)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            row = res.data[0]
-            return (
-                float(row.get("korekta_lt_prog", 0.0)),
-                float(row.get("korekta_gt_prog", 0.0)),
-                int(row.get("prog_przebiegu_km") or 140000),
-            )
-    except Exception as exc:
-        logger.warning("Błąd mileage corrections: %s", exc)
-    return (0.0, 0.0, 140000)
 
 
 class SamarRVCalculator:
@@ -709,12 +209,7 @@ class SamarRVCalculator:
         debug: Dict[str, Any] = {}
 
         # ── Pobranie danych ──
-        print(
-            f"\n[DEBUG_RV_DUMP] START calculate_values for class {self.data.samar_class_id}"
-        )
         rates = self._fetch_depreciation_rates()
-        print(f"[DEBUG_RV_DUMP] Rates keys: {list(rates.keys())}")
-        print(f"[DEBUG_RV_DUMP] Rate 0: {rates.get(0)}")
 
         if not rates:
             raise ValueError(
@@ -731,9 +226,7 @@ class SamarRVCalculator:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         base_netto = self.data.catalog_base_net
         options_netto = self.data.catalog_options_net
-        print(
-            f"[DEBUG_RV_DUMP] Base Netto: {base_netto}, Options Netto: {options_netto}"
-        )
+
 
         # Przybliżenie dniowe stosowane w modelu Excelowym (~30.5 dnia)
         years = int((self.data.months * 30.5) / 365)
@@ -849,25 +342,22 @@ class SamarRVCalculator:
         debug["krok4_korekta_przebieg_netto"] = round(korekta_przebieg_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 5: Korekty dodatkowe (kolor, nadwozie)
+        # KROK 5: Korekta administracyjna (V1 Parity — multiplikatywna)
+        # V1: korekta = naukaJazdy + metalik + kombi  (suma %)
+        #     WR = WRpoKorekcieZaPrzebieg * (1 - korekta)
+        # V3: korekty mają konwencję: ujemne = kara, dodatnie = bonus
+        #     WR = rv_netto_post_krok4 * (1 + suma_korekt)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         color_correction_pct = self.fetch_color_correction()
-        color_value_netto = color_correction_pct * base_netto
-
         body_correction_pct = self.fetch_body_correction()
         zabudowa_correction_pct = self.fetch_zabudowa_correction()
         catalog_total_netto = base_netto + options_netto
-        body_value_netto = body_correction_pct * catalog_total_netto
-        zabudowa_value_netto = zabudowa_correction_pct * catalog_total_netto
 
-        # Zgodnie z Monolitem nadwozie + zabudowa sumują się do korekty dodatkowej
-        krok5_body_netto = body_value_netto + zabudowa_value_netto
+        # Suma korekt administracyjnych (V1: korektaNaukaJazdy + korektaMetalik + korektaKombi)
+        korekta_admin_sum = color_correction_pct + body_correction_pct + zabudowa_correction_pct
 
-        rv_netto_pre_manual = (
-            rv_netto_post_krok4
-            + color_value_netto
-            + krok5_body_netto
-        )
+        # V1 Parity: mnożenie multiplikatywne zamiast addytywnego
+        rv_netto_pre_manual = rv_netto_post_krok4 * (1.0 + korekta_admin_sum)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 6: Korekta za Rocznik oraz na samym końcu Korekta Ręczna (V3 PARITY z Excelem)
@@ -882,8 +372,11 @@ class SamarRVCalculator:
         manual_correction_netto = self.data.manual_wr_correction
         final_rv_netto = rv_z_rocznikiem_netto + manual_correction_netto
 
-        debug["krok5_color_netto"] = round(color_value_netto, 2)
-        debug["krok5_body_netto"] = round(krok5_body_netto, 2)
+        debug["krok5_color_correction_pct"] = color_correction_pct
+        debug["krok5_body_correction_pct"] = body_correction_pct
+        debug["krok5_zabudowa_correction_pct"] = zabudowa_correction_pct
+        debug["krok5_korekta_admin_sum"] = korekta_admin_sum
+        debug["krok5_rv_netto_pre_manual"] = round(rv_netto_pre_manual, 2)
         debug["krok6_vintage_pct"] = vintage_correction_pct
         debug["krok6_vintage_netto"] = round(vintage_value_netto, 2)
         debug["krok6_manual_correction_netto"] = manual_correction_netto
@@ -917,209 +410,5 @@ class SamarRVCalculator:
             debug=debug,
         )
 
-    # (ponieważ cached functions muszą być na poziomie modułu dla @lru_cache)
 
-
-@lru_cache(maxsize=128)
-def fetch_color_correction_cached(
-    paint_type_id: Optional[int], is_metalic: bool
-) -> float:
-    """Korekta za kolor z paint_types.wr_correction."""
-    if not paint_type_id:
-        return 0.0
-    try:
-        from core.database import supabase
-
-        res = (
-            supabase.table("paint_types")
-            .select("wr_correction")
-            .eq("id", paint_type_id)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return float(res.data[0].get("wr_correction") or 0.0)
-    except Exception as exc:
-        logger.warning("Błąd color correction: %s", exc)
-    return 0.0
-
-
-@lru_cache(maxsize=128)
-def fetch_body_correction_cached(
-    engine_id: int, brand_name: str, body_type_id: Optional[int]
-) -> float:
-    """Korekta nadwozia z kaskada fallbackow (marka + nadwozie + silnik)
-    ORAZ globalny fallback z body_types.utrata_wartosci.
-    """
-    if not body_type_id:
-        return 0.0
-
-    brand = brand_name.strip().upper() if brand_name else ""
-
-    def _extract(rows: list[dict]) -> float:
-        return float(rows[0].get("correction_percent") or 0.0)
-
-    # 1. Kaskada lookupów w body_type_wr_corrections
-    try:
-        from core.database import supabase
-
-        tbl = "body_type_wr_corrections"
-        cols = "correction_percent"
-
-        # 1.1 EXACT: marka + nadwozie + silnik
-        if brand and engine_id:
-            res = (
-                supabase.table(tbl)
-                .select(cols)
-                .eq("brand_name", brand)
-                .eq("body_type_id", body_type_id)
-                .eq("engine_type_id", engine_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return _extract(res.data)
-
-        # 1.2 NO-ENGINE: marka + nadwozie (engine IS NULL)
-        if brand:
-            res = (
-                supabase.table(tbl)
-                .select(cols)
-                .eq("brand_name", brand)
-                .eq("body_type_id", body_type_id)
-                .is_("engine_type_id", "null")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return _extract(res.data)
-
-        # 1.3 NO-BODY: marka (body IS NULL, engine IS NULL)
-        if brand:
-            res = (
-                supabase.table(tbl)
-                .select(cols)
-                .eq("brand_name", brand)
-                .is_("body_type_id", "null")
-                .is_("engine_type_id", "null")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return _extract(res.data)
-
-        # 1.4 GLOBAL FALLBACK w tabeli korekt (brand='', engine=NULL)
-        res = (
-            supabase.table(tbl)
-            .select(cols)
-            .eq("brand_name", "")
-            .eq("body_type_id", body_type_id)
-            .is_("engine_type_id", "null")
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return _extract(res.data)
-
-    except Exception as exc:
-        logger.warning("Błąd kaskady body correction: %s", exc)
-
-    return 0.0
-
-
-@lru_cache(maxsize=128)
-def fetch_zabudowa_correction_cached(
-    body_type_id: Optional[int], samar_class_id: int
-) -> float:
-    """Korekta zabudowy dla dostawczych (Typ Zabudowy + Klasa SAMAR) bez marki."""
-    if not body_type_id:
-        return 0.0
-
-    def _extract(rows: list[dict]) -> float:
-        return float(rows[0].get("zabudowa_correction_percent") or 0.0)
-
-    try:
-        from core.database import supabase
-
-        tbl = "body_type_wr_corrections"
-        cols = "zabudowa_correction_percent"
-
-        # 1. Typ Zabudowy + Klasa SAMAR (brand='')
-        res = (
-            supabase.table(tbl)
-            .select(cols)
-            .eq("body_type_id", body_type_id)
-            .eq("samar_class_id", samar_class_id)
-            .eq("brand_name", "")
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return _extract(res.data)
-
-        # 2. GLOBAL FALLBACK: tylko Typ Zabudowy (samar_class IS NULL)
-        res2 = (
-            supabase.table(tbl)
-            .select(cols)
-            .eq("body_type_id", body_type_id)
-            .is_("samar_class_id", "null")
-            .eq("brand_name", "")
-            .limit(1)
-            .execute()
-        )
-        if res2.data:
-            return _extract(res2.data)
-
-    except Exception as exc:
-        logger.warning("Blad zabudowa correction: %s", exc)
-
-    return 0.0
-
-
-@lru_cache(maxsize=128)
-def fetch_vintage_correction_cached(rocznik: str) -> float:
-    """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
-    vintage_map = {"current": "bieżący", "previous": "bieżący-1"}
-    db_key = vintage_map.get(rocznik, rocznik)
-    try:
-        from core.database import supabase
-
-        res = (
-            supabase.table("ltr_admin_korekta_wr_roczniks")
-            .select("korekta_procent")
-            .ilike("rocznik", f"%{db_key}%")
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            return float(res.data[0].get("korekta_procent", 0.0))
-    except Exception as exc:
-        logger.warning("Błąd vintage correction: %s", exc)
-    return 0.0
-
-
-@lru_cache(maxsize=1)
-def fetch_lo_param_cached() -> float:
-    """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
-    try:
-        from core.database import supabase
-
-        res = (
-            supabase.table("control_center")
-            .select("przewidywana_cena_sprzedazy_lo")
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            val = res.data[0].get("przewidywana_cena_sprzedazy_lo", 0.0)
-            return float(val) if val is not None else 0.0
-    except Exception:
-        logger.warning("Nie udało się pobrać PrzewidywanaCenaSprzedazyLO")
-    return 0.0
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SamarRVCalculator — metody instancji (kontynuacja klasy z L430)
-# Monkey-patching: cached standalone functions powyżej,
-# metody instancji przypisane do klasy poniżej.
-# ═══════════════════════════════════════════════════════════════════
+    # (cached functions are defined in core.samar_rv_fetchers for @redis_cache)

@@ -129,12 +129,14 @@ def build_calculator_input(
     is_brutto = price_domain == "brutto"
 
     if price_domain == "unknown":
-        logger.warning(
-            "[MATRIX CACHE] vehicle=%s: _price_domain='unknown' — "
-            "nie udało się ustalić netto/brutto. Domyślnie traktuję "
-            "jako BRUTTO.",
+        logger.error(
+            "[MATRIX CACHE] vehicle=%s: Nie można ustalić netto/brutto "
+            "(_price_domain='unknown'). Uzupełnij pole _price_domain w "
+            "synthesis_data.card_summary. "
+            "Pojazd pominięty — Fail-Fast (błąd 23%% bez tej wartości).",
             vid,
         )
+        return None
 
     # ── Base price extraction ──
     # Priority: calculator_setup > card_summary > parsed_prices
@@ -589,8 +591,15 @@ def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
                     "Created new auto-kalkulacja %s for vehicle %s", new_kalk_id, vid
                 )
 
-            # Generate matrices synchronously
-            process_single_kalkulacja_matrix_task(new_kalk_id)
+            # Dispatch matrix generation to Celery worker (non-blocking).
+            # Lazy import to avoid circular dependency: matrix_cache_job (core/)
+            # <– tasks/matrix_tasks.py –> core/matrix_cache_job
+            from tasks.matrix_tasks import process_kalkulacja_matrix_task  # noqa: PLC0415
+
+            process_kalkulacja_matrix_task.delay(new_kalk_id)
+            logger.info(
+                "Dispatched matrix cache task to Celery for kalkulacja %s", new_kalk_id
+            )
         except Exception as e:
             logger.error(
                 "Error inserting/generating matrix for auto-kalkulacja of %s: %s",

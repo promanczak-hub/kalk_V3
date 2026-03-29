@@ -61,7 +61,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     results.length > 0 && matrixFiltersActive,
   );
   
-  const { similarVehicles: batchSimilar, loading: batchSimilarLoading } = useBatchSimilarVehicles(
+  const { similarVehicles: batchSimilar } = useBatchSimilarVehicles(
     vehicleIdsToFetchPrices,
     targetDuration,
     targetAnnualMileage,
@@ -140,7 +140,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
             priceData={batchPrices[vehicleId]}
             pricesLoading={batchPricesLoading}
             similarData={batchSimilar[vehicleId]}
-            similarLoading={batchSimilarLoading}
           />
         );
       })}

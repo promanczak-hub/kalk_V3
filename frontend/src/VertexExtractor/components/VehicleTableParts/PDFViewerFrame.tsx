@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { Loader2, AlertCircle } from "lucide-react";
 import { API_BASE_URL } from "../../../config/env";
+import { supabase } from "../../../lib/supabaseClient";
 
 // Inicjalizacja workera PDF.js - lokalny import (nie CDN)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -33,11 +34,18 @@ export function PDFViewerFrame({ url }: PDFViewerFrameProps) {
       }
 
       try {
+        // Fetch Supabase session to authenticate the request against our backend
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
         const safeUrl = url.startsWith("http")
           ? `${API_BASE_URL}/api/pdf-proxy?url=${encodeURIComponent(url)}`
           : url;
 
-        const pdf = await pdfjsLib.getDocument(safeUrl).promise;
+        const pdf = await pdfjsLib.getDocument({
+          url: safeUrl,
+          httpHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
+        }).promise;
         if (!isMounted) return;
 
         const numPages = pdf.numPages;

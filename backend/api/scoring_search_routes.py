@@ -5,6 +5,7 @@ import json
 import logging
 
 from datetime import datetime
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -33,6 +34,7 @@ from core.redis_cache import (
     _PREFIX,
     get_cache_stats,
 )
+from core.embeddings import generate_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +75,33 @@ def _redis_set(key: str, value: Any, ttl: int) -> None:
 
 def _params_hash(payload: str) -> str:
     return hashlib.md5(payload.encode(), usedforsecurity=False).hexdigest()
+
+
+def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
+    """Execute a Supabase query resolving known httpx 'Server disconnected' or timeout issues."""
+    last_exc = None
+    for attempt in range(max_retries):
+        try:
+            return query_obj.execute()
+        except Exception as e:
+            last_exc = e
+            err_str = str(e).lower()
+            if (
+                "server disconnected" in err_str
+                or "unreachable" in err_str
+                or "timeout" in err_str
+                or "connection" in err_str
+            ):
+                logger.warning(
+                    "Supabase connection issue (attempt %d/%d): %s",
+                    attempt + 1,
+                    max_retries,
+                    e,
+                )
+                time.sleep(0.5 * (2**attempt))
+                continue
+            raise e
+    raise last_exc
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -129,6 +158,18 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
     try:
         req_list = [req.model_dump() for req in request.requirements]
 
+        semantic_vector = None
+        if request.semantic_query:
+            logger.info(
+                "Generating embedding for semantic query: '%s'", request.semantic_query
+            )
+            semantic_vector = generate_embedding(request.semantic_query)
+            if semantic_vector is None:
+                logger.warning(
+                    "Failed to generate embedding for query: '%s'",
+                    request.semantic_query,
+                )
+
         resp = sb.rpc(
             "rpc_reverse_search",
             {
@@ -138,6 +179,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 "p_trims": request.trims,
                 "p_vehicle_ids": request.vehicle_ids,
                 "p_requirements": req_list,
+                "p_semantic_query_vector": semantic_vector,
             },
         ).execute()
 
@@ -283,15 +325,17 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
         if not req.vehicle_ids:
             return SimilarBatchResponse(results={})
 
-        response = sb.rpc(
-            "rpc_get_similar_vehicles_batch",
-            {
-                "p_vehicle_ids": req.vehicle_ids,
-                "p_limit": req.limit,
-                "p_duration_months": req.duration_months,
-                "p_annual_mileage": req.annual_mileage,
-            },
-        ).execute()
+        response = _supabase_execute_with_retry(
+            sb.rpc(
+                "rpc_get_similar_vehicles_batch",
+                {
+                    "p_vehicle_ids": req.vehicle_ids,
+                    "p_limit": req.limit,
+                    "p_duration_months": req.duration_months,
+                    "p_annual_mileage": req.annual_mileage,
+                },
+            )
+        )
 
         results: dict[str, list[SimilarVehicleMatch]] = {
             vid: [] for vid in req.vehicle_ids
@@ -374,14 +418,13 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
             return BatchPricesResponse(prices={})
 
         # ── Fetch all matrix cache entries ──
-        resp = (
+        resp = _supabase_execute_with_retry(
             sb.table("vehicle_matrix_cache")
             .select(
                 "vehicle_id, kalkulacja_id, duration_months, annual_mileage, monthly_price_net, tire_class, service_type, calculated_at"
             )
             .in_("vehicle_id", req.vehicle_ids)
             .limit(10000)
-            .execute()
         )
         all_rows = resp.data or []
 
@@ -399,7 +442,7 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
 
             if not v_rows_all:
                 v_prices.price_for_params = PriceForParamsResponse(
-                    vehicle_id=vid, found=False
+                    vehicle_id=vid, found=False, variants_count=0
                 )
                 results[vid] = v_prices
                 continue
@@ -432,7 +475,7 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
             latest_rows = [p[1] for p in param_map.values()]
             if not latest_rows:
                 v_prices.price_for_params = PriceForParamsResponse(
-                    vehicle_id=vid, found=False
+                    vehicle_id=vid, found=False, variants_count=0
                 )
                 results[vid] = v_prices
                 continue
@@ -453,7 +496,7 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
 
             if not valid_rows:
                 v_prices.price_for_params = PriceForParamsResponse(
-                    vehicle_id=vid, found=False
+                    vehicle_id=vid, found=False, variants_count=variants_count
                 )
                 results[vid] = v_prices
                 continue
@@ -557,7 +600,9 @@ def get_price_for_params(
         rows_all = resp.data or []
 
         if not rows_all:
-            return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
+            return PriceForParamsResponse(
+                vehicle_id=vehicle_id, found=False, variants_count=0
+            )
 
         from collections import defaultdict
 
@@ -596,7 +641,9 @@ def get_price_for_params(
 
         best_match = exact_match
         if not best_match:
-            return PriceForParamsResponse(vehicle_id=vehicle_id, found=False)
+            return PriceForParamsResponse(
+                vehicle_id=vehicle_id, found=False, variants_count=variants_count
+            )
 
         base_price_best = (
             float(best_match["monthly_price_net"])

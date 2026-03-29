@@ -1,8 +1,12 @@
 import { Banknote, Database, Loader2, Wrench, CircleDot, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
-import { ServiceOptionsManager } from "../../../components/OptionsManager/ServiceOptionsManager";
-import type { ExtractedServiceOption } from "../../../components/OptionsManager/ServiceOptionsManager";
+export interface ExtractedServiceOption {
+  name: string;
+  net_price: number;
+  description_or_components?: string[];
+  effects?: any | null;
+}
 import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
 import { CalculationReadinessBadge } from "./CalculationReadinessBadge";
@@ -154,7 +158,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
     handleRemoveServiceOption, handleAddManualServiceOption, handleRestoreAllOptions,
-    handleSaveAllOptions, isSavingServices, handleServiceOptionExtracted,
+    handleSaveAllOptions, isSavingServices,
     wiborPct, setWiborPct, marginPct, setMarginPct, pricingMarginPct, setPricingMarginPct,
     initialDepositPct, setInitialDepositPct, otherServiceCosts, setOtherServiceCosts,
     expressPaysInsurance, setExpressPaysInsurance, replacementCar, setReplacementCar,
@@ -481,9 +485,6 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                            {isSavingServices ? "Zapisywanie..." : "Zapisz Opcje i Usługi"}
                         </button>
                      </div>
-                 </div>
-                 <div className="w-full pt-2 mt-2 border-t border-slate-50">
-                     <ServiceOptionsManager onOptionExtracted={handleServiceOptionExtracted} />
                  </div>
               </div>
            </div>

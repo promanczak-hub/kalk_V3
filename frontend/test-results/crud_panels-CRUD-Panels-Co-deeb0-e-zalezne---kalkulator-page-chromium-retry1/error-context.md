@@ -1,0 +1,1564 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - button "koszyk ofert" [ref=e3] [cursor=pointer]:
+    - img [ref=e5]
+  - generic [ref=e9]:
+    - banner [ref=e10]:
+      - generic [ref=e11]:
+        - link "Express Car Rental" [ref=e12] [cursor=pointer]:
+          - /url: /
+          - img "Express Car Rental" [ref=e13]
+        - tablist "Nawigacja" [ref=e18]:
+          - tab "Ekstrakcja Danych" [selected] [ref=e19] [cursor=pointer]:
+            - img [ref=e20]
+            - text: Ekstrakcja Danych
+          - tab "Control Center" [ref=e22] [cursor=pointer]:
+            - img [ref=e23]
+            - text: Control Center
+          - tab "Biblioteka Cenników" [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+            - text: Biblioteka Cenników
+          - tab "Wyszukiwarka pojazdów" [ref=e28] [cursor=pointer]:
+            - img [ref=e29]
+            - text: Wyszukiwarka pojazdów
+          - tab "Kalkulacje Manualne" [ref=e31] [cursor=pointer]:
+            - img [ref=e32]
+            - text: Kalkulacje Manualne
+        - generic [ref=e37] [cursor=pointer]: Ctrl+K
+    - main [ref=e40]:
+      - button "Nowa kalkulacja manualna" [ref=e42] [cursor=pointer]:
+        - img [ref=e44]
+        - text: Nowa kalkulacja manualna
+      - generic [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]:
+          - img [ref=e51]
+          - generic [ref=e54]:
+            - generic [ref=e55]: Wybierz plik z komputera
+            - generic [ref=e56]: lub przeciągnij go tutaj • PDF, XLS, XLSX, PNG, JPG do 50 MB
+        - generic [ref=e57]: Prześlij pliki
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - heading "Przetworzone pojazdy" [level=2] [ref=e61]
+            - generic [ref=e62]:
+              - generic [ref=e63]:
+                - img [ref=e64]
+                - text: Baza zsynchronizowana z modelem
+                - generic [ref=e66]: v2.0_digital_twin
+              - generic [ref=e67]:
+                - text: "(Łącznie w bazie:"
+                - strong [ref=e68]: "42"
+                - text: rekordów)
+          - generic [ref=e69]:
+            - generic "Wyszukiwanie AI — wkrótce dostępne" [ref=e70]:
+              - img [ref=e72]
+              - textbox "Wyszukaj z użyciem AI (Gemini)... — wkrótce" [disabled] [ref=e75]
+              - generic [ref=e76]: Wkrótce
+            - button "Odśwież listę" [ref=e77]:
+              - img [ref=e78]
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - generic [ref=e85]:
+              - generic [ref=e86]: "Sortuj:"
+              - generic [ref=e87]:
+                - combobox [ref=e88] [cursor=pointer]:
+                  - option "Data" [selected]
+                  - option "Marka"
+                  - option "Model"
+                  - option "Klasa SAMAR"
+                  - option "Paliwo"
+                  - option "Cena"
+                - button "Malejąco" [ref=e89]:
+                  - img [ref=e90]
+            - generic [ref=e93]:
+              - img [ref=e94]
+              - 'textbox "Filtruj: klima, tapicerka, xenon..." [ref=e97]'
+            - generic [ref=e101] [cursor=pointer]: Brak Klasy SAMAR (Odznaczone)
+            - button "Reset" [ref=e102]:
+              - img [ref=e103]
+              - text: Reset
+          - generic [ref=e107]:
+            - generic [ref=e108]:
+              - generic [ref=e109]:
+                - img [ref=e110]
+                - text: Data oferty
+              - generic [ref=e112]: 22.03.2026 — 29.03.2026
+            - generic [ref=e113]:
+              - slider: "1774137600000"
+              - slider: "1774742400000"
+          - generic [ref=e117] [cursor=pointer]: Zaznacz wszystkie (25)
+        - generic [ref=e118]:
+          - navigation "pagination navigation" [ref=e120]:
+            - list [ref=e121]:
+              - listitem [ref=e122]:
+                - button "Go to previous page" [disabled]:
+                  - img
+              - listitem [ref=e123]:
+                - button "page 1" [ref=e124] [cursor=pointer]: "1"
+              - listitem [ref=e125]:
+                - button "Go to page 2" [ref=e126] [cursor=pointer]: "2"
+              - listitem [ref=e127]:
+                - button "Go to next page" [ref=e128] [cursor=pointer]:
+                  - img [ref=e129]
+          - generic [ref=e132]:
+            - generic [ref=e133]:
+              - img [ref=e134]
+              - generic [ref=e136]:
+                - heading "Błąd przetwarzania dokumentu" [level=3] [ref=e137]
+                - paragraph [ref=e138]: Nie udało się wyekstrahować bliźniaka cyfrowego.
+            - button "Usuń wpis" [ref=e139]:
+              - img [ref=e140]
+              - text: Usuń wpis
+          - generic [ref=e144] [cursor=pointer]:
+            - generic [ref=e145]:
+              - generic [ref=e148]: 28.03.2026
+              - generic [ref=e149]:
+                - generic [ref=e150]:
+                  - heading "SKODA Octavia Combi Drive Selection" [level=3] [ref=e151]
+                  - generic [ref=e152]: Drive Selection
+                  - generic "Klasyfikacja AI" [ref=e153]: Osobowy · Diesel (ON) · Automatyczna FWD
+                - paragraph [ref=e154]: 2.0 TDI 150 KM
+              - generic [ref=e155]:
+                - generic [ref=e156]: Suma Całkowita
+                - generic [ref=e158]:
+                  - generic [ref=e159]:
+                    - text: 130 962 PLN
+                    - generic [ref=e160]: brutto
+                  - generic [ref=e161]: 106 473.17 PLN netto
+              - img [ref=e163]
+            - generic [ref=e165]:
+              - generic [ref=e166]:
+                - generic "Kliknij, aby skopiować" [ref=e167]:
+                  - text: CQZXRDQL
+                  - img [ref=e168]
+                - generic [ref=e171]: "Rabat: 27%"
+              - generic [ref=e172]:
+                - generic [ref=e173]:
+                  - 'button "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA" [ref=e175]':
+                    - generic [ref=e176]: "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA"
+                    - img [ref=e177]
+                  - 'button "SILNIK: Diesel (ON)" [ref=e180]':
+                    - generic [ref=e181]: "SILNIK: Diesel (ON)"
+                    - img [ref=e182]
+                  - generic [ref=e184]: "Serwis: MID"
+                  - combobox [ref=e186]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e188]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e190]:
+                  - img [ref=e191]
+                  - text: Gotowe
+          - generic [ref=e195] [cursor=pointer]:
+            - generic [ref=e196]:
+              - generic [ref=e199]: 28.03.2026
+              - generic [ref=e200]:
+                - generic [ref=e201]:
+                  - heading "SKODA Octavia Combi Drive Selection" [level=3] [ref=e202]
+                  - generic [ref=e203]: Drive Selection
+                  - generic "Klasyfikacja AI" [ref=e204]: Osobowy · Benzyna mHEV (PB-mHEV) · Automatyczna FWD
+                - paragraph [ref=e205]: 1.5 e-TSI 150 KM
+              - generic [ref=e206]:
+                - generic [ref=e207]: Suma Całkowita
+                - generic [ref=e209]:
+                  - generic [ref=e210]:
+                    - text: 123 808 PLN
+                    - generic [ref=e211]: brutto
+                  - generic [ref=e212]: 100 656.91 PLN netto
+              - img [ref=e214]
+            - generic [ref=e216]:
+              - generic [ref=e217]:
+                - generic "Kliknij, aby skopiować" [ref=e218]:
+                  - text: CLN2SKWS
+                  - img [ref=e219]
+                - generic [ref=e222]: "Rabat: 27%"
+              - generic [ref=e223]:
+                - generic [ref=e224]:
+                  - 'button "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA" [ref=e226]':
+                    - generic [ref=e227]: "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA"
+                    - img [ref=e228]
+                  - 'button "SILNIK: Benzyna mHEV (PB-mHEV)" [ref=e231]':
+                    - generic [ref=e232]: "SILNIK: Benzyna mHEV (PB-mHEV)"
+                    - img [ref=e233]
+                  - generic [ref=e235]: "Serwis: MID"
+                  - combobox [ref=e237]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e239]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e241]:
+                  - img [ref=e242]
+                  - text: Gotowe
+          - generic [ref=e246] [cursor=pointer]:
+            - generic [ref=e247]:
+              - generic [ref=e250]: 27.03.2026
+              - generic [ref=e251]:
+                - generic [ref=e252]:
+                  - heading "SKODA Superb Combi Drive" [level=3] [ref=e253]
+                  - generic [ref=e254]: Drive
+                  - generic "Klasyfikacja AI" [ref=e255]: Osobowy · Diesel (ON) · Automatyczna FWD
+                - paragraph [ref=e256]: 2.0 TDI 150 KM
+              - generic [ref=e257]:
+                - generic [ref=e258]: Cena Katalogowa
+                - generic [ref=e260]:
+                  - generic [ref=e261]:
+                    - text: 197 650 PLN
+                    - generic [ref=e262]: brutto
+                  - generic [ref=e263]: 160 691.06 PLN netto
+              - img [ref=e265]
+            - generic [ref=e267]:
+              - generic [ref=e268]:
+                - generic "Kliknij, aby skopiować" [ref=e269]:
+                  - text: CQTF5MK8
+                  - img [ref=e270]
+                - generic [ref=e273]: Brak rabatu
+              - generic [ref=e274]:
+                - generic [ref=e275]:
+                  - 'button "SAMAR: Podstawowa - D ŚREDNIA" [ref=e277]':
+                    - generic [ref=e278]: "SAMAR: Podstawowa - D ŚREDNIA"
+                    - img [ref=e279]
+                  - 'button "SILNIK: Diesel (ON)" [ref=e282]':
+                    - generic [ref=e283]: "SILNIK: Diesel (ON)"
+                    - img [ref=e284]
+                  - generic [ref=e286]: "Serwis: MID"
+                  - combobox [ref=e288]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e290]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e292]:
+                  - img [ref=e293]
+                  - text: Gotowe
+          - generic [ref=e297] [cursor=pointer]:
+            - generic [ref=e298]:
+              - generic [ref=e301]: 27.03.2026
+              - generic [ref=e302]:
+                - generic [ref=e303]:
+                  - heading "VOLVO XC60" [level=3] [ref=e304]
+                  - generic [ref=e305]: Ultra DARK
+                  - generic "Klasyfikacja AI" [ref=e306]: Osobowy · Benzyna mHEV (PB-mHEV) · 8-stopniowa automatyczna skrzynia biegów Geartronic™, AWD
+                - paragraph [ref=e307]: B5 AWD Mild-Hybrid 250 + 14 KM
+              - generic [ref=e308]:
+                - generic [ref=e309]: Suma Całkowita
+                - generic [ref=e311]:
+                  - generic [ref=e312]:
+                    - text: 230 000 PLN
+                    - generic [ref=e313]: brutto
+                  - generic [ref=e314]: 186 991.87 PLN netto
+              - img [ref=e316]
+            - generic [ref=e318]:
+              - generic [ref=e319]:
+                - generic "Kliknij, aby skopiować" [ref=e320]:
+                  - text: OFR/N/2602/3932
+                  - img [ref=e321]
+                - generic [ref=e324]: Brak rabatu
+              - generic [ref=e325]:
+                - generic [ref=e326]:
+                  - 'button "SAMAR: Terenowo-rekreacyjne (SUV) - D ŚREDNIA" [ref=e328]':
+                    - generic [ref=e329]: "SAMAR: Terenowo-rekreacyjne (SUV) - D ŚREDNIA"
+                    - img [ref=e330]
+                  - 'button "SILNIK: Benzyna mHEV (PB-mHEV)" [ref=e333]':
+                    - generic [ref=e334]: "SILNIK: Benzyna mHEV (PB-mHEV)"
+                    - img [ref=e335]
+                  - generic [ref=e337]: "Serwis: HIGH"
+                  - combobox [ref=e339]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e341]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "SUV" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e343]:
+                  - img [ref=e344]
+                  - text: Gotowe
+          - generic [ref=e348] [cursor=pointer]:
+            - generic [ref=e349]:
+              - generic [ref=e352]: 27.03.2026
+              - generic [ref=e353]:
+                - generic [ref=e354]:
+                  - heading "SKODA Fabia Selection" [level=3] [ref=e355]
+                  - generic [ref=e356]: Selection
+                  - generic "Klasyfikacja AI" [ref=e357]: Osobowy · Benzyna (PB) · Automatyczna, 7-biegowa DSG FWD
+                - paragraph [ref=e358]: 1.0 115 KM
+              - generic [ref=e359]:
+                - generic [ref=e360]: Cena Katalogowa
+                - generic [ref=e362]:
+                  - generic [ref=e363]:
+                    - text: 89 299.99 PLN
+                    - generic [ref=e364]: brutto
+                  - generic [ref=e365]: 72 601.62 PLN netto
+              - img [ref=e367]
+            - generic [ref=e369]:
+              - generic [ref=e370]:
+                - generic "Kliknij, aby skopiować" [ref=e371]:
+                  - text: GOC-24-366166
+                  - img [ref=e372]
+                - generic "Kliknij, aby skopiować" [ref=e375]:
+                  - text: C9EMHCTA
+                  - img [ref=e376]
+                - generic [ref=e379]: Brak rabatu
+              - generic [ref=e380]:
+                - generic [ref=e381]:
+                  - 'button "SAMAR: Podstawowa - B MAŁE" [ref=e383]':
+                    - generic [ref=e384]: "SAMAR: Podstawowa - B MAŁE"
+                    - img [ref=e385]
+                  - 'button "SILNIK: Benzyna (PB)" [ref=e388]':
+                    - generic [ref=e389]: "SILNIK: Benzyna (PB)"
+                    - img [ref=e390]
+                  - generic [ref=e392]: "Serwis: LOW"
+                  - combobox [ref=e394]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e396]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Hatchback" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e398]:
+                  - img [ref=e399]
+                  - text: Gotowe
+                - button "Lepszy rabat (+17 pp.) →" [ref=e402]:
+                  - img [ref=e403]
+                  - text: Lepszy rabat (+17 pp.) →
+          - generic [ref=e406] [cursor=pointer]:
+            - generic [ref=e407]:
+              - generic [ref=e410]: 27.03.2026
+              - generic [ref=e411]:
+                - generic [ref=e412]:
+                  - heading "CUPRA Terramar Advantage Edition 204 KM" [level=3] [ref=e413]
+                  - generic [ref=e414]: Advantage Edition
+                  - generic "Klasyfikacja AI" [ref=e415]: Osobowy · Benzyna (PB) · 7-biegowa automatyczna DSG 4Drive
+                - paragraph [ref=e416]: 2.0 TSI 204 KM
+              - generic [ref=e417]:
+                - generic [ref=e418]: Suma Całkowita
+                - generic [ref=e420]:
+                  - generic [ref=e421]:
+                    - text: 219 803 PLN
+                    - generic [ref=e422]: brutto
+                  - generic [ref=e423]: 178 701.63 PLN netto
+              - img [ref=e425]
+            - generic [ref=e427]:
+              - generic [ref=e428]:
+                - generic "Kliknij, aby skopiować" [ref=e429]:
+                  - text: GOS-26-059101
+                  - img [ref=e430]
+                - generic "Kliknij, aby skopiować" [ref=e433]:
+                  - text: "1361712"
+                  - img [ref=e434]
+                - generic [ref=e437]: Brak rabatu
+              - generic [ref=e438]:
+                - generic [ref=e439]:
+                  - 'button "SAMAR: Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA" [ref=e441]':
+                    - generic [ref=e442]: "SAMAR: Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA"
+                    - img [ref=e443]
+                  - 'button "SILNIK: Benzyna (PB)" [ref=e446]':
+                    - generic [ref=e447]: "SILNIK: Benzyna (PB)"
+                    - img [ref=e448]
+                  - generic [ref=e450]: "Serwis: HIGH"
+                  - combobox [ref=e452]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e454]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "SUV" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e456]:
+                  - img [ref=e457]
+                  - text: Gotowe
+          - generic [ref=e461] [cursor=pointer]:
+            - generic [ref=e462]:
+              - generic [ref=e465]: 27.03.2026
+              - generic [ref=e466]:
+                - generic [ref=e467]:
+                  - heading "VOLKSWAGEN Crafter Furgon. Furgon z wysokim dachem" [level=3] [ref=e468]
+                  - generic [ref=e469]: Furgon z wysokim dachem
+                  - generic "Klasyfikacja AI" [ref=e470]: Ciężarowy · Diesel (ON) · Automatyczna AWD
+                - paragraph [ref=e471]: 2.0 TDI 177 KM
+              - generic [ref=e472]:
+                - generic [ref=e473]: Suma Całkowita
+                - generic [ref=e475]:
+                  - generic [ref=e476]:
+                    - text: 189 803.27 PLN
+                    - generic [ref=e477]: brutto
+                  - generic [ref=e478]: 154 311.6 PLN netto
+              - img [ref=e480]
+            - generic [ref=e482]:
+              - generic [ref=e483]:
+                - generic "Kliknij, aby skopiować" [ref=e484]:
+                  - text: NTLNVMLD
+                  - img [ref=e485]
+                - generic [ref=e488]: "Rabat: 31%"
+              - generic [ref=e489]:
+                - generic [ref=e490]:
+                  - 'button "SAMAR: Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE" [ref=e492]':
+                    - generic [ref=e493]: "SAMAR: Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE"
+                    - img [ref=e494]
+                  - 'button "SILNIK: Diesel (ON)" [ref=e497]':
+                    - generic [ref=e498]: "SILNIK: Diesel (ON)"
+                    - img [ref=e499]
+                  - generic [ref=e501]: "Serwis: MID"
+                  - combobox [ref=e503]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e505]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Furgon" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e507]:
+                  - img [ref=e508]
+                  - text: Gotowe
+          - generic [ref=e512] [cursor=pointer]:
+            - generic [ref=e513]:
+              - generic [ref=e516]: 24.03.2026
+              - generic [ref=e517]:
+                - generic [ref=e518]:
+                  - heading "SKODA Octavia Combi Drive Essence" [level=3] [ref=e519]
+                  - generic [ref=e520]: Drive Essence
+                  - generic "Klasyfikacja AI" [ref=e521]: Osobowy · Benzyna mHEV (PB-mHEV) · Automatyczna FWD
+                - paragraph [ref=e522]: 1.5 e-TSI 150 KM
+              - generic [ref=e523]:
+                - generic [ref=e524]: Suma Całkowita
+                - generic [ref=e526]:
+                  - generic [ref=e527]:
+                    - text: 102 236.49 PLN
+                    - generic [ref=e528]: brutto
+                  - generic [ref=e529]: 83 119.1 PLN netto
+              - img [ref=e531]
+            - generic [ref=e533]:
+              - generic [ref=e534]:
+                - generic "Kliknij, aby skopiować" [ref=e535]:
+                  - text: CLV96YHW
+                  - img [ref=e536]
+                - generic [ref=e539]: "Rabat: 27%"
+              - generic [ref=e540]:
+                - generic [ref=e541]:
+                  - 'button "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA" [ref=e543]':
+                    - generic [ref=e544]: "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA"
+                    - img [ref=e545]
+                  - 'button "SILNIK: Benzyna mHEV (PB-mHEV)" [ref=e548]':
+                    - generic [ref=e549]: "SILNIK: Benzyna mHEV (PB-mHEV)"
+                    - img [ref=e550]
+                  - generic [ref=e552]: "Serwis: MID"
+                  - combobox [ref=e554]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e556]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e558]:
+                  - img [ref=e559]
+                  - text: Gotowe
+          - generic [ref=e563] [cursor=pointer]:
+            - generic [ref=e564]:
+              - generic [ref=e567]: 23.03.2026
+              - generic [ref=e568]:
+                - generic [ref=e569]:
+                  - heading "SKODA Škoda Superb Combi Sportline" [level=3] [ref=e570]
+                  - generic [ref=e571]: Sportline
+                  - generic "Klasyfikacja AI" [ref=e572]: Osobowy · Diesel (ON) · 7-biegowa automatyczna DSG 4x4
+                - paragraph [ref=e573]: 2.0 TDI 200 KM
+              - generic [ref=e574]:
+                - generic [ref=e575]: Suma Całkowita
+                - generic [ref=e577]:
+                  - generic [ref=e578]:
+                    - text: 171 341.99 PLN
+                    - generic [ref=e579]: brutto
+                  - generic [ref=e580]: 139 302.43 PLN netto
+              - img [ref=e582]
+            - generic [ref=e584]:
+              - generic [ref=e585]:
+                - generic "Kliknij, aby skopiować" [ref=e586]:
+                  - text: GOC-23-150658
+                  - img [ref=e587]
+                - generic "Kliknij, aby skopiować" [ref=e590]:
+                  - text: TMBLR7NP1P7050098
+                  - img [ref=e591]
+                - generic [ref=e594]: "Rabat: 24%"
+              - generic [ref=e595]:
+                - generic [ref=e596]:
+                  - 'button "SAMAR: Podstawowa - D ŚREDNIA" [ref=e598]':
+                    - generic [ref=e599]: "SAMAR: Podstawowa - D ŚREDNIA"
+                    - img [ref=e600]
+                  - 'button "SILNIK: Diesel (ON)" [ref=e603]':
+                    - generic [ref=e604]: "SILNIK: Diesel (ON)"
+                    - img [ref=e605]
+                  - generic [ref=e607]: "Serwis: MID"
+                  - combobox [ref=e609]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e611]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e613]:
+                  - img [ref=e614]
+                  - text: Gotowe
+          - generic [ref=e618] [cursor=pointer]:
+            - generic [ref=e619]:
+              - generic [ref=e622]: 23.03.2026
+              - generic [ref=e623]:
+                - generic [ref=e624]:
+                  - heading "CUPRA Leon Sportstourer" [level=3] [ref=e625]
+                  - generic "Klasyfikacja AI" [ref=e626]: Osobowy · Wodór (FCEV) · 7-biegowa automatyczna - DSG FWD
+                - paragraph [ref=e627]: 150 KM
+              - generic [ref=e628]:
+                - generic [ref=e629]: Suma Całkowita
+                - generic [ref=e631]:
+                  - generic [ref=e632]:
+                    - text: 128 198.21 PLN
+                    - generic [ref=e633]: brutto
+                  - generic [ref=e634]: 104 226.19 PLN netto
+              - img [ref=e636]
+            - generic [ref=e638]:
+              - generic [ref=e639]:
+                - generic "Kliknij, aby skopiować" [ref=e640]:
+                  - text: GOS-25-171260
+                  - img [ref=e641]
+                - generic "Kliknij, aby skopiować" [ref=e644]:
+                  - text: "1262663"
+                  - img [ref=e645]
+                - generic [ref=e648]: "Rabat: 27%"
+              - generic [ref=e649]:
+                - generic [ref=e650]:
+                  - 'button "SAMAR: Średnie dostawcze - ŚREDNIE DOSTAWCZE" [ref=e652]':
+                    - generic [ref=e653]: "SAMAR: Średnie dostawcze - ŚREDNIE DOSTAWCZE"
+                    - img [ref=e654]
+                  - 'button "SILNIK: Wodór (FCEV)" [ref=e657]':
+                    - generic [ref=e658]: "SILNIK: Wodór (FCEV)"
+                    - img [ref=e659]
+                  - generic [ref=e661]: "Serwis: MID"
+                  - combobox [ref=e663]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e665]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e667]:
+                  - img [ref=e668]
+                  - text: Gotowe
+          - generic [ref=e672] [cursor=pointer]:
+            - generic [ref=e673]:
+              - generic [ref=e676]: 23.03.2026
+              - generic [ref=e677]:
+                - generic [ref=e678]:
+                  - heading "BMW 320i Touring" [level=3] [ref=e679]
+                  - generic [ref=e680]: Pakiet sportowy M
+                  - generic "Klasyfikacja AI" [ref=e681]: Osobowy · Benzyna (PB) · Automatyczna RWD
+                - paragraph [ref=e682]: 2.0 320i 184 KM
+              - generic [ref=e683]:
+                - generic [ref=e684]: Suma Całkowita
+                - generic [ref=e686]:
+                  - generic [ref=e687]:
+                    - text: 181 090 PLN
+                    - generic [ref=e688]: brutto
+                  - generic [ref=e689]: 147 227.64 PLN netto
+              - img [ref=e691]
+            - generic [ref=e693]:
+              - generic [ref=e694]:
+                - generic "Kliknij, aby skopiować" [ref=e695]:
+                  - text: "145218"
+                  - img [ref=e696]
+                - generic "Kliknij, aby skopiować" [ref=e699]:
+                  - text: w3d6akc2
+                  - img [ref=e700]
+                - generic [ref=e703]: "Rabat: 30%"
+              - generic [ref=e704]:
+                - generic [ref=e705]:
+                  - 'button "SAMAR: Podstawowa - D ŚREDNIA" [ref=e707]':
+                    - generic [ref=e708]: "SAMAR: Podstawowa - D ŚREDNIA"
+                    - img [ref=e709]
+                  - 'button "SILNIK: Benzyna (PB)" [ref=e712]':
+                    - generic [ref=e713]: "SILNIK: Benzyna (PB)"
+                    - img [ref=e714]
+                  - generic [ref=e716]: "Serwis: MID"
+                  - combobox [ref=e718]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)" [selected]
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e720]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e722]:
+                  - img [ref=e723]
+                  - text: Gotowe
+          - generic [ref=e727] [cursor=pointer]:
+            - generic [ref=e728]:
+              - generic [ref=e731]: 23.03.2026
+              - generic [ref=e732]:
+                - generic [ref=e733]:
+                  - heading "AUDI A8 50 TDI quattro tiptronic" [level=3] [ref=e734]
+                  - generic [ref=e735]: S line
+                  - generic "Klasyfikacja AI" [ref=e736]: Osobowy · Plug-in Hybrid (PHEV) · Automatyczna quattro
+                - paragraph [ref=e737]: 3.0 TDI 286 KM
+              - generic [ref=e738]:
+                - generic [ref=e739]: Suma Całkowita
+                - generic [ref=e741]:
+                  - generic [ref=e742]:
+                    - text: 511 616.81 PLN
+                    - generic [ref=e743]: brutto
+                  - generic [ref=e744]: 415 948.63 PLN netto
+              - img [ref=e746]
+            - generic [ref=e748]:
+              - generic [ref=e749]:
+                - generic "Kliknij, aby skopiować" [ref=e750]:
+                  - text: GOA-26-103533
+                  - img [ref=e751]
+                - generic "Kliknij, aby skopiować" [ref=e754]:
+                  - text: "2026100377"
+                  - img [ref=e755]
+                - generic [ref=e758]: "Rabat: 24%"
+              - generic [ref=e759]:
+                - generic [ref=e760]:
+                  - 'button "SAMAR: Sportowo-rekreacyjne - B MAŁE" [ref=e762]':
+                    - generic [ref=e763]: "SAMAR: Sportowo-rekreacyjne - B MAŁE"
+                    - img [ref=e764]
+                  - 'button "SILNIK: Plug-in Hybrid (PHEV)" [ref=e767]':
+                    - generic [ref=e768]: "SILNIK: Plug-in Hybrid (PHEV)"
+                    - img [ref=e769]
+                  - generic [ref=e771]: "Serwis: HIGH"
+                  - combobox [ref=e773]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e775]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Sedan" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e777]:
+                  - img [ref=e778]
+                  - text: Gotowe
+          - generic [ref=e782] [cursor=pointer]:
+            - generic [ref=e783]:
+              - generic [ref=e786]: 23.03.2026
+              - generic [ref=e787]:
+                - generic [ref=e788]:
+                  - heading "SKODA Škoda Superb Edition 130" [level=3] [ref=e789]
+                  - generic [ref=e790]: Edition 130
+                  - generic "Klasyfikacja AI" [ref=e791]: Osobowy · Diesel mHEV (ON-mHEV) · Automatyczna 4x4
+                - paragraph [ref=e792]: 2.0 TDI 193 KM 4x4
+              - generic [ref=e793]:
+                - generic [ref=e794]: Suma Całkowita
+                - generic [ref=e796]:
+                  - generic [ref=e797]:
+                    - text: 178 675.99 PLN
+                    - generic [ref=e798]: brutto
+                  - generic [ref=e799]: 145 265.03 PLN netto
+              - img [ref=e801]
+            - generic [ref=e803]:
+              - generic [ref=e804]:
+                - generic "Kliknij, aby skopiować" [ref=e805]:
+                  - text: GOC-25-538131
+                  - img [ref=e806]
+                - generic "Kliknij, aby skopiować" [ref=e809]:
+                  - text: TMBCRONZ8SC054951
+                  - img [ref=e810]
+                - generic [ref=e813]: "Rabat: 24%"
+              - generic [ref=e814]:
+                - generic [ref=e815]:
+                  - 'button "SAMAR: Podstawowa - D ŚREDNIA" [ref=e817]':
+                    - generic [ref=e818]: "SAMAR: Podstawowa - D ŚREDNIA"
+                    - img [ref=e819]
+                  - 'button "SILNIK: Diesel mHEV (ON-mHEV)" [ref=e822]':
+                    - generic [ref=e823]: "SILNIK: Diesel mHEV (ON-mHEV)"
+                    - img [ref=e824]
+                  - generic [ref=e826]: "Serwis: MID"
+                  - combobox [ref=e828]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e830]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e832]:
+                  - img [ref=e833]
+                  - text: Gotowe
+          - generic [ref=e837] [cursor=pointer]:
+            - generic [ref=e838]:
+              - generic [ref=e841]: 23.03.2026
+              - generic [ref=e842]:
+                - generic [ref=e843]:
+                  - heading "SKODA Fabia Selection" [level=3] [ref=e844]
+                  - generic [ref=e845]: Selection
+                  - generic "Klasyfikacja AI" [ref=e846]: Osobowy · Benzyna (PB) · 7-biegowa DSG
+                - paragraph [ref=e847]: 1.0 TSI 115 KM
+              - generic [ref=e848]:
+                - generic [ref=e849]: Suma Całkowita
+                - generic [ref=e851]:
+                  - generic [ref=e852]:
+                    - text: 76 941 PLN
+                    - generic [ref=e853]: brutto
+                  - generic [ref=e854]: 62 553.66 PLN netto
+              - img [ref=e856]
+            - generic [ref=e858]:
+              - generic [ref=e859]:
+                - generic "Kliknij, aby skopiować" [ref=e860]:
+                  - text: GOC-26-12918
+                  - img [ref=e861]
+                - generic "Kliknij, aby skopiować" [ref=e864]:
+                  - text: CYTTCLYM
+                  - img [ref=e865]
+                - generic [ref=e868]: "Rabat: 17%"
+              - generic [ref=e869]:
+                - generic [ref=e870]:
+                  - 'button "SAMAR: Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE" [ref=e872]':
+                    - generic [ref=e873]: "SAMAR: Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE"
+                    - img [ref=e874]
+                  - 'button "SILNIK: Benzyna (PB)" [ref=e877]':
+                    - generic [ref=e878]: "SILNIK: Benzyna (PB)"
+                    - img [ref=e879]
+                  - generic [ref=e881]: "Serwis: LOW"
+                  - combobox [ref=e883]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e885]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Hatchback" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e887]:
+                  - img [ref=e888]
+                  - text: Gotowe
+          - generic [ref=e892] [cursor=pointer]:
+            - generic [ref=e893]:
+              - generic [ref=e896]: 23.03.2026
+              - generic [ref=e897]:
+                - generic [ref=e898]:
+                  - heading "AUDI Q8 SUV TFSI e quattro tiptronic" [level=3] [ref=e899]
+                  - generic [ref=e900]: S line
+                  - generic "Klasyfikacja AI" [ref=e901]: Osobowy · Diesel (ON) · Automatyczna AWD
+                - paragraph [ref=e902]: 3.0 TFSI e 490 KM
+              - generic [ref=e903]:
+                - generic [ref=e904]: Suma Całkowita
+                - generic [ref=e906]:
+                  - generic [ref=e907]:
+                    - text: 399 038.01 PLN
+                    - generic [ref=e908]: brutto
+                  - generic [ref=e909]: 324 421.15 PLN netto
+              - img [ref=e911]
+            - generic [ref=e913]:
+              - generic [ref=e914]:
+                - generic "Kliknij, aby skopiować" [ref=e915]:
+                  - text: GOA-26-27743
+                  - img [ref=e916]
+                - generic "Kliknij, aby skopiować" [ref=e919]:
+                  - text: AKR25V66
+                  - img [ref=e920]
+                - generic [ref=e923]: "Rabat: 24%"
+              - generic [ref=e924]:
+                - generic [ref=e925]:
+                  - 'button "SAMAR: Terenowo-rekreacyjne (SUV) - E WYŻSZA" [ref=e927]':
+                    - generic [ref=e928]: "SAMAR: Terenowo-rekreacyjne (SUV) - E WYŻSZA"
+                    - img [ref=e929]
+                  - 'button "SILNIK: Diesel (ON)" [ref=e932]':
+                    - generic [ref=e933]: "SILNIK: Diesel (ON)"
+                    - img [ref=e934]
+                  - generic [ref=e936]: "Serwis: HIGH"
+                  - combobox [ref=e938]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e940]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "SUV" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e942]:
+                  - img [ref=e943]
+                  - text: Gotowe
+          - generic [ref=e947] [cursor=pointer]:
+            - generic [ref=e948]:
+              - generic [ref=e951]: 22.03.2026
+              - generic [ref=e952]:
+                - generic [ref=e953]:
+                  - heading "SKODA Superb Drive" [level=3] [ref=e954]
+                  - generic [ref=e955]: Drive
+                  - generic "Klasyfikacja AI" [ref=e956]: Osobowy · Diesel mHEV (ON-mHEV) · Automatyczna FWD
+                - paragraph [ref=e957]: 1.5 TSI 150 KM
+              - generic [ref=e958]:
+                - generic [ref=e959]: Suma Całkowita
+                - generic [ref=e961]:
+                  - generic [ref=e962]:
+                    - text: 148 010.01 PLN
+                    - generic [ref=e963]: brutto
+                  - generic [ref=e964]: 120 333.34 PLN netto
+              - img [ref=e966]
+            - generic [ref=e968]:
+              - generic [ref=e969]:
+                - generic "Kliknij, aby skopiować" [ref=e970]:
+                  - text: CD6MDVS9
+                  - img [ref=e971]
+                - generic [ref=e974]: "Rabat: 24%"
+              - generic [ref=e975]:
+                - generic [ref=e976]:
+                  - 'button "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA" [ref=e978]':
+                    - generic [ref=e979]: "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA"
+                    - img [ref=e980]
+                  - 'button "SILNIK: Diesel mHEV (ON-mHEV)" [ref=e983]':
+                    - generic [ref=e984]: "SILNIK: Diesel mHEV (ON-mHEV)"
+                    - img [ref=e985]
+                  - generic [ref=e987]: "Serwis: MID"
+                  - combobox [ref=e989]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e991]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e993]:
+                  - img [ref=e994]
+                  - text: Gotowe
+          - generic [ref=e998] [cursor=pointer]:
+            - generic [ref=e999]:
+              - generic [ref=e1002]: 22.03.2026
+              - generic [ref=e1003]:
+                - generic [ref=e1004]:
+                  - heading "CUPRA Terramar" [level=3] [ref=e1005]
+                  - generic "Klasyfikacja AI" [ref=e1006]: Osobowy · Hybryda (HEV) · Automatyczna DSG 4Drive
+                - paragraph [ref=e1007]: 204 KM 7-biegowa automatyczna DSG 4Drive
+              - generic [ref=e1008]:
+                - generic [ref=e1009]: Suma Całkowita
+                - generic [ref=e1011]:
+                  - generic [ref=e1012]:
+                    - text: 166 244.44 PLN
+                    - generic [ref=e1013]: brutto
+                  - generic [ref=e1014]: 135 158.08 PLN netto
+              - img [ref=e1016]
+            - generic [ref=e1018]:
+              - generic [ref=e1019]:
+                - generic "Kliknij, aby skopiować" [ref=e1020]:
+                  - text: GOS-26-059109
+                  - img [ref=e1021]
+                - generic "Kliknij, aby skopiować" [ref=e1024]:
+                  - text: "1361714"
+                  - img [ref=e1025]
+                - generic [ref=e1028]: "Rabat: 21%"
+              - generic [ref=e1029]:
+                - generic [ref=e1030]:
+                  - 'button "SAMAR: Sportowo-rekreacyjne - F LUKSUSOWE" [ref=e1032]':
+                    - generic [ref=e1033]: "SAMAR: Sportowo-rekreacyjne - F LUKSUSOWE"
+                    - img [ref=e1034]
+                  - 'button "SILNIK: Hybryda (HEV)" [ref=e1037]':
+                    - generic [ref=e1038]: "SILNIK: Hybryda (HEV)"
+                    - img [ref=e1039]
+                  - generic [ref=e1041]: "Serwis: HIGH"
+                  - combobox [ref=e1043]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e1045]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "SUV" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e1047]:
+                  - img [ref=e1048]
+                  - text: Gotowe
+          - generic [ref=e1052] [cursor=pointer]:
+            - generic [ref=e1053]:
+              - generic [ref=e1056]: 22.03.2026
+              - generic [ref=e1057]:
+                - generic [ref=e1058]:
+                  - heading "CUPRA Terramar" [level=3] [ref=e1059]
+                  - generic "Klasyfikacja AI" [ref=e1060]: Osobowy · Benzyna (PB) · Automatyczna DSG 4Drive
+                - paragraph [ref=e1061]: 2.0 204 KM 4Drive DSG
+              - generic [ref=e1062]:
+                - generic [ref=e1063]: Suma Całkowita
+                - generic [ref=e1065]:
+                  - generic [ref=e1066]:
+                    - text: 170 011.15 PLN
+                    - generic [ref=e1067]: brutto
+                  - generic [ref=e1068]: 138 220.45 PLN netto
+              - img [ref=e1070]
+            - generic [ref=e1072]:
+              - generic [ref=e1073]:
+                - generic "Kliknij, aby skopiować" [ref=e1074]:
+                  - text: GOS-26-059093
+                  - img [ref=e1075]
+                - generic [ref=e1078]: "Rabat: 21%"
+              - generic [ref=e1079]:
+                - generic [ref=e1080]:
+                  - 'button "SAMAR: Podstawowa - D ŚREDNIA" [ref=e1082]':
+                    - generic [ref=e1083]: "SAMAR: Podstawowa - D ŚREDNIA"
+                    - img [ref=e1084]
+                  - 'button "SILNIK: Benzyna (PB)" [ref=e1087]':
+                    - generic [ref=e1088]: "SILNIK: Benzyna (PB)"
+                    - img [ref=e1089]
+                  - generic [ref=e1091]: "Serwis: HIGH"
+                  - combobox [ref=e1093]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e1095]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "SUV" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e1097]:
+                  - img [ref=e1098]
+                  - text: Gotowe
+          - generic [ref=e1102] [cursor=pointer]:
+            - generic [ref=e1103]:
+              - generic [ref=e1106]: 22.03.2026
+              - generic [ref=e1107]:
+                - generic [ref=e1108]:
+                  - heading "SKODA Superb Combi L&K" [level=3] [ref=e1109]
+                  - generic [ref=e1110]: L&K
+                  - generic "Klasyfikacja AI" [ref=e1111]: Osobowy · Wodór (FCEV) · Automatyczna 4x4
+                - paragraph [ref=e1112]: 2.0 TDI 193 KM 4x4
+              - generic [ref=e1113]:
+                - generic [ref=e1114]: Suma Całkowita
+                - generic [ref=e1116]:
+                  - generic [ref=e1117]:
+                    - text: 214 785.99 PLN
+                    - generic [ref=e1118]: brutto
+                  - generic [ref=e1119]: 174 622.76 PLN netto
+              - img [ref=e1121]
+            - generic [ref=e1123]:
+              - generic [ref=e1124]:
+                - generic "Kliknij, aby skopiować" [ref=e1125]:
+                  - text: CJYHGY2X
+                  - img [ref=e1126]
+                - generic [ref=e1129]: "Rabat: 24%"
+              - generic [ref=e1130]:
+                - generic [ref=e1131]:
+                  - 'button "SAMAR: Średnie dostawcze - ŚREDNIE DOSTAWCZE" [ref=e1133]':
+                    - generic [ref=e1134]: "SAMAR: Średnie dostawcze - ŚREDNIE DOSTAWCZE"
+                    - img [ref=e1135]
+                  - 'button "SILNIK: Wodór (FCEV)" [ref=e1138]':
+                    - generic [ref=e1139]: "SILNIK: Wodór (FCEV)"
+                    - img [ref=e1140]
+                  - generic [ref=e1142]: "Serwis: MID"
+                  - combobox [ref=e1144]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)"
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)" [selected]
+                  - combobox [ref=e1146]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e1148]:
+                  - img [ref=e1149]
+                  - text: Gotowe
+          - generic [ref=e1153] [cursor=pointer]:
+            - generic [ref=e1154]:
+              - generic [ref=e1157]: 22.03.2026
+              - generic [ref=e1158]:
+                - generic [ref=e1159]:
+                  - heading "SKODA Octavia Combi Drive Selection" [level=3] [ref=e1160]
+                  - generic [ref=e1161]: Drive Selection
+                  - generic "Klasyfikacja AI" [ref=e1162]: Osobowy · Diesel (ON) · 7-biegowa automatyczna
+                - paragraph [ref=e1163]: 2.0 TDI 150 KM
+              - generic [ref=e1164]:
+                - generic [ref=e1165]: Suma Całkowita
+                - generic [ref=e1167]:
+                  - generic [ref=e1168]:
+                    - text: 130 962 PLN
+                    - generic [ref=e1169]: brutto
+                  - generic [ref=e1170]: 106 473.17 PLN netto
+              - img [ref=e1172]
+            - generic [ref=e1174]:
+              - generic [ref=e1175]:
+                - generic "Kliknij, aby skopiować" [ref=e1176]:
+                  - text: CQZXRDQL
+                  - img [ref=e1177]
+                - generic [ref=e1180]: "Rabat: 27%"
+              - generic [ref=e1181]:
+                - generic [ref=e1182]:
+                  - 'button "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA" [ref=e1184]':
+                    - generic [ref=e1185]: "SAMAR: Podstawowa - C NIŻSZA ŚREDNIA"
+                    - img [ref=e1186]
+                  - 'button "SILNIK: Diesel (ON)" [ref=e1189]':
+                    - generic [ref=e1190]: "SILNIK: Diesel (ON)"
+                    - img [ref=e1191]
+                  - generic [ref=e1193]: "Serwis: MID"
+                  - combobox [ref=e1195]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e1197]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e1199]:
+                  - img [ref=e1200]
+                  - text: Gotowe
+          - generic [ref=e1204] [cursor=pointer]:
+            - generic [ref=e1205]:
+              - generic [ref=e1208]: 22.03.2026
+              - generic [ref=e1209]:
+                - generic [ref=e1210]:
+                  - heading "VOLKSWAGEN Passat Business Plus" [level=3] [ref=e1211]
+                  - generic [ref=e1212]: Business
+                  - generic "Klasyfikacja AI" [ref=e1213]: Osobowy · Hybryda (HEV) · DSG, 7-stopniowa FWD
+                - paragraph [ref=e1214]: 1.5 eTSI 150 KM
+              - generic [ref=e1215]:
+                - generic [ref=e1216]: Cena Katalogowa
+                - generic [ref=e1218]:
+                  - generic [ref=e1219]:
+                    - text: 197 080.01 PLN
+                    - generic [ref=e1220]: brutto
+                  - generic [ref=e1221]: 160 227.65 PLN netto
+              - img [ref=e1223]
+            - generic [ref=e1225]:
+              - generic [ref=e1226]:
+                - generic "Kliknij, aby skopiować" [ref=e1227]:
+                  - text: V2MKHN2S
+                  - img [ref=e1228]
+                - generic [ref=e1231]: Brak rabatu
+              - generic [ref=e1232]:
+                - generic [ref=e1233]:
+                  - 'button "SAMAR: Lekkie dostawcze - KOMBI VAN" [ref=e1235]':
+                    - generic [ref=e1236]: "SAMAR: Lekkie dostawcze - KOMBI VAN"
+                    - img [ref=e1237]
+                  - 'button "SILNIK: Hybryda (HEV)" [ref=e1240]':
+                    - generic [ref=e1241]: "SILNIK: Hybryda (HEV)"
+                    - img [ref=e1242]
+                  - generic [ref=e1244]: "Serwis: MID"
+                  - combobox [ref=e1246]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e1248]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e1250]:
+                  - img [ref=e1251]
+                  - text: Gotowe
+          - generic [ref=e1255] [cursor=pointer]:
+            - generic [ref=e1256]:
+              - generic [ref=e1259]: 22.03.2026
+              - generic [ref=e1260]:
+                - generic [ref=e1261]:
+                  - heading "SKODA Octavia Combi Edition 130 Selection" [level=3] [ref=e1262]
+                  - generic [ref=e1263]: Selection
+                  - generic "Klasyfikacja AI" [ref=e1264]: Osobowy · Benzyna mHEV (PB-mHEV) · Automatyczna, 7-biegowa FWD
+                - paragraph [ref=e1265]: 2.0 TDI 150 KM
+              - generic [ref=e1266]:
+                - generic [ref=e1267]: Suma Całkowita
+                - generic [ref=e1269]:
+                  - generic [ref=e1270]:
+                    - text: 132 458.5 PLN
+                    - generic [ref=e1271]: brutto
+                  - generic [ref=e1272]: 107 689.84 PLN netto
+              - img [ref=e1274]
+            - generic [ref=e1276]:
+              - generic [ref=e1277]:
+                - generic "Kliknij, aby skopiować" [ref=e1278]:
+                  - text: CYJT98P6
+                  - img [ref=e1279]
+                - generic [ref=e1282]: "Rabat: 27%"
+              - generic [ref=e1283]:
+                - generic [ref=e1284]:
+                  - 'button "SAMAR: Vany - E WYŻSZA" [ref=e1286]':
+                    - generic [ref=e1287]: "SAMAR: Vany - E WYŻSZA"
+                    - img [ref=e1288]
+                  - 'button "SILNIK: Benzyna mHEV (PB-mHEV)" [ref=e1291]':
+                    - generic [ref=e1292]: "SILNIK: Benzyna mHEV (PB-mHEV)"
+                    - img [ref=e1293]
+                  - generic [ref=e1295]: "Serwis: MID"
+                  - combobox [ref=e1297]:
+                    - option "Oś napędowa..." [disabled]
+                    - option "4x2 (FWD)" [selected]
+                    - option "4x2 (RWD)"
+                    - option "4x4 (AWD)"
+                  - combobox [ref=e1299]:
+                    - option "Typ nadwozia..." [disabled]
+                    - option "Kombi" [selected]
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                    - option
+                - generic [ref=e1301]:
+                  - img [ref=e1302]
+                  - text: Gotowe
+          - navigation "pagination navigation" [ref=e1306]:
+            - list [ref=e1307]:
+              - listitem [ref=e1308]:
+                - button "Go to previous page" [disabled]:
+                  - img
+              - listitem [ref=e1309]:
+                - button "page 1" [ref=e1310] [cursor=pointer]: "1"
+              - listitem [ref=e1311]:
+                - button "Go to page 2" [ref=e1312] [cursor=pointer]: "2"
+              - listitem [ref=e1313]:
+                - button "Go to next page" [ref=e1314] [cursor=pointer]:
+                  - img [ref=e1315]
+```

@@ -104,7 +104,7 @@ def parse_price_string(raw: str | None) -> ParsedPrice | None:
 
     # Extract numeric part
     numeric_value = _extract_numeric_value(text)
-    if numeric_value is None or numeric_value <= 0:
+    if numeric_value is None or numeric_value < 0:
         return None
 
     return ParsedPrice(

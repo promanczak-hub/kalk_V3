@@ -1,0 +1,22 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\proma\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: D:\kalk_v3\backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, Faker-40.11.0, timeout-2.4.0
+collecting ... collected 1 item
+
+tests/test_samar_rv.py::test_samar_rv_calculate_base ERROR               [100%]
+
+=================================== ERRORS ====================================
+_______________ ERROR at setup of test_samar_rv_calculate_base ________________
+file D:\kalk_v3\backend\tests\test_samar_rv.py, line 32
+  def test_samar_rv_calculate_base(mocker, mock_rv_input):
+E       fixture 'mocker' not found
+>       available fixtures: _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, faker, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_rv_input, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\kalk_v3\backend\tests\test_samar_rv.py:32
+=========================== short test summary info ===========================
+ERROR tests/test_samar_rv.py::test_samar_rv_calculate_base
+============================== 1 error in 1.21s ===============================

@@ -160,7 +160,8 @@ def readiness_check(
     vehicle_id: str = "",
     zabudowa_type_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    from core.samar_rv import check_rv_readiness, get_samar_class_id
+    from core.samar_rv_readiness import check_rv_readiness
+    from core.samar_rv import get_samar_class_id
 
     samar_class_id = get_samar_class_id(samar_class_name)
 

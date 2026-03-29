@@ -103,6 +103,7 @@ export interface SearchContext {
   exact_duration_months: number;
   exact_total_mileage: number;
   margin_pct?: number;
+  semanticQuery?: string;
 }
 
 export interface ScoredVehicle {

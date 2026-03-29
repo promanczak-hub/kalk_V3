@@ -34,9 +34,6 @@ jobs:
     needs: backend-lint
     env:
       APP_ENV: test
-      SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
-      SUPABASE_KEY: "${{ secrets.SUPABASE_KEY }}"
-      GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
     defaults:
       run:
         working-directory: backend
@@ -51,6 +48,10 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --no-interaction
       - name: Run tests
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_KEY: "${{ secrets.SUPABASE_KEY }}"
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
         run: python -m pytest tests/ -v --tb=short
 
   frontend-build:

@@ -34,53 +34,73 @@ export function useVehicleReadiness(
 ) {
   const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
 
-  const fetchReadiness = useCallback(async () => {
-    const samarName = mappedData?.samar_category;
-    const engineName = mappedData?.fuel;
+  useEffect(() => {
+    const controller = new AbortController();
     
-    if (!samarName || !engineName) {
-      setReadinessResult(null);
-      return;
-    }
-
-    try {
-      const params = new URLSearchParams({
-        samar_class_name: samarName,
-        engine_name: engineName,
-        brand_name: vehicle.brand || "",
-        vehicle_id: vehicle.id || "",
-      });
-
-      if (currentBodyType) {
-        params.set("body_type_name", currentBodyType);
-      }
+    const fetchReadiness = async () => {
+      const samarName = mappedData?.samar_category;
+      const engineName = mappedData?.fuel;
       
-      const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
-      params.set("paint_type_name", paintTypeName);
-
-      // Extract zabudowa_type_id if present (useful for Monolith 5)
-      interface SynthData {
-        calculator_setup?: { zabudowa_type_id?: number };
-        card_summary?: { zabudowa_type_id?: number };
+      if (!samarName || !engineName) {
+        setReadinessResult(null);
+        return;
       }
-      const synthData = vehicle.synthesis_data as unknown as SynthData | undefined;
-      if (synthData) {
-        const zabudowaId = synthData.calculator_setup?.zabudowa_type_id 
-          ?? synthData.card_summary?.zabudowa_type_id;
-        if (typeof zabudowaId === "number") {
-          params.set("zabudowa_type_id", zabudowaId.toString());
+
+      try {
+        const params = new URLSearchParams({
+          samar_class_name: samarName,
+          engine_name: engineName,
+          brand_name: vehicle.brand || "",
+          vehicle_id: vehicle.id || "",
+        });
+
+        if (currentBodyType) {
+          params.set("body_type_name", currentBodyType);
         }
-      }
+        
+        const paintTypeName = isMetalic ? "Metalizowany" : "Niemetalizowany";
+        params.set("paint_type_name", paintTypeName);
 
-      const res = await apiClient.fetch(`/api/readiness-check?${params}`);
-      if (!res.ok) throw new Error("Readiness check failed");
-      
-      const data: ReadinessResult = await res.json();
-      setReadinessResult(data);
-    } catch (err) {
-      console.error("Readiness check error:", err);
-      setReadinessResult(null);
-    }
+        // Extract zabudowa_type_id if present (useful for Monolith 5)
+        interface SynthData {
+          calculator_setup?: { zabudowa_type_id?: number };
+          card_summary?: { zabudowa_type_id?: number };
+        }
+        const synthData = vehicle.synthesis_data as unknown as SynthData | undefined;
+        if (synthData) {
+          const zabudowaId = synthData.calculator_setup?.zabudowa_type_id 
+            ?? synthData.card_summary?.zabudowa_type_id;
+          if (typeof zabudowaId === "number") {
+            params.set("zabudowa_type_id", zabudowaId.toString());
+          }
+        }
+
+        const res = await apiClient.fetch(`/api/readiness-check?${params}`, {
+          signal: controller.signal,
+          skipGlobalError: true
+        });
+        
+        if (!res.ok) throw new Error("Readiness check failed");
+        
+        const data: ReadinessResult = await res.json();
+        setReadinessResult(data);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Readiness check error:", err);
+        setReadinessResult(null);
+      }
+    };
+
+    // Add a random jitter (100ms - 800ms) to stagger requests when 40+ vehicles load at once
+    const jitterDelay = Math.floor(Math.random() * 700) + 100;
+    const timeoutId = setTimeout(() => {
+      fetchReadiness();
+    }, jitterDelay);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [
     mappedData?.samar_category,
     mappedData?.fuel,
@@ -91,11 +111,13 @@ export function useVehicleReadiness(
     isMetalic,
   ]);
 
-  useEffect(() => {
-    fetchReadiness();
-  }, [fetchReadiness]);
+  // We provide a manual fetchReadiness callback so we don't break the component interface
+  const fetchReadiness = useCallback(() => { 
+    // Usually won't be called directly since useEffect handles it, but kept for compatibility
+  }, []);
 
   return { readinessResult, fetchReadiness };
 }
+
 
 

@@ -98,8 +98,8 @@ export default function InsuranceRatesCrudPanel() {
     } else {
       setFormData({
         KolejnyRok: 1,
-        StawkaBazowaAC: 0.015,
-        SkladkaOC: 1476,
+        StawkaBazowaAC: 0,
+        SkladkaOC: 0,
         samar_class_id: klasaWrList.length > 0 ? klasaWrList[0].id : 100,
       });
       setEditingId(null);

@@ -5,9 +5,9 @@ import sys
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "d/kalk_v3/backend"))
 )
-
 from core.database import supabase
 from tasks.matrix_tasks import process_kalkulacja_matrix_task
+from core.task_dispatcher import TaskDispatcher
 
 
 def run():
@@ -39,7 +39,7 @@ def run():
     queued_count = 0
     for kalk_id in all_ids:
         print(f"Queueing matrix build for {kalk_id}...")
-        process_kalkulacja_matrix_task.delay(kalk_id)
+        TaskDispatcher.dispatch(process_kalkulacja_matrix_task, kalk_id)
         queued_count += 1
 
     print(f"Successfully queued {queued_count} tasks in Celery!")

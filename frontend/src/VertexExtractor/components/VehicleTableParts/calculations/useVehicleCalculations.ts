@@ -7,7 +7,7 @@ import type { MatrixFilters, MileageMode } from "../../../../CalculatorPanel/Mat
 import { apiClient } from "../../../../lib/apiClient";
 
 export interface CellOverrides {
-  pricing_margin_pct: number;
+  pricing_margin_pct: number | null;
   klasa_opony_string: string;
   liczba_kompletow_opon: number | null;
   z_oponami: boolean;
@@ -62,7 +62,7 @@ export function useVehicleCalculations({
   const [filters, setFilters] = useState<MatrixFilters>({
     monthsRange: [12, 84],
     targetKmPerYear: null,
-    globalMarginPct: 15.0,
+    globalMarginPct: null,
   });
 
   const mileageReferenceMonths = useMemo(() => {
@@ -75,7 +75,7 @@ export function useVehicleCalculations({
   const kmPerMonthRef = useRef<number>(0);
 
   const buildDefaultOverrides = (payload: Payload): CellOverrides => ({
-    pricing_margin_pct: payload.pricing_margin_pct ?? 15.0,
+    pricing_margin_pct: payload.pricing_margin_pct ?? null,
     klasa_opony_string: payload.klasa_opony_string || "Medium",
     liczba_kompletow_opon: payload.liczba_kompletow_opon ?? null,
     z_oponami: payload.z_oponami !== false,
@@ -92,7 +92,7 @@ export function useVehicleCalculations({
     if (cellOverrides[months]) return cellOverrides[months];
     if (basePayloadRef.current) return buildDefaultOverrides(basePayloadRef.current);
     return {
-      pricing_margin_pct: 15.0,
+      pricing_margin_pct: null,
       klasa_opony_string: "Medium",
       liczba_kompletow_opon: null,
       z_oponami: true,
@@ -182,8 +182,10 @@ export function useVehicleCalculations({
         service_options: normalizedServiceOptions,
         okres_bazowy: okresBazowy,
         przebieg_bazowy: przebiegBazowy,
-        wibor_pct: financialParams.wibor_pct || 5.0,
-        margin_pct: financialParams.margin_pct || 2.0,
+        // Wysyłamy null gdy brak explicit value w stan_json — backend pobiera WIBOR/spread z control_center
+        // (source of truth). Hardcoded fallbacki (5.0/2.0) były przyczyną rozbieżności ~81 PLN vs ReverseLookup.
+        wibor_pct: financialParams.wibor_pct ?? null,
+        margin_pct: financialParams.margin_pct ?? null,
         depreciation_pct: financialParams.depreciation_pct || null,
         initial_deposit_pct: financialParams.initial_deposit_pct || 0,
         replacement_car_enabled: toggles.replacement_car !== false,
@@ -209,7 +211,7 @@ export function useVehicleCalculations({
         include_servicing: toggles.include_servicing !== false,
         vehicle_vintage: stanJson.vehicle_vintage || "current",
         is_metalic: stanJson.is_metalic === true,
-        pricing_margin_pct: financialParams.pricing_margin_pct ?? 15.0,
+        pricing_margin_pct: financialParams.pricing_margin_pct ?? null,
         manual_wr_correction: 0,
         pakiet_serwisowy: Number(stanJson.pakiet_serwisowy ?? 0),
         inne_koszty_serwisowania_netto: Number(
@@ -256,7 +258,7 @@ export function useVehicleCalculations({
 
       setFilters(prev => ({
         ...prev,
-        globalMarginPct: payload.pricing_margin_pct ?? 15.0,
+        globalMarginPct: payload.pricing_margin_pct ?? null,
       }));
     } catch (err) {
       console.error("Matrix fetch error:", err);

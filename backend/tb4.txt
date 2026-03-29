@@ -1,0 +1,39 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\kalk_v3\backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, Faker-40.11.0, timeout-2.4.0
+collected 3 items
+
+tests\test_v1_parity_samar_rv.py F                                       [ 33%]
+tests\test_samar_rv.py EE                                                [100%]
+
+=================================== ERRORS ====================================
+_______________ ERROR at setup of test_samar_rv_calculate_base ________________
+file D:\kalk_v3\backend\tests\test_samar_rv.py, line 32
+  def test_samar_rv_calculate_base(mocker, mock_rv_input):
+E       fixture 'mocker' not found
+>       available fixtures: _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, faker, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_rv_input, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\kalk_v3\backend\tests\test_samar_rv.py:32
+________________ ERROR at setup of test_samar_rv_sanity_bounds ________________
+file D:\kalk_v3\backend\tests\test_samar_rv.py, line 73
+  def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
+E       fixture 'mocker' not found
+>       available fixtures: _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, faker, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_rv_input, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\kalk_v3\backend\tests\test_samar_rv.py:73
+================================== FAILURES ===================================
+_______________________ test_skoda_octavia_rs_v1_parity _______________________
+tests\test_v1_parity_samar_rv.py:61: in test_skoda_octavia_rs_v1_parity
+    assert abs(final_rv_gross - expected_rv_gross) < 0.05, (
+E   AssertionError: Regresja V1 Parity! Oczekiwano: 81185.76, otrzymano: 78878.00
+E   assert 2307.7599999999948 < 0.05
+E    +  where 2307.7599999999948 = abs((78878.0 - 81185.76))
+=========================== short test summary info ===========================
+FAILED tests/test_v1_parity_samar_rv.py::test_skoda_octavia_rs_v1_parity - As...
+ERROR tests/test_samar_rv.py::test_samar_rv_calculate_base
+ERROR tests/test_samar_rv.py::test_samar_rv_sanity_bounds
+========================= 1 failed, 2 errors in 1.44s =========================

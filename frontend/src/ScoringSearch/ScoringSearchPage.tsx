@@ -3,6 +3,7 @@ import {
   Box, Paper, Typography, Divider, CircularProgress,
   Snackbar, Alert
 } from '@mui/material';
+import { OmniboxSearch } from './components/OmniboxSearch';
 import { ScoringFilters } from './components/ScoringFilters';
 import { ScoringResults } from './components/ScoringResults';
 import { useScoringSearch } from './hooks/useScoringSearch';
@@ -31,6 +32,10 @@ export const ScoringSearchPage: React.FC = () => {
             </Box>
           </Box>
           <Divider />
+          <OmniboxSearch
+            searchContext={searchContext}
+            onContextChange={setSearchContext}
+          />
           <Box sx={{ p: 0, flexGrow: 1, overflowY: 'auto' }}>
             <ScoringFilters 
               searchContext={searchContext}

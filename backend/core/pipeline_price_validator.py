@@ -534,6 +534,11 @@ def _check_options_cross_sum(
     for opt in paid_options:
         if not isinstance(opt, dict):
             continue
+            
+        category = opt.get("category", "").lower()
+        if "serwis" in category or "akcesor" in category or "dealer" in category:
+            continue
+            
         price_str = opt.get("price", "")
         parsed = parse_price_string(price_str)
         if parsed:

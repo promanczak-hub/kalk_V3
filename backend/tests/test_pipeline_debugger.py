@@ -99,9 +99,6 @@ def test_pipeline_debugger_no_overrides_matches_kalkulator(
         },
     )
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_samar_klasa_from_db", lambda *a, **kw: {"id": "1"}
-    )
-    monkeypatch.setattr(
         "core.LTRKalkulator.get_insurance_rates_from_db", lambda *a, **kw: []
     )
     monkeypatch.setattr(
@@ -176,9 +173,6 @@ def test_pipeline_debugger_with_override(mock_input_data, mock_settings, monkeyp
             "engine_type_id": 1,
             "power_kw": 100,
         },
-    )
-    monkeypatch.setattr(
-        "core.LTRKalkulator.get_samar_klasa_from_db", lambda *a, **kw: {"id": "1"}
     )
     monkeypatch.setattr(
         "core.LTRKalkulator.get_insurance_rates_from_db", lambda *a, **kw: []

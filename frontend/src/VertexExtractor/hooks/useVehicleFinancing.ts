@@ -11,9 +11,10 @@ export function useVehicleFinancing(
   globalSettings?: ControlCenterSettings | null
 ) {
   // Financial parameters
-  const [wiborPct, setWiborPct] = useState<number>(globalSettings?.default_wibor ?? 5.85);
-  const [marginPct, setMarginPct] = useState<number>(globalSettings?.bank_spread ?? 2.0);
-  const [pricingMarginPct, setPricingMarginPct] = useState<number>(15.0);
+  // Financial parameters - strictly null by default, wait for globalSettings or existing setup.
+  const [wiborPct, setWiborPct] = useState<number | null>(globalSettings?.default_wibor ?? null);
+  const [marginPct, setMarginPct] = useState<number | null>(globalSettings?.bank_spread ?? null);
+  const [pricingMarginPct, setPricingMarginPct] = useState<number>(globalSettings?.default_ltr_margin ?? 15.0);
   const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
   const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
 
@@ -65,8 +66,8 @@ export function useVehicleFinancing(
 
     if (!setup) {
       if (globalSettings) {
-        setWiborPct(globalSettings.default_wibor ?? 5.85);
-        setMarginPct(globalSettings.bank_spread ?? 2.0);
+        setWiborPct(globalSettings.default_wibor ?? null);
+        setMarginPct(globalSettings.bank_spread ?? null);
       }
       setIsMetalic(autoDetectMetalic());
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,10 +88,10 @@ export function useVehicleFinancing(
     if (setup.financial_params) {
       const fp = setup.financial_params;
       
-      // Zawsze nadpisuj WIBOR i Marżę Bankową aktualnymi wartościami globalnymi (nie dziedzicz starych, zapisanych w pojeżdzie)
+      // Zawsze nadpisuj WIBOR i Marżę Bankową aktualnymi wartościami globalnymi (nie dziedzicz starych)
       if (globalSettings) {
-        setWiborPct(globalSettings.default_wibor ?? 5.85);
-        setMarginPct(globalSettings.bank_spread ?? 2.0);
+        setWiborPct(globalSettings.default_wibor ?? null);
+        setMarginPct(globalSettings.bank_spread ?? null);
       }
       
       if (fp.pricing_margin_pct != null) setPricingMarginPct(fp.pricing_margin_pct);

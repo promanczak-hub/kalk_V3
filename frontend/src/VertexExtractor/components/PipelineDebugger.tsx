@@ -131,8 +131,6 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
       );
 
       // ── Factory options: parse paid_options from card_summary ──
-      // Format in DB: [{name, price: "2650 zł brutto", category: "Fabryczna"}]
-      // Backend VehicleOptions requires: {name, price_net, price_gross, no_discount}
       const paidOptions = cs.paid_options || [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const factoryOptions = paidOptions.map((opt: any) => {
@@ -162,9 +160,10 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
         discount_pct: discountPct,
         factory_options: factoryOptions,
         service_options: serviceOptions,
-        wibor_pct: finParams.wibor_pct ?? vehicle.wibor_pct ?? 5.85,
-        margin_pct: finParams.margin_pct ?? vehicle.margin_pct ?? 2.0,
-        pricing_margin_pct: finParams.pricing_margin_pct ?? vehicle.pricing_margin_pct ?? 15.0,
+        // No hardcoded fallbacks here — use null to let backend pull from control_center
+        wibor_pct: finParams.wibor_pct ?? vehicle.wibor_pct ?? null,
+        margin_pct: finParams.margin_pct ?? vehicle.margin_pct ?? null,
+        pricing_margin_pct: finParams.pricing_margin_pct ?? vehicle.pricing_margin_pct ?? null,
         depreciation_pct: finParams.depreciation_pct ?? vehicle.depreciation_pct,
         initial_deposit_pct: finParams.initial_deposit_pct ?? vehicle.initial_deposit_pct ?? 0.0,
         z_oponami: vehicle.z_oponami ?? true,
@@ -599,15 +598,8 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                      
                      <div className="space-y-4 bg-indigo-50/50 p-4 rounded-lg border border-indigo-100">
                         {Object.entries(currentStepData.outputs).map(([key, val]) => {
-                          // Convention: overrides keys are e.g., step_6_wr
-                          // We map specific output keys to override keys. Since the backend expects specific override keys
-                          // It's best we generate likely override keys or let the user type them.
-                          
-                          // Simplified heuristic for demo:
                           let overrideKey = `step_${currentStepData.step}_${key}`;
                           
-                          // Map back to known override names from the backend implementation:
-                          // e.g. step_6_wr for 'vr_samar'
                           if (currentStepData.step === 6 && key === "vr_samar") overrideKey = "step_6_wr";
                           if (currentStepData.step === 6 && key === "utrata_z_czynszem") overrideKey = "step_6_utrata_z_czynszem";
                           if (currentStepData.step === 4 && key === "service_base") overrideKey = "step_4_srw";
@@ -617,7 +609,6 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
                           if (currentStepData.step === 10 && key === "koszt_mc") overrideKey = "step_10_kdz_koszt_mc";
                           if (currentStepData.step === 9 && key === "koszt_finansowy") overrideKey = "step_9_fi_koszt";
 
-                          // We only show override inputs for numeric values
                           if (typeof val !== 'number') return null;
 
                           return (
@@ -713,4 +704,3 @@ export function PipelineDebugger({ vehicle, onClose }: PipelineDebuggerProps) {
     </div>
   );
 }
-

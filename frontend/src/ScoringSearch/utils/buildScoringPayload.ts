@@ -58,6 +58,7 @@ export const buildScoringPayload = (searchContext: SearchContext, selectedFeatur
     models: searchContext.models.length > 0 ? searchContext.models : null,
     trims: searchContext.trims.length > 0 ? searchContext.trims : null,
     samar_class_ids: searchContext.samarClassIds.length > 0 ? searchContext.samarClassIds : null,
-    requirements: requirements
+    requirements: requirements,
+    semantic_query: searchContext.semanticQuery || null
   };
 };

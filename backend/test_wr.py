@@ -1,7 +1,7 @@
 import asyncio
 import json
 from core.database import supabase
-from core.samar_rv import RVInput, SamarRVCalculator, get_samar_class_id
+from core.samar_rv import get_samar_class_id
 from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
 
 async def main():
@@ -32,11 +32,6 @@ async def main():
     options_gross = 41600.0
     catalog_base_net = base_gross / 1.23
     catalog_options_net = options_gross / 1.23
-    capex_base_net = catalog_base_net
-    capex_options_net = catalog_options_net
-    paint_type_id = 2  # Assuming 2 is standard/niemetalik
-    is_metalic = False
-    body_type_id = 1
     rocznik = "current"
     # Inject missing fields into vehicle_dict to avoid errors in SubCalc fallback
     vehicle_dict["engine_type_id"] = engine_id
