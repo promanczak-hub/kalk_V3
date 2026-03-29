@@ -160,7 +160,7 @@ def readiness_check(
     vehicle_id: str = "",
     zabudowa_type_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    from core.samar_rv_readiness import check_rv_readiness
+    from core.samar_rv_readiness import check_rv_readiness, ReadinessItem
     from core.samar_rv import get_samar_class_id
 
     samar_class_id = get_samar_class_id(samar_class_name)
@@ -234,6 +234,25 @@ def readiness_check(
         except Exception as exc:
             logging.warning("Resolve paint_type_name błąd: %s", exc)
 
+    # ── Pobieranie brakujących danych z vehicle_synthesis ────────────────
+    model_name_resolved = ""
+    if vehicle_id.strip():
+        try:
+            v_res = (
+                supabase.table("vehicle_synthesis")
+                .select("brand, model")
+                .eq("id", vehicle_id.strip())
+                .execute()
+            )
+            if v_res.data:
+                vrow = v_res.data[0]
+                if vrow.get("brand") and not brand_name:
+                    brand_name = vrow["brand"]
+                if vrow.get("model"):
+                    model_name_resolved = vrow["model"]
+        except Exception as exc:
+            logging.warning("Błąd wstępnego pobierania danych pojazdu: %s", exc)
+
     checks = check_rv_readiness(
         samar_class_id=samar_class_id,
         engine_id=fuel_type_id,
@@ -242,6 +261,8 @@ def readiness_check(
         paint_type_id=resolved_paint_type_id,
         rocznik="2026",
         zabudowa_type_id=zabudowa_type_id,
+        engine_name=engine_name,
+        model_name=model_name_resolved,
     )
 
     try:
@@ -253,13 +274,13 @@ def readiness_check(
         )
         svc_thresholds = [r["przebieg_do"] for r in (svc_res.data or [])]
         if svc_thresholds:
-            svc_item = type(checks[0])(
+            svc_item = ReadinessItem(
                 param="Stawki serwisowe",
                 status="ok",
                 value=f"TAK, {len(svc_thresholds)} progów",
             )
         else:
-            svc_item = type(checks[0])(
+            svc_item = ReadinessItem(
                 param="Stawki serwisowe",
                 status="error",
                 value="brak wpisów",

@@ -88,6 +88,16 @@ def check_rv_readiness(
                         "brak wpisu w tab_okres_final (Klasa/Silnik)",
                     )
                 )
+        else:
+            # fuel_norm jest puste (ValueError z _normalize_fuel_name obsłużone wyżej)
+            if not any(c.param == "1. Bazowa Utrata Wartości" for c in checks):
+                checks.append(
+                    ReadinessItem(
+                        "1. Bazowa Utrata Wartości",
+                        "error",
+                        "nieznany rodzaj silnika",
+                    )
+                )
     except Exception as exc:
         logger.error("Błąd odczytu tab_okres_final: %s", exc)
         checks.append(

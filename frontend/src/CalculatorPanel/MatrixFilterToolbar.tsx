@@ -260,7 +260,7 @@ export function MatrixFilterToolbar({
     prevMileageModeRef.current = mileageMode;
   }, [mileageMode, exactMonths, exactKm]);
 
-  const MAX_CONTRACT_KM = 250_000;
+  const MAX_CONTRACT_KM = 300_000;
   const sliderMin = mileageMode === "contract"
     ? Math.round((KM_MIN / 12) * safeReferenceMonths)
     : KM_MIN;
@@ -580,7 +580,7 @@ export function MatrixFilterToolbar({
                 id="exactKm"
                 type="number"
                 min={mileageMode === "contract" ? 10000 : 10000}
-                max={mileageMode === "contract" ? 250000 : 200000}
+                max={mileageMode === "contract" ? 300000 : 200000}
                 step={mileageMode === "contract" ? 10000 : 1000}
                 value={exactKm}
                 onChange={(e) => setExactKm(e.target.value)}
