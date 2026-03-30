@@ -212,7 +212,7 @@ def _extract_list_fields(row: Dict[str, Any]) -> KalkulacjaListItem:
         updated_at=row["updated_at"],
         body_type=vehicle_mapped.get("body_type") or sj.get("body_type"),
         fuel=vehicle_mapped.get("fuel") or sj.get("fuel"),
-        discount_pct=discount_block.get("active_discount_pct"),
+        discount_pct=sj.get("pricing", {}).get("discount_pct") or discount_block.get("active_discount_pct"),
         options_count=len(factory_opts) + len(service_opts),
     )
 

@@ -1,3 +1,16 @@
+# ==============================================================================
+# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
+# ==============================================================================
+# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
+# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
+# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
+#
+# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
+# 1. PRZERWIJ DZIAŁANIE.
+# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
+# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
+# ==============================================================================
+
 from typing import Dict, Any
 
 

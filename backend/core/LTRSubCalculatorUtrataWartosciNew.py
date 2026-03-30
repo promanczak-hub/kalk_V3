@@ -1,3 +1,16 @@
+# ==============================================================================
+# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
+# ==============================================================================
+# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
+# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
+# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
+#
+# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
+# 1. PRZERWIJ DZIAŁANIE.
+# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
+# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
+# ==============================================================================
+
 """
 Wrapper: LTRSubCalculatorUtrataWartosciNew (V3).
 
@@ -167,24 +180,24 @@ class LTRSubCalculatorUtrataWartosciNew:
         trace.append(
             {
                 "krok": "WR Krok 1 i 2: Wartość Bazowa i Odczyt Direct WR% (tab_okres_final)",
-                "rownanie": f"CAPEX_NETTO * (WR_TABELA {d.get('krok1_base_rate', 0) * 100:.2f}% + KOR_MARKA {d.get('krok1_brand_correction', 0) * 100:.2f}%)",
+                "rownanie": f"CAPEX_NETTO * (WR_TABELA {d.get('krok1_interpolated_base_pct', 0) * 100:.2f}% + KOR_MARKA {d.get('krok1_brand_correction', 0) * 100:.2f}%)",
                 "wynik": d.get("krok1_wr_value_netto", 0.0),
             }
         )
 
-        value_table = d.get("krok2_value_table_netto", {})
         trace.append(
             {
                 "krok": "WR: Wybrany Przebieg (Interpolacja)",
-                "rownanie": f"Wybrano najbliższy punkt: {d.get('krok1_chosen_km', 0)} km. (Baza: {d.get('krok1_base_rate', 0) * 100:.2f}%)",
+                "rownanie": f"Wybrano najbliższy punkt: {d.get('krok1_chosen_km', 0)} km. (Baza: {d.get('krok1_interpolated_base_pct', 0) * 100:.2f}%)",
+
                 "wynik": d.get("krok1_wr_value_netto", 0.0),
             }
         )
 
         trace.append(
             {
-                "krok": "WR Krok 3: Wartość per lat + Opcje (V1 ułamek opcji)",
-                "rownanie": f"Baza ({d.get('krok3_years', 0)} lat) {d.get('krok3_rv_base_netto', 0):.2f} + Opcje {d.get('krok3_rv_options_netto', 0):.2f} / (1 + lata)",
+                "krok": "WR Krok 3: Amortyzacja Opcji (samar_class_options_rv lub fallback Opcje/(1+lat))",
+                "rownanie": f"Baza ({d.get('krok3_years', 0)} lat) {d.get('krok3_rv_base_netto', 0)} + Opcje RV {d.get('krok3_rv_options_netto', 0)}",
                 "wynik": d.get("krok3_rv_total_netto", 0.0),
             }
         )

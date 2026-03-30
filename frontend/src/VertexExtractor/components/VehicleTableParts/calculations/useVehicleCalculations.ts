@@ -65,13 +65,14 @@ export function useVehicleCalculations({
     globalMarginPct: null,
   });
 
+  const [basePayload, setBasePayload] = useState<Payload | null>(null);
+
   const mileageReferenceMonths = useMemo(() => {
     const [from, to] = filters.monthsRange;
     if (from === to && from > 0) return from;
     return 48;
   }, [filters.monthsRange]);
 
-  const basePayloadRef = useRef<Payload | null>(null);
   const kmPerMonthRef = useRef<number>(0);
 
   const buildDefaultOverrides = (payload: Payload): CellOverrides => ({
@@ -90,7 +91,7 @@ export function useVehicleCalculations({
 
   const getOverrides = (months: number): CellOverrides => {
     if (cellOverrides[months]) return cellOverrides[months];
-    if (basePayloadRef.current) return buildDefaultOverrides(basePayloadRef.current);
+    if (basePayload) return buildDefaultOverrides(basePayload);
     return {
       pricing_margin_pct: null,
       klasa_opony_string: "Medium",
@@ -124,6 +125,7 @@ export function useVehicleCalculations({
       const toggles = stanJson.toggles || {};
       const mappedAi = stanJson.mapped_ai_data || {};
       const discount = stanJson.discount || {};
+      const pricing = stanJson.pricing || {};
 
       const okresBazowy = mappedAi.usage_months || 48;
       const przebiegBazowy = mappedAi.total_km || 140000;
@@ -177,7 +179,7 @@ export function useVehicleCalculations({
         calculation_id: kalkulacjaId,
         vehicle_id: resolvedVehicleId,
         base_price_net: basePriceNet,
-        discount_pct: discount.active_discount_pct || 0,
+        discount_pct: pricing.discount_pct ?? discount.active_discount_pct ?? 0,
         factory_options: normalizedFactoryOptions,
         service_options: normalizedServiceOptions,
         okres_bazowy: okresBazowy,
@@ -228,7 +230,7 @@ export function useVehicleCalculations({
         engine_name: stanJson.mapped_ai_data?.fuel ?? stanJson.engine_category ?? cardSummary.engine_category ?? cardSummary.powertrain ?? "",
       };
 
-      basePayloadRef.current = payload;
+      setBasePayload(payload);
 
       const matrixResp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
         method: "POST",
@@ -270,7 +272,7 @@ export function useVehicleCalculations({
   }, [kalkulacjaId, vehicleId, mileageMode]);
 
   const recalculateSingleCell = useCallback(async (months: number) => {
-    if (!basePayloadRef.current) return;
+    if (!basePayload) return;
     const ov = cellOverrides[months];
     if (!ov) return;
 
@@ -283,7 +285,7 @@ export function useVehicleCalculations({
         : Math.round(kmPerMonthRef.current * effectiveMonths);
 
       const modifiedPayload: Payload = {
-        ...basePayloadRef.current,
+        ...basePayload,
         okres_bazowy: effectiveMonths,
         przebieg_bazowy: targetKm,
         pricing_margin_pct: ov.pricing_margin_pct,
@@ -318,11 +320,11 @@ export function useVehicleCalculations({
     } finally {
       setRecalculating(null);
     }
-  }, [cellOverrides]);
+  }, [cellOverrides, basePayload]);
 
   const fetchTraceSingleCell = useCallback(async (months: number, kmYearOverride?: number) => {
-    if (!basePayloadRef.current) return;
-    const ov = cellOverrides[months] || buildDefaultOverrides(basePayloadRef.current);
+    if (!basePayload) return;
+    const ov = cellOverrides[months] || buildDefaultOverrides(basePayload);
     
     setFetchingTraceCell(months);
     try {
@@ -333,7 +335,7 @@ export function useVehicleCalculations({
         : Math.round(kmPerMonthRef.current * effectiveMonths);
 
       const modifiedPayload: Payload = {
-        ...basePayloadRef.current,
+        ...basePayload,
         okres_bazowy: effectiveMonths,
         przebieg_bazowy: targetKm,
         pricing_margin_pct: ov.pricing_margin_pct,
@@ -362,7 +364,7 @@ export function useVehicleCalculations({
     } finally {
       setFetchingTraceCell(null);
     }
-  }, [cellOverrides]);
+  }, [cellOverrides, basePayload]);
 
   const resetCell = (months: number) => {
     const original = originalCells.find(c => c.Okres === months);
@@ -405,11 +407,11 @@ export function useVehicleCalculations({
   }, [cells, filters.monthsRange, filters.targetKmPerYear, mileageMode, mileageReferenceMonths]);
 
   const recalculateWithMargin = useCallback(async (marginPct: number) => {
-    if (!basePayloadRef.current) return;
+    if (!basePayload) return;
     setMarginRecalculating(true);
     try {
       const modifiedPayload = {
-        ...basePayloadRef.current,
+        ...basePayload,
         pricing_margin_pct: marginPct,
       };
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
@@ -430,15 +432,15 @@ export function useVehicleCalculations({
     } finally {
       setMarginRecalculating(false);
     }
-  }, []);
+  }, [basePayload]);
 
   const handleExactRecalculate = useCallback(async (months: number, kmPerYear: number, marginPct: number) => {
-    if (!basePayloadRef.current) return;
+    if (!basePayload) return;
     setMarginRecalculating(true);
     try {
       const targetKm = Math.round((kmPerYear / 12) * months);
       const modifiedPayload = {
-        ...basePayloadRef.current,
+        ...basePayload,
         okres_bazowy: months,
         przebieg_bazowy: targetKm,
         pricing_margin_pct: marginPct,
@@ -473,17 +475,17 @@ export function useVehicleCalculations({
     } finally {
       setMarginRecalculating(false);
     }
-  }, []);
+  }, [basePayload]);
 
   const handleGlobalRecalculate = useCallback(async () => {
-    if (!basePayloadRef.current) return;
+    if (!basePayload) return;
     setIsGlobalWrRecalculating(true);
     try {
       const modifiedPayload = {
-        ...basePayloadRef.current,
+        ...basePayload,
         manual_wr_correction: globalWrCorrection,
       };
-      basePayloadRef.current = modifiedPayload;
+      setBasePayload(modifiedPayload);
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -503,7 +505,7 @@ export function useVehicleCalculations({
     } finally {
       setIsGlobalWrRecalculating(false);
     }
-  }, [globalWrCorrection]);
+  }, [globalWrCorrection, basePayload]);
 
   return {
     cells,
@@ -515,7 +517,7 @@ export function useVehicleCalculations({
     recalculating,
     fetchingTraceCell,
     marginRecalculating,
-    basePayloadRef,
+    basePayload,
     filters,
     setFilters,
     mileageMode,
