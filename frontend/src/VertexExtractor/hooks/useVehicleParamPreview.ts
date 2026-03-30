@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "../../lib/apiClient";
 
-interface ParamPreviewResponse {
+export interface ParamPreviewResponse {
   service: {
     found: boolean;
     rate_per_km: number;
-    base_rate: number;
-    m_brand: number;
-    m_fuel: number;
-    m_drive: number;
-    m_gearbox: number;
-    total_multiplier: number;
+    base_rate?: number;
+    m_brand?: number;
+    m_fuel?: number;
+    m_drive?: number;
+    m_gearbox?: number;
+    total_multiplier?: number;
     type: string;
+    power_band?: string;
   };
   tires: { found: boolean; set_price_net: number; rim_diameter: number; tire_class: string };
   vintage: { found: boolean; correction_pct: number; label: string };

@@ -81,13 +81,14 @@ readinessResult?: {
     service: {
       found: boolean;
       rate_per_km: number;
-      base_rate: number;
-      m_brand: number;
-      m_fuel: number;
-      m_drive: number;
-      m_gearbox: number;
-      total_multiplier: number;
+      base_rate?: number;
+      m_brand?: number;
+      m_fuel?: number;
+      m_drive?: number;
+      m_gearbox?: number;
+      total_multiplier?: number;
       type: string;
+      power_band?: string;
     };
   } | null;
 }
@@ -616,10 +617,10 @@ return (
                   mode="flat" 
                   totalMultiplier={paramPreview?.service?.total_multiplier || (powerBand === "HIGH" ? 1.25 : powerBand === "LOW" ? 0.75 : 1.0)}
                   multipliers={paramPreview?.service?.found ? {
-                    brand: paramPreview.service.m_brand,
-                    fuel: paramPreview.service.m_fuel,
-                    drive: paramPreview.service.m_drive,
-                    gearbox: paramPreview.service.m_gearbox
+                    brand: paramPreview.service.m_brand || 1.0,
+                    fuel: paramPreview.service.m_fuel || 1.0,
+                    drive: paramPreview.service.m_drive || 1.0,
+                    gearbox: paramPreview.service.m_gearbox || 1.0
                   } : {
                     brand: 1.0,
                     fuel: 1.0,

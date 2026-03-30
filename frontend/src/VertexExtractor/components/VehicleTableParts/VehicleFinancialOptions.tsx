@@ -100,7 +100,7 @@ interface VehicleFinancialOptionsProps {
   crossCardAlerts?: DiscountAlert[];
   // Live param preview
   paramPreview?: {
-    service: { found: boolean; rate_per_km: number; type: string; power_band: string };
+    service: { found: boolean; rate_per_km: number; type: string; power_band?: string; base_rate?: number; m_brand?: number; m_fuel?: number; m_drive?: number; m_gearbox?: number; total_multiplier?: number; };
     tires: { found: boolean; set_price_net: number; rim_diameter: number; tire_class: string };
     vintage: { found: boolean; correction_pct: number; label: string };
     color: { found: boolean; correction_pct: number; label: string };

@@ -199,16 +199,16 @@ export function VehicleRowCard({
   const { paramPreview, controlCenter } = useVehicleParamPreview(
     readinessResult?.samar_class_id || null,
     readinessResult?.fuel_type_id || null,
-    vehicle.brand,
-    vehicle.fuel,
-    driveType,
-    vehicle.transmission,
+    vehicle.brand || undefined,
+    vehicle.fuel || undefined,
+    driveType || undefined,
+    vehicle.transmission || undefined,
     serviceCostType,
     60000, // Default target mileage for preview
     tireClass,
     rimDiameter,
     vehicleVintage,
-    paintCategoryId
+    paintCategoryId === 2 || paintCategoryId === 3
   );
 
   // Restore saved calculator_setup from synthesis_data on load or update
@@ -437,8 +437,6 @@ export function VehicleRowCard({
     customDiscountPctRaw,
     setCustomDiscountPctRaw,
     aiExtractedBasePrice,
-    aiBasePriceDeltaPln,
-    requireManualPriceReview,
     calculationBlockReason,
     dynamicTotalOptionsPrice,
     totalCatalogPriceNet,
@@ -452,7 +450,6 @@ export function VehicleRowCard({
     activeDiscountPct,
     activeFinalPriceNet,
     formatCalculatedPrice,
-    AI_PRICE_ALERT_THRESHOLD_PLN,
   } = useVehiclePricingManager({
     vehicle,
     catalogBasePriceNet,
@@ -703,9 +700,6 @@ export function VehicleRowCard({
              catalogBasePriceNet={catalogBasePriceNet}
              setCatalogBasePriceNet={setCatalogBasePriceNet}
              aiExtractedBasePrice={aiExtractedBasePrice}
-             aiPriceAlertThresholdPln={AI_PRICE_ALERT_THRESHOLD_PLN}
-             requireManualPriceReview={requireManualPriceReview}
-             priceDeltaFromAiPln={aiBasePriceDeltaPln}
              discountableOptionsTotal={discountableOptionsTotal}
              nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
              serviceOptionsTotal={customServiceOptionsPriceTotal}
@@ -728,13 +722,13 @@ export function VehicleRowCard({
              handleSaveAllOptions={handleSaveAllOptions}
              isSavingServices={isSavingServices}
              // Financial parameters
-             wiborPct={wiborPct}
+             wiborPct={wiborPct || 0}
              setWiborPct={setWiborPct}
-             marginPct={marginPct}
+             marginPct={marginPct || 0}
              setMarginPct={setMarginPct}
-             pricingMarginPct={pricingMarginPct}
+             pricingMarginPct={pricingMarginPct || 0}
              setPricingMarginPct={setPricingMarginPct}
-             initialDepositPct={initialDepositPct}
+             initialDepositPct={initialDepositPct || 0}
              setInitialDepositPct={setInitialDepositPct}
              otherServiceCosts={otherServiceCosts}
              setOtherServiceCosts={setOtherServiceCosts}
@@ -812,8 +806,8 @@ export function VehicleRowCard({
                vehicle={vehicle}
                isSavingSetup={isSavingSetup}
                handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPriceNet, catalogBasePriceNet)}
-               pricingMarginPct={pricingMarginPct}
-               initialDepositPct={initialDepositPct}
+               pricingMarginPct={pricingMarginPct || 0}
+               initialDepositPct={initialDepositPct || 0}
                expressPaysInsurance={expressPaysInsurance}
                replacementCar={replacementCar}
                gpsRequired={gpsRequired}
