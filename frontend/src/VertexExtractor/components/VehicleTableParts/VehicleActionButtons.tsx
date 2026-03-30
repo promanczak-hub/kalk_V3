@@ -32,7 +32,7 @@ interface VehicleActionButtonsProps {
   rimDiameter: number | null;
   serviceCostType: "ASO" | "nonASO";
   vehicleVintage: "current" | "previous";
-  isMetalic: boolean;
+  paintCategoryId: number | null;
   activeDiscountPct: number;
   activeFinalPrice: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,7 +76,7 @@ export function VehicleActionButtons({
   rimDiameter,
   serviceCostType,
   vehicleVintage,
-  isMetalic,
+  paintCategoryId,
   activeDiscountPct,
   activeFinalPrice,
   brochureData,
@@ -180,7 +180,7 @@ export function VehicleActionButtons({
           rimDiameter,
           serviceCostType,
           vehicleVintage,
-          isMetalic,
+          paintCategoryId,
           activeDiscountPct,
           activeFinalPrice,
           priceAudit,

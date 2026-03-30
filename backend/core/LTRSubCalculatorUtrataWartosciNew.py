@@ -189,7 +189,6 @@ class LTRSubCalculatorUtrataWartosciNew:
             {
                 "krok": "WR: Wybrany Przebieg (Interpolacja)",
                 "rownanie": f"Wybrano najbliższy punkt: {d.get('krok1_chosen_km', 0)} km. (Baza: {d.get('krok1_interpolated_base_pct', 0) * 100:.2f}%)",
-
                 "wynik": d.get("krok1_wr_value_netto", 0.0),
             }
         )

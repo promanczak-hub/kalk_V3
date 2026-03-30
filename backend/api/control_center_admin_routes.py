@@ -65,8 +65,8 @@ async def get_brand_corrections() -> List[BrandCorrection]:
             data.append(
                 BrandCorrection(
                     id=row["id"],
-                    brand_name=row["marka"],
-                    correction_percent=row["korekta_procent"] or 0.0,
+                    brand_name=row.get("brand_name", ""),
+                    correction_percent=row.get("korekta_procent") or 0.0,
                     samar_class_id=0,
                     rodzaj_paliwa=1,
                 )
@@ -84,7 +84,7 @@ async def bulk_upsert_brand_corrections(
         updated = 0
         for item in items:
             d = {
-                "marka": item.brand_name,
+                "brand_name": item.brand_name,
                 "korekta_procent": item.correction_percent,
             }
             if item.id:
@@ -637,6 +637,32 @@ async def import_samar_service_costs(file: UploadFile = File(...)) -> Dict[str, 
             "updated_count": updated_count,
         }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/service-multipliers/{multi_type}")
+async def get_service_multipliers(multi_type: str) -> List[ServiceMultiplier]:
+    valid_types = {"brand", "fuel", "drive", "gearbox"}
+    if multi_type not in valid_types:
+        raise HTTPException(status_code=400, detail="Invalid multiplier type")
+
+    table_name = f"samar_service_{multi_type}_multipliers"
+    col_name = f"{multi_type}_normalized"
+
+    try:
+        response = supabase.table(table_name).select("*").order(col_name).execute()
+        data = []
+        rows = cast(List[Dict[str, Any]], response.data or [])
+        for row in rows:
+            data.append(
+                ServiceMultiplier(
+                    id=str(row.get("id")),
+                    name_normalized=str(row.get(col_name, "")),
+                    multiplier=float(row.get("multiplier", 1.0)),
+                )
+            )
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

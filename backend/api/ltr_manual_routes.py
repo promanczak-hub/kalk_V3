@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from api.schemas.calculator import CalculatorInput
 from core.database import supabase
 from core.models import ControlCenterSettings
-from domain.calculations.service import CalculationService
+from core.calculation_service import CalculationService
 
 router = APIRouter(prefix="/api/ltr", tags=["LTR Manual Calculator"])
 

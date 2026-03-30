@@ -86,11 +86,12 @@ interface VehicleFinancialOptionsProps {
   // Service cost type
   serviceCostType: "ASO" | "nonASO";
   setServiceCostType: (val: "ASO" | "nonASO") => void;
-  // Vehicle vintage & metalic
+  // Vehicle vintage & paint
   vehicleVintage: "current" | "previous";
   setVehicleVintage: (val: "current" | "previous") => void;
-  isMetalic: boolean;
-  setIsMetalic: (val: boolean) => void;
+  paintCategoryId: number | null;
+  setPaintCategoryId: (val: number) => void;
+  paintTypes?: any[];
   isMetalicAutoDetected: boolean;
   hookAutoDetected: boolean;
   vintageAutoDetected: boolean;
@@ -170,11 +171,12 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     rimDiameter, setRimDiameter,
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
-    isMetalic, setIsMetalic, isMetalicAutoDetected,
+    paintCategoryId, setPaintCategoryId, paintTypes, isMetalicAutoDetected,
     hookAutoDetected, vintageAutoDetected,
     activeFinalPriceForDeposit,
     paramPreview,
     controlCenter,
+    totalCatalogPriceNet,
   } = props;
 
   const crossCardAlerts = props.crossCardAlerts ?? [];
@@ -356,6 +358,17 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   </td>
                   <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">
                     {catalogBasePriceNet > 0 ? fmtPLN(Math.round(catalogBasePriceNet * 1.23)) : "—"}
+                  </td>
+                </tr>
+
+                {/* Suma przed rabatem (Katalog + Opcje + Serwis) */}
+                <tr className="border-b border-slate-200 bg-slate-50/30">
+                  <td className="py-2.5 text-xs font-bold text-slate-600">Suma przed rabatem</td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-bold text-slate-600">
+                    {fmtPLN(totalCatalogPriceNet + serviceOptionsTotal)}
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-bold text-slate-800">
+                    {fmtPLN((totalCatalogPriceNet + serviceOptionsTotal) * 1.23)}
                   </td>
                 </tr>
 
@@ -666,26 +679,34 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               </select>
             </div>
 
-            {/* Metalik Toggle */}
+            {/* Paint category dropdown */}
             <div>
               <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
-                Lakier metalik
+                Kategoria lakieru
                 <LinkedIndicator tableName="paint_types" isLinked={!!paramPreview?.color?.found} previewValue={paramPreview?.color?.found ? `${(paramPreview.color.correction_pct * 100).toFixed(1)}% (${paramPreview.color.label})` : undefined} />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1.5 px-2 border border-slate-200 rounded bg-white">
-                <input
-                  type="checkbox"
-                  checked={isMetalic}
-                  onChange={(e) => setIsMetalic(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                />
-                <span className="font-medium">{isMetalic ? "Tak (metalik/perłowy)" : "Nie (zwykły lakier)"}</span>
                 {isMetalicAutoDetected && (
-                  <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
-                    AI
-                  </span>
-                )}
+                   <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
+                     AI
+                   </span>
+                 )}
               </label>
+              <select
+                className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
+                value={paintCategoryId || ""}
+                onChange={(e) => setPaintCategoryId(parseInt(e.target.value, 10))}
+              >
+                {!paintCategoryId && <option value="" disabled>Wybierz lakier...</option>}
+                {paintTypes && paintTypes.map(pt => (
+                  <option key={pt.id} value={pt.id}>{pt.name}</option>
+                ))}
+                {(!paintTypes || paintTypes.length === 0) && (
+                  <>
+                    <option value="1">Lakier zwykły (Solid)</option>
+                    <option value="2">Lakier metalizowany (Metallic)</option>
+                    <option value="3">Lakier perłowy (Pearl)</option>
+                  </>
+                )}
+              </select>
             </div>
           </div>
 

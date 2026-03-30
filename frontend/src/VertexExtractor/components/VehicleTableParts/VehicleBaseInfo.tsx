@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef } from "react";
-import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
+import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, CheckCircle, XCircle, AlertCircle, Edit3 } from "lucide-react";
+import { Autocomplete, TextField } from "@mui/material";
+import type { AutocompleteRenderInputParams } from "@mui/material";
 import { format } from "date-fns";
 import type { FleetVehicleView } from "../../types";
 import { PriceDualFormat } from "./PriceDualFormat";
@@ -56,6 +58,7 @@ onVehicleTypeChange?: (newType: string) => void;
 bodyTypeOptions?: { name: string; vehicle_class: string }[];
 isSelected?: boolean;
 onToggleSelect?: () => void;
+onConfigurationCodeChange?: (newCode: string) => void;
 crossCardAlerts?: DiscountAlert[];
 onScrollToVehicle?: (vehicleId: string) => void;
 readinessResult?: {
@@ -198,56 +201,75 @@ return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
 }
 
 function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleType }: {
-current: string;
-dbOptions?: { name: string; vehicle_class: string }[];
-onChange?: (v: string) => void;
-connected?: boolean;
-currentVehicleType?: string;
+  current: string;
+  dbOptions?: { name: string; vehicle_class: string }[];
+  onChange?: (v: string) => void;
+  connected?: boolean;
+  currentVehicleType?: string;
 }) {
-if (!onChange) {
-    const normalizedCurrent = normalizeBodyTypeValue(current || "");
-    return normalizedCurrent ? <Tag connected={connected}>{normalizedCurrent}</Tag> : null;
+  const normValue = normalizeBodyTypeValue(current);
+  
+  const options = useMemo(() => {
+    if (!dbOptions || dbOptions.length === 0) return BODY_TYPE_FALLBACK;
+    // Filter by vehicle_class if provided
+    let filtered = dbOptions;
+    if (currentVehicleType) {
+      const isCommercial = currentVehicleType.toLowerCase().includes("commercial") || 
+                           currentVehicleType.toLowerCase().includes("dostawcz");
+      filtered = dbOptions.filter(o => {
+        const oClass = (o.vehicle_class || "").toLowerCase();
+        if (isCommercial) return oClass.includes("commercial") || oClass.includes("dostawcz");
+        return oClass.includes("passenger") || oClass.includes("osobow");
+      });
+      if (filtered.length === 0) filtered = dbOptions;
+    }
+    return Array.from(new Set(filtered.map(o => o.name))).sort();
+  }, [dbOptions, currentVehicleType]);
+
+  if (!onChange) {
+    return current ? <Tag connected={connected}>Nadwozie: {normValue}</Tag> : null;
+  }
+
+  return (
+    <div className="flex items-center h-full">
+      <Autocomplete
+        size="small"
+        options={options}
+        value={normValue || null}
+        onChange={(_: React.SyntheticEvent, newValue: string | null) => {
+          if (newValue) onChange(newValue);
+        }}
+        freeSolo
+        renderInput={(params: AutocompleteRenderInputParams) => (
+          <TextField
+            {...params}
+            placeholder="Nadwozie..."
+            variant="standard"
+            InputProps={{
+              ...params.InputProps,
+              disableUnderline: true,
+              style: { 
+                fontSize: '11px', 
+                fontFamily: "'Geist Mono', monospace",
+                padding: '0 10px',
+                height: '24px',
+                color: '#475569'
+              }
+            }}
+            sx={{
+              width: 140,
+              backgroundColor: 'transparent',
+              '& .MuiInputBase-root': { height: '100%' }
+            }}
+          />
+        )}
+        sx={{
+          '& .MuiAutocomplete-endAdornment': { display: 'none' }
+        }}
+      />
+    </div>
+  );
 }
-
-// Build options list from DB (single source of truth), falling back to hardcoded if DB not loaded
-const baseOptions = dbOptions && dbOptions.length > 0 
-    ? (currentVehicleType 
-        ? dbOptions.filter(bt => bt.vehicle_class === currentVehicleType).map(bt => bt.name)
-        : dbOptions.map(bt => bt.name))
-    : BODY_TYPE_FALLBACK;
-    
-const normalizedCurrent = normalizeBodyTypeValue(current || "");
-
-// Ensure the current value is always in the list (even if not in DB yet)
-const allOptions = normalizedCurrent && !baseOptions.includes(normalizedCurrent)
-    ? [normalizedCurrent, ...baseOptions]
-    : baseOptions;
-
-const selectedValue = allOptions.includes(normalizedCurrent) ? normalizedCurrent : "";
-
-// Validation mismatch warning
-const isMismatch = currentVehicleType && dbOptions && dbOptions.length > 0 && normalizedCurrent && !dbOptions.some(bt => bt.name === normalizedCurrent && bt.vehicle_class === currentVehicleType);
-
-return (
-    <span className={`inline-flex items-center h-full ${isMismatch ? 'ring-1 ring-red-400 rounded-r-[5px]' : ''}`}>
-      <select
-        className={`bg-slate-50/50 font-medium ${isMismatch ? 'text-red-600 animate-pulse' : 'text-slate-600'} cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0 rounded-r-[5px]" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
-        style={{ fontFamily: "'Geist Mono', monospace" }}
-        value={selectedValue}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => { e.stopPropagation(); onChange(normalizeBodyTypeValue(e.target.value)); }}
-        title={isMismatch ? `Uwaga: Typ nadwozia "${normalizedCurrent}" zwykle nie pasuje do kategorii "${currentVehicleType}"` : ""}
-      >
-        <option value="" disabled>Typ nadwozia...</option>
-        {allOptions.map((optionValue) => (
-          <option key={optionValue} value={optionValue}>{optionValue}</option>
-        ))}
-      </select>
-    </span>
-);
-}
-
-
 
 /** Readiness badge - shows SAMAR data availability with hover tooltip */
 function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
@@ -416,6 +438,7 @@ crossCardAlerts = [],
 onScrollToVehicle,
 readinessResult,
 paramPreview,
+onConfigurationCodeChange,
 }: VehicleBaseInfoProps) {
 const powerBand = detectPowerBand(vehicle);
 
@@ -535,7 +558,24 @@ return (
           {hasValue(vehicle.offer_number) && (
             <CodeTag>{vehicle.offer_number}</CodeTag>
           )}
-          {hasValue(vehicle.configuration_code) && (
+          {onConfigurationCodeChange ? (
+            <div className="flex items-center gap-1 border border-slate-300 bg-slate-100 px-2.5 py-0.5 rounded text-sm group focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400 transition-all">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">CONFIG</span>
+              <input
+                type="text"
+                defaultValue={vehicle.configuration_code || ""}
+                onBlur={(e) => {
+                  if (e.target.value !== vehicle.configuration_code) {
+                    onConfigurationCodeChange(e.target.value);
+                  }
+                }}
+                className="bg-transparent border-none outline-none text-slate-700 font-mono text-sm w-32 focus:w-48 transition-all"
+                style={{ fontFamily: "'Geist Mono', monospace" }}
+                placeholder="Kod konfiguracji..."
+              />
+              <Edit3 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          ) : hasValue(vehicle.configuration_code) && (
             <CodeTag>{vehicle.configuration_code}</CodeTag>
           )}
           {vehicle.suggested_discount_pct != null ? (

@@ -30,12 +30,19 @@ async function processQueue() {
     const vid = loadQueue.shift();
     if (vid && !featuresCache.has(vid)) {
       try {
-         await fetchFeaturesForCache(vid);
+        await fetchFeaturesForCache(vid);
       } catch (e) {
-         console.warn("Background preload failed for", vid, e);
+        console.warn(`[Cache] Preload failed for ${vid}, retrying once...`, e);
+        // Wait 1s and retry once
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
+          await fetchFeaturesForCache(vid);
+        } catch (e2) {
+          console.error(`[Cache] Final failure for ${vid}:`, e2);
+        }
       }
-      // Add a small delay between requests to not hammer the server
-      await new Promise(r => setTimeout(r, 200));
+      // Increased delay to 500ms to avoid slamming the Granian/Uvicorn dev server on Windows
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
   isQueueProcessing = false;
@@ -55,7 +62,7 @@ export async function fetchFeaturesForCache(vehicleId: string) {
     let cachedCatalog: SuggestedCatalog | null = null;
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const vehicleResp = await apiClient.fetch(`/api/kalkulator/pojazd/${vehicleId}`);
+    const vehicleResp = await apiClient.fetch(`/api/kalkulator/pojazd/${vehicleId}?lite=true`);
     if (vehicleResp.ok) {
         const vehicleData = await vehicleResp.json();
         const synthDataRaw = vehicleData.synthesis_data || {};

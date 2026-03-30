@@ -89,6 +89,8 @@ interface VehicleRowCardProps {
   crossCardAlerts?: DiscountAlert[];
   globalSettings?: ControlCenterSettings | null;
   isHighlighted?: boolean;
+  bodyTypes?: any[];
+  paintTypes?: any[];
 }
 
 export function VehicleRowCard({
@@ -100,6 +102,8 @@ export function VehicleRowCard({
   crossCardAlerts = [],
   globalSettings,
   isHighlighted = false,
+  bodyTypes,
+  paintTypes,
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const scrolledToMatrixRef = useRef(false);
@@ -129,8 +133,7 @@ export function VehicleRowCard({
   // Hook 1: Synchronizacja bazy danych / zmiana parametrów (Direct Save / Remap AI)
   const { isSavingFields, handleDirectSave, isRemappingClassification, handleRemapClassification } = useVehicleDataSync(vehicle, onRefresh, setLocalMappedData);
 
-  // Hook: CRUD reference data for manual edit dropdowns
-  const { bodyTypes } = useReferenceData();
+  // Hook: CRUD reference data for manual edit dropdowns (bodyTypes now passed via props)
 
   // Auto-detect metalic function needs to be passed down
   const autoDetectMetalic = useCallback((): boolean => {
@@ -172,13 +175,13 @@ export function VehicleRowCard({
     rimDiameter, setRimDiameter,
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
-    isMetalic, setIsMetalic,
+    paintCategoryId, setPaintCategoryId,
     isSavingSetup, handleSaveSetup
   } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet, globalSettings);
 
   // Hook 3: Readiness Check API
   const resolvedBodyType = localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined;
-  const { readinessResult } = useVehicleReadiness(vehicle, mappedData, isMetalic, resolvedBodyType);
+  const { readinessResult } = useVehicleReadiness(vehicle, mappedData, paintCategoryId === 2 || paintCategoryId === 3, resolvedBodyType);
 
   // Extract drive type from card_summary (needed for hook 4)
   const DRIVE_TYPE_MAP: Record<string, string> = {
@@ -194,8 +197,8 @@ export function VehicleRowCard({
 
   // Hook 4: Param Preview API
   const { paramPreview, controlCenter } = useVehicleParamPreview(
-    readinessResult?.samar_class_id,
-    readinessResult?.fuel_type_id,
+    readinessResult?.samar_class_id || null,
+    readinessResult?.fuel_type_id || null,
     vehicle.brand,
     vehicle.fuel,
     driveType,
@@ -205,7 +208,7 @@ export function VehicleRowCard({
     tireClass,
     rimDiameter,
     vehicleVintage,
-    isMetalic
+    paintCategoryId
   );
 
   // Restore saved calculator_setup from synthesis_data on load or update
@@ -215,7 +218,7 @@ export function VehicleRowCard({
     
     // Always sync auto-detected properties when synthesis_data changes if they are missing in setup
     if (!setup) {
-      setIsMetalic(autoDetectMetalic());
+      setPaintCategoryId(autoDetectMetalic() ? 2 : 1);
       const cs = (vehicle.synthesis_data as any)?.card_summary;
       setHookInstallation(cs?.has_tow_hook === true);
       setVehicleVintage(cs?.is_current_year_vehicle === false ? "previous" : "current");
@@ -283,16 +286,18 @@ export function VehicleRowCard({
     // Other
     if (setup.service_cost_type) setServiceCostType(setup.service_cost_type);
     if (setup.vehicle_vintage) setVehicleVintage(setup.vehicle_vintage);
-    // Metalic: keyword detection always wins over saved value (keywords are deterministic)
-    if (setup.is_metalic != null) {
+    // Paint category migration
+    if (setup.paint_category_id != null) {
+      setPaintCategoryId(setup.paint_category_id);
+    } else if (setup.is_metalic != null) {
       const keywordDetected = autoDetectMetalic();
       const color = (vehicle.exterior_color || "").toLowerCase();
       const hasKeyword = ["metalic", "metalik", "metallic", "metalizow", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"].some(kw => color.includes(kw))
         || ["solido", "uni ", "akrylow", "jednowarstwow"].some(kw => color.includes(kw));
-      // If keywords found → trust keyword detection; otherwise use saved value
-      setIsMetalic(hasKeyword ? keywordDetected : setup.is_metalic);
+      const legacyVal = hasKeyword ? keywordDetected : setup.is_metalic;
+      setPaintCategoryId(legacyVal ? 2 : 1);
     } else {
-      setIsMetalic(autoDetectMetalic());
+      setPaintCategoryId(autoDetectMetalic() ? 2 : 1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color, vehicle.wheels]);
@@ -325,6 +330,7 @@ export function VehicleRowCard({
     handleEngineCategoryChange,
     handleDriveTypeChange,
     handleBodyTypeChange,
+    handleConfigurationCodeChange,
     handleVehicleTypeChange,
     handleMapDataSilent,
   } = useVehicleMetaManager(
@@ -648,6 +654,7 @@ export function VehicleRowCard({
         onDriveTypeChange={handleDriveTypeChange}
         bodyType={resolvedBodyType}
         onBodyTypeChange={handleBodyTypeChange}
+        onConfigurationCodeChange={handleConfigurationCodeChange}
         onVehicleTypeChange={handleVehicleTypeChange}
         bodyTypeOptions={bodyTypes}
         isSelected={isSelected}
@@ -759,8 +766,9 @@ export function VehicleRowCard({
              // Vehicle vintage & metalic
              vehicleVintage={vehicleVintage}
              setVehicleVintage={setVehicleVintage}
-             isMetalic={isMetalic}
-             setIsMetalic={setIsMetalic}
+             paintCategoryId={paintCategoryId}
+             setPaintCategoryId={setPaintCategoryId}
+             paintTypes={paintTypes}
              isMetalicAutoDetected={autoDetectMetalic()}
              hookAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.has_tow_hook === true}
              vintageAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.is_current_year_vehicle != null}
@@ -818,7 +826,7 @@ export function VehicleRowCard({
                rimDiameter={rimDiameter}
                serviceCostType={serviceCostType}
                vehicleVintage={vehicleVintage}
-               isMetalic={isMetalic}
+               paintCategoryId={paintCategoryId}
                activeDiscountPct={activeDiscountPct}
                activeFinalPrice={activeFinalPriceNet}
                brochureData={brochureData}

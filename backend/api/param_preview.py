@@ -214,8 +214,8 @@ def _fetch_replacement_car_preview(
     try:
         res = (
             supabase.table("replacement_car_rates")
-            .select("daily_rate_net, average_days_per_year")
-            .eq("samar_class_id", samar_class_id)
+            .select("stawka_dzienna_netto_zl, srednia_l_dni_rok")
+            .eq("klasa_samar_fk", samar_class_id)
             .limit(1)
             .execute()
         )
@@ -223,8 +223,8 @@ def _fetch_replacement_car_preview(
             row = cast(dict[str, Any], res.data[0])
             return ReplacementCarPreview(
                 found=True,
-                daily_rate_net=float(row.get("daily_rate_net", 0.0)),
-                avg_days_year=float(row.get("average_days_per_year", 6.5)),
+                daily_rate_net=float(row.get("stawka_dzienna_netto_zl", 0.0)),
+                avg_days_year=float(row.get("srednia_l_dni_rok", 6.5)),
             )
     except Exception as exc:
         logger.warning("param-preview replacement_car error: %s", exc)

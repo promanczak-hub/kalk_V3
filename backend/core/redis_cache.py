@@ -13,6 +13,7 @@ Default: ``redis://localhost:6379/0``
 import json
 import logging
 import os
+import time
 from functools import wraps
 from typing import Any, Callable
 
@@ -24,40 +25,49 @@ _PREFIX = "kalk_v3:"
 # ── Lazy singleton Redis client ──
 _client: Any = None
 _redis_available: bool | None = None
+_redis_down_until: float = 0.0
+_redis_backoff_seconds: float = 60.0
 
 
 def _get_client() -> Any:
     """Return a Redis client (lazy-init, singleton)."""
-    global _client, _redis_available
+    global _client, _redis_available, _redis_down_until
     if _client is not None:
         return _client
+        
+    if time.time() < _redis_down_until:
+        return None
+        
     try:
         import redis as redis_lib
 
         _client = redis_lib.Redis.from_url(
             REDIS_URL,
             decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2,
+            socket_connect_timeout=0.5,
+            socket_timeout=1.0,
         )
         _client.ping()
         _redis_available = True
         logger.info("Redis connected: %s", REDIS_URL)
+        return _client
     except Exception as exc:
         _redis_available = False
         _client = None
+        _redis_down_until = time.time() + _redis_backoff_seconds
         logger.warning(
-            "Redis niedostępny (%s). Fallback na lru_cache. Błąd: %s",
+            "Redis niedostępny (%s). Circuit breaker otwarty na %ds. Fallback na funkcję. Błąd: %s",
             REDIS_URL,
+            int(_redis_backoff_seconds),
             exc,
         )
-    return _client
+        return None
 
 
 def is_redis_available() -> bool:
     """Check if Redis is connected and responding."""
-    global _redis_available
-    if _redis_available is None:
+    global _redis_available, _redis_down_until
+    if _client is None and time.time() >= _redis_down_until:
         _get_client()
     return bool(_redis_available)
 

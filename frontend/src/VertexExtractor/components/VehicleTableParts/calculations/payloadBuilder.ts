@@ -20,7 +20,7 @@ export interface CalculationPayloadParams {
     rimDiameter: number | null;
     serviceCostType: "ASO" | "nonASO";
     vehicleVintage: "current" | "previous";
-    isMetalic: boolean;
+    paintCategoryId: number | null;
     activeDiscountPct: number;
     activeFinalPrice: number;
     priceAudit?: {
@@ -129,7 +129,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
         },
         service_cost_type: params.serviceCostType,
         vehicle_vintage: params.vehicleVintage,
-        is_metalic: params.isMetalic,
+        paint_category_id: params.paintCategoryId,
         discount: {
           active_discount_pct: params.activeDiscountPct,
           active_final_price: params.activeFinalPrice,

@@ -95,9 +95,9 @@ export function useCalculator() {
       if (resp.data) {
         setData((prev) => ({
           ...prev,
-          vat_rate: (resp.data.vat_rate || 23) / 100,
-          wibor_pct: (resp.data.default_wibor || 5.0) / 100,
-          financial_margin_pct: (resp.data.bank_spread || 2.0) / 100,
+          vat_rate: (resp.data.vat_rate ?? 23) / 100,
+          wibor_pct: (resp.data.default_wibor ?? 5.0) / 100,
+          financial_margin_pct: (resp.data.bank_spread ?? 2.0) / 100,
         }));
       }
     } catch (e) {
@@ -223,6 +223,17 @@ export function useCalculator() {
     setData(prev => ({ ...prev, ...updates }));
   };
 
+  const [activeStep, setActiveStep] = useState(0);
+
+  const handleNext = () => setActiveStep((prev) => prev + 1);
+  const handleBack = () => setActiveStep((prev) => prev - 1);
+  const handleReset = () => {
+    setData(INITIAL_DATA);
+    setActiveStep(0);
+    setCalculationResult(null);
+    setSteps([]);
+  };
+
   const handleAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpandedPanel(isExpanded ? panel : false);
   };
@@ -252,5 +263,9 @@ export function useCalculator() {
     isParsing,
     expandedPanel,
     handleAccordionChange,
+    activeStep,
+    handleNext,
+    handleBack,
+    handleReset,
   };
 }

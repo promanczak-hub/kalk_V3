@@ -67,7 +67,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     vehicleIdsToFetchPrices,
     targetDuration,
     targetAnnualMileage,
-    results.length > 0 && matrixFiltersActive,
+    results.length > 0, // ZAWSZE POZWÓL NA ŁADOWANIE PODOBNYCH (nie wymagaj matrixFiltersActive)
     similarityMode
   );
 
@@ -113,6 +113,17 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* DEBUG MARKER - IF YOU SEE THIS, THE NEW AI CODE IS ACTIVE */}
+      <Box sx={{ bgcolor: 'red', color: 'white', p: 1, textAlign: 'center', fontWeight: 'bold', mb: 2, borderRadius: 1 }}>
+        AI SIMILARITY FEATURE ACTIVE (DEBUG)
+      </Box>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          Wyniki Dopasowania ({results.length})
+        </Typography>
+      </Box>
+
       {/* Sort Toolbar */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

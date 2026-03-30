@@ -112,6 +112,11 @@ class SimilarVehicleMatch(BaseModel):
     best_monthly_price: Optional[float] = None
     image_url: Optional[str] = None
     similarity_score_pct: Optional[float] = None
+    # Extended categorization metadata
+    power_hp: Optional[int] = None
+    body_style: Optional[str] = None
+    vehicle_class: Optional[str] = None
+    drive_type: Optional[str] = None
 
 
 class PriceForParamsResponse(BaseModel):

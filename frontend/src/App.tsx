@@ -3,8 +3,6 @@ import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
-import CalculateOutlinedIcon from "@mui/icons-material/CalculateOutlined";
-import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
 import {
   ThemeProvider,
@@ -29,8 +27,6 @@ import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
 import { CatalogLibraryPage } from "./VertexExtractor/components/CatalogLibraryPage";
 import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
-import { ManualKalkulacjePage } from "./ManualKalkulacje/ManualKalkulacjePage";
-import { DaneZaleznePage } from "./DaneZalezne/DaneZaleznePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import SheetsSyncPanel from "./SheetsSyncPanel/SheetsSyncPanel";
 import { NotificationProvider } from "./components/NotificationProvider";
@@ -42,13 +38,11 @@ import OfferCartFab from "./components/OfferCart/OfferCartFab";
  * Route definitions — single source of truth for navigation.
  */
 const ROUTES = [
-  { path: "/", label: "Ekstrakcja Danych", icon: <FileUploadOutlinedIcon fontSize="small" /> },
-  { path: "/kalkulacje", label: "Kalkulacje Manualne", icon: <CalculateOutlinedIcon fontSize="small" /> },
-  { path: "/dane-zalezne", label: "Dane zależne - kalkulator", icon: <SettingsSuggestOutlinedIcon fontSize="small" /> },
-  { path: "/control-center", label: "Control Center", icon: <TuneOutlinedIcon fontSize="small" /> },
+  { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" /> },
+  { path: "/control-center", label: "Control Center (Admin)", icon: <TuneOutlinedIcon fontSize="small" /> },
   { path: "/library", label: "Biblioteka Cenników", icon: <LibraryBooksOutlinedIcon fontSize="small" /> },
-  { path: "/search", label: "Wyszukiwarka pojazdów", icon: <SearchOutlinedIcon fontSize="small" /> },
-  { path: "/sheets-sync", label: "Sheets Sync", icon: <SyncOutlinedIcon fontSize="small" /> },
+  { path: "/search", label: "Wyszukiwarka / Scoring", icon: <SearchOutlinedIcon fontSize="small" /> },
+  { path: "/sheets-sync", label: "Sync Google Sheets", icon: <SyncOutlinedIcon fontSize="small" /> },
 ] as const;
 
 interface AppContentProps {
@@ -212,11 +206,9 @@ function AppContent({ mode }: AppContentProps) {
         <ErrorBoundary fallbackTitle="Błąd ładowania sekcji">
           <Routes>
             <Route path="/" element={<VertexExtractorPage />} />
-            <Route path="/dane-zalezne" element={<DaneZaleznePage />} />
             <Route path="/control-center" element={<ControlCenter />} />
             <Route path="/library" element={<CatalogLibraryPage />} />
             <Route path="/search" element={<ScoringSearchPage />} />
-            <Route path="/kalkulacje" element={<ManualKalkulacjePage />} />
             <Route path="/sheets-sync" element={<SheetsSyncPanel />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

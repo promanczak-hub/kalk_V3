@@ -7,7 +7,7 @@ import { JsonViewerModal } from "./components/JsonViewerModal";
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
-import type { ControlCenterSettings } from "../hooks/useCalculator";
+import type { ControlCenterSettings } from "../types";
 import {
   Box,
   Container,
@@ -54,6 +54,8 @@ export default function VertexExtractorPage() {
 
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
+  const [bodyTypes, setBodyTypes] = useState<any[]>([]);
+  const [paintTypes, setPaintTypes] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -68,9 +70,25 @@ export default function VertexExtractorPage() {
         console.error("Failed to fetch settings", e);
       }
     };
-    fetchSettings();
-  }, []);
 
+    const fetchLookupData = async () => {
+      try {
+        const [{ data: bodies }, { data: paints }] = await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).supabase.from("body_types").select("*").order("nazwa_nadwozia"),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).supabase.from("paint_types").select("*").order("id")
+        ]);
+        if (bodies) setBodyTypes(bodies);
+        if (paints) setPaintTypes(paints);
+      } catch (e) {
+        console.error("Failed to fetch lookup data", e);
+      }
+    };
+
+    fetchSettings();
+    fetchLookupData();
+  }, []);
   const {
     documents,
     activeJsonView,
@@ -83,46 +101,48 @@ export default function VertexExtractorPage() {
   } = useDocumentProcessing(fetchSavedVehicles);
 
   return (
-    <Box sx={{ pb: 8, minHeight: "100vh" }}>
+    <Box sx={{ pb: 6, minHeight: "100vh" }}>
       <Container maxWidth="xl">
-        {/* Hero Section */}
-        <Stack spacing={4} sx={{ mb: 6 }}>
+        {/* Hero Section - Compacted */}
+        <Stack spacing={2} sx={{ mb: 4 }}>
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.4 }}
           >
-            <Box>
+            <Box sx={{ mt: 1 }}>
               <Typography
-                variant="h4"
+                variant="h5"
                 component="h1"
-                gutterBottom
                 sx={{
                   fontWeight: 800,
                   background: "linear-gradient(45deg, #1e3a8a 30%, #3b82f6 90%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   letterSpacing: "-0.02em",
+                  mb: 0.5,
                 }}
               >
                 Ekstrakcja i Analiza AI
               </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600 }}>
-                Prześlij dokumenty pojazdów (zdjęcia, PDF), aby automatycznie wyodrębnić dane techniczne i finansowe za pomocą sztucznej inteligencji.
+              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 700, fontSize: '0.85rem' }}>
+                Prześlij dokumenty pojazdów (zdjęcia, PDF), aby wyodrębnić dane techniczne i finansowe za pomocą AI.
               </Typography>
             </Box>
           </motion.div>
 
-          {/* Core Workflow */}
+          {/* Core Workflow - Compact Spacing */}
           <UploadZone onFilesSelected={handleFiles} />
           
-          <DocumentList
-            documents={documents}
-            onOpenJson={(doc) => setActiveJsonView(doc)}
-            onRemoveDocument={removeDocument}
-          />
+          {documents.length > 0 && (
+            <DocumentList
+              documents={documents}
+              onOpenJson={(doc) => setActiveJsonView(doc)}
+              onRemoveDocument={removeDocument}
+            />
+          )}
 
-          <Box sx={{ mt: 4 }}>
+          <Box sx={{ mt: 2 }}>
             <VehicleTable
               savedVehicles={savedVehicles}
               isLoadingSaved={isLoadingSaved}
@@ -136,6 +156,8 @@ export default function VertexExtractorPage() {
               handleOpenSavedJson={handleOpenSavedJson}
               handleDeleteVehicle={handleDeleteVehicle}
               globalSettings={globalSettings}
+              bodyTypes={bodyTypes}
+              paintTypes={paintTypes}
               page={page}
               setPage={setPage}
               pageSize={pageSize}

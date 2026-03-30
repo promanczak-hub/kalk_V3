@@ -91,6 +91,12 @@ export function CellDetail({
           <SimpleCostRow label="Ubezpieczenie" price={cell.Ubezpieczenie} />
           <SimpleCostRow label="Samochód zastępczy" price={cell.SamochodZastepczy} />
           <SimpleCostRow label="Inne koszty" price={cell.Admin} />
+          <tr className="border-t border-slate-200">
+            <td className="py-2 text-[10px] font-bold text-slate-400 uppercase">Suma Serwis (Krok 4+5)</td>
+            <td className="py-2 text-xs text-right font-bold text-slate-600 tabular-nums">
+              {fmtPLN(cell.Serwis + (cell.OpcjeSerwisoweSumaNetto / cell.Okres))}
+            </td>
+          </tr>
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-slate-300">
@@ -208,16 +214,16 @@ export function CellDetail({
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Marża i Kontrakt</div>
               <ExpertNumber
                 label="Marża sprzedaży"
-                value={overrides.pricing_margin_pct}
-                onChange={(v) => update({ pricing_margin_pct: Number(v) })}
+                value={overrides.pricing_margin_pct ?? ""}
+                onChange={(v) => update({ pricing_margin_pct: v === "" ? null : Number(v) })}
                 step={0.5}
                 suffix="%"
                 min={0}
               />
               <ExpertNumber
                 label="Okres (mc)"
-                value={overrides.custom_months ?? cell.Okres}
-                onChange={(v) => update({ custom_months: Number(v) > 0 ? Number(v) : null })}
+                value={overrides.custom_months ?? cell.Okres ?? ""}
+                onChange={(v) => update({ custom_months: v === "" ? null : Number(v) > 0 ? Number(v) : null })}
                 step={6}
                 suffix="mc"
                 min={6}
@@ -246,16 +252,16 @@ export function CellDetail({
               />
               <ExpertNumber
                 label="Pakiet serwisowy"
-                value={overrides.pakiet_serwisowy}
-                onChange={(v) => update({ pakiet_serwisowy: Number(v) })}
+                value={overrides.pakiet_serwisowy ?? ""}
+                onChange={(v) => update({ pakiet_serwisowy: v === "" ? 0 : Number(v) })}
                 step={100}
                 suffix="PLN"
                 min={0}
               />
               <ExpertNumber
                 label="Inne koszty mc"
-                value={overrides.inne_koszty_serwisowania_netto}
-                onChange={(v) => update({ inne_koszty_serwisowania_netto: Number(v) })}
+                value={overrides.inne_koszty_serwisowania_netto ?? ""}
+                onChange={(v) => update({ inne_koszty_serwisowania_netto: v === "" ? 0 : Number(v) })}
                 step={10}
                 suffix="PLN"
                 min={0}

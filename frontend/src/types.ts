@@ -132,5 +132,6 @@ export interface ControlCenterSettings {
   bank_spread: number;
   insurance_rate_pct?: number;
   provision_pct?: number;
+  default_ltr_margin?: number;
 }
 

@@ -1,4 +1,5 @@
 import json
+import logging
 import requests
 import asyncio
 from typing import Any, Dict
@@ -22,6 +23,8 @@ def _get_admin_client():
         _supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     return _supabase_admin or supabase_client
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -412,8 +415,10 @@ DANE POJAZDÓW:
 
 
 @router.get("/kalkulator/pojazd/{vehicle_id}")
-def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
-    """Zwraca synthesis_data pojazdu po ID — używane przez VehicleFeaturesCard."""
+def get_vehicle_synthesis(vehicle_id: str, lite: bool = False) -> Dict[str, Any]:
+    """Zwraca synthesis_data pojazdu po ID — używane przez VehicleFeaturesCard.
+    lite=True zwraca tylko niezbędne pola dla cache cech (standard_equipment, paid_options, suggested_catalog).
+    """
     try:
         response = (
             supabase_client.table("vehicle_synthesis")
@@ -427,7 +432,25 @@ def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
         synthesis = row.get("synthesis_data") or {}
         mapped = synthesis.get("mapped_ai_data") or {}
         trim = mapped.get("trim_level", "")
-        return {
+
+        # Optional Lite mode: Filter payload to minimize size for preloading
+        if lite:
+            card_summary = synthesis.get("card_summary") or {}
+            synthesis = {
+                "card_summary": {
+                    "standard_equipment": card_summary.get("standard_equipment", []),
+                    "paid_options": card_summary.get("paid_options", []),
+                },
+                "suggested_catalog": synthesis.get("suggested_catalog"),
+            }
+
+        # Log payload size for diagnosis
+        payload_size = len(str(synthesis))
+        logger.info(
+            "Fetch synthesis successful: id=%s size=%d chars", vehicle_id, payload_size
+        )
+
+        result = {
             "id": row.get("id"),
             "brand": row.get("brand"),
             "model": row.get("model"),
@@ -435,10 +458,39 @@ def get_vehicle_synthesis(vehicle_id: str) -> Dict[str, Any]:
             "verification_status": row.get("verification_status"),
             "synthesis_data": synthesis,
         }
+        return result
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        import math
+        import json
+
+        def _clean_nan(obj: Any) -> Any:
+            """Recursively replace NaN/Inf with None for JSON safety."""
+            if isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return None
+                return obj
+            if isinstance(obj, dict):
+                return {k: _clean_nan(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_clean_nan(v) for v in obj]
+            return obj
+
+        try:
+            # Fallback cleanup attempt before crashing
+            if 'synthesis' in locals() and isinstance(synthesis, dict):
+                synthesis = _clean_nan(synthesis)
+        except Exception:
+            pass
+
+        error_msg = f"Unexpected error in get_vehicle_synthesis for {vehicle_id}: {e}"
+        logger.error(error_msg, exc_info=True)
+        # return full traceback in detail for easier debugging in dev
+        raise HTTPException(
+            status_code=500, detail=f"{error_msg}\n{traceback.format_exc()}"
+        )
 
 
 @router.get("/extract/{vehicle_id}/markdown")

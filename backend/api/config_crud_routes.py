@@ -42,6 +42,17 @@ ALLOWED_TABLES: dict[str, str] = {
     "service_rates_config": "Stawki Serwisowe",
     "service_base_costs_config": "Koszty Bazowe Serwisu",
     "ltr_admin_ubezpieczenia": "Stawki Ubezpieczeniowe AC/OC",
+    "tyre_configurations": "Konfiguracja Progu Opon",
+    "paint_types": "Typy Lakieru i Korekta WR",
+    "body_type_wr_corrections": "Korekty Nadwozia WR",
+    "samar_class_options_rv": "RV Wyposażenia (Klasy Samar)",
+    "samar_class_base_rv": "RV Bazowe (Klasy Samar)",
+    "samar_service_brand_multipliers": "Mnożniki Serwisowe: Marka",
+    "samar_service_fuel_multipliers": "Mnożniki Serwisowe: Paliwo",
+    "samar_service_drive_multipliers": "Mnożniki Serwisowe: Napęd",
+    "samar_service_gearbox_multipliers": "Mnożniki Serwisowe: Skrzynia",
+    "ltr_admin_korekta_wr_markas": "Korekta WR: Marka (LTR)",
+    "ltr_admin_korekta_wr_roczniks": "Korekta WR: Rocznik (LTR)",
     # RMS _czak tables
     "LTRAdminParametry_czak": "RMS: Parametry",
     "CennikOpon_czak": "RMS: Cennik Opon",
@@ -233,6 +244,59 @@ def _build_protected_xlsx(rows: list[dict[str, Any]], sheet_title: str) -> io.By
     wb.save(output)
     output.seek(0)
     return output
+
+
+# ── Registry ──────────────────────────────────────────────────────────
+
+
+@config_crud_router.get("/config/registry")
+def get_config_registry() -> dict[str, str]:
+    """Return the map of whitelisted configuration tables."""
+    return ALLOWED_TABLES
+
+
+# ── Data CRUD ──────────────────────────────────────────────────────────
+
+
+@config_crud_router.get("/config/{table_name}/rows")
+def get_table_rows(table_name: str) -> list[dict[str, Any]]:
+    """Fetch all rows for a generic config table."""
+    _validate_table(table_name)
+    try:
+        return _fetch_all_rows(table_name)
+    except Exception as exc:
+        logger.exception("Fetch failed for %s", table_name)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@config_crud_router.put("/config/{table_name}/rows")
+def update_table_rows(table_name: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Bulk upsert rows for a generic config table.
+    Requires 'id' for updates, otherwise inserts.
+    """
+    _validate_table(table_name)
+    try:
+        # Create pre-update snapshot for safety
+        _create_snapshot(table_name, label="Auto: przed zapisem Grid")
+
+        updated = 0
+        inserted = 0
+        for row in rows:
+            row_id = row.get("id")
+            # Clean data (remove internal columns if passed)
+            data = {k: v for k, v in row.items() if k.lower() not in ID_COLUMNS}
+
+            if row_id is not None and str(row_id).strip() != "":
+                supabase.table(table_name).update(data).eq("id", row_id).execute()
+                updated += 1
+            else:
+                supabase.table(table_name).insert(data).execute()
+                inserted += 1
+
+        return {"status": "success", "updated": updated, "inserted": inserted}
+    except Exception as exc:
+        logger.exception("Update failed for %s", table_name)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ── XLSX Export ───────────────────────────────────────────────────────

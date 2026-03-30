@@ -171,6 +171,9 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
               hasCache={!!(car.has_ltr_cache)}
               bestMonthlyPrice={(car.best_monthly_price as number) || null}
               marginPct={searchContext.margin_pct || 0}
+              suggestedDiscountPct={car.suggested_discount_pct as number | undefined}
+              targetDuration={targetDuration}
+              targetAnnualMileage={targetAnnualMileage}
               priceData={priceData}
               loading={pricesLoading}
             />
@@ -237,6 +240,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
         {similarData && similarData.length > 0 && (
           <SimilarVehiclesPanel 
             vehicles={similarData}
+            sourceVehicle={car}
           />
         )}
       </CardContent>

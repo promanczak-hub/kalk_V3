@@ -56,7 +56,8 @@ export function useVehicleCalculations({
   
   const [marginRecalculating, setMarginRecalculating] = useState(false);
   const [globalWrCorrection, setGlobalWrCorrection] = useState<number>(0);
-  const [isGlobalWrRecalculating, setIsGlobalWrRecalculating] = useState(false);
+  const [globalTireCorrection, setGlobalTireCorrection] = useState<number>(0);
+  const [isGlobalRecalculating, setIsGlobalRecalculating] = useState(false);
 
   const [mileageMode, setMileageMode] = useState<MileageMode>("contract");
   const [filters, setFilters] = useState<MatrixFilters>({
@@ -479,11 +480,13 @@ export function useVehicleCalculations({
 
   const handleGlobalRecalculate = useCallback(async () => {
     if (!basePayload) return;
-    setIsGlobalWrRecalculating(true);
+    setIsGlobalRecalculating(true);
     try {
       const modifiedPayload = {
         ...basePayload,
         manual_wr_correction: globalWrCorrection,
+        koszt_opon_korekta: globalTireCorrection,
+        korekta_kosztu_opon: globalTireCorrection !== 0,
       };
       setBasePayload(modifiedPayload);
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
@@ -492,7 +495,7 @@ export function useVehicleCalculations({
         body: JSON.stringify(modifiedPayload),
       });
 
-      if (!resp.ok) throw new Error("Błąd przeliczania matrycy z korektą WR");
+      if (!resp.ok) throw new Error("Błąd przeliczania matrycy z korektami");
       const data = await resp.json();
       const newCells = data.cells || [];
       
@@ -501,11 +504,11 @@ export function useVehicleCalculations({
       setModifiedCells(new Set());
       setCellOverrides({});
     } catch (err) {
-      console.error("Global WR recalculation error:", err);
+      console.error("Global recalculation error:", err);
     } finally {
-      setIsGlobalWrRecalculating(false);
+      setIsGlobalRecalculating(false);
     }
-  }, [globalWrCorrection, basePayload]);
+  }, [globalWrCorrection, globalTireCorrection, basePayload]);
 
   return {
     cells,
@@ -523,9 +526,11 @@ export function useVehicleCalculations({
     mileageMode,
     setMileageMode,
     mileageReferenceMonths,
-    isGlobalWrRecalculating,
+    isGlobalRecalculating,
     globalWrCorrection,
     setGlobalWrCorrection,
+    globalTireCorrection,
+    setGlobalTireCorrection,
     modifiedCells,
     getOverrides,
     fetchMatrix,

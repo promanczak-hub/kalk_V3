@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import type { FleetVehicleView } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
-import type { ControlCenterSettings } from "../../hooks/useCalculator";
+import type { ControlCenterSettings } from "../../types";
 
 export function useVehicleFinancing(
   vehicle: FleetVehicleView,
@@ -14,7 +14,7 @@ export function useVehicleFinancing(
   // Financial parameters - strictly null by default, wait for globalSettings or existing setup.
   const [wiborPct, setWiborPct] = useState<number | null>(globalSettings?.default_wibor ?? null);
   const [marginPct, setMarginPct] = useState<number | null>(globalSettings?.bank_spread ?? null);
-  const [pricingMarginPct, setPricingMarginPct] = useState<number>(globalSettings?.default_ltr_margin ?? 15.0);
+  const [pricingMarginPct, setPricingMarginPct] = useState<number | null>(globalSettings?.default_ltr_margin ?? null);
   const [initialDepositPct, setInitialDepositPct] = useState<number>(0);
   const [otherServiceCosts, setOtherServiceCosts] = useState<number>(0);
 
@@ -53,8 +53,10 @@ export function useVehicleFinancing(
     return "current";
   });
 
-  // Metalik
-  const [isMetalic, setIsMetalic] = useState<boolean>(autoDetectMetalic());
+  // Paint Category (1: Niemetalizowany, 2: Metalizowany, 3: Perłowy)
+  const [paintCategoryId, setPaintCategoryId] = useState<number>(() => {
+    return autoDetectMetalic() ? 2 : 1;
+  });
 
   // Save State
   const [isSavingSetup, setIsSavingSetup] = useState(false);
@@ -69,7 +71,7 @@ export function useVehicleFinancing(
         setWiborPct(globalSettings.default_wibor ?? null);
         setMarginPct(globalSettings.bank_spread ?? null);
       }
-      setIsMetalic(autoDetectMetalic());
+      setPaintCategoryId(autoDetectMetalic() ? 2 : 1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cs = (vehicle.synthesis_data as any)?.card_summary;
       setHookInstallation(cs?.has_tow_hook === true);
@@ -144,7 +146,10 @@ export function useVehicleFinancing(
     if (setup.service_cost_type) setServiceCostType(setup.service_cost_type);
     if (setup.vehicle_vintage) setVehicleVintage(setup.vehicle_vintage);
 
-    if (setup.is_metalic != null) {
+    if (setup.paint_category_id != null) {
+      setPaintCategoryId(setup.paint_category_id);
+    } else if (setup.is_metalic != null) {
+      // Migration from legacy boolean
       const keywordDetected = autoDetectMetalic();
       const color = (vehicle.exterior_color || "").toLowerCase();
       const hasKeyword = [
@@ -153,9 +158,10 @@ export function useVehicleFinancing(
       ].some(kw => color.includes(kw)) ||
       ["solido", "uni ", "akrylow", "jednowarstwow"].some(kw => color.includes(kw));
       
-      setIsMetalic(hasKeyword ? keywordDetected : setup.is_metalic);
+      const legacyVal = hasKeyword ? keywordDetected : setup.is_metalic;
+      setPaintCategoryId(legacyVal ? 2 : 1);
     } else {
-      setIsMetalic(autoDetectMetalic());
+      setPaintCategoryId(autoDetectMetalic() ? 2 : 1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.id, vehicle.synthesis_data, vehicle.exterior_color, vehicle.wheels, globalSettings]);
@@ -193,7 +199,7 @@ export function useVehicleFinancing(
         },
         service_cost_type: serviceCostType,
         vehicle_vintage: vehicleVintage,
-        is_metalic: isMetalic,
+        paint_category_id: paintCategoryId,
         discount: {
           active_discount_pct: activeDiscountPct,
           active_final_price: activeFinalPrice,
@@ -236,7 +242,7 @@ export function useVehicleFinancing(
     rimDiameter, setRimDiameter,
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
-    isMetalic, setIsMetalic,
+    paintCategoryId, setPaintCategoryId,
     isSavingSetup, handleSaveSetup
   };
 }

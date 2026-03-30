@@ -383,6 +383,11 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                     ),
                     image_url=str(row.get("image_url") or row.get("v_image") or ""),
                     similarity_score_pct=float(row.get("similarity_score_pct") or 0),
+                    # New technical metadata
+                    power_hp=int(row.get("power_hp") or 0),
+                    body_style=str(row.get("body_style") or "N/A"),
+                    vehicle_class=str(row.get("vehicle_class") or "N/A"),
+                    drive_type=str(row.get("drive_type") or "N/A"),
                 )
 
                 if source_id in results:
@@ -421,9 +426,7 @@ class BatchPricesResponse(BaseModel):
 )
 def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
     """Return base LTR prices (0% margin) and variants for multiple vehicles.
-
-    Prices are returned WITHOUT margin — the frontend applies
-    pricing margin via ``rawPrice / (1 - marginPct/100)``.
+    Uses rpc_get_batch_prices to avoid PostgREST 1000-row limit.
     """
     sb = supabase
 
@@ -431,156 +434,60 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
         if not req.vehicle_ids:
             return BatchPricesResponse(prices={})
 
-        # ── Fetch all matrix cache entries ──
+        # ── Call RPC for batch prices ──
+        # This function identifies the best match per vehicle ID within duration/mileage bounds
+        # and returns total variants count, solving the 1000-row limit issue.
         resp = _supabase_execute_with_retry(
-            sb.table("vehicle_matrix_cache")
-            .select(
-                "vehicle_id, kalkulacja_id, duration_months, annual_mileage, monthly_price_net, tire_class, service_type, calculated_at"
+            sb.rpc(
+                "rpc_get_batch_prices",
+                {
+                    "p_vehicle_ids": req.vehicle_ids,
+                    "p_duration_min": req.duration_months_min,
+                    "p_duration_max": req.duration_months_max,
+                    "p_mileage_min": req.annual_mileage_min,
+                    "p_mileage_max": req.annual_mileage_max,
+                },
             )
-            .in_("vehicle_id", req.vehicle_ids)
-            .limit(10000)
         )
-        all_rows = resp.data or []
 
-        from collections import defaultdict
-
-        v_map: dict[str, list] = defaultdict(list)
-        for r in all_rows:
-            v_map[r["vehicle_id"]].append(r)
-
+        rows = resp.data or []
         results: dict[str, VehiclePrices] = {}
 
-        for vid in req.vehicle_ids:
-            v_prices = VehiclePrices(price_for_params=None, variants=[])
-            v_rows_all = v_map.get(vid, [])
+        for row in rows:
+            vid = str(row["vehicle_id"])
+            found = bool(row["found"])
+            variants_count = int(row.get("variants_count") or 0)
 
-            if not v_rows_all:
-                v_prices.price_for_params = PriceForParamsResponse(
-                    vehicle_id=vid, found=False, variants_count=0
+            if not found:
+                results[vid] = VehiclePrices(
+                    price_for_params=PriceForParamsResponse(
+                        vehicle_id=vid, found=False, variants_count=variants_count
+                    ),
+                    variants=[],
                 )
-                results[vid] = v_prices
                 continue
 
-            # Group by kalkulacja_id for historical variants display
-            calc_map: dict[str, list] = defaultdict(list)
-            for r in v_rows_all:
-                kid = r.get("kalkulacja_id")
-                kid_str = kid if kid else ""
-                calc_map[kid_str].append(r)
-
-            # Keep only the newest calculation per (duration, mileage) combo
-            param_map: dict[tuple, tuple] = {}
-            for r in v_rows_all:
-                key = (r.get("duration_months"), r.get("annual_mileage"))
-                if not key[0] or not key[1]:
-                    continue
-                dt = None
-                if r.get("calculated_at"):
-                    dt = datetime.fromisoformat(
-                        r["calculated_at"].replace("Z", "+00:00")
-                    )
-                if key not in param_map:
-                    param_map[key] = (dt, r)
-                else:
-                    existing_dt = param_map[key][0]
-                    if dt and (not existing_dt or dt > existing_dt):
-                        param_map[key] = (dt, r)
-
-            latest_rows = [p[1] for p in param_map.values()]
-            if not latest_rows:
-                v_prices.price_for_params = PriceForParamsResponse(
-                    vehicle_id=vid, found=False, variants_count=0
-                )
-                results[vid] = v_prices
-                continue
-
-            variants_count = len(latest_rows)
-
-            def is_in_bounds(r: dict) -> bool:
-                return (
-                    req.duration_months_min
-                    <= r["duration_months"]
-                    <= req.duration_months_max
-                    and req.annual_mileage_min
-                    <= r["annual_mileage"]
-                    <= req.annual_mileage_max
-                )
-
-            valid_rows = [r for r in latest_rows if is_in_bounds(r)]
-
-            if not valid_rows:
-                v_prices.price_for_params = PriceForParamsResponse(
-                    vehicle_id=vid, found=False, variants_count=variants_count
-                )
-                results[vid] = v_prices
-                continue
-
-            best_match = min(
-                valid_rows,
-                key=lambda x: float(x.get("monthly_price_net") or float("inf")),
-            )
-
-            # Return raw cache price — no margin applied
-            display_price = float(best_match["monthly_price_net"] or 0)
-
-            v_prices.price_for_params = PriceForParamsResponse(
+            # Map the best match returned by RPC
+            best_match = PriceForParamsResponse(
                 vehicle_id=vid,
-                duration_months=best_match["duration_months"],
-                annual_mileage=best_match["annual_mileage"],
-                monthly_price_net=round(display_price, 2),
-                calculated_at=best_match.get("calculated_at"),
+                duration_months=row.get("duration_months"),
+                annual_mileage=row.get("annual_mileage"),
+                monthly_price_net=round(float(row.get("monthly_price_net") or 0), 2),
+                calculated_at=row.get("calculated_at"),
                 found=True,
                 variants_count=variants_count,
-                tire_class=best_match.get("tire_class"),
-                service_type=best_match.get("service_type"),
-                kalkulacja_id=best_match.get("kalkulacja_id"),
+                tire_class=row.get("tire_class"),
+                service_type=row.get("service_type"),
+                kalkulacja_id=row.get("kalkulacja_id"),
             )
 
-            # ── Variants (other kalkulacja_ids) ──
-            variant_responses: list[PriceForParamsResponse] = []
-            main_kid = best_match.get("kalkulacja_id")
-
-            for kid, rows in calc_map.items():
-                if kid == main_kid:
-                    continue
-
-                valid_kid_rows = [r for r in rows if is_in_bounds(r)]
-                kid_match = None
-                if valid_kid_rows:
-                    kid_match = min(
-                        valid_kid_rows,
-                        key=lambda x: float(x.get("monthly_price_net") or float("inf")),
-                    )
-
-                if kid_match:
-                    # Return raw cache price — no margin applied
-                    v_price = (
-                        round(
-                            float(kid_match["monthly_price_net"]),
-                            2,
-                        )
-                        if kid_match.get("monthly_price_net")
-                        else 0.0
-                    )
-
-                    variant_responses.append(
-                        PriceForParamsResponse(
-                            vehicle_id=vid,
-                            duration_months=kid_match["duration_months"],
-                            annual_mileage=kid_match["annual_mileage"],
-                            monthly_price_net=round(v_price, 2),
-                            calculated_at=kid_match.get("calculated_at"),
-                            found=True,
-                            variants_count=variants_count,
-                            tire_class=kid_match.get("tire_class"),
-                            service_type=kid_match.get("service_type"),
-                            kalkulacja_id=kid_match.get("kalkulacja_id"),
-                        )
-                    )
-
-            variant_responses.sort(key=lambda x: x.calculated_at or "", reverse=True)
-            v_prices.variants = variant_responses
-            results[vid] = v_prices
+            # For batch search, we primarily care about the main price.
+            # Other variants (different calculations) can be fetched on-demand if needed,
+            # but here we return the best one found as the primary result.
+            results[vid] = VehiclePrices(
+                price_for_params=best_match,
+                variants=[],  # Simplified to avoid data overflow in batch
+            )
 
         return BatchPricesResponse(prices=results)
     except Exception as e:

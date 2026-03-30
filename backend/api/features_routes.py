@@ -445,11 +445,25 @@ def reverse_search_vehicles(
     valid_vehicle_ids: list[str] | None = None
 
     if request.body_types or (request.vehicle_scope and request.vehicle_scope != "all"):
-        bt_resp = sb.table("vehicle_synthesis").select("id, synthesis_data").execute()
+        all_synthesis_data = []
+        page_size = 900
+        offset = 0
+        while True:
+            bt_resp = (
+                sb.table("vehicle_synthesis")
+                .select("id, synthesis_data")
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            data = bt_resp.data or []
+            all_synthesis_data.extend(data)
+            if len(data) < page_size:
+                break
+            offset += page_size
 
         filtered_ids = set()
 
-        for r in bt_resp.data:
+        for r in all_synthesis_data:
             sd = r.get("synthesis_data") or {}
             cs = sd.get("card_summary") or {}
             mapped = sd.get("mapped_ai_data") or {}

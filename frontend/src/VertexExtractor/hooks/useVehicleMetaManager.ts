@@ -155,6 +155,59 @@ export function useVehicleMetaManager(
     }
   };
 
+  const handleConfigurationCodeChange = async (newCode: string) => {
+    try {
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.configuration_code = newCode;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        configuration_code: newCode,
+      }));
+
+      // No need for matrix refresh on config code change (usually)
+    } catch (err) {
+      console.error("Error updating configuration code", err);
+      alert("Błąd zapisu kodu konfiguracji: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
+  const handlePaintCategoryIdChange = async (newId: number) => {
+    try {
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.paint_category_id = newId;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        paint_category_id: newId,
+      }));
+
+      triggerMatrixCacheRefresh();
+    } catch (err) {
+      console.error("Error updating paint category", err);
+    }
+  };
+
   const handleVehicleTypeChange = async (newType: string) => {
     try {
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
@@ -213,6 +266,8 @@ export function useVehicleMetaManager(
     handleEngineCategoryChange,
     handleDriveTypeChange,
     handleBodyTypeChange,
+    handleConfigurationCodeChange,
+    handlePaintCategoryIdChange,
     handleVehicleTypeChange,
     handleMapDataSilent,
   };

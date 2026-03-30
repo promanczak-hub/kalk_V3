@@ -17,8 +17,17 @@ export interface SimilarVehicle {
   vehicle_id: string;
   brand: string | null;
   model: string | null;
+  version: string | null;
+  fuel: string | null;
+  transmission: string | null;
   best_monthly_price: number | null;
   similarity_score_pct: number | null;
+  image_url?: string;
+  // New technical metadata
+  power_hp: number | null;
+  body_style: string | null;
+  vehicle_class: string | null;
+  drive_type: string | null;
 }
 
 export function useBatchPrices(
@@ -104,7 +113,7 @@ export function useBatchSimilarVehicles(
             vehicle_ids: vehicleIds, 
             duration_months: durationMonths, 
             annual_mileage: annualMileage,
-            limit: 3,
+            limit: 5,
             mode: mode
           }),
         });

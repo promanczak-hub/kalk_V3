@@ -49,9 +49,9 @@ jobs:
           poetry install --no-interaction
       - name: Run tests
         env:
-          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
-          SUPABASE_KEY: "${{ secrets.SUPABASE_KEY }}"
-          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          SUPABASE_URL: "https://placeholder.supabase.co"
+          SUPABASE_KEY: "placeholder"
+          GEMINI_API_KEY: "placeholder"
         run: python -m pytest tests/ -v --tb=short
 
   frontend-build:

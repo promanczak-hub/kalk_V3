@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Search, TrendingUp, Loader2, Info } from "lucide-react";
 import { API_BASE_URL } from "../config/env";
 import { apiClient } from "../lib/apiClient";
@@ -7,6 +7,26 @@ import { apiClient } from "../lib/apiClient";
 
 interface ReversePriceLookupProps {
   basePayload: Record<string, unknown> | null;
+  vehicleId?: string;
+}
+
+interface SimilarVehicle {
+  vehicle_id: string;
+  brand: string;
+  model: string;
+  version?: string;
+  version_name?: string;
+  engine_name?: string;
+  body_type?: string;
+  fuel?: string;
+  transmission?: string;
+  samar_category?: string;
+  monthly_price_net: number;
+  best_monthly_price?: number;
+  score?: number;
+  match_score_pct?: number;
+  similarity_score_pct?: number;
+  match_reason: string;
 }
 
 interface LookupResult {
@@ -46,7 +66,7 @@ function getMarginLabel(pct: number): string {
 
 /* ── Main Component ────────────────────────────────────────────────── */
 
-export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
+export function ReversePriceLookup({ basePayload, vehicleId }: ReversePriceLookupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [priceMinInput, setPriceMinInput] = useState<string>("");
   const [priceMaxInput, setPriceMaxInput] = useState<string>("");
@@ -55,6 +75,10 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  const [similarCars, setSimilarCars] = useState<SimilarVehicle[]>([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
+  const [searchMode, setSearchMode] = useState<"rule-based" | "semantic">("rule-based");
 
   const handleSearch = async () => {
     if (!basePayload) {
@@ -149,10 +173,43 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
         impliedMarginMax,
         priceAtMargins,
       });
+
+      // After successful calculation, trigger discovery of similar cars if vehicleId exists
+      if (vehicleId) {
+        fetchSimilarCars(vehicleId, mc, km, searchMode);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nieznany błąd");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSimilarCars = async (id: string, mc: number, km: number, mode: string = "rule-based") => {
+    setLoadingSimilar(true);
+    setSimilarCars([]);
+    try {
+      const resp = await apiClient.fetch(
+        `${API_BASE_URL}/api/scoring-search/vehicle/${id}/similar?duration_months=${mc}&annual_mileage=${Math.round(
+          (km / mc) * 12,
+        )}&limit=5&mode=${mode}`,
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        // Normalize fields for display
+        const normalized = data.map((v: SimilarVehicle) => ({
+          ...v,
+          monthly_price_net: v.monthly_price_net || v.best_monthly_price || 0,
+          version_name: v.version || v.version_name || "N/A",
+          body_type: v.body_type || v.samar_category || "N/A",
+          score: v.similarity_score_pct || v.match_score_pct || (v.score ? v.score * 100 : 0)
+        }));
+        setSimilarCars(normalized);
+      }
+    } catch (err) {
+      console.error("Discovery error:", err);
+    } finally {
+      setLoadingSimilar(false);
     }
   };
 
@@ -382,6 +439,102 @@ export function ReversePriceLookup({ basePayload }: ReversePriceLookupProps) {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Similar Cars Discovery Results */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50/50 to-purple-50/50 border border-indigo-100 shadow-sm">
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                      Podobne pojazdy w tym budżecie
+                    </h4>
+                    
+                    {/* Search Mode Toggle */}
+                    <div className="flex items-center gap-1 p-1 bg-white/50 border border-indigo-100 rounded-lg w-fit">
+                      <button
+                        onClick={() => {
+                          setSearchMode("rule-based");
+                          if (vehicleId && result) fetchSimilarCars(vehicleId, result.months, result.totalKm, "rule-based");
+                        }}
+                        className={`px-3 py-1 text-[9px] font-bold rounded-md transition-all ${
+                          searchMode === "rule-based" 
+                            ? "bg-indigo-600 text-white shadow-sm" 
+                            : "text-slate-500 hover:bg-white"
+                        }`}
+                      >
+                        SZYBKIE (REGUŁY)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSearchMode("semantic");
+                          if (vehicleId && result) fetchSimilarCars(vehicleId, result.months, result.totalKm, "semantic");
+                        }}
+                        className={`px-3 py-1 text-[9px] font-bold rounded-md transition-all ${
+                          searchMode === "semantic" 
+                            ? "bg-purple-600 text-white shadow-sm" 
+                            : "text-slate-500 hover:bg-white"
+                        }`}
+                      >
+                        GŁĘBOKIE (AI CECHY)
+                      </button>
+                    </div>
+                  </div>
+                  {loadingSimilar && <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />}
+
+                {similarCars.length > 0 ? (
+                  <div className="space-y-2">
+                    {similarCars.map((car) => (
+                      <div
+                        key={car.vehicle_id}
+                        className="p-3 bg-white/80 border border-white rounded-lg flex items-center justify-between shadow-sm hover:shadow transition-all"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-700 uppercase bg-slate-100 px-1.5 py-0.5 rounded">
+                              {car.brand}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              {car.model}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {car.version_name} • {car.body_type}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${
+                              searchMode === "semantic" ? "text-purple-600 bg-purple-50" : "text-emerald-600 bg-emerald-50"
+                            }`}>
+                              {searchMode === "semantic" 
+                                ? `Zgodność cech: ${Math.round(car.score || 0)}%`
+                                : `Dopasowanie: ${Math.round(car.score || 0)}%`
+                              }
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-medium italic">
+                              {searchMode === "semantic" ? "AI Similarity Search" : car.match_reason}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className="text-xs font-black text-indigo-600 tabular-nums">
+                            {fmtPLN(car.monthly_price_net)}
+                          </div>
+                          <div className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">
+                            PLN/mc
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : !loadingSimilar ? (
+                  <div className="text-center py-4 bg-white/40 rounded-lg border border-dashed border-indigo-200">
+                    <p className="text-[10px] text-slate-400">
+                      Brak sklasyfikowanych alternatyw w tym przedziale cenowym.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-300" />
+                  </div>
+                )}
               </div>
             </div>
           )}

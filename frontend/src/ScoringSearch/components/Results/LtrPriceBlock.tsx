@@ -6,6 +6,9 @@ interface LtrPriceBlockProps {
   hasCache: boolean;
   bestMonthlyPrice: number | null;
   marginPct?: number;
+  suggestedDiscountPct?: number;
+  targetDuration: number;
+  targetAnnualMileage: number;
   priceData?: { price_for_params?: PriceForParams, variants?: PriceForParams[] };
   loading?: boolean;
 }
@@ -13,6 +16,9 @@ interface LtrPriceBlockProps {
 export const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
   hasCache, bestMonthlyPrice,
   marginPct = 0,
+  suggestedDiscountPct,
+  targetDuration,
+  targetAnnualMileage,
   priceData, loading = false
 }) => {
   const price = priceData?.price_for_params;
@@ -46,8 +52,14 @@ export const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
   const m = Math.min(marginPct, 99) / 100.0;
   const displayPrice = rawPrice != null && m < 1.0 ? rawPrice / (1.0 - m) : null;
 
-  const paramLabel = price?.found && price.duration_months != null && price.annual_mileage != null
-    ? `${price.duration_months} mc / ${((price.annual_mileage * price.duration_months / 12) / 1000).toFixed(0)}k km`
+  // Używamy targetDuration i targetAnnualMileage z frontendu jako ostatecznego źródła prawdy o parametrach wyszukiwania,
+  // ponieważ z backendu (w trybie wsadowym) duration_months i annual_mileage nie zawsze są poprawnie zwracane z RPC.
+  const paramLabel = price?.found 
+    ? `${targetDuration} mc / ${((targetAnnualMileage * targetDuration / 12) / 1000).toFixed(0)}k km`
+    : null;
+
+  const advancedParamLabel = price?.found 
+    ? `${marginPct > 0 ? `Marża ${marginPct}%` : 'Bez marży'} | ${suggestedDiscountPct ? `Rabat ${suggestedDiscountPct}%` : 'Brak zniżek'}`
     : null;
 
   return (
@@ -56,7 +68,7 @@ export const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
         <Typography variant="caption" sx={{ opacity: 0.9 }}>Rata LTR:</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {price?.variants_count != null && price.variants_count > 0 && (
-             <Chip label={`Warianty zdefiniowane: ${price.variants_count}`} size="small" color="secondary" sx={{ height: 16, fontSize: '0.6rem' }} />
+             <Chip label={`Warianty Bazy: ${price.variants_count}`} size="small" color="secondary" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600 }} />
           )}
         </Box>
       </Box>
@@ -68,26 +80,30 @@ export const LtrPriceBlock: React.FC<LtrPriceBlockProps> = ({
         </Typography>
       )}
       {paramLabel && !loading && (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-          <Tooltip title="Cena dla najlepszego dopasowania w historii kalkulacji">
-            <Typography
-              variant="caption"
-              sx={{ opacity: 0.85, fontSize: '0.68rem', cursor: 'default' }}
-            >
-              {paramLabel}
-            </Typography>
-          </Tooltip>
-
-          {price?.calculated_at && (
-            <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5, borderLeft: '1px solid rgba(255,255,255,0.3)', pl: 0.5 }}>
-              <Tooltip title={`Data ostatniej wykonanej na Vertex kalkulacji: ${new Date(price.calculated_at).toLocaleString('pl-PL')}`}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', '&:hover': { opacity: 1 } }}>
-                  <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.7 }}>
-                    {new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })}
-                  </Typography>
-                </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', mt: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Tooltip title="Parametry dla których wyliczono ofertę LTR">
+              <Typography variant="caption" sx={{ opacity: 0.9, fontSize: '0.68rem', cursor: 'default', fontWeight: 600 }}>
+                {paramLabel}
+              </Typography>
+            </Tooltip>
+            {advancedParamLabel && (
+              <Tooltip title="Użyta marża i sugerowany rabat dealerski w chwili wyliczania">
+                <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '0.65rem', borderLeft: '1px solid rgba(255,255,255,0.3)', pl: 0.5, cursor: 'default' }}>
+                  {advancedParamLabel}
+                </Typography>
               </Tooltip>
-            </Box>
+            )}
+          </Box>
+          
+          {price?.calculated_at && (
+             <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.25 }}>
+               <Tooltip title="Data ostatniej udokumentowanej oferty">
+                 <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.8, fontStyle: 'italic' }}>
+                   Data kalkulacji bazy: {new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                 </Typography>
+               </Tooltip>
+             </Box>
           )}
         </Box>
       )}

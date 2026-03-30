@@ -48,15 +48,17 @@ export function VehicleRowCalculations({
     recalculating,
     fetchingTraceCell,
     marginRecalculating,
-    basePayloadRef,
+    basePayload,
     filters,
     setFilters,
     mileageMode,
     setMileageMode,
     mileageReferenceMonths,
-    isGlobalWrRecalculating,
+    isGlobalRecalculating,
     globalWrCorrection,
     setGlobalWrCorrection,
+    globalTireCorrection,
+    setGlobalTireCorrection,
     modifiedCells,
     getOverrides,
     fetchMatrix,
@@ -123,43 +125,59 @@ export function VehicleRowCalculations({
               </div>
             )}
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              {modifiedCells.size > 0 && (
-                <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
-                  {modifiedCells.size} zmodyfikowana(e)
-                </span>
-              )}
-              <button
-                onClick={fetchMatrix}
-                className="flex items-center text-xs font-semibold px-3 py-1.5 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors shadow-sm"
-              >
-                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                Reset (odśwież z serwera)
-              </button>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                {modifiedCells.size > 0 && (
+                  <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
+                    {modifiedCells.size} zmodyfikowana(e)
+                  </span>
+                )}
+                <button
+                  onClick={fetchMatrix}
+                  className="flex items-center text-xs font-semibold px-3 py-1.5 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors shadow-sm"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                  Reset (odśwież z serwera)
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-4 mt-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Korekta: WR</span>
+                  <input
+                    type="number"
+                    step={500}
+                    value={globalWrCorrection}
+                    onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalWrCorrection(isNaN(parsed) ? globalWrCorrection : parsed); }}
+                    className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
+                    placeholder="WR"
+                  />
+                  <span className="text-[10px] text-slate-400">PLN</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🛞 Korekta: Opony</span>
+                  <input
+                    type="number"
+                    step={200}
+                    value={globalTireCorrection}
+                    onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalTireCorrection(isNaN(parsed) ? globalTireCorrection : parsed); }}
+                    className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
+                    placeholder="Opony"
+                  />
+                  <span className="text-[10px] text-slate-400">PLN</span>
+                </div>
+
+                <button
+                  onClick={handleGlobalRecalculate}
+                  disabled={isGlobalRecalculating || loading}
+                  className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md uppercase tracking-wide"
+                >
+                  {isGlobalRecalculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TrendingUp className="w-3.5 h-3.5" />}
+                  Przelicz Korekty
+                </button>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Globalna Korekta WR</span>
-              <input
-                type="number"
-                step={500}
-                value={globalWrCorrection}
-                onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalWrCorrection(isNaN(parsed) ? globalWrCorrection : parsed); }}
-                className="w-24 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
-                placeholder="np. -1500"
-              />
-              <span className="text-[10px] text-slate-400">PLN</span>
-              <button
-                onClick={handleGlobalRecalculate}
-                disabled={isGlobalWrRecalculating || loading}
-                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 shadow-sm"
-              >
-                {isGlobalWrRecalculating ? <Loader2 className="w-3 h-3 animate-spin" /> : <TrendingUp className="w-3 h-3" />}
-                Przelicz
-              </button>
-            </div>
-          </div>
         </div>
       </Box>
 
@@ -199,7 +217,7 @@ export function VehicleRowCalculations({
 
             {/* Matrix filter toolbar */}
             <MatrixFilterToolbar
-              defaultMarginPct={basePayloadRef.current?.pricing_margin_pct ?? 15.0}
+              defaultMarginPct={basePayload?.pricing_margin_pct ?? null}
               filters={filters}
               mileageMode={mileageMode}
               onMileageModeChange={setMileageMode}
@@ -211,7 +229,7 @@ export function VehicleRowCalculations({
             />
 
             {/* Reverse price lookup */}
-            <ReversePriceLookup basePayload={basePayloadRef.current} />
+            <ReversePriceLookup basePayload={basePayload} vehicleId={vehicleId} />
 
             {/* Data quality warnings */}
             {cells.some(c => c.warnings?.service_fallback_used) && (

@@ -79,7 +79,7 @@ class LTRKalkulator:
         )
 
         # Load vehicle if needed
-        from domain.calculations.dto import VehicleDataDTO
+        from core.models import VehicleDataDTO
 
         if self.pipeline_dto:
             self.vehicle = self.pipeline_dto.vehicle
@@ -97,6 +97,7 @@ class LTRKalkulator:
             raw_s = {}
 
             if raw_v:
+                from core.models import VehicleDataDTO
                 self.vehicle = VehicleDataDTO(
                     id=str(raw_v.get("id", "0")),
                     brand=str(raw_v.get("brand", "UNKNOWN")),
@@ -151,7 +152,7 @@ class LTRKalkulator:
 
     def _apply_explicit_input_overrides(self) -> None:
         if not self.vehicle:
-            from domain.calculations.dto import VehicleDataDTO
+            from core.models import VehicleDataDTO
 
             self.vehicle = VehicleDataDTO(
                 id="0",
@@ -178,7 +179,6 @@ class LTRKalkulator:
             self.vehicle.power_kw = float(self.input_data.power_kw)
         elif getattr(self.input_data, "power_hp", None):
             self.vehicle.power_kw = float(round(self.input_data.power_hp / 1.36))
-            self.samar_klasa = {}
 
         input_engine = str(getattr(self.input_data, "engine_name", "") or "").strip()
         if input_engine:

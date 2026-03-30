@@ -86,7 +86,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["⭐ Konfiguracja (PDF)"]));
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(true);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
   const [suggestedCatalog, setSuggestedCatalog] = useState<SuggestedCatalog | null>(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
@@ -395,7 +395,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
                 </div>
               )}
 
-              {suggestedCatalog && !loading && !error && (
+              {suggestedCatalog && suggestedCatalog.score >= 1 && !loading && !error && (
                 <div className="mb-4 mx-4 mt-2">
                   <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">

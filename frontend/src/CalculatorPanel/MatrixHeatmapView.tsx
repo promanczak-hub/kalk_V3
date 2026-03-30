@@ -290,14 +290,7 @@ export function MatrixHeatmapView({ cells, mileageMode = "annual", onCellClick, 
                           {kmCaption}
                         </div>
 
-                        {/* Margin badge */}
-                        <div className="mt-1.5">
-                          <span
-                            className={`inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-sm ${tier.badgeBg} ${tier.badgeText}`}
-                          >
-                            {marginPct.toFixed(1)}%
-                          </span>
-                        </div>
+                        {/* Margin badge removed for cleaner heatmap view */}
                       </button>
                     </td>
                   );

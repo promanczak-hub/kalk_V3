@@ -32,6 +32,8 @@ interface VehicleTableProps {
   pageSize: number;
   totalCount: number;
   highlightVehicleId?: string | null;
+  bodyTypes?: any[];
+  paintTypes?: any[];
 }
 
 export function VehicleTable({
@@ -52,6 +54,8 @@ export function VehicleTable({
   pageSize,
   totalCount,
   highlightVehicleId,
+  bodyTypes,
+  paintTypes,
 }: VehicleTableProps) {
   const {
     filters,
@@ -315,6 +319,8 @@ export function VehicleTable({
                   onToggleSelect={() => toggleSelect(vehicle.id)}
                   crossCardAlerts={discountAlerts.get(vehicle.id)}
                   globalSettings={globalSettings}
+                  bodyTypes={bodyTypes}
+                  paintTypes={paintTypes}
                   isHighlighted={vehicle.id === highlightVehicleId}
                 />
               ))
