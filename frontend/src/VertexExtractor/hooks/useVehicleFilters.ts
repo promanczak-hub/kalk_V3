@@ -359,10 +359,11 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     }
 
     // Filter by Transmission
-    if (filters.selectedTransmissions?.length > 0) {
+    const selectedTransmissions = filters.selectedTransmissions || [];
+    if (selectedTransmissions.length > 0) {
       result = result.filter(v => {
           const t = extractTransmission(v);
-          return t && filters.selectedTransmissions.includes(t);
+          return t && selectedTransmissions.includes(t);
       });
     }
 
