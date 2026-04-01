@@ -28,7 +28,7 @@ interface VehicleActionButtonsProps {
   tireClass: string;
   tireCountMode: string;
   tireCostCorrectionEnabled: boolean;
-  tireCostCorrection: number;
+  tireCostCorrectionMap: Record<string, number>;
   rimDiameter: number | null;
   serviceCostType: "ASO" | "nonASO";
   vehicleVintage: "current" | "previous";
@@ -71,7 +71,7 @@ export function VehicleActionButtons({
   tireClass,
   tireCountMode,
   tireCostCorrectionEnabled,
-  tireCostCorrection,
+  tireCostCorrectionMap,
   rimDiameter,
   serviceCostType,
   vehicleVintage,
@@ -175,7 +175,7 @@ export function VehicleActionButtons({
           tireClass,
           tireCountMode,
           tireCostCorrectionEnabled,
-          tireCostCorrection,
+          tireCostCorrectionMap,
           rimDiameter,
           serviceCostType,
           vehicleVintage,

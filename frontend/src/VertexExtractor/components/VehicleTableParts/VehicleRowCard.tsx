@@ -115,7 +115,7 @@ export function VehicleRowCard({
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
-  const [brochureData, setBrochureData] = useState<any | null>(null);
+  const [brochureData, setBrochureData] = useState<Record<string, unknown> | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
   const [isGeneratingBrochure, setIsGeneratingBrochure] = useState(false);
 
@@ -137,7 +137,7 @@ export function VehicleRowCard({
 
   // Auto-detect metalic function needs to be passed down
   const autoDetectMetalic = useCallback((): boolean => {
-    const cs = (vehicle.synthesis_data as any)?.card_summary;
+    const cs = (vehicle.synthesis_data as Record<string, Record<string, unknown>>)?.card_summary;
     const color = (vehicle.exterior_color || "").toLowerCase();
     const metallicKeywords = ["metalic", "metalik", "metallic", "metalizow", "perłowy", "pearl", "mica", "xirallic", "special efekt", "dwuwarstwow"];
     if (metallicKeywords.some(kw => color.includes(kw))) return true;
@@ -222,7 +222,7 @@ export function VehicleRowCard({
     // Always sync auto-detected properties when synthesis_data changes if they are missing in setup
     if (!setup) {
       setPaintCategoryId(autoDetectMetalic() ? 2 : 1);
-      const cs = (vehicle.synthesis_data as any)?.card_summary;
+      const cs = (vehicle.synthesis_data as Record<string, Record<string, unknown>>)?.card_summary;
       setHookInstallation(cs?.has_tow_hook === true);
       setVehicleVintage(cs?.is_current_year_vehicle === false ? "previous" : "current");
       
@@ -273,7 +273,11 @@ export function VehicleRowCard({
       if (tp.tire_class != null) setTireClass(tp.tire_class);
       if (tp.tire_count_mode != null) setTireCountMode(tp.tire_count_mode);
       if (tp.tire_cost_correction_enabled != null) setTireCostCorrectionEnabled(tp.tire_cost_correction_enabled);
-      if (tp.tire_cost_correction != null) setTireCostCorrection(tp.tire_cost_correction);
+      if (tp.tire_cost_correction_map != null && typeof tp.tire_cost_correction_map === "object") {
+        setTireCostCorrectionMap(tp.tire_cost_correction_map as Record<string, number>);
+      } else {
+        setTireCostCorrectionMap({});
+      }
       if (tp.rim_diameter != null) {
         setRimDiameter(tp.rim_diameter);
       } else {
@@ -371,8 +375,8 @@ export function VehicleRowCard({
               setActiveKalkulacjaNumer(latest.numer_kalkulacji);
             }
           }
-        } catch (err: any) {
-          if (err.name !== 'AbortError') {
+        } catch (err: unknown) {
+          if ((err as Error).name !== 'AbortError') {
             console.error("Silent err auto-loading latest calc:", err);
           }
         }
@@ -646,7 +650,6 @@ export function VehicleRowCard({
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
-        paramPreview={paramPreview}
         discountMode={discountMode}
         setDiscountMode={setDiscountMode}
         customDiscountPctRaw={customDiscountPctRaw}

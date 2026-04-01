@@ -1,12 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { apiClient } from '../../../lib/apiClient';
-import { ChevronDown, ChevronRight, Loader2, Package, Settings, FileText, AlertTriangle, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronDown, ChevronRight, Loader2, Package, Settings } from "lucide-react";
 import VehicleFeaturesCrud from "../VehicleFeaturesCrud";
-import { CatalogFeatureSelectorModal } from "./CatalogFeatureSelectorModal";
 import { AccordionCard } from "./AccordionCard";
 import {
   type FeatureItem,
-  type SuggestedCatalog,
   featuresCache,
   fetchFeaturesForCache
 } from "../../hooks/useVehicleFeaturesCache";
@@ -89,38 +86,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["⭐ Konfiguracja (PDF)"]));
   const [isPanelCollapsed] = useState(true);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
-  const [suggestedCatalog, setSuggestedCatalog] = useState<SuggestedCatalog | null>(null);
-  const [showCatalogModal, setShowCatalogModal] = useState(false);
-  const [enriching, setEnriching] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [matchedCatalogs, setMatchedCatalogs] = useState<any[]>([]);
-  const [showCatalogDropdown, setShowCatalogDropdown] = useState(false);
-  const catalogDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Click-away to close catalog dropdown
-  useEffect(() => {
-    if (!showCatalogDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (catalogDropdownRef.current && !catalogDropdownRef.current.contains(e.target as Node)) {
-        setShowCatalogDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showCatalogDropdown]);
-
-  const handleEnrichment = async () => {
-    setEnriching(true);
-    try {
-      const res = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/enrich-background`, { method: "POST" });
-      if (!res.ok) throw new Error("Wystąpił błąd podczas zlecania zadania do Celery.");
-      alert("Rozpoczęto w pełni zautomatyzowaną analizę dokumentów w tle (100% match). Cechy pojawią się po zakończeniu.");
-    } catch (err) {
-      alert("Błąd: " + (err instanceof Error ? err.message : "Nieznany błąd"));
-    } finally {
-      setEnriching(false);
-    }
-  };
 
   const fetchFeatures = async (forceRefetch = false) => {
     const hasCache = !forceRefetch && featuresCache.has(vehicleId);
@@ -133,7 +98,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
       }
       
       const cached = featuresCache.get(vehicleId)!;
-      setSuggestedCatalog(cached.suggestedCatalog);
       
       const instantFeatures = cached.instantFeatures;
       const data = cached.data;
@@ -150,17 +114,13 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
       }
 
       // Process API features
-      const apiGroups = Object.entries(data.categories as Record<string, any[]>)
+      const apiGroups = Object.entries(data.categories as Record<string, FeatureItem[]>)
         .map(([name, apiFeatures]) => {
           // Filter out features that came from 'spec' because we already show them in the local config group to prevent obvious duplicates
           const processedFeatures = apiFeatures
              .map(f => {
-               // If it's from catalog/price_list, force a custom status to make it purple
-               // Normally 'catalog' maps to 'present_inferred'.
-               let status = f.resolved_status;
-               if (f.resolution_source === 'catalog' || f.resolution_source === 'price_list') {
-                  status = "present_crossmatched"; // We will add a style for this
-               }
+               const status = f.resolved_status;
+
                return { ...f, resolved_status: status };
              });
 
@@ -196,18 +156,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
     }
     setError(null);
     fetchFeatures();
-    // Fetch matched catalogs for this vehicle
-    (async () => {
-      try {
-        const res = await apiClient.fetch(`/api/catalogs/match?vehicle_id=${vehicleId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setMatchedCatalogs(data.catalogs || []);
-        }
-      } catch {
-        // Silent — non-critical
-      }
-    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId]);
 
@@ -259,87 +207,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
           {totalPresent} / {totalFeatures} potwierdzonych
         </span>
       )}
-      {/* Catalog match badge */}
-      {matchedCatalogs.length > 0 && (
-        <div className="relative" ref={catalogDropdownRef}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowCatalogDropdown(prev => !prev);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-colors bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 hover:bg-fuchsia-100"
-            title="Dopasowane cenniki"
-          >
-            <FileText className="w-3 h-3" />
-            {matchedCatalogs.length} {matchedCatalogs.length === 1 ? 'cennik' : matchedCatalogs.length < 5 ? 'cenniki' : 'cenników'}
-          </button>
-          {showCatalogDropdown && (
-            <div
-              className="absolute right-0 top-full mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Dopasowane cenniki / dokumenty
-              </div>
-              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
-                {matchedCatalogs.map((cat: any) => (
-                  <div
-                    key={cat.id}
-                    className="px-3 py-2.5 hover:bg-slate-50 transition-colors flex items-center gap-2.5"
-                  >
-                    {cat.extraction_status === 'error' ? (
-                      <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                    ) : (
-                      <FileText className="w-4 h-4 text-fuchsia-500 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-slate-700 truncate">
-                        {cat.display_name || cat.model_family}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        {cat.brand} · {cat.document_type}
-                        {cat.extraction_status === 'error' && ' · ⚠️ Ekstrakcja nieudana'}
-                        {cat.variant_count > 0 && ` · ${cat.variant_count} wariantów`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {cat.score != null && (
-                        <span className="text-[10px] font-bold text-fuchsia-600 bg-fuchsia-50 px-1.5 py-0.5 rounded">
-                          {Math.round(cat.score * 100)}%
-                        </span>
-                      )}
-                      {cat.extraction_status !== 'error' && (
-                        <a
-                          href={`/api/catalogs/${cat.id}/file`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-slate-400 hover:text-fuchsia-600 transition-colors"
-                          title="Otwórz PDF"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleEnrichment();
-        }}
-        disabled={enriching}
-        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 disabled:opacity-50"
-        title="Wzbogać cechy w tle z dostępnych dokumentów"
-      >
-        {enriching ? <Loader2 className="w-3 h-3 animate-spin" /> : "✨"}
-        {enriching ? "Analiza w tle..." : "Wzbogać cechy"}
-      </button>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -388,30 +255,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
               {error && (
                 <div className="text-sm text-red-500 py-4 text-center">
                   {error}
-                </div>
-              )}
-
-              {suggestedCatalog && suggestedCatalog.score >= 1 && !loading && !error && (
-                <div className="mb-4 mx-4 mt-2">
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
-                    <div className="flex items-center gap-3">
-                       <span className="text-xl bg-white p-1 rounded shadow-sm border border-indigo-100">✨</span>
-                       <div>
-                         <p className="text-sm font-semibold text-indigo-900 leading-snug">
-                           {suggestedCatalog.display_name}
-                         </p>
-                         <p className="text-xs text-indigo-700 mt-0.5 font-medium">
-                           Dopasowanie do pojazdu: <span className="text-indigo-800 font-bold">{Math.round(suggestedCatalog.score * 100)}%</span>
-                         </p>
-                       </div>
-                    </div>
-                    <button
-                      onClick={() => setShowCatalogModal(true)}
-                      className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded shadow-sm hover:bg-indigo-700 hover:shadow transition-all"
-                    >
-                      Przejrzyj opcje
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -492,20 +335,6 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
               )}
             </div>
           )}
-      {/* We will conditionally render the modal if a suggested catalog is present */}
-      {showCatalogModal && suggestedCatalog && (
-        <CatalogFeatureSelectorModal
-          vehicleId={vehicleId}
-          catalogId={suggestedCatalog.catalog_id}
-          catalogName={suggestedCatalog.display_name}
-          onClose={() => setShowCatalogModal(false)}
-          onSuccess={() => {
-            setShowCatalogModal(false);
-            setSuggestedCatalog(null);
-            fetchFeatures();
-          }}
-        />
-      )}
     </AccordionCard>
   );
 }

@@ -78,7 +78,7 @@ def mock_input_data():
         klasa_opony_string="Premium",
         srednica_felgi=18,
         korekta_kosztu_opon=False,
-        koszt_opon_korekta=0.0,
+        koszt_opon_korekta={},
         service_cost_type="ASO",
         okres_bazowy=48,
         przebieg_bazowy=140000,

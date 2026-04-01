@@ -73,8 +73,8 @@ interface VehicleFinancialOptionsProps {
   setTireCountMode: (val: string) => void;
   tireCostCorrectionEnabled: boolean;
   setTireCostCorrectionEnabled: (val: boolean) => void;
-  tireCostCorrection: number;
-  setTireCostCorrection: (val: number) => void;
+  tireCostCorrectionMap: Record<string, number>;
+  setTireCostCorrectionMap: (val: Record<string, number>) => void;
   rimDiameter: number | null;
   setRimDiameter: (val: number | null) => void;
   // Service cost type
@@ -160,7 +160,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     hookInstallation, setHookInstallation,
     tireClass, setTireClass, tireCountMode, setTireCountMode,
     tireCostCorrectionEnabled, setTireCostCorrectionEnabled,
-    tireCostCorrection, setTireCostCorrection,
+    tireCostCorrectionMap, setTireCostCorrectionMap,
     rimDiameter, setRimDiameter,
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
@@ -512,29 +512,106 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               </select>
             </div>
 
-            {/* Tire cost correction */}
-            <div>
-              <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500 mb-1">
+            {/* Tire cost correction per-komórka */}
+            <div className="col-span-2 md:col-span-4">
+              <div className="flex items-center gap-2 mb-2">
                 <input
                   type="checkbox"
+                  id={`tire-corr-enabled-${vehicle.id}`}
                   checked={tireCostCorrectionEnabled}
                   onChange={(e) => setTireCostCorrectionEnabled(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3"
                 />
-                Korekta kosztu opon (brutto)
-              </label>
-              <input
-                type="number"
-                step="1"
-                className={cn(
-                  "w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500",
-                  !tireCostCorrectionEnabled && "bg-slate-50 text-slate-400 cursor-not-allowed"
+                <label htmlFor={`tire-corr-enabled-${vehicle.id}`} className="text-xs font-bold uppercase text-slate-500 cursor-pointer">
+                  Korekta kosztu opon per-komórka (brutto PLN)
+                </label>
+                {tireCostCorrectionEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTireCostCorrectionMap({ ...tireCostCorrectionMap, "48_120000": 0 });
+                    }}
+                    className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                  >
+                    + Dodaj korektę
+                  </button>
                 )}
-                value={tireCostCorrection}
-                onChange={(e) => setTireCostCorrection(parseFloat(e.target.value) || 0)}
-                disabled={!tireCostCorrectionEnabled}
-                placeholder="0"
-              />
+              </div>
+              {tireCostCorrectionEnabled && Object.keys(tireCostCorrectionMap).length > 0 && (
+                <div className="space-y-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="grid grid-cols-[80px_100px_100px_28px] gap-1.5 text-[9px] font-bold uppercase text-slate-400 px-1">
+                    <span>Okres (mies.)</span>
+                    <span>Km/rok</span>
+                    <span>Kwota brutto</span>
+                    <span></span>
+                  </div>
+                  {Object.entries(tireCostCorrectionMap).map(([key, val]) => {
+                    const parts = key.split("_");
+                    const months = parseInt(parts[0], 10) || 48;
+                    const totalKm = parseInt(parts[1], 10) || 0;
+                    const kmPerYear = totalKm > 0 && months > 0 ? Math.round((totalKm / months) * 12) : 0;
+                    return (
+                      <div key={key} className="grid grid-cols-[80px_100px_100px_28px] gap-1.5 items-center">
+                        <select
+                          className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                          value={months}
+                          onChange={(e) => {
+                            const newMonths = parseInt(e.target.value, 10);
+                            const newTotalKm = kmPerYear > 0 ? Math.round((kmPerYear / 12) * newMonths) : totalKm;
+                            const newKey = `${newMonths}_${newTotalKm}`;
+                            const updated = { ...tireCostCorrectionMap };
+                            delete updated[key];
+                            updated[newKey] = val;
+                            setTireCostCorrectionMap(updated);
+                          }}
+                        >
+                          {[24, 36, 48, 60].map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <input
+                          type="number"
+                          step="5000"
+                          min="0"
+                          className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          value={kmPerYear}
+                          onChange={(e) => {
+                            const newKmPerYear = parseInt(e.target.value, 10) || 0;
+                            const newTotalKm = Math.round((newKmPerYear / 12) * months);
+                            const newKey = `${months}_${newTotalKm}`;
+                            const updated = { ...tireCostCorrectionMap };
+                            delete updated[key];
+                            updated[newKey] = val;
+                            setTireCostCorrectionMap(updated);
+                          }}
+                        />
+                        <input
+                          type="number"
+                          step="1"
+                          className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          value={val}
+                          onChange={(e) => {
+                            setTireCostCorrectionMap({ ...tireCostCorrectionMap, [key]: parseFloat(e.target.value) || 0 });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...tireCostCorrectionMap };
+                            delete updated[key];
+                            setTireCostCorrectionMap(updated);
+                          }}
+                          className="flex items-center justify-center h-6 w-6 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[9px] text-slate-400 px-1 pt-1">Klucz: mies_totalKm · Backend: kwota ÷ 1.23 → netto</p>
+                </div>
+              )}
+              {tireCostCorrectionEnabled && Object.keys(tireCostCorrectionMap).length === 0 && (
+                <p className="text-[10px] text-slate-400 italic">Brak korekt — kliknij Dodaj korektę aby ustawić per-komórka.</p>
+              )}
             </div>
           </div>
         </div>

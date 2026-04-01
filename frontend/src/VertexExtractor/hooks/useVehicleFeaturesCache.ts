@@ -11,14 +11,8 @@ export interface FeatureItem {
   category_name: string;
 }
 
-export interface SuggestedCatalog {
-  catalog_id: string;
-  score: number;
-  display_name: string;
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const featuresCache = new Map<string, { instantFeatures: FeatureItem[], data: any, suggestedCatalog: SuggestedCatalog | null }>();
+export const featuresCache = new Map<string, { instantFeatures: FeatureItem[], data: any }>();
 
 const loadQueue: string[] = [];
 let isQueueProcessing = false;
@@ -59,18 +53,12 @@ export function queuePreloadVehicleFeatures(vehicleId: string) {
 export async function fetchFeaturesForCache(vehicleId: string) {
     let instantFeatures: FeatureItem[] = [];
     let data: any = null;
-    let cachedCatalog: SuggestedCatalog | null = null;
     
-     
     const vehicleResp = await apiClient.fetch(`/api/kalkulator/pojazd/${vehicleId}?lite=true`);
     if (vehicleResp.ok) {
         const vehicleData = await vehicleResp.json();
         const synthDataRaw = vehicleData.synthesis_data || {};
         const synthData = synthDataRaw.card_summary || {};
-        
-        if (synthDataRaw.suggested_catalog) {
-            cachedCatalog = synthDataRaw.suggested_catalog;
-        }
         
         const stdEq = (synthData.standard_equipment || []).map((name: string, i: number) => ({
           feature_key: `config_std_${name}_${i}`,
@@ -103,6 +91,6 @@ export async function fetchFeaturesForCache(vehicleId: string) {
      
     data = await response.json();
     
-    featuresCache.set(vehicleId, { instantFeatures, data, suggestedCatalog: cachedCatalog });
+    featuresCache.set(vehicleId, { instantFeatures, data });
     return featuresCache.get(vehicleId)!;
 }

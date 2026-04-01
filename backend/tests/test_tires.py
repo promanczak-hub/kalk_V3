@@ -59,9 +59,6 @@ def _make_calc(
             z_oponami=z_oponami,
             klasa_opony_string=klasa,
             srednica_felgi=srednica,
-            korekta_kosztu=False,
-            koszt_opon_korekta=0.0,
-            sets_needed_override=None,
             odkup_opon_enabled=False,
         )
     return calc
@@ -217,7 +214,7 @@ class TestAllSeasonCalculation:
         calc = _make_calc(klasa="Wielosezon Premium", srednica=17)
         calc.swap_cost = 120.0
         calc.storage_cost_per_year = 216.0
-        calc.tire_set_price = 2000.0
+        calc.tire_set_price_base = 2000.0
 
         result = calc.calculate_cost(months=48, total_km=100000)
 
@@ -233,7 +230,7 @@ class TestAllSeasonCalculation:
 
     def test_allseason_storage_is_zero(self) -> None:
         calc = _make_calc(klasa="Wielosezon Medium", srednica=16)
-        calc.tire_set_price = 1000.0
+        calc.tire_set_price_base = 1000.0
         calc.swap_cost = 100.0
         calc.storage_cost_per_year = 999.0  # should be ignored
 
