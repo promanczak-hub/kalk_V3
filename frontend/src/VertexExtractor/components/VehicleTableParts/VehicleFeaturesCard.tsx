@@ -83,7 +83,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const [rawCategories, setRawCategories] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["⭐ Konfiguracja (PDF)"]));
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["Konfiguracja"]));
   const [isPanelCollapsed] = useState(true);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
 
@@ -107,7 +107,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
       // Add local config features as the first category if they exist
       if (instantFeatures.length > 0) {
         grouped.push({
-          name: "⭐ Konfiguracja (PDF)",
+          name: "Konfiguracja",
           features: instantFeatures,
           presentCount: instantFeatures.length,
         });
@@ -141,7 +141,7 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
       const autoExpand = new Set(
         grouped.filter((g) => g.presentCount > 0).map((g) => g.name)
       );
-      setExpandedCats(prev => new Set([...prev, "⭐ Konfiguracja (PDF)", ...autoExpand]));
+      setExpandedCats(prev => new Set([...prev, "Konfiguracja", ...autoExpand]));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd pobierania cech");
     } finally {

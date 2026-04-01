@@ -27,6 +27,7 @@ export interface FilterState {
   selectedSamarClasses: string[];
   selectedBodyTypes: string[];
   selectedTransmissions: string[];
+  selectedDrives: string[];
   powerRange: [number, number];
 }
 
@@ -68,6 +69,18 @@ function extractTransmission(v: FleetVehicleView): string {
   if (mapped?.transmission) return mapped.transmission;
   const card = synth.card_summary as Record<string, string> | undefined;
   if (card?.transmission) return card.transmission;
+  return "";
+}
+
+function extractDriveType(v: FleetVehicleView): string {
+  if (v.drive_type) return v.drive_type;
+  const synth = v.synthesis_data as Record<string, unknown> | undefined;
+  if (!synth) return "";
+  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+  if (mapped?.drive_type) return mapped.drive_type;
+  if (mapped?.drivetrain) return mapped.drivetrain; // just in case
+  const card = synth.card_summary as Record<string, string> | undefined;
+  if (card?.drive_type) return card.drive_type;
   return "";
 }
 
@@ -115,6 +128,7 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
       samarClasses: [] as string[],
       bodyTypes: [] as string[],
       transmissions: [] as string[],
+      drives: [] as string[],
       powerMin: 0, powerMax: 0,
     };
   }
@@ -133,6 +147,7 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
   const samarSet = new Set<string>();
   const bodyTypesSet = new Set<string>();
   const transmissionsSet = new Set<string>();
+  const drivesSet = new Set<string>();
 
   for (const v of vehicles) {
     const ts = new Date(v.created_at).getTime();
@@ -165,6 +180,9 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
     const trans = extractTransmission(v);
     if (trans) transmissionsSet.add(trans);
 
+    const drv = extractDriveType(v);
+    if (drv) drivesSet.add(drv);
+
     const pow = extractPower(v);
     if (pow > 0) {
       if (pow < powerMin) powerMin = pow;
@@ -194,7 +212,8 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
     fuels: Array.from(fuelsSet).sort(),
     samarClasses: Array.from(samarSet).sort(),
     bodyTypes: Array.from(bodyTypesSet).sort(),
-    transmissions: Array.from(transmissionsSet).sort()
+    transmissions: Array.from(transmissionsSet).sort(),
+    drives: Array.from(drivesSet).sort()
   };
 }
 
@@ -213,6 +232,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     selectedSamarClasses: [],
     selectedBodyTypes: [],
     selectedTransmissions: [],
+    selectedDrives: [],
     powerRange: [0, Infinity]
   });
 
@@ -280,6 +300,10 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       setFilters(prev => ({ ...prev, selectedTransmissions: transmissions }));
   }, []);
 
+  const setSelectedDrives = useCallback((drives: string[]) => {
+      setFilters(prev => ({ ...prev, selectedDrives: drives }));
+  }, []);
+
   const setPowerRange = useCallback((range: [number, number]) => {
       setFilters((prev) => ({ ...prev, powerRange: range }));
   }, []);
@@ -297,6 +321,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       selectedSamarClasses: [],
       selectedBodyTypes: [],
       selectedTransmissions: [],
+      selectedDrives: [],
       powerRange: [0, Infinity]
     });
   }, []);
@@ -364,6 +389,15 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       result = result.filter(v => {
           const t = extractTransmission(v);
           return t && selectedTransmissions.includes(t);
+      });
+    }
+
+    // Filter by Drive Type
+    const selectedDrives = filters.selectedDrives || [];
+    if (selectedDrives.length > 0) {
+      result = result.filter(v => {
+          const drv = extractDriveType(v);
+          return drv && selectedDrives.includes(drv);
       });
     }
 
@@ -435,6 +469,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     activePowerRange,
     setSelectedBodyTypes,
     setSelectedTransmissions,
+    setSelectedDrives,
     setPowerRange,
   };
 }

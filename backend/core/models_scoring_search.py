@@ -108,9 +108,14 @@ class SimilarityReasons(BaseModel):
     body_match: bool = False
     fuel_match: bool = False
     drive_match: bool = False
+    equipment_match: bool = False
+    is_same_brand: bool = False
+    equipment_similarity_pct: Optional[float] = None
     price_pct_diff: Optional[float] = None  # e.g. 4.2 — catalog price % difference
     samar_category: Optional[str] = None  # e.g. "C Niższa Średnia"
     body_style: Optional[str] = None  # e.g. "Sedan"
+    base_price: Optional[float] = None
+    paid_options: Optional[Any] = None
 
 
 class SimilarVehicleMatch(BaseModel):
@@ -152,6 +157,7 @@ class SimilarBatchRequest(BaseModel):
     duration_months: Optional[int] = None
     annual_mileage: Optional[int] = None
     mode: str = "rule-based"  # "rule-based" or "semantic"
+    requirements: Optional[List[ScoringRequirement]] = None
 
 
 class SimilarBatchItem(SimilarVehicleMatch):

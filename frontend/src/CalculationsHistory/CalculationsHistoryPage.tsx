@@ -24,7 +24,7 @@ export function CalculationsHistoryPage() {
       // Fetch vehicles where calculator_setup is strictly NOT NULL
       // Using not.is.null syntax for jsonb path
       const { data, error } = await supabase
-        .from("vw_fleet_synthesis")
+        .from("fleet_management_view")
         .select("*")
         .not("synthesis_data->calculator_setup", "is", null)
         .order("created_at", { ascending: false });

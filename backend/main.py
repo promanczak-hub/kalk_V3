@@ -14,7 +14,6 @@ from api.param_preview import router as param_preview_router
 from api.features_routes import router as features_router
 from api.features_admin_routes import router as features_admin_router
 from api.config_crud_routes import config_crud_router
-from api.catalog_routes import router as catalog_router
 from api.excel_draft_routes import router as excel_draft_router
 from api.tab_okres_final_routes import router as tab_okres_final_router
 from api.body_types_routes import router as body_types_routes_router
@@ -78,7 +77,6 @@ app.include_router(param_preview_router, prefix="/api")
 app.include_router(features_router, prefix="/api")
 app.include_router(features_admin_router, prefix="/api")
 app.include_router(config_crud_router, prefix="/api")
-app.include_router(catalog_router, prefix="/api")
 app.include_router(excel_draft_router, prefix="/api")
 app.include_router(tab_okres_final_router, prefix="/api")
 app.include_router(body_types_routes_router, prefix="/api")

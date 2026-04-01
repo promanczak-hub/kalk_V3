@@ -31,11 +31,13 @@ interface KlasaWr {
 }
 
 interface InsuranceRate {
-  id?: number;
-  KolejnyRok: number;
-  StawkaBazowaAC: number;
-  SkladkaOC: number;
-  samar_class_id: number;
+  id?: string;
+  rok: number;
+  stawka_bazowa_ac: number;
+  skladka_oc_zl: number;
+  klasa_samar_fk: number;
+  wsp_sredni_przebieg?: number;
+  wsp_wartosc_szkody?: number;
 }
 
 export default function InsuranceRatesCrudPanel() {
@@ -44,13 +46,13 @@ export default function InsuranceRatesCrudPanel() {
   const [loading, setLoading] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<InsuranceRate>({
-    KolejnyRok: 1,
-    StawkaBazowaAC: 0,
-    SkladkaOC: 0,
-    samar_class_id: 100,
+    rok: 1,
+    stawka_bazowa_ac: 0,
+    skladka_oc_zl: 0,
+    klasa_samar_fk: 100,
   });
 
   useEffect(() => {
@@ -97,10 +99,10 @@ export default function InsuranceRatesCrudPanel() {
       setEditingId(item.id ?? null);
     } else {
       setFormData({
-        KolejnyRok: 1,
-        StawkaBazowaAC: 0,
-        SkladkaOC: 0,
-        samar_class_id: klasaWrList.length > 0 ? klasaWrList[0].id : 100,
+        rok: 1,
+        stawka_bazowa_ac: 0,
+        skladka_oc_zl: 0,
+        klasa_samar_fk: klasaWrList.length > 0 ? klasaWrList[0].id : 100,
       });
       setEditingId(null);
     }
@@ -130,7 +132,7 @@ export default function InsuranceRatesCrudPanel() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Na pewno usunąć?")) return;
     try {
       const resp = await apiClient.fetch(
@@ -143,10 +145,9 @@ export default function InsuranceRatesCrudPanel() {
     }
   };
 
-  /* Group data by samar_class_id for nicer display */
   const grouped: Record<string, InsuranceRate[]> = {};
   data.forEach((row) => {
-    const key = row.samar_class_id === null ? "null" : String(row.samar_class_id);
+    const key = row.klasa_samar_fk === null ? "null" : String(row.klasa_samar_fk);
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(row);
   });
@@ -200,7 +201,7 @@ export default function InsuranceRatesCrudPanel() {
                 const samar_class_id = parseInt(klasaKey) || 100;
                 const klasaName = getClassName(samar_class_id);
                 return rows
-                  .sort((a, b) => a.KolejnyRok - b.KolejnyRok)
+                  .sort((a, b) => a.rok - b.rok)
                   .map((row, idx) => (
                     <TableRow
                       key={row.id}
@@ -226,7 +227,7 @@ export default function InsuranceRatesCrudPanel() {
                       </TableCell>
                       <TableCell align="center">
                         <Chip
-                          label={`Rok ${row.KolejnyRok}`}
+                          label={`Rok ${row.rok}`}
                           size="small"
                           sx={{ fontSize: "0.75rem" }}
                         />
@@ -235,13 +236,13 @@ export default function InsuranceRatesCrudPanel() {
                         align="right"
                         sx={{ fontFamily: "monospace", fontWeight: 600 }}
                       >
-                        {(row.StawkaBazowaAC * 100).toFixed(4)}%
+                        {(row.stawka_bazowa_ac * 100).toFixed(4)}%
                       </TableCell>
                       <TableCell
                         align="right"
                         sx={{ fontFamily: "monospace" }}
                       >
-                        {Number(row.SkladkaOC).toFixed(2)} zł
+                        {Number(row.skladka_oc_zl).toFixed(2)} zł
                       </TableCell>
                       <TableCell align="right">
                         <IconButton
@@ -293,11 +294,11 @@ export default function InsuranceRatesCrudPanel() {
             select
             label="Klasa SAMAR"
             size="small"
-            value={formData.samar_class_id}
+            value={formData.klasa_samar_fk}
             onChange={(e) => {
               setFormData({
                 ...formData,
-                samar_class_id: parseInt(e.target.value),
+                klasa_samar_fk: parseInt(e.target.value),
               });
             }}
           >
@@ -313,11 +314,11 @@ export default function InsuranceRatesCrudPanel() {
             type="number"
             size="small"
             inputProps={{ min: 1, max: 7 }}
-            value={formData.KolejnyRok}
+            value={formData.rok}
             onChange={(e) =>
               setFormData({
                 ...formData,
-                KolejnyRok: parseInt(e.target.value) || 1,
+                rok: parseInt(e.target.value) || 1,
               })
             }
           />
@@ -329,11 +330,11 @@ export default function InsuranceRatesCrudPanel() {
               size="small"
               fullWidth
               inputProps={{ step: 0.001, min: 0, max: 1 }}
-              value={formData.StawkaBazowaAC}
+              value={formData.stawka_bazowa_ac}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  StawkaBazowaAC: parseFloat(e.target.value) || 0,
+                  stawka_bazowa_ac: parseFloat(e.target.value) || 0,
                 })
               }
             />
@@ -343,17 +344,17 @@ export default function InsuranceRatesCrudPanel() {
               size="small"
               fullWidth
               inputProps={{ step: 10, min: 0 }}
-              value={formData.SkladkaOC}
+              value={formData.skladka_oc_zl}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  SkladkaOC: parseFloat(e.target.value) || 0,
+                  skladka_oc_zl: parseFloat(e.target.value) || 0,
                 })
               }
             />
           </Box>
 
-          {formData.StawkaBazowaAC > 0 && (
+          {formData.stawka_bazowa_ac > 0 && (
             <Typography
               variant="body2"
               sx={{
@@ -367,10 +368,10 @@ export default function InsuranceRatesCrudPanel() {
               }}
             >
               Stawka AC:{" "}
-              <strong>{(formData.StawkaBazowaAC * 100).toFixed(4)}%</strong> |
+              <strong>{(formData.stawka_bazowa_ac * 100).toFixed(4)}%</strong> |
               Np. dla auta 100k netto: AC ≈{" "}
               <strong>
-                {(formData.StawkaBazowaAC * 100000).toFixed(0)} PLN/rok
+                {(formData.stawka_bazowa_ac * 100000).toFixed(0)} PLN/rok
               </strong>
             </Typography>
           )}

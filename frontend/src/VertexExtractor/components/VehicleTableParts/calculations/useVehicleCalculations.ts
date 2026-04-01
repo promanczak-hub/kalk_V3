@@ -391,7 +391,20 @@ export function useVehicleCalculations({
   const filteredCells = useMemo(() => {
     return cells.filter((c) => {
       if (c.Okres < filters.monthsRange[0] || c.Okres > filters.monthsRange[1]) return false;
-      if (filters.targetKmPerYear === null) return true;
+      
+      const isBaseCell = basePayload && c.Okres === basePayload.okres_bazowy && (c.PrzebiegKontrakt ?? Math.round((c.Okres / 12) * c.Przebieg)) === basePayload.przebieg_bazowy;
+
+      if (filters.targetKmPerYear === null) {
+        // Gdy nie ma precyzyjnego filtru, pokazuj kafelki tylko co 5000km (np. 10k, 15k, 20k) dla danego trybu
+        const kmValue = mileageMode === "contract" 
+          ? (c.PrzebiegKontrakt ?? Math.round((c.Okres / 12) * c.Przebieg))
+          : c.Przebieg;
+          
+        if (kmValue % 5000 !== 0 && !isBaseCell) {
+          return false;
+        }
+        return true;
+      }
 
       if (mileageMode === "contract") {
         const targetContractKm = (filters.targetKmPerYear / 12) * mileageReferenceMonths;
@@ -405,7 +418,7 @@ export function useVehicleCalculations({
       const hi = filters.targetKmPerYear * 1.05;
       return c.Przebieg >= lo && c.Przebieg <= hi;
     });
-  }, [cells, filters.monthsRange, filters.targetKmPerYear, mileageMode, mileageReferenceMonths]);
+  }, [cells, filters.monthsRange, filters.targetKmPerYear, mileageMode, mileageReferenceMonths, basePayload]);
 
   const recalculateWithMargin = useCallback(async (marginPct: number) => {
     if (!basePayload) return;

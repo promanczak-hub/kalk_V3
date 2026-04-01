@@ -1,7 +1,6 @@
 import { useMemo, useEffect } from "react";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
-import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
@@ -26,7 +25,6 @@ import {
 import ControlCenter from "./ControlCenter";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
-import { CatalogLibraryPage } from "./VertexExtractor/components/CatalogLibraryPage";
 import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
 import { CalculationsHistoryPage } from "./CalculationsHistory/CalculationsHistoryPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -42,7 +40,6 @@ import OfferCartFab from "./components/OfferCart/OfferCartFab";
 const ROUTES = [
   { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" /> },
   { path: "/control-center", label: "Control Center (Admin)", icon: <TuneOutlinedIcon fontSize="small" /> },
-  { path: "/library", label: "Biblioteka Cenników", icon: <LibraryBooksOutlinedIcon fontSize="small" /> },
   { path: "/search", label: "Wyszukiwarka / Scoring", icon: <SearchOutlinedIcon fontSize="small" /> },
   { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" /> },
 
@@ -210,7 +207,6 @@ function AppContent({ mode }: AppContentProps) {
           <Routes>
             <Route path="/" element={<VertexExtractorPage />} />
             <Route path="/control-center" element={<ControlCenter />} />
-            <Route path="/library" element={<CatalogLibraryPage />} />
             <Route path="/calculations" element={<CalculationsHistoryPage />} />
             <Route path="/search" element={<ScoringSearchPage />} />
 

@@ -393,11 +393,11 @@ class LTRKalkulator:
         if only_exact:
             pass  # Skip building the full grid if we only want the exact requested tile
         else:
-            # V3 Matrix Strategy: Use contract mileage mode with 1250km step (MESH size)
-            # This ensures we hit points like 40000km total / 60 months (8000km/yr) perfectly.
+            # V3 Matrix Strategy: Use contract mileage mode with 5000km step
+            # This significantly reduces the payload size and speeds up calculations.
             contract_km_min = 10000
             contract_km_max = 300000
-            contract_km_step = 1250
+            contract_km_step = 5000
 
             for m in (24, 36, 48, 60):
                 for total_km_contract in range(

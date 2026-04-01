@@ -58,7 +58,12 @@ export const ScoringSearchPage: React.FC = () => {
           </Box>
 
           <Box sx={{ p: 2, flexGrow: 1, overflowY: 'auto', bgcolor: 'background.default' }}>
-            <ScoringResults results={searchResults} loading={isSearching} searchContext={searchContext} />
+            <ScoringResults 
+              results={searchResults} 
+              loading={isSearching} 
+              searchContext={searchContext}
+              selectedFeatures={selectedFeatures}
+            />
           </Box>
         </Paper>
       </Box>

@@ -380,7 +380,7 @@ export function VehicleBaseInfo({
                         <input
                           type="number"
                           step="0.1"
-                          className="w-10 h-full bg-transparent text-right outline-none px-1 text-blue-900 font-mono text-[11px]"
+                          className="w-14 h-full bg-transparent text-right outline-none px-1 text-blue-900 font-mono text-[11px]"
                           value={customDiscountPctRaw || ""}
                           onChange={(e) => setCustomDiscountPctRaw?.(e.target.value)}
                           onClick={(e) => e.stopPropagation()}

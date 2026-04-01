@@ -18,9 +18,14 @@ export interface SimilarityReasons {
   body_match: boolean;
   fuel_match: boolean;
   drive_match: boolean;
+  equipment_match: boolean;
+  equipment_similarity_pct: number | null;
+  is_same_brand: boolean;
   price_pct_diff: number | null;
   samar_category: string | null;
   body_style: string | null;
+  base_price?: number | null;
+  paid_options?: Record<string, unknown>[] | null;
 }
 
 export interface SimilarVehicle {
@@ -104,10 +109,14 @@ export function useBatchSimilarVehicles(
   durationMonths: number,
   annualMileage: number,
   enabled: boolean,
-  mode: 'rule-based' | 'semantic' = 'rule-based'
+  mode: 'rule-based' | 'semantic' = 'rule-based',
+  requirements: Record<string, unknown>[] = []
 ): { similarVehicles: Record<string, SimilarVehicle[]>; loading: boolean } {
   const [similarVehicles, setSimilarVehicles] = useState<Record<string, SimilarVehicle[]>>({});
   const [loading, setLoading] = useState(false);
+
+  // Zbudujmy stabilny hash z tablicy requirements do użycia w useEffect dependencies
+  const requirementsHash = JSON.stringify(requirements);
 
   useEffect(() => {
     if (!enabled || !vehicleIds.length) {
@@ -126,7 +135,8 @@ export function useBatchSimilarVehicles(
             duration_months: durationMonths, 
             annual_mileage: annualMileage,
             limit: 5,
-            mode: mode
+            mode: mode,
+            requirements: requirements
           }),
         });
         const data = await r.json();
@@ -149,7 +159,7 @@ export function useBatchSimilarVehicles(
       window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, mode]);
+  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, mode, requirementsHash]);
 
   return { similarVehicles, loading };
 }

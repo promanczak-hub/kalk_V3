@@ -10,7 +10,6 @@ import {
   RotateCcw,
   ChevronDown,
   Filter,
-  DollarSign,
   Activity
 } from "lucide-react";
 import { format } from "date-fns";
@@ -457,7 +456,7 @@ export function VehicleFilterBar({
         <div className="flex-1">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs uppercase font-semibold text-slate-500 tracking-wider flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5" /> Cena Katalogowa
+              Cena katalogowa łączna (+opcje) brutto
             </span>
             <span className="text-xs text-slate-700 tabular-nums font-bold">
               {formatPrice(priceRange[0] > 0 ? priceRange[0] : priceBounds.priceMin)}

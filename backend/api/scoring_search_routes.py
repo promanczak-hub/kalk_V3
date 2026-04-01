@@ -119,11 +119,18 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
             body_match=bool(raw_reasons.get("body_match", False)),
             fuel_match=bool(raw_reasons.get("fuel_match", False)),
             drive_match=bool(raw_reasons.get("drive_match", False)),
+            equipment_match=bool(raw_reasons.get("equipment_match", False)),
+            is_same_brand=bool(raw_reasons.get("is_same_brand", False)),
+            equipment_similarity_pct=float(raw_reasons["equipment_similarity_pct"])
+            if raw_reasons.get("equipment_similarity_pct") is not None
+            else None,
             price_pct_diff=float(raw_reasons["price_pct_diff"])
             if raw_reasons.get("price_pct_diff") is not None
             else None,
             samar_category=raw_reasons.get("samar_category"),
             body_style=raw_reasons.get("body_style"),
+            base_price=float(raw_reasons["base_price"]) if raw_reasons.get("base_price") is not None else None,
+            paid_options=raw_reasons.get("paid_options"),
         )
 
     return SimilarVehicleMatch(
@@ -389,6 +396,7 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                     "p_limit": req.limit,
                     "p_duration_months": req.duration_months,
                     "p_annual_mileage": req.annual_mileage,
+                    "p_requirements": [r.model_dump() for r in req.requirements] if req.requirements else [],
                 },
             )
         )

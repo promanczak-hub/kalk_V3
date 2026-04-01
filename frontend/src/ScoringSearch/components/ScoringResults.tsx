@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import type { SearchContext } from '../types';
+import type { SearchContext, SelectedFeature } from '../types';
 import { useBatchPrices, useBatchSimilarVehicles } from '../hooks/useBatchData';
 import { VehicleResultCard } from './Results/VehicleResultCard';
 import { MATRIX_LIMITS } from '../../config/matrixLimits';
+import { buildScoringPayload } from '../utils/buildScoringPayload';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
@@ -19,9 +20,10 @@ interface ScoringResultsProps {
   results: Record<string, unknown>[];
   loading: boolean;
   searchContext: SearchContext;
+  selectedFeatures: SelectedFeature[];
 }
 
-export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext }) => {
+export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext, selectedFeatures }) => {
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [similarityMode, setSimilarityMode] = useState<'rule-based' | 'semantic'>('semantic');
 
@@ -62,12 +64,18 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     results.length > 0 && matrixFiltersActive,
   );
   
+  const requirements = useMemo(() => {
+    const payload = buildScoringPayload(searchContext, selectedFeatures);
+    return payload.requirements || [];
+  }, [searchContext, selectedFeatures]);
+
   const { similarVehicles: batchSimilar } = useBatchSimilarVehicles(
     vehicleIdsToFetchPrices,
     targetDuration,
     targetAnnualMileage,
     results.length > 0, // ZAWSZE POZWÓL NA ŁADOWANIE PODOBNYCH (nie wymagaj matrixFiltersActive)
-    similarityMode
+    similarityMode,
+    requirements
   );
 
   const sortedResults = useMemo(() => {
