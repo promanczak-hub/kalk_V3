@@ -10,7 +10,8 @@ import {
   RotateCcw,
   ChevronDown,
   Filter,
-  DollarSign
+  DollarSign,
+  Activity
 } from "lucide-react";
 import { format } from "date-fns";
 import type { SortKey, SortDir } from "../../hooks/useVehicleFilters";
@@ -47,6 +48,18 @@ interface VehicleFilterBarProps {
   availableSamarClasses: string[];
   selectedSamarClasses: string[];
   onSelectedSamarClassesChange: (classes: string[]) => void;
+
+  availableBodyTypes: string[];
+  selectedBodyTypes: string[];
+  onSelectedBodyTypesChange: (types: string[]) => void;
+
+  availableTransmissions: string[];
+  selectedTransmissions: string[];
+  onSelectedTransmissionsChange: (transmissions: string[]) => void;
+
+  powerRange: [number, number];
+  powerBounds: { powerMin: number; powerMax: number };
+  onPowerRangeChange: (range: [number, number]) => void;
 
   // Unmapped SAMAR
   showUnmappedSamarOnly: boolean;
@@ -210,6 +223,15 @@ export function VehicleFilterBar({
   availableSamarClasses,
   selectedSamarClasses,
   onSelectedSamarClassesChange,
+  availableBodyTypes,
+  selectedBodyTypes,
+  onSelectedBodyTypesChange,
+  availableTransmissions,
+  selectedTransmissions,
+  onSelectedTransmissionsChange,
+  powerRange,
+  powerBounds,
+  onPowerRangeChange,
   showUnmappedSamarOnly,
   onShowUnmappedSamarChange,
   onResetFilters,
@@ -248,13 +270,17 @@ export function VehicleFilterBar({
     selectedBrands.length > 0 ||
     selectedFuels.length > 0 ||
     selectedSamarClasses.length > 0 ||
+    selectedBodyTypes.length > 0 ||
     dateRange[0] > 0 ||
     dateRange[1] < Infinity ||
     priceRange[0] > 0 ||
-    priceRange[1] < Infinity;
+    priceRange[1] < Infinity ||
+    powerRange[0] > 0 ||
+    powerRange[1] < Infinity;
 
   const dateSpan = dateBounds.dateMax - dateBounds.dateMin;
   const priceSpan = priceBounds.priceMax - priceBounds.priceMin;
+  const powerSpan = powerBounds.powerMax - powerBounds.powerMin;
 
   return (
     <div className="space-y-4 mb-5">
@@ -360,10 +386,24 @@ export function VehicleFilterBar({
           selectedOptions={selectedSamarClasses}
           onChange={onSelectedSamarClassesChange}
         />
+
+        <MultiSelectDropdown 
+          label="Nadwozie"
+          options={availableBodyTypes}
+          selectedOptions={selectedBodyTypes}
+          onChange={onSelectedBodyTypesChange}
+        />
+
+        <MultiSelectDropdown 
+          label="Skrzynia biegów"
+          options={availableTransmissions}
+          selectedOptions={selectedTransmissions}
+          onChange={onSelectedTransmissionsChange}
+        />
       </div>
 
-      {/* Row 3: Sliders (Date & Price) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
+      {/* Row 3: Sliders (Date, Price, Power) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
         {/* Date range slider */}
         <div className="flex-1">
           <div className="flex justify-between items-center mb-2">
@@ -454,6 +494,53 @@ export function VehicleFilterBar({
             </div>
           ) : (
             <span className="text-xs text-slate-400 mt-2 block">Brak zróżnicowania cen</span>
+          )}
+        </div>
+
+        {/* Power slider */}
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs uppercase font-semibold text-slate-500 tracking-wider flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5" /> Moc (KM)
+            </span>
+            <span className="text-xs text-slate-700 tabular-nums font-bold">
+              {powerRange[0] > 0 ? powerRange[0] : powerBounds.powerMin}
+              {" — "}
+              {powerRange[1] < Infinity ? powerRange[1] : powerBounds.powerMax} KM
+            </span>
+          </div>
+          
+          {powerSpan > 0 ? (
+            <div className="relative h-6 flex items-center mt-1">
+              <input
+                type="range"
+                min={powerBounds.powerMin}
+                max={powerBounds.powerMax}
+                step={5} 
+                value={powerRange[0] > 0 ? powerRange[0] : powerBounds.powerMin}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const maxVal = powerRange[1] < Infinity ? powerRange[1] : powerBounds.powerMax;
+                  onPowerRangeChange([Math.min(val, maxVal), powerRange[1]]);
+                }}
+                className={`absolute w-full h-1 appearance-none bg-slate-200 rounded-full pointer-events-none z-[3] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-red-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer`}
+              />
+              <input
+                type="range"
+                min={powerBounds.powerMin}
+                max={powerBounds.powerMax}
+                step={5}
+                value={powerRange[1] < Infinity ? powerRange[1] : powerBounds.powerMax}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const minVal = powerRange[0] > 0 ? powerRange[0] : powerBounds.powerMin;
+                  onPowerRangeChange([powerRange[0], Math.max(val, minVal)]);
+                }}
+                className={`absolute w-full h-1 appearance-none bg-transparent rounded-full pointer-events-none z-[4] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-red-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer`}
+              />
+            </div>
+          ) : (
+            <span className="text-xs text-slate-400 mt-2 block">Brak zróżnicowania mocy</span>
           )}
         </div>
       </div>

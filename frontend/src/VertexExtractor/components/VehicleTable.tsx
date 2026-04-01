@@ -29,8 +29,8 @@ interface VehicleTableProps {
   pageSize: number;
   totalCount: number;
   highlightVehicleId?: string | null;
-  bodyTypes?: any[];
-  paintTypes?: any[];
+  bodyTypes?: { id: number; name: string; vehicle_class: string; }[];
+  paintTypes?: { id: number; name: string; [key: string]: unknown; }[];
 }
 
 export function VehicleTable({
@@ -67,6 +67,10 @@ export function VehicleTable({
     setSelectedSamarClasses,
     setShowUnmappedSamarOnly,
     resetFilters,
+    activePowerRange,
+    setSelectedBodyTypes,
+    setSelectedTransmissions,
+    setPowerRange,
   } = useVehicleFilters(savedVehicles);
 
   const {
@@ -259,6 +263,18 @@ export function VehicleTable({
             availableSamarClasses={aggregates.samarClasses}
             selectedSamarClasses={filters.selectedSamarClasses}
             onSelectedSamarClassesChange={setSelectedSamarClasses}
+
+            availableBodyTypes={aggregates.bodyTypes}
+            selectedBodyTypes={filters.selectedBodyTypes}
+            onSelectedBodyTypesChange={setSelectedBodyTypes}
+
+            availableTransmissions={aggregates.transmissions}
+            selectedTransmissions={filters.selectedTransmissions}
+            onSelectedTransmissionsChange={setSelectedTransmissions}
+
+            powerRange={activePowerRange}
+            powerBounds={{ powerMin: aggregates.powerMin, powerMax: aggregates.powerMax }}
+            onPowerRangeChange={setPowerRange}
 
             showUnmappedSamarOnly={filters.showUnmappedSamarOnly}
             onShowUnmappedSamarChange={setShowUnmappedSamarOnly}

@@ -6,7 +6,7 @@ import { apiClient } from "../../../lib/apiClient";
 import { SamarCategoryDropdown } from "./SamarCategoryDropdown";
 import { EngineCategoryDropdown } from "./EngineCategoryDropdown";
 import { VehicleTypeDropdown } from "./VehicleTypeDropdown";
-import { Tag, DriveTypeTag, BodyTypeTag, type SamarCandidate, type EngineCandidate, type MappedData } from "./VehicleBaseInfo";
+import { Tag, DriveTypeTag, BodyTypeTag, TransmissionTag, type SamarCandidate, type EngineCandidate, type MappedData } from "./VehicleBaseInfo";
 
 export interface VehicleSummaryCardProps {
   vehicle: FleetVehicleView;
@@ -19,6 +19,8 @@ export interface VehicleSummaryCardProps {
   onEngineCategoryChange?: (v: string) => Promise<void> | void;
   driveType?: string;
   onDriveTypeChange?: (v: string) => Promise<void> | void;
+  transmission?: string;
+  onTransmissionChange?: (v: string) => Promise<void> | void;
   bodyType?: string;
   onBodyTypeChange?: (v: string) => Promise<void> | void;
   onVehicleTypeChange?: (v: string) => Promise<void> | void;
@@ -115,6 +117,8 @@ export function VehicleSummaryCard({
   onEngineCategoryChange,
   driveType,
   onDriveTypeChange,
+  transmission,
+  onTransmissionChange,
   bodyType,
   onBodyTypeChange,
   onVehicleTypeChange,
@@ -332,7 +336,11 @@ export function VehicleSummaryCard({
     },
     { label: "Moc silnika (KM)", value: val(cardSummary?.power_hp?.toString()) },
     { label: "Moc silnika (kW)", value: val(cardSummary?.power_kw?.toString()) },
-    { label: "Skrzynia biegów", value: val(vehicle.transmission) },
+    { 
+      label: "Skrzynia biegów", 
+      value: <TransmissionTag current={transmission || ""} onChange={onTransmissionChange} connected={false} />,
+      type: "custom"
+    },
     { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
     { label: "Emisja WLTP", value: val(vehicle.emissions) },
     { 

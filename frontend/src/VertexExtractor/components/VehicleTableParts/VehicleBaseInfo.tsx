@@ -13,8 +13,18 @@ transmission: string;
 samar_category?: string;
 engine_class?: string;
 drive_type?: string;
-body_type?: string;
-body_candidates?: { klasa: string; confidence: number }[];
+  body_type?: string;
+  body_candidates?: { klasa: string; confidence: number }[];
+}
+
+export interface SamarCandidate {
+  klasa: string;
+  confidence: number;
+}
+
+export interface EngineCandidate {
+  klasa: string;
+  confidence: number;
 }
 
 interface VehicleBaseInfoProps {
@@ -36,6 +46,8 @@ interface VehicleBaseInfoProps {
   setCustomDiscountPctRaw?: (val: string) => void;
   offerDiscountPercentage?: number;
   suggestedDiscountPct?: number;
+
+  technicalDescription?: string;
 }
 
 function hasValue(v: string | null | undefined): boolean {
@@ -82,6 +94,33 @@ return (
       </select>
     </span>
 );
+}
+
+const TRANSMISSION_OPTIONS = [
+  { value: "Automatyczna", label: "Automatyczna" },
+  { value: "Manualna", label: "Manualna" },
+];
+
+export function TransmissionTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
+  if (!onChange) {
+      return current ? <Tag connected={connected}>{current}</Tag> : null;
+  }
+  return (
+      <span className="inline-flex items-center h-full">
+        <select
+          className={`bg-slate-50/50 font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full px-2.5 text-[11px] border-0" : "px-1.5 py-1 text-xs border border-slate-200 rounded"}`}
+          style={{ fontFamily: "'Geist Mono', monospace" }}
+          value={current || ""}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
+        >
+          <option value="" disabled>Skrzynia...</option>
+          {TRANSMISSION_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </span>
+  );
 }
 
 /** Fallback body type options — used only when DB data hasn't loaded yet */
@@ -222,6 +261,7 @@ export function VehicleBaseInfo({
   setCustomDiscountPctRaw,
   offerDiscountPercentage = 0,
   suggestedDiscountPct = 0,
+  technicalDescription,
 }: VehicleBaseInfoProps) {
   return (
     <div
@@ -265,13 +305,13 @@ export function VehicleBaseInfo({
               {hasValue(vehicle.trim_level) && (
                 <span className="text-xs text-slate-500 font-medium">{vehicle.trim_level}</span>
               )}
+              <span className="text-xs text-slate-500 max-w-full break-words" style={{ fontFamily: "'Geist Mono', monospace" }}>
+                {technicalDescription || (hasValue(vehicle.powertrain) ? vehicle.powertrain : "Brak danych specyfikacji")}
+              </span>
             </div>
             
             {/* Sub-informacje w jednym rzędzie: napęd, kody, rabaty */}
             <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
-              <p className="text-xs text-slate-500" style={{ fontFamily: "'Geist Mono', monospace" }}>
-                {hasValue(vehicle.powertrain) ? vehicle.powertrain : "Brak danych napędu"}
-              </p>
 
               <div className="flex items-center gap-1.5 flex-wrap">
                 {hasValue(vehicle.offer_number) && (

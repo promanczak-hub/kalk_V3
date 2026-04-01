@@ -260,6 +260,32 @@ export function useVehicleMetaManager(
     }
   };
 
+  const handleTransmissionChange = async (newTransmission: string) => {
+    try {
+      const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
+      const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
+
+      if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
+      updatedJson.mapped_ai_data.transmission = newTransmission;
+
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ synthesis_data: updatedJson })
+        .eq("id", vehicle.id);
+
+      if (error) throw error;
+
+      setLocalMappedData((prev) => ({
+        ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
+        transmission: newTransmission,
+      }));
+
+    } catch (err) {
+      console.error("Error updating transmission", err);
+      alert("Błąd zapisu skrzyni biegów: " + (err instanceof Error ? err.message : "Nieznany błąd"));
+    }
+  };
+
   return {
     isMapping,
     handleSamarCategoryChange,
@@ -270,6 +296,7 @@ export function useVehicleMetaManager(
     handlePaintCategoryIdChange,
     handleVehicleTypeChange,
     handleMapDataSilent,
+    handleTransmissionChange,
   };
 
 

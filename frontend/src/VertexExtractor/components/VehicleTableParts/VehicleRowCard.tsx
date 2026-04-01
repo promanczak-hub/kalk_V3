@@ -340,6 +340,7 @@ export function VehicleRowCard({
     handleConfigurationCodeChange,
     handleVehicleTypeChange,
     handleMapDataSilent,
+    handleTransmissionChange,
   } = useVehicleMetaManager(
 
     vehicle,
@@ -627,7 +628,30 @@ export function VehicleRowCard({
   const engineCandidates: { klasa: string; confidence: number }[] =
     ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
 
-  // driveType moved up
+  // Map transmission to dictionary values
+  const rawTransmission = localMappedData?.transmission || mappedData?.transmission || vehicle.transmission || "";
+  const tLower = rawTransmission.toLowerCase();
+  const isAuto = tLower.includes("automat") || tLower.includes("dsg") || tLower.includes("s-tronic") || tLower.includes("tiptronic") || tLower.includes("steptronic");
+  const isMan = tLower.includes("manual") || tLower.includes("ręczna");
+  
+  let detectedTransmission = rawTransmission;
+  if (isAuto) detectedTransmission = "Automatyczna";
+  else if (isMan) detectedTransmission = "Manualna";
+  
+  const transmission = localMappedData?.transmission || mappedData?.transmission || detectedTransmission;
+
+  // Construct the unified technical description for the header
+  const vehicleTypeHint = localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class;
+  
+  const technicalDescriptionParts = [
+    vehicle.powertrain,
+    vehicleTypeHint,
+    driveType,
+    transmission,
+    resolvedBodyType
+  ].filter(part => part && part.trim() !== "" && part !== "Brak" && part !== "-");
+  
+  const technicalDescription = technicalDescriptionParts.join(" • ");
 
   return (
     <div
@@ -656,6 +680,7 @@ export function VehicleRowCard({
         setCustomDiscountPctRaw={setCustomDiscountPctRaw}
         offerDiscountPercentage={offerDiscountPercentage}
         suggestedDiscountPct={suggestedDiscountPct}
+        technicalDescription={technicalDescription}
       />
 
 
@@ -708,6 +733,8 @@ export function VehicleRowCard({
                   onEngineCategoryChange={handleEngineCategoryChange}
                   driveType={driveType}
                   onDriveTypeChange={handleDriveTypeChange}
+                  transmission={transmission}
+                  onTransmissionChange={handleTransmissionChange}
                   bodyType={resolvedBodyType}
                   onBodyTypeChange={handleBodyTypeChange}
                   onVehicleTypeChange={handleVehicleTypeChange}
@@ -803,8 +830,8 @@ export function VehicleRowCard({
                  setPaintCategoryId={setPaintCategoryId}
                  paintTypes={paintTypes}
                  isMetalicAutoDetected={autoDetectMetalic()}
-                 hookAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.has_tow_hook === true}
-                 vintageAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.is_current_year_vehicle != null}
+                 hookAutoDetected={((vehicle.synthesis_data as Record<string, Record<string, unknown>>)?.card_summary)?.has_tow_hook === true}
+                 vintageAutoDetected={((vehicle.synthesis_data as Record<string, Record<string, unknown>>)?.card_summary)?.is_current_year_vehicle != null}
                  // Price context for czynsz inicjalny calculations
                  activeFinalPriceForDeposit={activeFinalPriceNet}
                  crossCardAlerts={crossCardAlerts}

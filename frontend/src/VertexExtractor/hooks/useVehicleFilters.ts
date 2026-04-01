@@ -25,6 +25,9 @@ export interface FilterState {
   selectedBrands: string[];
   selectedFuels: string[];
   selectedSamarClasses: string[];
+  selectedBodyTypes: string[];
+  selectedTransmissions: string[];
+  powerRange: [number, number];
 }
 
 function extractSamarCategory(v: FleetVehicleView): string {
@@ -46,6 +49,37 @@ function extractFuel(v: FleetVehicleView): string {
   const card = synth.card_summary as Record<string, string> | undefined;
   if (card?.fuel) return card.fuel;
   return "";
+}
+
+function extractBodyType(v: FleetVehicleView): string {
+  if (v.body_style) return v.body_style;
+  const synth = v.synthesis_data as Record<string, unknown> | undefined;
+  if (!synth) return "";
+  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+  if (mapped?.body_type) return mapped.body_type;
+  return "";
+}
+
+function extractTransmission(v: FleetVehicleView): string {
+  if (v.transmission) return v.transmission;
+  const synth = v.synthesis_data as Record<string, unknown> | undefined;
+  if (!synth) return "";
+  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+  if (mapped?.transmission) return mapped.transmission;
+  const card = synth.card_summary as Record<string, string> | undefined;
+  if (card?.transmission) return card.transmission;
+  return "";
+}
+
+function extractPower(v: FleetVehicleView): number {
+  const synth = v.synthesis_data as Record<string, unknown> | undefined;
+  const card = synth?.card_summary as Record<string, unknown> | undefined;
+  if (typeof card?.power_hp === 'number') return card.power_hp;
+  if (typeof card?.power_hp === 'string') {
+     const parsed = parseFloat(card.power_hp);
+     if (!isNaN(parsed)) return parsed;
+  }
+  return 0; 
 }
 
 function getBasePrice(v: FleetVehicleView): number {
@@ -79,6 +113,9 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
       brands: [] as string[],
       fuels: [] as string[],
       samarClasses: [] as string[],
+      bodyTypes: [] as string[],
+      transmissions: [] as string[],
+      powerMin: 0, powerMax: 0,
     };
   }
 
@@ -88,10 +125,14 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
   let catalogPriceMax = -Infinity;
   let discountPriceMin = Infinity;
   let discountPriceMax = -Infinity;
+  let powerMin = Infinity;
+  let powerMax = -Infinity;
 
   const brandsSet = new Set<string>();
   const fuelsSet = new Set<string>();
   const samarSet = new Set<string>();
+  const bodyTypesSet = new Set<string>();
+  const transmissionsSet = new Set<string>();
 
   for (const v of vehicles) {
     const ts = new Date(v.created_at).getTime();
@@ -117,12 +158,26 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
 
     const s = extractSamarCategory(v);
     if (s) samarSet.add(s);
+
+    const b = extractBodyType(v);
+    if (b) bodyTypesSet.add(b);
+
+    const trans = extractTransmission(v);
+    if (trans) transmissionsSet.add(trans);
+
+    const pow = extractPower(v);
+    if (pow > 0) {
+      if (pow < powerMin) powerMin = pow;
+      if (pow > powerMax) powerMax = pow;
+    }
   }
 
   if (catalogPriceMin === Infinity) catalogPriceMin = 0;
   if (catalogPriceMax === -Infinity) catalogPriceMax = 0;
   if (discountPriceMin === Infinity) discountPriceMin = 0;
   if (discountPriceMax === -Infinity) discountPriceMax = 0;
+  if (powerMin === Infinity) powerMin = 0;
+  if (powerMax === -Infinity) powerMax = 0;
 
   // Align date bounds to full-day boundaries so the slider step (86400000ms)
   // divides evenly into the range and thumbs can reach both ends of the track.
@@ -134,9 +189,12 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
     dateMin, dateMax, 
     catalogPriceMin, catalogPriceMax,
     discountPriceMin, discountPriceMax,
+    powerMin, powerMax,
     brands: Array.from(brandsSet).sort(),
     fuels: Array.from(fuelsSet).sort(),
-    samarClasses: Array.from(samarSet).sort()
+    samarClasses: Array.from(samarSet).sort(),
+    bodyTypes: Array.from(bodyTypesSet).sort(),
+    transmissions: Array.from(transmissionsSet).sort()
   };
 }
 
@@ -152,7 +210,10 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     showUnmappedSamarOnly: false,
     selectedBrands: [],
     selectedFuels: [],
-    selectedSamarClasses: []
+    selectedSamarClasses: [],
+    selectedBodyTypes: [],
+    selectedTransmissions: [],
+    powerRange: [0, Infinity]
   });
 
   const activeDateRange = useMemo<[number, number]>(
@@ -173,6 +234,14 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filters.priceRange, currentModePriceMin, currentModePriceMax, filters.priceFilterMode]
+  );
+
+  const activePowerRange = useMemo<[number, number]>(
+    () => [
+        filters.powerRange[0] <= 0 ? aggregates.powerMin : filters.powerRange[0],
+        filters.powerRange[1] >= Infinity ? aggregates.powerMax : filters.powerRange[1]
+    ],
+    [filters.powerRange, aggregates.powerMin, aggregates.powerMax]
   );
 
   const setSortKey = useCallback((key: SortKey) => {
@@ -203,6 +272,18 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       setFilters(prev => ({ ...prev, selectedSamarClasses: classes }));
   }, []);
 
+  const setSelectedBodyTypes = useCallback((types: string[]) => {
+      setFilters(prev => ({ ...prev, selectedBodyTypes: types }));
+  }, []);
+
+  const setSelectedTransmissions = useCallback((transmissions: string[]) => {
+      setFilters(prev => ({ ...prev, selectedTransmissions: transmissions }));
+  }, []);
+
+  const setPowerRange = useCallback((range: [number, number]) => {
+      setFilters((prev) => ({ ...prev, powerRange: range }));
+  }, []);
+
   const resetFilters = useCallback(() => {
     setFilters({
       sortKey: "created_at",
@@ -213,7 +294,10 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       showUnmappedSamarOnly: false,
       selectedBrands: [],
       selectedFuels: [],
-      selectedSamarClasses: []
+      selectedSamarClasses: [],
+      selectedBodyTypes: [],
+      selectedTransmissions: [],
+      powerRange: [0, Infinity]
     });
   }, []);
 
@@ -221,12 +305,12 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     let result = [...vehicles];
 
     // Filter by Brand
-    if (filters.selectedBrands.length > 0) {
+    if (filters.selectedBrands?.length > 0) {
       result = result.filter(v => v.brand && filters.selectedBrands.includes(v.brand));
     }
 
     // Filter by Fuel
-    if (filters.selectedFuels.length > 0) {
+    if (filters.selectedFuels?.length > 0) {
       result = result.filter(v => {
           const f = extractFuel(v);
           return f && filters.selectedFuels.includes(f);
@@ -234,7 +318,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     }
 
     // Filter by SAMAR Class
-    if (filters.selectedSamarClasses.length > 0) {
+    if (filters.selectedSamarClasses?.length > 0) {
       result = result.filter(v => {
           const sc = extractSamarCategory(v);
           return sc && filters.selectedSamarClasses.includes(sc);
@@ -263,6 +347,32 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
         const price = filters.priceFilterMode === "catalog" ? getBasePrice(v) : getDiscountedPrice(v);
         if (price === 0) return true; // Keep unpriced
         return price >= pMin && price <= pMax;
+      });
+    }
+
+    // Filter by Body Type
+    if (filters.selectedBodyTypes?.length > 0) {
+      result = result.filter(v => {
+          const b = extractBodyType(v);
+          return b && filters.selectedBodyTypes.includes(b);
+      });
+    }
+
+    // Filter by Transmission
+    if (filters.selectedTransmissions?.length > 0) {
+      result = result.filter(v => {
+          const t = extractTransmission(v);
+          return t && filters.selectedTransmissions.includes(t);
+      });
+    }
+
+    // Power range filter
+    const [powMin, powMax] = activePowerRange;
+    if (powMin > 0 || powMax < Infinity) {
+      result = result.filter((v) => {
+        const p = extractPower(v);
+        if (p === 0) return true; // Keep unspecified if you want, or require it
+        return p >= powMin && p <= powMax;
       });
     }
 
@@ -299,7 +409,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     });
 
     return result;
-  }, [vehicles, filters, activeDateRange, activePriceRange]);
+  }, [vehicles, filters, activeDateRange, activePriceRange, activePowerRange]);
 
   const setShowUnmappedSamarOnly = useCallback((val: boolean) => {
     setFilters((prev) => ({ ...prev, showUnmappedSamarOnly: val }));
@@ -321,5 +431,9 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     setSelectedSamarClasses,
     setShowUnmappedSamarOnly,
     resetFilters,
+    activePowerRange,
+    setSelectedBodyTypes,
+    setSelectedTransmissions,
+    setPowerRange,
   };
 }
