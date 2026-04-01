@@ -661,7 +661,7 @@ def debug_calculation_pipeline(vehicle_id: str, req: dict):
             klasa_opony_string=req.get("klasa_opony_string", "Medium"),
             srednica_felgi=req.get("srednica_felgi", 18),
             korekta_kosztu_opon=req.get("korekta_kosztu_opon", False),
-            koszt_opon_korekta=req.get("koszt_opon_korekta", 0.0),
+            koszt_opon_korekta=req.get("koszt_opon_korekta", {}),
             service_cost_type=req.get("service_cost_type", "ASO"),
             okres_bazowy=req.get("okres_bazowy", 48),
             przebieg_bazowy=req.get("przebieg_bazowy", 140000),

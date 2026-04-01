@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { SlidersHorizontal, RotateCcw, Gauge, Route, Percent } from "lucide-react";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -25,13 +25,13 @@ interface MatrixFilterToolbarProps {
 
 /* ── Constants ──────────────────────────────────────────────────────── */
 
-const MONTHS_MIN = 12;
-const MONTHS_MAX = 84;
+const MONTHS_MIN = 24;
+const MONTHS_MAX = 60;
 const MONTHS_STEP = 12;
-const MONTHS_TICKS = [12, 24, 36, 48, 60, 72, 84];
+const MONTHS_TICKS = [24, 36, 48, 60];
 
 const KM_MIN = 10_000;
-const KM_MAX = 200_000;
+const KM_MAX = 300_000;
 const KM_STEP = 10_000;
 const KM_MARGIN_PCT = 0.05;
 
@@ -243,11 +243,10 @@ export function MatrixFilterToolbar({
   const [exactMargin, setExactMargin] = useState<string>(defaultMarginPct.toFixed(2));
 
   const safeReferenceMonths = referenceMonths > 0 ? referenceMonths : 48;
-  const prevMileageModeRef = useRef<MileageMode>(mileageMode);
+  const [prevMileageMode, setPrevMileageMode] = useState<typeof mileageMode>(mileageMode);
 
-  useEffect(() => {
-    if (prevMileageModeRef.current === mileageMode) return;
-
+  if (mileageMode !== prevMileageMode) {
+    setPrevMileageMode(mileageMode);
     const m = Math.max(parseInt(exactMonths, 10) || 48, 1);
     const currentKm = parseInt(exactKm, 10);
     if (!isNaN(currentKm) && currentKm > 0) {
@@ -256,9 +255,7 @@ export function MatrixFilterToolbar({
         : Math.round((currentKm / m) * 12);
       setExactKm(String(convertedKm));
     }
-
-    prevMileageModeRef.current = mileageMode;
-  }, [mileageMode, exactMonths, exactKm]);
+  }
 
   const MAX_CONTRACT_KM = 300_000;
   const sliderMin = mileageMode === "contract"
@@ -565,8 +562,8 @@ export function MatrixFilterToolbar({
               <input
                 id="exactMonths"
                 type="number"
-                min="6"
-                max="120"
+                min="24"
+                max="60"
                 value={exactMonths}
                 onChange={(e) => setExactMonths(e.target.value)}
                 className="w-12 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
@@ -580,7 +577,7 @@ export function MatrixFilterToolbar({
                 id="exactKm"
                 type="number"
                 min={mileageMode === "contract" ? 10000 : 10000}
-                max={mileageMode === "contract" ? 300000 : 200000}
+                max={mileageMode === "contract" ? 300000 : 300000}
                 step={mileageMode === "contract" ? 10000 : 1000}
                 value={exactKm}
                 onChange={(e) => setExactKm(e.target.value)}

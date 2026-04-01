@@ -12,7 +12,7 @@ router = APIRouter()
 @router.post("/calculate-matrix")
 def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
     try:
-        from domain.calculations.service import CalculationService
+        from core.calculation_service import CalculationService
 
         response = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not response.data:
@@ -46,7 +46,7 @@ def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
 def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
     """Przelicza matrycę i zwraca pełen obiekt ze śladem diagnostycznym."""
     try:
-        from domain.calculations.service import CalculationService
+        from core.calculation_service import CalculationService
 
         response = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not response.data:

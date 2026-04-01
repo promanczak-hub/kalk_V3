@@ -55,10 +55,11 @@ export function HeroSection({ images, setImages }: HeroSectionProps) {
     })));
   };
 
-  const processWithNanoBanana = async (id: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const processWithNanoBanana = async (_id: string) => {
     setIsProcessingAI(true);
     // Symulacja wywołania API NanoBanana (odszumianie/wycinanie tła)
-    console.log(`Zlecono obróbkę NanoBanana dla obrazka: ${id}`);
+    // NanoBanana image enhancement triggered for: ${id}
     setTimeout(() => {
       setIsProcessingAI(false);
       alert("NanoBanana AI: Funkcja w przygotowaniu! W przyszłości wytniemy tło lub je zgenerujemy od nowa.");

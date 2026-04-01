@@ -1,16 +1,33 @@
 import { useState } from "react";
 import type { FleetVehicleView } from "../../types";
-import { Pencil, X, Loader2, RefreshCw, Save } from "lucide-react";
+import { Pencil, X, Loader2, RefreshCw, Save, Activity, Fuel, Car } from "lucide-react";
+import { AccordionCard } from "./AccordionCard";
 import { apiClient } from "../../../lib/apiClient";
-interface VehicleSummaryCardProps {
+import { SamarCategoryDropdown } from "./SamarCategoryDropdown";
+import { EngineCategoryDropdown } from "./EngineCategoryDropdown";
+import { VehicleTypeDropdown } from "./VehicleTypeDropdown";
+import { Tag, DriveTypeTag, BodyTypeTag, type SamarCandidate, type EngineCandidate, type MappedData } from "./VehicleBaseInfo";
+
+export interface VehicleSummaryCardProps {
   vehicle: FleetVehicleView;
+  mappedData?: MappedData;
+  samarCandidates?: SamarCandidate[];
+  allSamarClasses?: string[];
+  onSamarCategoryChange?: (v: string) => Promise<void> | void;
+  engineCandidates?: EngineCandidate[];
+  allEngineTypes?: string[];
+  onEngineCategoryChange?: (v: string) => Promise<void> | void;
+  driveType?: string;
+  onDriveTypeChange?: (v: string) => Promise<void> | void;
+  bodyType?: string;
+  onBodyTypeChange?: (v: string) => Promise<void> | void;
+  onVehicleTypeChange?: (v: string) => Promise<void> | void;
+  bodyTypeOptions?: {name: string, vehicle_class: string}[];
   onDirectSave?: (fields: Record<string, string>) => Promise<void>;
   isSaving?: boolean;
   onRemapClassification?: () => Promise<void>;
   isRemapping?: boolean;
-  readinessResult?: any;
 }
-
 
 const EMPTY = "—";
 
@@ -23,7 +40,7 @@ function extractSeats(vehicle: FleetVehicleView): string {
 
 function extractPaintCategory(vehicle: FleetVehicleView): string {
   if (vehicle.is_metalic_paint === true) return "Metalik";
-  if (vehicle.is_metalic_paint === false) return "Bazowy";
+  if (vehicle.is_metalic_paint === false) return "Niemetalik";
   return EMPTY;
 }
 
@@ -36,11 +53,11 @@ function val(v: string | null | undefined): string {
 
 interface RowProps {
   label: string;
-  value: string;
+  value: React.ReactNode;
   isEditing?: boolean;
   editValue?: string;
   onEditChange?: (newVal: string) => void;
-  type?: "text" | "dropdown";
+  type?: "text" | "dropdown" | "custom";
   options?: { value: string; label: string }[];
   highlightNew?: boolean;
 }
@@ -48,16 +65,16 @@ interface RowProps {
 function Row({ label, value, isEditing, editValue, onEditChange, type = "text", options, highlightNew }: RowProps) {
   return (
     <tr className="border-b border-slate-100 last:border-b-0">
-      <td className="py-2 pr-6 text-xs text-slate-400 whitespace-nowrap align-middle">
+      <td className="py-1.5 pr-4 text-[11px] text-slate-400 whitespace-nowrap align-middle">
         {label}
         {highlightNew && (
-          <span className="ml-1.5 text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 text-violet-600 uppercase">
+          <span className="ml-1.5 text-[8px] font-bold px-1 py-0.5 rounded bg-violet-100 text-violet-600 uppercase">
             CRUD
           </span>
         )}
       </td>
-      <td className="py-2 text-sm text-slate-800 font-medium align-middle">
-        {isEditing ? (
+      <td className="py-1.5 text-xs text-slate-800 font-medium align-middle">
+        {isEditing && type !== "custom" ? (
           type === "dropdown" && options ? (
             <select
               className="w-full text-sm border border-slate-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white cursor-pointer"
@@ -89,11 +106,23 @@ function Row({ label, value, isEditing, editValue, onEditChange, type = "text", 
 
 export function VehicleSummaryCard({
   vehicle,
+  mappedData,
+  samarCandidates,
+  allSamarClasses,
+  onSamarCategoryChange,
+  engineCandidates,
+  allEngineTypes,
+  onEngineCategoryChange,
+  driveType,
+  onDriveTypeChange,
+  bodyType,
+  onBodyTypeChange,
+  onVehicleTypeChange,
+  bodyTypeOptions,
   onDirectSave,
   isSaving,
   onRemapClassification,
   isRemapping,
-  readinessResult,
 }: VehicleSummaryCardProps) {
 
   const [isEditing, setIsEditing] = useState(false);
@@ -105,15 +134,14 @@ export function VehicleSummaryCard({
       "Marka": val(vehicle.brand),
       "Model": val(vehicle.model),
       "Wersja": val(vehicle.trim_level),
-      "Kategoria": val(vehicle.vehicle_class ?? vehicle.document_category),
-      "Napęd": val(vehicle.powertrain),
-      "Paliwo": val(vehicle.fuel),
+      "Oś napędowa": val(vehicle.drive_type) || val((cardSummary?.drive_type as string)),
+      "Silnik (Paliwo)": val(vehicle.fuel),
       "Moc silnika (KM)": val(cardSummary?.power_hp?.toString()),
       "Moc silnika (kW)": val(cardSummary?.power_kw?.toString()),
       "Skrzynia biegów": val(vehicle.transmission),
       "Koła": vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY,
       "Emisja WLTP": val(vehicle.emissions),
-      "Kolor nadwozia": val(vehicle.exterior_color),
+      "Rodzaj lakieru": val(vehicle.is_metalic_paint === true ? "Metalik" : vehicle.is_metalic_paint === false ? "Niemetalik" : ""),
       "Ilość miejsc": extractSeats(vehicle),
       "Numer oferty": val(vehicle.offer_number),
       "Kod konfiguracji": val(vehicle.configuration_code),
@@ -143,11 +171,10 @@ export function VehicleSummaryCard({
     collectIfChanged("Marka", val(vehicle.brand), "brand");
     collectIfChanged("Model", val(vehicle.model), "model");
     collectIfChanged("Wersja", val(vehicle.trim_level), "trim_level");
-    collectIfChanged("Kategoria", val(vehicle.vehicle_class ?? vehicle.document_category), "vehicle_class");
 
     const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
-    collectIfChanged("Napęd", val(vehicle.powertrain), "powertrain");
-    collectIfChanged("Paliwo", val(vehicle.fuel), "fuel");
+    collectIfChanged("Oś napędowa", val(vehicle.drive_type) || val((cardSummary?.drive_type as string)), "drive_type");
+    collectIfChanged("Silnik (Paliwo)", val(vehicle.fuel), "fuel");
     collectIfChanged("Moc silnika (KM)", val(cardSummary?.power_hp?.toString()), "power_hp");
     collectIfChanged("Moc silnika (kW)", val(cardSummary?.power_kw?.toString()), "power_kw");
     collectIfChanged("Skrzynia biegów", val(vehicle.transmission), "transmission");
@@ -160,7 +187,12 @@ export function VehicleSummaryCard({
     }
     
     collectIfChanged("Emisja WLTP", val(vehicle.emissions), "emissions");
-    collectIfChanged("Kolor nadwozia", val(vehicle.exterior_color), "exterior_color");
+    const currentPaint = val(vehicle.is_metalic_paint === true ? "Metalik" : vehicle.is_metalic_paint === false ? "Niemetalik" : "");
+    const editedPaint = editValues["Rodzaj lakieru"] ?? "";
+    if (editedPaint !== currentPaint && editedPaint !== EMPTY) {
+      const isMetalic = editedPaint === "Metalik";
+      fields["is_metalic_paint"] = String(isMetalic);
+    }
     collectIfChanged("Ilość miejsc", extractSeats(vehicle), "number_of_seats");
     collectIfChanged("Numer oferty", val(vehicle.offer_number), "offer_number");
     collectIfChanged("Kod konfiguracji", val(vehicle.configuration_code), "configuration_code");
@@ -217,7 +249,7 @@ export function VehicleSummaryCard({
     });
   };
 
-  const renderRow = (config: { label: string; value: string; type?: "text" | "dropdown"; options?: { value: string; label: string }[]; highlightNew?: boolean }) => (
+  const renderRow = (config: { label: string; value: React.ReactNode; type?: "text" | "dropdown" | "custom"; options?: { value: string; label: string }[]; highlightNew?: boolean }) => (
     <Row
       key={config.label}
       label={config.label}
@@ -231,37 +263,101 @@ export function VehicleSummaryCard({
     />
   );
 
-  const renderRows = (configs: { label: string; value: string; type?: "text" | "dropdown"; options?: { value: string; label: string }[]; highlightNew?: boolean }[]) => {
+  const renderRows = (configs: { label: string; value: React.ReactNode; type?: "text" | "dropdown" | "custom"; options?: { value: string; label: string }[]; highlightNew?: boolean }[]) => {
     return configs.map(renderRow);
   };
 
-  const identityRows: { label: string; value: string; type?: "text" | "dropdown"; options?: { value: string; label: string }[]; highlightNew?: boolean }[] = [
+  const identityRows: { label: string; value: React.ReactNode; type?: "text" | "dropdown" | "custom"; options?: { value: string; label: string }[]; highlightNew?: boolean }[] = [
     { label: "Marka", value: val(vehicle.brand) },
     { label: "Model", value: val(vehicle.model) },
     { label: "Wersja", value: val(vehicle.trim_level) },
-    { label: "Kategoria", value: val(vehicle.vehicle_class ?? vehicle.document_category) },
+    { 
+      label: "Kategoria", 
+      value: (
+        onVehicleTypeChange ? (
+          <VehicleTypeDropdown
+            currentType={mappedData?.vehicle_type || ""}
+            onTypeChange={onVehicleTypeChange}
+            connected={false}
+          />
+        ) : mappedData?.vehicle_type ? (
+          <Tag icon={Car}>{mappedData.vehicle_type}</Tag>
+        ) : val(vehicle.vehicle_class ?? vehicle.document_category)
+      ),
+      type: "custom"
+    },
+    {
+      label: "Klasa SAMAR",
+      value: (
+        mappedData?.samar_category && onSamarCategoryChange ? (
+          <SamarCategoryDropdown
+            currentCategory={mappedData.samar_category}
+            candidates={samarCandidates || []}
+            allSamarClasses={allSamarClasses || []}
+            onCategoryChange={onSamarCategoryChange}
+            connected={false}
+          />
+        ) : mappedData?.samar_category ? (
+          <Tag icon={Activity}>{mappedData.samar_category}</Tag>
+        ) : EMPTY
+      ),
+      type: "custom"
+    }
   ];
 
   const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
 
   const techRows: typeof identityRows = [
-    { label: "Napęd", value: val(vehicle.powertrain) },
-    { label: "Paliwo", value: val(vehicle.fuel) },
+    { 
+      label: "Oś napędowa", 
+      value: <DriveTypeTag current={driveType || ""} onChange={onDriveTypeChange} connected={false} />,
+      type: "custom"
+    },
+    { 
+      label: "Silnik (Paliwo)", 
+      value: (
+        mappedData?.engine_class && onEngineCategoryChange ? (
+          <EngineCategoryDropdown
+            currentCategory={mappedData.fuel}
+            candidates={engineCandidates || []}
+            allEngineTypes={allEngineTypes || []}
+            onCategoryChange={onEngineCategoryChange}
+            connected={false}
+          />
+        ) : mappedData?.engine_class ? (
+          <Tag icon={Fuel}>{mappedData.fuel} / {mappedData.engine_class}</Tag>
+        ) : val(vehicle.fuel)
+      ),
+      type: "custom"
+    },
     { label: "Moc silnika (KM)", value: val(cardSummary?.power_hp?.toString()) },
     { label: "Moc silnika (kW)", value: val(cardSummary?.power_kw?.toString()) },
     { label: "Skrzynia biegów", value: val(vehicle.transmission) },
     { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
     { label: "Emisja WLTP", value: val(vehicle.emissions) },
-    { label: "Kolor nadwozia", value: val(vehicle.exterior_color) },
-    { label: "Kategoria lakieru", value: extractPaintCategory(vehicle) },
-    { label: "Ilość miejsc", value: extractSeats(vehicle) },
-    { label: "Typ nadwozia", value: val(vehicle.body_style) },
     { 
-      label: "Korekta RV (nadwozie)", 
-      value: readinessResult?.body_match?.correction != null 
-        ? `${readinessResult.body_match.correction > 0 ? '+' : ''}${readinessResult.body_match.correction}%` 
-        : (vehicle.body_style ? "0%" : EMPTY) 
+      label: "Rodzaj lakieru", 
+      value: extractPaintCategory(vehicle),
+      type: "dropdown",
+      options: [
+        { value: "Metalik", label: "Metalik" },
+        { value: "Niemetalik", label: "Niemetalik" }
+      ] 
     },
+    { label: "Ilość miejsc", value: extractSeats(vehicle) },
+    { 
+      label: "Nadwozie", 
+      value: (
+        <BodyTypeTag
+          current={bodyType || ""}
+          dbOptions={bodyTypeOptions}
+          onChange={onBodyTypeChange}
+          currentVehicleType={mappedData?.vehicle_type}
+          connected={false}
+        />
+      ),
+      type: "custom" 
+    }
   ];
 
 
@@ -270,8 +366,72 @@ export function VehicleSummaryCard({
     { label: "Kod konfiguracji", value: val(vehicle.configuration_code) },
   ];
 
+  const headerRight = (
+    <div className="flex items-center space-x-2">
+      {isEditing ? (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); cancelEditing(); }}
+            className="text-xs px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md font-medium transition-colors flex items-center border border-slate-200"
+          >
+            <X className="w-3.5 h-3.5 mr-1.5" />
+            Anuluj
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleSave(); }}
+            disabled={isSaving}
+            className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-md font-medium transition-colors flex items-center shadow-sm disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+            Zapisz zmiany
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); startEditing(); }}
+            disabled={isSaving || !onDirectSave}
+            className="text-xs px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-md font-medium transition-colors flex items-center shadow-sm border border-slate-200 disabled:opacity-50"
+          >
+            <Pencil className="w-3.5 h-3.5 mr-1.5" />
+            Edytuj
+          </button>
+          {onRemapClassification && (
+             <div onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={onRemapClassification}
+                  disabled={isRemapping}
+                  className="text-xs px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-md font-medium transition-colors flex items-center shadow-sm border border-violet-100 disabled:opacity-50"
+                  title="Przelicz klasyfikację pojazdu (SAMAR, silnik, serwis) na podstawie aktualnych danych"
+                >
+                  {isRemapping ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                  Przelicz
+                </button>
+             </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  const titleNodes = (
+    <div className="flex items-center">
+      Karta podsumowania pojazdu
+      {isEditing && (
+        <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
+          TRYB EDYCJI
+        </span>
+      )}
+    </div>
+  );
+
   return (
-    <div className="border border-slate-200 rounded bg-white relative">
+    <AccordionCard 
+      title={titleNodes} 
+      headerRight={headerRight} 
+      defaultOpen={false} 
+      className="relative"
+    >
       {(isSaving || isRemapping) && (
         <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded">
           <div className="flex items-center text-indigo-600 bg-white px-4 py-2 rounded-full shadow-sm border border-indigo-100">
@@ -282,66 +442,8 @@ export function VehicleSummaryCard({
           </div>
         </div>
       )}
-      <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center flex-wrap gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center">
-          Karta podsumowania pojazdu
-          {isEditing && (
-            <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
-              TRYB EDYCJI
-            </span>
-          )}
-          {!isEditing && (
-            <div className="ml-3">
-              
-            </div>
-          )}
-        </h4>
-        <div className="flex items-center space-x-2">
-          {isEditing ? (
-            <>
-              <button
-                onClick={cancelEditing}
-                className="text-xs px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md font-medium transition-colors flex items-center border border-slate-200"
-              >
-                <X className="w-3.5 h-3.5 mr-1.5" />
-                Anuluj
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-md font-medium transition-colors flex items-center shadow-sm disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-                Zapisz zmiany
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={startEditing}
-                disabled={isSaving || !onDirectSave}
-                className="text-xs px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-md font-medium transition-colors flex items-center shadow-sm border border-slate-200 disabled:opacity-50"
-              >
-                <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                Edytuj
-              </button>
-              {onRemapClassification && (
-                <button
-                  onClick={onRemapClassification}
-                  disabled={isRemapping}
-                  className="text-xs px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-md font-medium transition-colors flex items-center shadow-sm border border-violet-100 disabled:opacity-50"
-                  title="Przelicz klasyfikację pojazdu (SAMAR, silnik, serwis) na podstawie aktualnych danych"
-                >
-                  {isRemapping ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
-                  Przelicz klasyfikację
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
 
-      <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Identyfikacja + Metadane */}
         <div>
           <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
@@ -375,7 +477,6 @@ export function VehicleSummaryCard({
           </table>
         </div>
       </div>
-
-    </div>
+    </AccordionCard>
   );
 }

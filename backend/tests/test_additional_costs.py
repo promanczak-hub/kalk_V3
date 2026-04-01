@@ -44,7 +44,7 @@ def mock_settings() -> ControlCenterSettings:
 
 
 def test_additional_costs_all_flags_on(mock_settings: ControlCenterSettings):
-    from main import CalculatorInput
+    from api.schemas.calculator import CalculatorInput
 
     input_data = CalculatorInput(
         vehicle_id="test",
@@ -79,7 +79,7 @@ def test_additional_costs_all_flags_on(mock_settings: ControlCenterSettings):
 
 
 def test_additional_costs_all_flags_off(mock_settings: ControlCenterSettings):
-    from main import CalculatorInput
+    from api.schemas.calculator import CalculatorInput
 
     input_data = CalculatorInput(
         vehicle_id="test",

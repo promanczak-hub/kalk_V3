@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { API_BASE_URL } from '../../config/env';
 import { apiClient } from "../../lib/apiClient";
 
 /* ------------------------------------------------------------------ */
@@ -50,7 +49,7 @@ const VehicleFeaturesCrud: React.FC<Props> = ({ vehicleId, vehicleName, onClose 
   const fetchFeatures = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiClient.fetch(`${API_BASE_URL}/vehicles/${vehicleId}/features`);
+      const res = await apiClient.fetch(`/api/vehicles/${vehicleId}/features`);
       const data = await res.json();
       setFeatures(data.features || []);
     } catch (err) {
@@ -125,7 +124,7 @@ const VehicleFeaturesCrud: React.FC<Props> = ({ vehicleId, vehicleName, onClose 
     }));
 
     try {
-      const res = await apiClient.fetch(`${API_BASE_URL}/vehicles/${vehicleId}/features`, {
+      const res = await apiClient.fetch(`/api/vehicles/${vehicleId}/features`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ features: payload }),
@@ -150,7 +149,7 @@ const VehicleFeaturesCrud: React.FC<Props> = ({ vehicleId, vehicleName, onClose 
   // ── Delete feature ─────────────────────────────────────
   const deleteFeature = async (featureKey: string) => {
     try {
-      await apiClient.fetch(`${API_BASE_URL}/vehicles/${vehicleId}/features/${featureKey}`, {
+      await apiClient.fetch(`/api/vehicles/${vehicleId}/features/${featureKey}`, {
         method: 'DELETE',
       });
       setFeatures(prev => prev.filter(f => f.feature_key !== featureKey));

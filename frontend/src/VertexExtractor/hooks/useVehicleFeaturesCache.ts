@@ -61,7 +61,7 @@ export async function fetchFeaturesForCache(vehicleId: string) {
     let data: any = null;
     let cachedCatalog: SuggestedCatalog | null = null;
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const vehicleResp = await apiClient.fetch(`/api/kalkulator/pojazd/${vehicleId}?lite=true`);
     if (vehicleResp.ok) {
         const vehicleData = await vehicleResp.json();
@@ -100,7 +100,7 @@ export async function fetchFeaturesForCache(vehicleId: string) {
 
     const response = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/state`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     data = await response.json();
     
     featuresCache.set(vehicleId, { instantFeatures, data, suggestedCatalog: cachedCatalog });

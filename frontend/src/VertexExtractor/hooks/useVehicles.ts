@@ -176,7 +176,7 @@ export function useVehicles() {
         },
         (payload) => {
           const eventType = payload.eventType;
-          console.log(`[Realtime] ${eventType} on vehicle_synthesis`, payload);
+
 
           if (eventType === "DELETE") {
             // Remove locally — no need to refetch
@@ -319,7 +319,7 @@ export function useVehicles() {
   };
 
   const handleDeleteVehicle = async (vehicleId: string) => {
-    console.log("handleDeleteVehicle called with", vehicleId);
+
     // Potwierdzenie jest już w VehicleActionButtons.tsx przed dispatchem CustomEvent.
     // Nie pokazuj drugiego confirm - wywołuj delete bezpośrednio.
 

@@ -34,8 +34,8 @@ export function useVehicleFinancing(
   // Tire parameters
   const [tireClass, setTireClass] = useState<string>("Medium");
   const [tireCountMode, setTireCountMode] = useState<string>("auto");
-  const [tireCostCorrectionEnabled, setTireCostCorrectionEnabled] = useState(true);
-  const [tireCostCorrection, setTireCostCorrection] = useState<number>(0);
+  const [tireCostCorrectionEnabled, setTireCostCorrectionEnabled] = useState(false);
+  const [tireCostCorrectionMap, setTireCostCorrectionMap] = useState<Record<string, number>>({});
   const [rimDiameter, setRimDiameter] = useState<number | null>(() => {
     const wheels = vehicle.wheels || "";
     const match = wheels.match(/(\d{2})/);
@@ -130,7 +130,12 @@ export function useVehicleFinancing(
       if (tp.tire_class != null) setTireClass(tp.tire_class);
       if (tp.tire_count_mode != null) setTireCountMode(tp.tire_count_mode);
       if (tp.tire_cost_correction_enabled != null) setTireCostCorrectionEnabled(tp.tire_cost_correction_enabled);
-      if (tp.tire_cost_correction != null) setTireCostCorrection(tp.tire_cost_correction);
+      // Backward compat: stary scalar float → reset do pustej mapy
+      if (tp.tire_cost_correction_map != null && typeof tp.tire_cost_correction_map === "object") {
+        setTireCostCorrectionMap(tp.tire_cost_correction_map as Record<string, number>);
+      } else {
+        setTireCostCorrectionMap({});
+      }
       if (tp.rim_diameter != null) setRimDiameter(tp.rim_diameter);
       else {
         const wheels = vehicle.wheels || "";
@@ -194,7 +199,7 @@ export function useVehicleFinancing(
           tire_class: tireClass,
           tire_count_mode: tireCountMode,
           tire_cost_correction_enabled: tireCostCorrectionEnabled,
-          tire_cost_correction: tireCostCorrection,
+          tire_cost_correction_map: tireCostCorrectionMap,
           rim_diameter: rimDiameter,
         },
         service_cost_type: serviceCostType,
@@ -238,7 +243,7 @@ export function useVehicleFinancing(
     tireClass, setTireClass,
     tireCountMode, setTireCountMode,
     tireCostCorrectionEnabled, setTireCostCorrectionEnabled,
-    tireCostCorrection, setTireCostCorrection,
+    tireCostCorrectionMap, setTireCostCorrectionMap,
     rimDiameter, setRimDiameter,
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,

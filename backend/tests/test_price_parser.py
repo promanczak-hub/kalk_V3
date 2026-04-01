@@ -94,7 +94,9 @@ class TestEmptyAndInvalid:
         assert parse_price_string("null") is None
 
     def test_zero_string(self) -> None:
-        assert parse_price_string("0") is None
+        result = parse_price_string("0")
+        assert result is not None
+        assert result.value == 0.0
 
     def test_garbage_text(self) -> None:
         assert parse_price_string("abcdef xyz") is None

@@ -123,14 +123,13 @@ class TestCapexInitialSet:
 
     def test_capex_returned_in_result(self) -> None:
         calc = _make_calc(klasa="Medium", srednica=16)
-        calc.tire_set_price = 1500.0
         calc.swap_cost = 120.0
         calc.storage_cost_per_year = 216.0
 
         result = calc.calculate_cost(months=36, total_km=90000)
 
         assert "capex_initial_set" in result
-        assert result["capex_initial_set"] == 1500.0
+        assert result["capex_initial_set"] == 1000.0
 
     def test_opony_netto_excludes_first_set(self) -> None:
         calc = _make_calc(klasa="Medium", srednica=16)
@@ -141,11 +140,12 @@ class TestCapexInitialSet:
         result = calc.calculate_cost(months=36, total_km=90000)
 
         # total_km=90_000 < 120_000 → 1 set → hw_cost = tire_set_price
-        # remaining = max(1000 - 1000, 0) = 0
+        # base hw = 1000
+        # remaining_hw_cost = 1000
         # swaps = 120 * 3 * 2 = 720
         # storage = 216 * 3 * 2 = 1296
-        # OponyNetto = 0 + 720 + 1296 = 2016
-        assert result["OponyNetto"] == 2016.0
+        # OponyNetto = 1000 + 720 + 1296 = 3016
+        assert result["OponyNetto"] == 3016.0
         assert result["capex_initial_set"] == 1000.0
 
     def test_capex_zero_when_z_oponami_false(self) -> None:
@@ -201,11 +201,12 @@ class TestSeasonalCalculation:
         result = calc.calculate_cost(months=36, total_km=90000)
 
         # HW: 1 set (90k < 120k) = 1000
-        # capex_initial = 1000 → remaining = 0
+        # capex_initial = 1000 → remaining HW = 1000
         # swaps: 120 * 3 * 2 = 720
         # storage: 216 * 3 * 2 = 1296
+        # Total OponyNetto = 1000 + 720 + 1296 = 3016
         assert result["capex_initial_set"] == 1000.0
-        assert result["OponyNetto"] == 2016.0
+        assert result["OponyNetto"] == 3016.0
         assert result["IloscOpon"] == 1.0
 
 
@@ -221,12 +222,13 @@ class TestAllSeasonCalculation:
         result = calc.calculate_cost(months=48, total_km=100000)
 
         # HW proportional: 2000 + ((100k-60k)/60k)*2000 = 2000 + 1333.33 = 3333.33
-        # capex = 2000 → remaining = 1333.33
+        # capex_initial_set = 2000
+        # remaining_hw_cost = 3333.33
         # swaps: ceil(100k/60k)=2 → 2*120 = 240
         # storage: 0 (wielosezon)
-        # OponyNetto = 1333.33 + 240 = 1573.33
-        assert result["capex_initial_set"] == 2000.0
-        assert round(result["OponyNetto"], 2) == 1573.33
+        # OponyNetto = 3333.33 + 240 = 3573.33
+        assert result["capex_initial_set"] == 1000.0
+        assert round(result["OponyNetto"], 2) == 3573.33
         assert result["IloscOpon"] == 2.0
 
     def test_allseason_storage_is_zero(self) -> None:
@@ -258,11 +260,13 @@ class TestMileageThresholds:
 
         # 60k <= threshold_1 → 1 set
         # HW = 1000 (base, no extra)
-        # capex = 1000 → remaining = 0
+        # capex_initial = 1000
+        # remaining HW = 1000
         # swaps: ceil(60k/60k)=1 → 100
+        # Netto = 1000 + 100 = 1100
         assert result["IloscOpon"] == 1.0
         assert result["capex_initial_set"] == 1000.0
-        assert result["OponyNetto"] == 100.0
+        assert result["OponyNetto"] == 1100.0
 
     def test_exactly_120k_allseason(self) -> None:
         calc = _make_calc(klasa="Wielosezon Budget", srednica=16)
@@ -274,8 +278,10 @@ class TestMileageThresholds:
 
         # 120k <= threshold_2 → 2 sets
         # HW = 1000 + ((120k-60k)/60k)*1000 = 2000
-        # capex = 1000 → remaining = 1000
+        # capex = 1000
+        # remaining_hw_cost = 2000
         # swaps: ceil(120k/60k)=2 → 200
+        # OponyNetto = 2000 + 200 = 2200
         assert result["IloscOpon"] == 2.0
         assert result["capex_initial_set"] == 1000.0
-        assert result["OponyNetto"] == 1200.0
+        assert result["OponyNetto"] == 2200.0

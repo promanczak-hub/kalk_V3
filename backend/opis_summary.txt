@@ -1,0 +1,76 @@
+Na podstawie dostarczonego zrzutu ekranu, oto szczegółowa analiza funkcjonalności oraz założeń technicznych i biznesowych aplikacji.
+
+### **Ogólny Opis Aplikacji**
+
+Jest to wewnętrzna aplikacja webowa typu **"Control Center"** (Panel Administracyjny) przeznaczona dla firmy z branży motoryzacyjnej, najprawdopodobniej zajmującej się wynajmem długoterminowym (LTR), leasingiem lub zarządzaniem flotą pojazdów. Aplikacja służy do centralnego zarządzania ofertami pojazdów, od momentu pozyskania danych o konfiguracji i cenie, aż po stworzenie finalnej kalkulacji dla klienta. Kluczowym elementem systemu jest moduł **"Ekstrakcja i Analiza AI"**, który automatyzuje proces wprowadzania danych z zewnętrznych dokumentów.
+
+---
+
+### **Główne Funkcjonalności Aplikacji**
+
+1.  **Automatyczna Ekstrakcja Danych (AI/OCR):**
+    *   **Przesyłanie dokumentów:** Użytkownik może przesyłać pliki z ofertami pojazdów w różnych formatach (PDF, XLS, XLSX, PNG).
+    *   **Analiza AI:** System wykorzystuje sztuczną inteligencję do automatycznego odczytania (OCR) i zinterpretowania danych z dokumentów. Celem jest "wyodrębnienie danych technicznych i finansowych".
+    *   **Automatyzacja:** Ta funkcja eliminuje potrzebę ręcznego wprowadzania dziesiątek pozycji wyposażenia i cen, co znacząco przyspiesza pracę i redukuje ryzyko błędów.
+
+2.  **Zarządzanie Bazą Pojazdów:**
+    *   **Lista pojazdów:** Główny interfejs to lista "przetworzonych pojazdów", przedstawionych w formie interaktywnych kart.
+    *   **Podgląd kluczowych danych:** Każda karta zawiera podstawowe informacje: markę, model, wersję, datę oferty, kod konfiguracji oraz sumę całkowitą netto/brutto.
+    *   **Statusy pojazdów:** Widoczne są etykiety takie jak "Gotowe do kalkulacji" czy "Gotowe", co wskazuje na istnienie workflow przetwarzania ofert.
+
+3.  **Szczegółowy Widok i Edycja Pojazdu:**
+    *   **Dane techniczne:** Szczegółowy opis pojazdu: silnik (np. Elektryczny, Benzyna mHEV, Diesel), skrzynia biegów, typ nadwozia (np. SUV), kolor lakieru.
+    *   **Wyposażenie fabryczne i dodatkowe:** Precyzyjna lista wyposażenia opcjonalnego wraz z cenami netto i brutto dla każdej pozycji.
+    *   **Analiza finansowa:**
+        *   **Cena katalogowa:** Bazowa cena pojazdu.
+        *   **Rabat:** System oblicza i wyświetla przyznany rabat (procentowo i kwotowo).
+        *   **Cena końcowa:** Ostateczna cena pojazdu po rabatach, podana w wartościach netto i brutto.
+        *   **Sugerowana cena:** System podaje sugerowaną cenę z bazy danych ("Suger. BD"), co może być mechanizmem kontroli lub rekomendacji cenowej.
+    *   **Edycja danych:** Użytkownik ma możliwość edycji ("Edytuj") wyekstrahowanych lub wprowadzonych danych.
+
+4.  **Tworzenie Kalkulacji Finansowej (Oferty LTR/Leasingu):**
+    *   **Parametry kalkulacji:** Dedykowany moduł do ustawiania parametrów finansowania:
+        *   **WIBOR:** Wskazuje na oparcie kalkulacji o rynkowe stopy procentowe.
+        *   **Marża sprzedaży LTR (%):** Możliwość zdefiniowania marży firmy.
+        *   **Czynsz inicjalny (%):** Definiowanie wysokości pierwszej wpłaty.
+        *   **Inne koszty serwisu (PLN/mc):** Możliwość doliczenia stałych kosztów dodatkowych.
+    *   **Konfiguracja usług dodatkowych:** Użytkownik może włączyć do oferty usługi takie jak:
+        *   Ubezpieczenie ("Express płaci ubezpieczenie").
+        *   Samochód zastępczy.
+        *   Opony.
+        *   Serwis (w wariancie autoryzowanym lub nieautoryzowanym).
+        *   GPS, hak holowniczy.
+    *   **Przycisk "Zrób kalkulację":** Inicjuje proces obliczenia finalnej raty/czynszu na podstawie wszystkich wprowadzonych danych.
+
+5.  **Generowanie Dokumentów i Eksport Danych:**
+    *   **"Draft Broszury":** Funkcjonalność sugeruje możliwość automatycznego generowania dokumentu ofertowego (broszury) dla klienta.
+    *   **"Dane JSON":** Opcja eksportu danych pojazdu i kalkulacji w formacie JSON, co jest przydatne do integracji z innymi systemami lub do celów deweloperskich/diagnostycznych.
+    *   **"Otwórz dokument":** Szybki dostęp do oryginalnego pliku, z którego dane zostały zaimportowane.
+
+6.  **Wyszukiwanie i Filtrowanie:**
+    *   **Wyszukiwarka/Scoring:** Pole wyszukiwania sugeruje możliwość szybkiego odnalezienia pojazdu lub przeprowadzenia oceny (scoringu).
+    *   **Filtry matrycy:** Zaawansowany system filtrowania ("FILTRY MATRYCY") pozwala na sortowanie i selekcję pojazdów według specyficznych kryteriów (prawdopodobnie kodów wewnętrznych lub kategorii).
+
+7.  **Obsługa Błędów i Walidacja Danych:**
+    *   System aktywnie monitoruje jakość danych. Przykład błędu: *"Nie udało się ustalić mocy pojazdu (brak kW i KM)"* pokazuje, że aplikacja wymaga kompletnych danych do poprawnego działania i przerywa proces ("Fall-Fast"), aby uniknąć błędów w dalszych etapach.
+
+---
+
+### **Założenia Biznesowe**
+
+1.  **Model Biznesowy:** Firma działa w modelu B2B lub B2C, oferując wynajem długoterminowy lub leasing pojazdów. Proces biznesowy obejmuje pozyskiwanie ofert od dealerów, ich analizę, dodawanie własnej marży i usług, a następnie przedstawianie kompleksowej oferty klientowi końcowemu.
+2.  **Optymalizacja Procesów:** Kluczowym celem biznesowym jest maksymalna automatyzacja i przyspieszenie procesu przygotowywania ofert. Inwestycja w technologię AI ma na celu redukcję kosztów operacyjnych (czas pracy) i minimalizację błędów ludzkich.
+3.  **Standaryzacja Kalkulacji:** Firma stosuje ujednolicony model kalkulacji oparty o stałe parametry (marża, WIBOR) oraz konfigurowalne pakiety usług, co pozwala na zachowanie spójności i kontroli nad rentownością ofert.
+4.  **"Digital Twin" (Cyfrowy Bliźniak):** Użycie tego terminu w kontekście "Usług serwisowych" sugeruje, że firma tworzy pełny cyfrowy model każdego pojazdu, który obejmuje nie tylko jego specyfikację, ale także cały cykl życia, w tym koszty serwisowe, opony i inne usługi. Pozwala to na precyzyjne modelowanie całkowitego kosztu posiadania (TCO).
+5.  **Skalowalność:** Aplikacja jest zaprojektowana do obsługi dużej liczby pojazdów i konfiguracji od różnych marek (Mercedes, VW, Cupra, Skoda, Audi), co świadczy o szerokim portfolio i dużej skali działalności.
+
+---
+
+### **Założenia Techniczne**
+
+1.  **Architektura:** Aplikacja jest systemem webowym (działa w przeglądarce), prawdopodobnie zbudowanym w architekturze klient-serwer. Skomplikowany interfejs sugeruje użycie nowoczesnego frameworka frontendowego (np. React, Angular, Vue).
+2.  **Moduł AI/ML:** System posiada zintegrowany moduł oparty o uczenie maszynowe, który wykorzystuje technologie **OCR (Optyczne Rozpoznawanie Znaków)** do odczytu tekstu z obrazów i PDF-ów oraz **NLP (Przetwarzanie Języka Naturalnego)** do zrozumienia i sklasyfikowania odczytanych danych (np. odróżnienia nazwy opcji od jej ceny).
+3.  **Baza Danych:** Aplikacja korzysta z centralnej bazy danych do przechowywania wszystkich informacji o pojazdach, wyposażeniu, cenach, klientach i kalkulacjach. Komunikat o błędzie "Błąd bazy danych" to potwierdza.
+4.  **API:** Obecność przycisku "Dane JSON" silnie sugeruje istnienie **REST API**, które pozwala na komunikację między frontendem a backendem oraz potencjalną integrację z innymi systemami (np. CRM, systemem księgowym).
+5.  **Walidacja "Fail-Fast":** Komunikat błędu wspomina o przerwaniu procesu w trybie "Fall-Fast". Jest to podejście w inżynierii oprogramowania, gdzie system w przypadku wykrycia błędu natychmiast zatrzymuje operację, zamiast kontynuować z niepoprawnymi danymi. Świadczy to o dojrzałym podejściu do zapewnienia jakości i spójności danych.
+6.  **Zarządzanie Tożsamością:** Aplikacja jest panelem administracyjnym ("Control Center (Admin)"), co oznacza, że posiada system logowania i zarządzania uprawnieniami użytkowników.

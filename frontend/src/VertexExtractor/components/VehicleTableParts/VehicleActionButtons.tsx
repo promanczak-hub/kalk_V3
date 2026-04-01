@@ -35,12 +35,11 @@ interface VehicleActionButtonsProps {
   paintCategoryId: number | null;
   activeDiscountPct: number;
   activeFinalPrice: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  brochureData: any;
+  brochureData: Record<string, unknown> | null;
   setIsBrochureModalOpen: (val: boolean) => void;
   isGeneratingBrochure: boolean;
   setIsGeneratingBrochure: (val: boolean) => void;
-  setBrochureData: (val: any) => void;
+  setBrochureData: (val: Record<string, unknown> | null) => void;
   setBrochureImages: (val: string[]) => void;
   handleOpenSavedJson: (id: string, name: string) => void;
   isViewerOpen: boolean;
@@ -232,9 +231,9 @@ export function VehicleActionButtons({
       setPhase('done');
       // Brief visual confirmation before clearing
       await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log('Kalkulacja przerwana');
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Kalkulacja przerwana
       } else {
         console.error("B\u0142\u0105d tworzenia kalkulacji:", err);
         alert("Nie uda\u0142o si\u0119 utworzy\u0107 kalkulacji. Sprawd\u017A logi serwera.");

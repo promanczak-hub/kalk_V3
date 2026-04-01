@@ -209,7 +209,7 @@ export function useVehicleCalculations({
         srednica_felgi: stanJson.tire_params?.rim_diameter || (cardSummary.wheels ? parseInt(String(cardSummary.wheels).replace(/\D/g, "")) : 16) || 16,
         liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : (isNaN(parseFloat(stanJson.tire_params?.tire_count_mode)) ? null : parseFloat(stanJson.tire_params?.tire_count_mode)),
         korekta_kosztu_opon: stanJson.tire_params?.tire_cost_correction_enabled !== false,
-        koszt_opon_korekta: stanJson.tire_params?.tire_cost_correction || 0,
+        koszt_opon_korekta: (stanJson.tire_params?.tire_cost_correction_map as Record<string, number>) || {},
         service_cost_type: stanJson.service_cost_type || "ASO",
         include_servicing: toggles.include_servicing !== false,
         vehicle_vintage: stanJson.vehicle_vintage || "current",

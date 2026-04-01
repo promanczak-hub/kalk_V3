@@ -1,0 +1,137 @@
+﻿.......................FFFFFFFFF........................................ [ 22%]
+..................................F..................................... [ 44%]
+........................................................................ [ 66%]
+.......................................................F................ [ 88%]
+......................FF...FF.FF......                                   [100%]
+================================== FAILURES ===================================
+_____________________ test_additional_costs_all_flags_on ______________________
+backend\tests\test_additional_costs.py:47: in test_additional_costs_all_flags_on
+    from main import CalculatorInput
+E   ImportError: cannot import name 'CalculatorInput' from 'main' (D:\kalk_v3\backend\main.py)
+_____________________ test_additional_costs_all_flags_off _____________________
+backend\tests\test_additional_costs.py:82: in test_additional_costs_all_flags_off
+    from main import CalculatorInput
+E   ImportError: cannot import name 'CalculatorInput' from 'main' (D:\kalk_v3\backend\main.py)
+______________ TestAmortyzacjaCalculator.test_basic_calculation _______________
+backend\tests\test_amortyzacja.py:17: in test_basic_calculation
+    inp = AmortyzacjaInput(wp=100_000.0, wr=50_000.0, okres=36)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+__________________ TestAmortyzacjaCalculator.test_zero_okres __________________
+backend\tests\test_amortyzacja.py:29: in test_zero_okres
+    inp = AmortyzacjaInput(wp=100_000.0, wr=50_000.0, okres=0)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+___________________ TestAmortyzacjaCalculator.test_zero_wp ____________________
+backend\tests\test_amortyzacja.py:36: in test_zero_wp
+    inp = AmortyzacjaInput(wp=0.0, wr=0.0, okres=36)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+_________________ TestAmortyzacjaCalculator.test_wr_equals_wp _________________
+backend\tests\test_amortyzacja.py:43: in test_wr_equals_wp
+    inp = AmortyzacjaInput(wp=80_000.0, wr=80_000.0, okres=48)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+______________ TestAmortyzacjaCalculator.test_wr_greater_than_wp ______________
+backend\tests\test_amortyzacja.py:51: in test_wr_greater_than_wp
+    inp = AmortyzacjaInput(wp=80_000.0, wr=90_000.0, okres=48)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+_________________ TestAmortyzacjaCalculator.test_long_period __________________
+backend\tests\test_amortyzacja.py:59: in test_long_period
+    inp = AmortyzacjaInput(wp=150_000.0, wr=30_000.0, okres=84)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+_________________ TestAmortyzacjaCalculator.test_result_type __________________
+backend\tests\test_amortyzacja.py:69: in test_result_type
+    inp = AmortyzacjaInput(wp=100_000.0, wr=50_000.0, okres=36)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: AmortyzacjaInput.__init__() got an unexpected keyword argument 'wp'
+________________________ test_golden_path_standard_car ________________________
+backend\tests\test_golden_path_ltr_kalkulator.py:95: in test_golden_path_standard_car
+    patch(
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Users\proma\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'core.LTRSubCalculatorSerwisNew' from 'D:\\kalk_v3\\backend\\core\\LTRSubCalculatorSerwisNew.py'> does not have the attribute 'get_service_rate_from_db'
+________________________ test_samar_rv_calculate_base _________________________
+backend\tests\test_samar_rv.py:66: in test_samar_rv_calculate_base
+    assert output.wr_net == pytest.approx(69400.0)
+E   assert 69000.0 == 69400.0 ▒ 0.0694
+E     
+E     comparison failed
+E     Obtained: 69000.0
+E     Expected: 69400.0 ▒ 0.0694
+______________ TestCapexInitialSet.test_capex_returned_in_result ______________
+backend\tests\test_tires.py:133: in test_capex_returned_in_result
+    assert result["capex_initial_set"] == 1500.0
+E   assert 1000.0 == 1500.0
+___________ TestCapexInitialSet.test_opony_netto_excludes_first_set ___________
+backend\tests\test_tires.py:148: in test_opony_netto_excludes_first_set
+    assert result["OponyNetto"] == 2016.0
+E   assert 3016.0 == 2016.0
+_____________ TestSeasonalCalculation.test_basic_seasonal_36m_90k _____________
+backend\tests\test_tires.py:208: in test_basic_seasonal_36m_90k
+    assert result["OponyNetto"] == 2016.0
+E   assert 3016.0 == 2016.0
+___________ TestAllSeasonCalculation.test_basic_allseason_48m_100k ____________
+backend\tests\test_tires.py:228: in test_basic_allseason_48m_100k
+    assert result["capex_initial_set"] == 2000.0
+E   assert 1000.0 == 2000.0
+______________ TestMileageThresholds.test_exactly_60k_allseason _______________
+backend\tests\test_tires.py:265: in test_exactly_60k_allseason
+    assert result["OponyNetto"] == 100.0
+E   assert 1100.0 == 100.0
+______________ TestMileageThresholds.test_exactly_120k_allseason ______________
+backend\tests\test_tires.py:281: in test_exactly_120k_allseason
+    assert result["OponyNetto"] == 1200.0
+E   assert 2200.0 == 1200.0
+============================== warnings summary ===============================
+backend\main.py:48
+  D:\kalk_v3\backend\main.py:48: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+.venv\Lib\site-packages\fastapi\applications.py:4599
+  D:\kalk_v3\.venv\Lib\site-packages\fastapi\applications.py:4599: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+tests/test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+  D:\kalk_v3\.venv\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'timeout' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+tests/test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+  D:\kalk_v3\.venv\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'verify' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend\tests\test_additional_costs.py::test_additional_costs_all_flags_on
+FAILED backend\tests\test_additional_costs.py::test_additional_costs_all_flags_off
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_basic_calculation
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_zero_okres
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_zero_wp
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_wr_equals_wp
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_wr_greater_than_wp
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_long_period
+FAILED backend\tests\test_amortyzacja.py::TestAmortyzacjaCalculator::test_result_type
+FAILED backend\tests\test_golden_path_ltr_kalkulator.py::test_golden_path_standard_car
+FAILED backend\tests\test_samar_rv.py::test_samar_rv_calculate_base - assert ...
+FAILED backend\tests\test_tires.py::TestCapexInitialSet::test_capex_returned_in_result
+FAILED backend\tests\test_tires.py::TestCapexInitialSet::test_opony_netto_excludes_first_set
+FAILED backend\tests\test_tires.py::TestSeasonalCalculation::test_basic_seasonal_36m_90k
+FAILED backend\tests\test_tires.py::TestAllSeasonCalculation::test_basic_allseason_48m_100k
+FAILED backend\tests\test_tires.py::TestMileageThresholds::test_exactly_60k_allseason
+FAILED backend\tests\test_tires.py::TestMileageThresholds::test_exactly_120k_allseason
+17 failed, 309 passed, 4 warnings in 11.46s

@@ -68,9 +68,17 @@ class CalculatorInput(BaseModel):
         description="Włącz logikę obniżenia kosztów przez odkup opon (V1)",
     )
     korekta_kosztu_opon: bool = Field(
-        default=False, description="Czy stosować ręczną korektę"
+        default=False, description="Master switch: czy stosować ręczną korektę kosztu opon"
     )
-    koszt_opon_korekta: float = Field(default=0.0, description="Kwota korekty brutto")
+    koszt_opon_korekta: Dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "Mapa korekt brutto per-komórka matrycy. "
+            "Klucz: '{months}_{total_km}' np. '48_120000'. "
+            "Wartość: kwota PLN brutto (backend dzieli przez VAT). "
+            "Ignorowane gdy korekta_kosztu_opon=False."
+        ),
+    )
     liczba_kompletow_opon: Optional[float] = Field(
         default=None, description="Ręczna liczba kompletów (opcjonalna)"
     )

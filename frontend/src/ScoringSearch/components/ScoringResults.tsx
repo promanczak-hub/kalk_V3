@@ -22,9 +22,8 @@ interface ScoringResultsProps {
 }
 
 export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext }) => {
-  console.log("SCORING_RESULTS_RENDERED", { resultsCount: results.length, loading, useMatrix: searchContext.useMatrixFilters });
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
-  const [similarityMode, setSimilarityMode] = useState<'rule-based' | 'semantic'>('rule-based');
+  const [similarityMode, setSimilarityMode] = useState<'rule-based' | 'semantic'>('semantic');
 
   let searchDurationMin = searchContext.duration_months_range[0];
   let searchDurationMax = searchContext.duration_months_range[1];
@@ -113,10 +112,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* DEBUG MARKER - IF YOU SEE THIS, THE NEW AI CODE IS ACTIVE */}
-      <Box sx={{ bgcolor: 'red', color: 'white', p: 1, textAlign: 'center', fontWeight: 'bold', mb: 2, borderRadius: 1 }}>
-        AI SIMILARITY FEATURE ACTIVE (DEBUG)
-      </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>

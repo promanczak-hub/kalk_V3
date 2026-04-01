@@ -70,12 +70,10 @@ export const SectionLabel: React.FC<{ label: string; selectedCount?: number }> =
       variant="subtitle2"
       sx={{
         fontWeight: 700,
-        color: '#1e40af',
-        fontSize: '0.7rem',
+        color: '#64748b',
+        fontSize: '0.75rem',
         textTransform: 'uppercase',
-        letterSpacing: 1.5,
-        borderLeft: '3px solid #3b82f6',
-        pl: 1,
+        letterSpacing: 1.0,
       }}
     >
       {label}

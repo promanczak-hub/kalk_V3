@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { JSX } from "react";
-import { Box, TextField, Typography, InputAdornment } from "@mui/material";
 
 interface NetGrossInputProps {
   netValue: number;
@@ -52,38 +51,34 @@ export function NetGrossInput({ netValue, onChangeNet }: NetGrossInputProps): JS
   };
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-      <TextField
-        size="small"
-        label="Netto"
-        type="number"
-        value={localNet}
-        onChange={handleNetChange}
-        sx={{ width: 160 }}
-        slotProps={{
-          input: {
-            style: { fontWeight: 900 },
-            endAdornment: <InputAdornment position="end">PLN</InputAdornment>
-          }
-        }}
-      />
+    <div className="flex items-center justify-between w-full gap-2">
+      <div className="relative flex-1 min-w-[90px]">
+        <input
+          type="number"
+          className="w-full px-2 pr-9 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          value={localNet}
+          onChange={handleNetChange}
+          placeholder="Netto"
+        />
+        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+          <span className="text-[10px] font-medium text-slate-400">PLN</span>
+        </div>
+      </div>
       
-      <Typography sx={{ fontWeight: 900, color: 'text.disabled' }}>=</Typography>
+      <span className="text-[11px] font-bold text-slate-300">=</span>
 
-      <TextField
-        size="small"
-        label="Brutto"
-        type="number"
-        value={localGross}
-        onChange={handleGrossChange}
-        sx={{ width: 160 }}
-        slotProps={{
-          input: {
-            style: { fontWeight: 900 },
-            endAdornment: <InputAdornment position="end">PLN</InputAdornment>
-          }
-        }}
-      />
-    </Box>
+      <div className="relative flex-1 min-w-[90px]">
+        <input
+          type="number"
+          className="w-full px-2 pr-9 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-slate-50"
+          value={localGross}
+          onChange={handleGrossChange}
+          placeholder="Brutto"
+        />
+        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+          <span className="text-[10px] font-medium text-slate-400">PLN</span>
+        </div>
+      </div>
+    </div>
   );
 }

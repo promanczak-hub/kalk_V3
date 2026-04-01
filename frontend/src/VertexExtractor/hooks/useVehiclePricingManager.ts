@@ -120,8 +120,7 @@ export function useVehiclePricingManager({
   }
 
   const formatCalculatedPrice = (val: number) => {
-      if (val === 0) return "Brak";
-      return `${val.toFixed(2)} PLN netto`;
+      return new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
   };
 
   return {
@@ -138,6 +137,7 @@ export function useVehiclePricingManager({
     discountableOptionsTotal,
     nonDiscountableOptionsTotal,
     customServiceOptionsPriceTotal,
+    hasOfferFinalPrice,
     isDealerOffer,
     offerDiscountPercentage,
     suggestedDiscountPct,

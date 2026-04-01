@@ -43,7 +43,7 @@ def test_pricing_agent_successful_extraction(mock_client_class):
     # Replace the mocked client onto the agent specifically to avoid initialization bugs blocking the test
     agent.client = mock_client_instance
 
-    result = agent.extract_data("# Tabela Konfiguracji Passata")
+    result = agent.extract_data("# Tabela Konfiguracji Passata", b"dummy pdf")
 
     assert isinstance(result, ParsedPriceList)
     assert result.brand == "Volkswagen"
@@ -68,4 +68,4 @@ def test_pricing_agent_api_failure(mock_client_class):
     agent.client = mock_client_instance
 
     with pytest.raises(Exception, match="API Timeout"):
-        agent.extract_data("content here")
+        agent.extract_data("content here", b"dummy pdf")

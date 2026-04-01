@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Database, Info, RefreshCw, Sparkles } from "lucide-react";
+import { Database, Info, RefreshCw } from "lucide-react";
 import Skeleton from "@mui/material/Skeleton";
 import { cn } from "../../lib/utils";
 import type { FleetVehicleView } from "../types";
@@ -11,16 +11,13 @@ import { useVehicleSelection } from "../hooks/useVehicleSelection";
 import { useDiscountAlerts } from "../hooks/useDiscountAlerts";
 import { apiClient } from '../../lib/apiClient';
 import { ConfirmModal } from "../../components/ConfirmModal";
-import type { ControlCenterSettings } from "../../hooks/useCalculator";
+import type { ControlCenterSettings } from "../../types";
 import Pagination from "@mui/material/Pagination";
 
 interface VehicleTableProps {
   savedVehicles: FleetVehicleView[];
   isLoadingSaved: boolean;
-  globalSearchQuery: string;
-  isSearching: boolean;
-  setGlobalSearchQuery: (query: string) => void;
-  handleGlobalSearch: (e: React.FormEvent) => void;
+
   liveSearchText: string;
   setLiveSearchText: (query: string) => void;
   fetchSavedVehicles: () => void;
@@ -39,10 +36,7 @@ interface VehicleTableProps {
 export function VehicleTable({
   savedVehicles,
   isLoadingSaved,
-  globalSearchQuery: _globalSearchQuery,
-  isSearching: _isSearching,
-  setGlobalSearchQuery: _setGlobalSearchQuery,
-  handleGlobalSearch: _handleGlobalSearch,
+
   liveSearchText,
   setLiveSearchText,
   fetchSavedVehicles,
@@ -59,11 +53,18 @@ export function VehicleTable({
 }: VehicleTableProps) {
   const {
     filters,
-    bounds,
+    aggregates,
     activeDateRange,
+    activePriceRange,
+    currentModePriceMin,
+    currentModePriceMax,
     filteredVehicles,
     setSortKey,
     setDateRange,
+    setPriceRange,
+    setSelectedBrands,
+    setSelectedFuels,
+    setSelectedSamarClasses,
     setShowUnmappedSamarOnly,
     resetFilters,
   } = useVehicleFilters(savedVehicles);
@@ -165,10 +166,7 @@ export function VehicleTable({
           <div className="text-xs text-slate-500 mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
             <span className="flex items-center">
               <Info className="w-3 h-3 mr-1" />
-              Baza zsynchronizowana z modelem
-              <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded ml-1 font-mono text-xs font-semibold border border-blue-100">
-                v2.0_digital_twin
-              </span>
+              Baza pojazdów zaimportowanych z cenników PDF/XLS
             </span>
             {totalCount > 0 && (
               <span className="text-slate-400">
@@ -179,24 +177,7 @@ export function VehicleTable({
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="relative flex-1 min-w-[280px]"
-            title="Wyszukiwanie AI — wkrótce dostępne"
-          >
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-            <input
-              type="text"
-              disabled
-              placeholder="Wyszukaj z użyciem AI (Gemini)... — wkrótce"
-              className="w-full pl-9 pr-24 py-2.5 border border-slate-200 bg-slate-50 rounded-lg text-sm outline-none cursor-not-allowed text-slate-400 shadow-sm"
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-              Wkrótce
-            </span>
-          </form>
+
 
           <button
             onClick={fetchSavedVehicles}
@@ -252,15 +233,37 @@ export function VehicleTable({
             onSortKeyChange={setSortKey}
             liveSearchText={liveSearchText}
             onLiveSearchChange={setLiveSearchText}
+            
             dateRange={activeDateRange}
             dateBounds={{
-              dateMin: bounds.dateMin,
-              dateMax: bounds.dateMax,
+              dateMin: aggregates.dateMin,
+              dateMax: aggregates.dateMax,
             }}
             onDateRangeChange={setDateRange}
+
+            priceRange={activePriceRange}
+            priceBounds={{
+              priceMin: currentModePriceMin,
+              priceMax: currentModePriceMax,
+            }}
+            onPriceRangeChange={setPriceRange}
+
+            availableBrands={aggregates.brands}
+            selectedBrands={filters.selectedBrands}
+            onSelectedBrandsChange={setSelectedBrands}
+
+            availableFuels={aggregates.fuels}
+            selectedFuels={filters.selectedFuels}
+            onSelectedFuelsChange={setSelectedFuels}
+
+            availableSamarClasses={aggregates.samarClasses}
+            selectedSamarClasses={filters.selectedSamarClasses}
+            onSelectedSamarClassesChange={setSelectedSamarClasses}
+
             showUnmappedSamarOnly={filters.showUnmappedSamarOnly}
             onShowUnmappedSamarChange={setShowUnmappedSamarOnly}
             onResetFilters={resetFilters}
+            
             selectedCount={selectedCount}
             totalVisible={filteredVehicles.length}
             allVisibleSelected={allVisibleSelected}

@@ -1,0 +1,116 @@
+Oto szczegółowa analiza komentarzy i adnotacji użytkownika zawartych w dostarczonym pliku PDF, strona po stronie.
+
+### Strona 1
+
+*   **Opis adnotacji:** Użytkownik dodał jeden komentarz w formie dymka z tekstem i strzałki.
+*   **Treść komentarza:** "Zmieńmy domyślnie 'wszystkie' na 'bieżące'"
+*   **Kontekst:** Strzałka wskazuje na pole filtra o nazwie "Rodzaj rat". W polu tym aktualnie wybrana jest opcja "Wszystkie". Użytkownik sugeruje, aby domyślną, początkową wartością tego filtra była opcja "Bieżące".
+
+---
+
+### Strona 2
+
+Na tej stronie znajdują się trzy adnotacje.
+
+*   **Komentarz nr 1:**
+    *   **Opis adnotacji:** Jest to tylko ikona dymka komentarza, bez widocznej treści.
+    *   **Treść komentarza:** Niewidoczna w zrzucie ekranu.
+    *   **Kontekst:** Ikona jest umieszczona obok przycisku "Eksportuj", co sugeruje, że komentarz dotyczy tej właśnie funkcji.
+
+*   **Komentarz nr 2:**
+    *   **Opis adnotacji:** Komentarz w formie dymka z tekstem i strzałki.
+    *   **Treść komentarza:** "Dodajmy nowy checkbox"
+    *   **Kontekst:** Strzałka wskazuje na puste miejsce pod istniejącym checkboxem "Pokaż spłacone". Użytkownik chce dodać w tym miejscu nowy, nieokreślony checkbox.
+
+*   **Komentarz nr 3:**
+    *   **Opis adnotacji:** Komentarz w formie dymka z tekstem i strzałki.
+    *   **Treść komentarza:** "Dodajmy nowy checkbox"
+    *   **Kontekst:** Strzałka wskazuje na puste miejsce pod istniejącym checkboxem "Pokaż odrzucone". Podobnie jak w komentarzu nr 2, użytkownik sugeruje dodanie w tym miejscu nowego checkboxa.
+
+---
+
+### Strona 3
+
+*   **Opis adnotacji:** Na tej stronie widoczna jest jedna adnotacja w formie ikony komentarza, bez rozwiniętej treści.
+*   **Treść komentarza:** Niewidoczna w zrzucie ekranu.
+*   **Kontekst:** Ikona komentarza (oznaczona numerem 1) znajduje się obok głównego nagłówka ekranu: "Zmień wysokość raty". Komentarz prawdopodobnie dotyczy tego nagłówka lub całej sekcji.
+
+---
+
+### Strona 4
+
+*   **Opis adnotacji:** Użytkownik dodał jeden komentarz tekstowy w formie dymka.
+*   **Treść komentarza:** "Przenieśmy ten box na górę"
+*   **Kontekst:** Komentarz jest umieszczony na szarym boksie informacyjnym, który zawiera szczegóły najbliższej płatności ("Najbliższa płatność 17.08.2021", kwota do zapłaty, numer rachunku). Użytkownik sugeruje zmianę położenia tego elementu i przeniesienie go wyżej na stronie.
+
+---
+
+### Strona 5
+
+Na tej stronie znajdują się dwie adnotacje.
+
+*   **Komentarz nr 1:**
+    *   **Opis adnotacji:** Ikona komentarza bez widocznej treści.
+    *   **Treść komentarza:** Niewidoczna w zrzucie ekranu.
+    *   **Kontekst:** Ikona jest umieszczona obok nagłówka "Zmień dzień płatności", co sugeruje, że uwaga dotyczy tej sekcji.
+
+*   **Komentarz nr 2:**
+    *   **Opis adnotacji:** Komentarz w formie dymka z tekstem i strzałki.
+    *   **Treść komentarza:** "Zmieńmy domyślnie 'wszystkie' na 'bieżące'"
+    *   **Kontekst:** Adnotacja jest identyczna jak na stronie 1. Strzałka wskazuje na filtr "Rodzaj rat" z wybraną opcją "Wszystkie", a tekst sugeruje zmianę domyślnej wartości tego filtra na "Bieżące".
+
+---
+
+### Strona 6
+
+Użytkownik umieścił na tej stronie trzy komentarze.
+
+*   **Komentarz nr 1:**
+    *   **Opis adnotacji:** Ikona komentarza bez widocznej treści.
+    *   **Treść komentarza:** Niewidoczna w zrzucie ekranu.
+    *   **Kontekst:** Ikona znajduje się obok nagłówka "Zgoda na e-fakturę".
+
+*   **Komentarz nr 2:**
+    *   **Opis adnotacji:** Komentarz w formie dymka tekstowego.
+    *   **Treść komentarza:** "Dodajmy 2 checkobxy" (pisownia oryginalna).
+    *   **Kontekst:** Komentarz umieszczono w pustym miejscu pomiędzy polem "Adres e-mail" a przyciskami akcji ("Anuluj", "Zapisz zmiany"). Użytkownik postuluje dodanie w tym miejscu dwóch pól typu checkbox.
+
+*   **Komentarz nr 3:**
+    *   **Opis adnotacji:** Ikona komentarza bez widocznej treści.
+    *   **Treść komentarza:** Niewidoczna w zrzucie ekranu.
+    *   **Kontekst:** Ikona umieszczona jest przy przycisku "Zapisz zmiany".
+
+---
+
+### Strona 7
+
+*   **Opis adnotacji:** Na tej stronie znajduje się jedna, złożona adnotacja. Składa się z dymka tekstowego, strzałki oraz prostokątnego, fioletowego zakreślenia.
+*   **Treść komentarza:** "Zmieńmy kolejność"
+*   **Kontekst:** Strzałka oraz fioletowe zakreślenie wskazują łącznie na grupę przycisków typu "radio button", które reprezentują metody płatności: "Przelew z rachunku w BNP Paribas", "BLIK" oraz "Karta płatnicza". Użytkownik chce zmienić kolejność wyświetlania tych opcji.
+
+---
+
+### Strona 8
+
+Na tej stronie widoczne są dwie adnotacje.
+
+*   **Komentarz nr 1:**
+    *   **Opis adnotacji:** Komentarz w formie dymka tekstowego.
+    *   **Treść komentarza:** "Zmieńmy kolejność"
+    *   **Kontekst:** Dymek jest umieszczony nad listą dostępnych akcji/linków związanych z kredytem ("Zmień wysokość raty", "Zmień dzień płatności", "Nadpłać kredyt", "Zmień rachunek do spłaty", "Zgoda na e-fakturę"). Sugestia dotyczy zmiany kolejności tych elementów na liście.
+
+*   **Komentarz nr 2:**
+    *   **Opis adnotacji:** Ikona komentarza bez widocznej treści.
+    *   **Treść komentarza:** Niewidoczna w zrzucie ekranu.
+    *   **Kontekst:** Ikona znajduje się obok przycisku "Pobierz" w sekcji "Harmonogram".
+
+---
+
+### Strona 9
+
+*   **Opis adnotacji:** Na tej stronie znajdują się dwie adnotacje w formie ikon komentarzy bez widocznej treści.
+*   **Treść komentarzy:** Niewidoczna w zrzutach ekranu.
+*   **Kontekst:**
+    *   **Komentarz nr 1:** Ikona umieszczona jest przy zakładce (tabie) o nazwie "Szczegóły".
+    *   **Komentarz nr 2:** Ikona umieszczona jest przy zakładce (tabie) o nazwie "Harmonogram".
+    Oba komentarze prawdopodobnie odnoszą się do tych zakładek.

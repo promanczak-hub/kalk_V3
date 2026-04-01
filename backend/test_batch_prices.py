@@ -1,23 +1,21 @@
-import asyncio
+import urllib.request
 import json
-import httpx
+import urllib.error
 
+url = "http://127.0.0.1:8000/api/scoring-search/cache/batch-prices"
+payload = {
+    "vehicle_ids": ["011fd704-5f53-4813-afd2-fc53ff9d2cdb"],
+    "duration_months_min": 24,
+    "duration_months_max": 60,
+    "annual_mileage_min": 10000,
+    "annual_mileage_max": 40000,
+}
+req = urllib.request.Request(
+    url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
+)
 
-async def run():
-    vid = "ff6790e3-5e3e-4bd8-a490-0156affd11ca"
-    payload = {
-        "vehicle_ids": [vid],
-        "duration_months": 60,
-        "annual_mileage": 20000,
-        "margin": 2.0,
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "http://127.0.0.1:8000/api/scoring-search/cache/batch-prices", json=payload
-        )
-        print(resp.status_code)
-        print(json.dumps(resp.json(), indent=2))
-
-
-if __name__ == "__main__":
-    asyncio.run(run())
+try:
+    res = urllib.request.urlopen(req)
+    print(res.read().decode())
+except urllib.error.HTTPError as e:
+    print("ERROR:", e.read().decode())

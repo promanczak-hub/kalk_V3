@@ -381,7 +381,7 @@ def process_single_kalkulacja_matrix_task(
         engine = LTRKalkulator(
             input_data=calc_input, settings=settings, trace_id=task_trace_id
         )
-        all_cells = engine.build_matrix()
+        all_cells = engine.build_reverse_search_matrix()
     except Exception as e:
         msg = str(e)[:500]
         logger.error(

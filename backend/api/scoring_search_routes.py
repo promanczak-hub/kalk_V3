@@ -21,6 +21,7 @@ from core.models_scoring_search import (
     ScoringSearchMatch,
     InitialDataResponse,
     SimilarVehicleMatch,
+    SimilarityReasons,
     TrimsAndOptionsRequest,
     TrimsAndOptionsResponse,
     OptionItem,
@@ -102,6 +103,46 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
                 continue
             raise e
     raise last_exc
+
+
+def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
+    """Build a SimilarVehicleMatch from a raw RPC row dict.
+
+    Handles both single and batch RPC variants (some field names differ),
+    and maps the similarity_reasons JSONB payload to the SimilarityReasons model.
+    """
+    raw_reasons = row.get("similarity_reasons")
+    similarity_reasons: SimilarityReasons | None = None
+    if isinstance(raw_reasons, dict):
+        similarity_reasons = SimilarityReasons(
+            samar_match=bool(raw_reasons.get("samar_match", False)),
+            body_match=bool(raw_reasons.get("body_match", False)),
+            fuel_match=bool(raw_reasons.get("fuel_match", False)),
+            drive_match=bool(raw_reasons.get("drive_match", False)),
+            price_pct_diff=float(raw_reasons["price_pct_diff"])
+            if raw_reasons.get("price_pct_diff") is not None
+            else None,
+            samar_category=raw_reasons.get("samar_category"),
+            body_style=raw_reasons.get("body_style"),
+        )
+
+    return SimilarVehicleMatch(
+        vehicle_id=str(row.get("vehicle_id") or row.get("v_id", "")),
+        brand=row.get("brand"),
+        model=row.get("model"),
+        version=row.get("version"),
+        samar_category=str(row.get("samar_category") or row.get("v_samar") or "N/A"),
+        fuel=str(row.get("fuel") or row.get("v_fuel") or "N/A"),
+        transmission=str(row.get("transmission") or row.get("v_transmission") or "N/A"),
+        best_monthly_price=float(row.get("best_monthly_price") or row.get("min_price") or 0),
+        image_url=str(row.get("image_url") or row.get("v_image") or ""),
+        similarity_score_pct=float(row.get("similarity_score_pct") or 0),
+        power_hp=int(row.get("power_hp") or 0),
+        body_style=str(row.get("body_style") or "N/A"),
+        vehicle_class=str(row.get("vehicle_class") or "N/A"),
+        drive_type=str(row.get("drive_type") or "N/A"),
+        similarity_reasons=similarity_reasons,
+    )
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -315,8 +356,7 @@ def get_similar_vehicles(
         if not resp.data:
             return []
 
-        # Backend already returns clean fields from both RPCs
-        return [SimilarVehicleMatch(**row) for row in resp.data]
+        return [_build_similar_vehicle_match(row) for row in resp.data]
     except Exception as e:
         logger.exception("Error calling %s: %s", method, e)
         raise HTTPException(
@@ -363,33 +403,7 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
             rows = cast(list[dict[str, Any]], response.data)
             for row in rows:
                 source_id = str(row.pop("source_vehicle_id"))
-
-                # Standard rpc return vs semantic rpc return might have slight naming diffs
-                # Normalizing here to match SimilarVehicleMatch pydantic model
-                match = SimilarVehicleMatch(
-                    vehicle_id=str(row.get("vehicle_id") or row.get("v_id")),
-                    brand=str(row.get("brand")),
-                    model=str(row.get("model")),
-                    version=str(row.get("version")),
-                    samar_category=str(
-                        row.get("samar_category") or row.get("v_samar", "N/A")
-                    ),
-                    fuel=str(row.get("fuel") or row.get("v_fuel", "N/A")),
-                    transmission=str(
-                        row.get("transmission") or row.get("v_transmission", "N/A")
-                    ),
-                    best_monthly_price=float(
-                        row.get("best_monthly_price") or row.get("min_price") or 0
-                    ),
-                    image_url=str(row.get("image_url") or row.get("v_image") or ""),
-                    similarity_score_pct=float(row.get("similarity_score_pct") or 0),
-                    # New technical metadata
-                    power_hp=int(row.get("power_hp") or 0),
-                    body_style=str(row.get("body_style") or "N/A"),
-                    vehicle_class=str(row.get("vehicle_class") or "N/A"),
-                    drive_type=str(row.get("drive_type") or "N/A"),
-                )
-
+                match = _build_similar_vehicle_match(row)
                 if source_id in results:
                     results[source_id].append(match)
 

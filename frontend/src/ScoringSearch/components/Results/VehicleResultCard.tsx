@@ -72,7 +72,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
   const cleanPrice = (val?: string | null) => val ? val.replace(/netto|brutto|pln/gi, '').trim() : '';
 
   return (
-    <Card elevation={1} sx={{ borderRadius: 2, transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 4 } }}>
+    <Card elevation={1} sx={{ borderRadius: 2, transition: 'all 0.3s ease', border: '1px solid transparent', '&:hover': { boxShadow: 6, borderColor: 'primary.light' } }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
           {/* Left Side: Vehicle Info & Specs */}
@@ -153,30 +153,38 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
           </Box>
 
           {/* Right Side: Score, Price, Cart Action */}
-          <Box sx={{ textAlign: 'right', ml: 2, flexShrink: 0, minWidth: 170 }}>
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 'bold',
-                color: (car.match_score_pct as number) === 100 ? 'success.main' :
-                  (car.match_score_pct as number) >= 80 ? 'info.main' :
-                    (car.match_score_pct as number) >= 50 ? 'warning.main' : 'error.main'
-              }}
-            >
-              {car.match_score_pct as number}%
-            </Typography>
-            <Typography variant="caption" color="textSecondary">Dopasowanie</Typography>
+          <Box sx={{ ml: 2, flexShrink: 0, minWidth: 260, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', mb: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 'bold',
+                    lineHeight: 1,
+                    mb: 0.5,
+                    color: (car.match_score_pct as number) === 100 ? 'success.main' :
+                      (car.match_score_pct as number) >= 80 ? 'info.main' :
+                        (car.match_score_pct as number) >= 50 ? 'warning.main' : '#94a3b8'
+                  }}
+                >
+                  {car.match_score_pct as number}%
+                </Typography>
+                <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Dopasowanie</Typography>
+              </Box>
 
-            <LtrPriceBlock
-              hasCache={!!(car.has_ltr_cache)}
-              bestMonthlyPrice={(car.best_monthly_price as number) || null}
-              marginPct={searchContext.margin_pct || 0}
-              suggestedDiscountPct={car.suggested_discount_pct as number | undefined}
-              targetDuration={targetDuration}
-              targetAnnualMileage={targetAnnualMileage}
-              priceData={priceData}
-              loading={pricesLoading}
-            />
+              <Box sx={{ textAlign: 'right' }}>
+                <LtrPriceBlock
+                  hasCache={!!(car.has_ltr_cache)}
+                  bestMonthlyPrice={(car.best_monthly_price as number) || null}
+                  marginPct={searchContext.margin_pct || 0}
+                  suggestedDiscountPct={car.suggested_discount_pct as number | undefined}
+                  targetDuration={targetDuration}
+                  targetAnnualMileage={targetAnnualMileage}
+                  priceData={priceData}
+                  loading={pricesLoading}
+                />
+              </Box>
+            </Box>
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
               {!!car.has_ltr_cache && (

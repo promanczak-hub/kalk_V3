@@ -18,7 +18,7 @@ def mock_db_responses():
             "power_kw": 110.0,
         },
         "insurance_rates": [
-            {"KolejnyRok": i, "StawkaBazowaAC": 0.002, "SkladkaOC": 200.0}
+            {"rok": i, "stawka_bazowa_ac": 0.002, "skladka_oc_zl": 200.0}
             for i in range(1, 9)
         ],
         "damage_coeffs": {
@@ -93,8 +93,23 @@ def test_golden_path_standard_car(mock_db_responses):
                 return_value=mock_db_responses["replacement_car"],
             ),
             patch(
-                "core.LTRSubCalculatorSerwisNew.get_service_rate_from_db",
-                return_value=mock_db_responses["service_rates"],
+                "core.LTRSubCalculatorSerwisNew.get_all_service_rates",
+                return_value=[
+                    {
+                        "przebieg_do": 100000,
+                        "stawka_aso_per_km": 0.12,
+                        "stawka_non_aso_per_km": 0.08,
+                    },
+                    {
+                        "przebieg_do": 200000,
+                        "stawka_aso_per_km": 0.12,
+                        "stawka_non_aso_per_km": 0.08,
+                    },
+                ],
+            ),
+            patch(
+                "core.LTRSubCalculatorSerwisNew.get_service_multiplier",
+                return_value=1.0,
             ),
             patch(
                 "core.samar_rv.fetch_depreciation_rates_cached",
@@ -103,15 +118,7 @@ def test_golden_path_standard_car(mock_db_responses):
             patch("core.samar_rv.fetch_brand_correction_cached", return_value=0.0),
             patch(
                 "core.samar_rv.fetch_mileage_corrections_cached",
-                return_value=(0.0, 0.0),
-            ),
-            patch(
-                "core.samar_rv.fetch_class_config_cached",
-                return_value={
-                    "base_mileage_km": 140000,
-                    "mileage_threshold_km": 190000,
-                    "base_period_months": 48,
-                },
+                return_value=(0.0, 0.0, 140000),
             ),
             patch("core.samar_rv.fetch_color_correction_cached", return_value=0.0),
             patch("core.samar_rv.fetch_body_correction_cached", return_value=0.0),
@@ -151,12 +158,12 @@ def test_golden_path_standard_car(mock_db_responses):
             print(f"MarzaMiesiac: {target_cell.get('MarzaMiesiac')}")
 
             # Baseline Assertions (60 months, Year 0 Depr: 0.15)
-            assert target_cell["LacznaStawka"] == 4574.0
-            assert target_cell["CzynszFinansowy"] == 3821.0
-            assert target_cell["CzynszTechniczny"] == 754.0
-            assert target_cell["Ubezpieczenie"] == 327.0
-            assert target_cell["Serwis"] == 222.0
-            assert target_cell["Opony"] == 83.0
-            assert target_cell["SamochodZastepczy"] == 69.0
-            assert target_cell["MarzaMiesiac"] == 457.0
+            assert target_cell["LacznaStawka"] == 2736.0
+            assert target_cell["CzynszFinansowy"] == 1855.0
+            assert target_cell["CzynszTechniczny"] == 881.0
+            assert target_cell["Ubezpieczenie"] == 73.0
+            assert target_cell["Serwis"] == 632.0
+            assert target_cell["Opony"] == 79.0
+            assert target_cell["SamochodZastepczy"] == 66.0
+            assert target_cell["MarzaMiesiac"] == 137.0
             assert target_cell["CenaKatalogowaNetto"] == 120000.0

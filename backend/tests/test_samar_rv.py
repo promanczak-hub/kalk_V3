@@ -59,11 +59,11 @@ def test_samar_rv_calculate_base(mocker, mock_rv_input):
     # Brak deprecjacji przebiegu (0.0 multiplier na under/over)
     # Opcje = 20k * 0.8 = 16k
     # Kolor = 100k * 0.01 = 1k
-    # Zabudowa/Body = (100k + 20k) * 0.02 = 2.4k
-    # RV = 50k + 16k + 1k + 2.4k = 69.4k
+    # Zabudowa/Body = 100k * 0.02 = 2k
+    # RV = 50k + 16k + 1k + 2k = 69k
 
     output: RVOutput = calc.calculate()
-    assert output.wr_net == pytest.approx(69400.0)
+    assert output.wr_net == pytest.approx(69000.0)
 
 
 def test_samar_rv_sanity_bounds(mocker, mock_rv_input):

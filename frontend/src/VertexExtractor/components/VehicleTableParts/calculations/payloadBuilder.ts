@@ -16,7 +16,7 @@ export interface CalculationPayloadParams {
     tireClass: string;
     tireCountMode: string;
     tireCostCorrectionEnabled: boolean;
-    tireCostCorrection: number;
+    tireCostCorrectionMap: Record<string, number>;
     rimDiameter: number | null;
     serviceCostType: "ASO" | "nonASO";
     vehicleVintage: "current" | "previous";
@@ -100,7 +100,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
         klasa_opony_string: params.tireClass || "Medium",
         liczba_kompletow_opon: tireCount,
         korekta_kosztu_opon: params.tireCostCorrectionEnabled,
-        koszt_opon_korekta: params.tireCostCorrection,
+        koszt_opon_korekta: params.tireCostCorrectionMap,
         srednica_felgi: finalRimDiameter,
         
         financial_params: {
@@ -124,7 +124,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
           tire_class: params.tireClass,
           tire_count_mode: params.tireCountMode,
           tire_cost_correction_enabled: params.tireCostCorrectionEnabled,
-          tire_cost_correction: params.tireCostCorrection,
+          tire_cost_correction_map: params.tireCostCorrectionMap,
           rim_diameter: params.rimDiameter,
         },
         service_cost_type: params.serviceCostType,

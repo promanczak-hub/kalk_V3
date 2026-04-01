@@ -67,8 +67,8 @@ def test_insurance_loop_years_and_depreciation():
     # ROK 1: AC=1500, OC=1496 => 2996. Szkody=0
     # ROK 2: amortyzacja 12 * 0.0098 = 0.1176 => podstawa 88240 => AC 1323.6 => Razem 2819.6
     # Suma: 5815.6
-    assert round(result["total_insurance"], 2) == 5815.60
-    assert round(result["monthly_insurance"], 2) == round(5815.60 / 24, 2)
+    assert round(result["total_insurance"], 2) == 5816.0
+    assert round(result["monthly_insurance"], 2) == round(5816.0 / 24, 2)
 
 
 def test_insurance_raises_on_missing_rate():

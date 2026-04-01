@@ -21,10 +21,13 @@ def generate_embedding(text: str) -> list[float] | None:
 
     client = get_vertex_client()
     try:
-        print(
-            f"DEBUG: Generating embedding using client id={id(client)}, type={type(client)}, using model={EMBEDDING_MODEL}"
+        logger.debug(
+            "Generating embedding using client id=%s, type=%s, model=%s",
+            id(client),
+            type(client),
+            EMBEDDING_MODEL,
         )
-        print(f"DEBUG: Text length: {len(text.strip())}")
+        logger.debug("Text length: %d", len(text.strip()))
         response = client.models.embed_content(
             model=EMBEDDING_MODEL, contents=text.strip()
         )

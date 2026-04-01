@@ -28,15 +28,11 @@ class LTRSubCalculatorOpony:
         z_oponami: bool,
         klasa_opony_string: str,
         srednica_felgi: int,
-        korekta_kosztu: bool = False,
-        koszt_opon_korekta: float = 0.0,
         sets_needed_override: Optional[int] = None,
         odkup_opon_enabled: bool = False,
     ):
         self.z_oponami = z_oponami
         self.srednica_felgi = srednica_felgi
-        self.korekta_kosztu = korekta_kosztu
-        self.koszt_opon_korekta = koszt_opon_korekta
         self.sets_needed_override = sets_needed_override
         self.odkup_opon_enabled = odkup_opon_enabled
 
@@ -67,16 +63,10 @@ class LTRSubCalculatorOpony:
             else:
                 self.vat_rate = 1.23
 
-            # Hardware cost base from DB (price per set / komplet)
+            # Hardware cost base from DB (price per set / komplet) — zawsze cena bez korekty
+            # Korekta aplikowana per-komórka w calculate_cost(correction_gross)
             self.tire_set_price_base = self._fetch_tire_cost()
-
-            # Adjust price if manual correction is enabled (Gross -> Net)
-            if self.korekta_kosztu:
-                self.tire_set_price = self.tire_set_price_base + (
-                    self.koszt_opon_korekta / self.vat_rate
-                )
-            else:
-                self.tire_set_price = self.tire_set_price_base
+            self.tire_set_price = self.tire_set_price_base
 
             # Cache values to prevent N+1 queries during matrix generation
             self.budget_tire_cost = self._fetch_budget_tire_cost()
@@ -279,33 +269,44 @@ class LTRSubCalculatorOpony:
             else:
                 return 5.0
 
-    def _get_total_hardware_cost(self, total_km: int, sets_needed: float) -> float:
-        """Pobierałączny koszt opon. Jeśli automat wyłączony - mnoży sztywno. W przeciwnym razie proporcja."""
+    def _get_total_hardware_cost(
+        self, total_km: int, sets_needed: float, effective_price: float
+    ) -> float:
+        """Pobiera łączny koszt opon używając ceny uwzględniającej ewentualną korektę per-komórka.
+
+        effective_price: cena 1 kompletu netto (może zawierać korektę z calculate_cost).
+        """
         if self.sets_needed_override is not None:
-            return self.tire_set_price * self.sets_needed_override
+            return effective_price * self.sets_needed_override
 
         t = self.thresholds
         if self.all_season:
             base_limit = t.get("all_season_threshold_1", 60000)
             if total_km < base_limit:
-                return self.tire_set_price
+                return effective_price
             else:
                 return (
-                    self.tire_set_price
-                    + ((total_km - base_limit) / base_limit) * self.tire_set_price
+                    effective_price
+                    + ((total_km - base_limit) / base_limit) * effective_price
                 )
         else:
             base_limit = t.get("season_threshold_1", 120000)
             if total_km < base_limit:
-                return self.tire_set_price
+                return effective_price
             else:
                 return (
-                    self.tire_set_price
-                    + ((total_km - base_limit) / 60000.0) * self.tire_set_price
+                    effective_price
+                    + ((total_km - base_limit) / 60000.0) * effective_price
                 )
 
-    def calculate_cost(self, months: int, total_km: int) -> Dict[str, Any]:
+    def calculate_cost(
+        self, months: int, total_km: int, correction_gross: float = 0.0
+    ) -> Dict[str, Any]:
         """Kalkuluje techniczne koszty opon dla danego wariantu.
+
+        correction_gross: ręczna korekta brutto PLN dla tej konkretnej komórki matrycy
+            (months, total_km). Przekazywana per-komórka z LTRKalkulator.build_matrix().
+            Backend automatycznie przelicza brutto → netto (/VAT). 0.0 = brak korekty.
 
         capex_initial_set: koszt pierwszego kompletu opon → CAPEX (rata leasingowa)
         OponyNetto: pozostałe koszty opon → koszt techniczny kontraktu
@@ -337,11 +338,31 @@ class LTRSubCalculatorOpony:
             months = 1
         years = months / 12.0
 
+        # Per-komórka: cena netto 1 kompletu — baza + ewentualna korekta brutto/VAT
+        effective_price = self.tire_set_price_base
+        if correction_gross != 0.0:
+            correction_net = correction_gross / self.vat_rate
+            effective_price = self.tire_set_price_base + correction_net
+            trace.append(
+                {
+                    "krok": "Korekta Kosztu Opon (Per-Komórka)",
+                    "rownanie": (
+                        f"Baza z DB: {self.tire_set_price_base:.2f} PLN + "
+                        f"korekta: {correction_gross:.2f} PLN brutto / {self.vat_rate} VAT "
+                        f"= {correction_net:.2f} PLN netto. "
+                        f"Efektywna cena 1 kpl = {effective_price:.2f} PLN"
+                    ),
+                    "wynik": effective_price,
+                    "correction_gross": correction_gross,
+                    "correction_net": round(correction_net, 2),
+                }
+            )
+
         sets_needed = self._get_sets_needed(total_km)
         if sets_needed == 0:
             return {
                 "OponyNetto": 0.0,
-                "Koszt1KplOpon": self.tire_set_price,
+                "Koszt1KplOpon": effective_price,
                 "IloscOpon": 0.0,
                 "Cena1KompletOpon": self.budget_tire_cost,
                 "KwotaOdkupuOpon": 0.0,
@@ -358,12 +379,15 @@ class LTRSubCalculatorOpony:
                 ],
             }
 
-        total_hw_cost = self._get_total_hardware_cost(total_km, sets_needed)
+        total_hw_cost = self._get_total_hardware_cost(total_km, sets_needed, effective_price)
 
         trace.append(
             {
                 "krok": "Zużycie Opon (Sprzęt)",
-                "rownanie": f"Cena 1 kpl: {self.tire_set_price:.2f} PLN. Wymagane kpl: {sets_needed:.2f} (zależne od przebiegu: {total_km} km)",
+                "rownanie": (
+                    f"Cena 1 kpl (efektywna): {effective_price:.2f} PLN. "
+                    f"Wymagane kpl: {sets_needed:.2f} (zależne od przebiegu: {total_km} km)"
+                ),
                 "wynik": total_hw_cost,
             }
         )
@@ -439,7 +463,7 @@ class LTRSubCalculatorOpony:
 
         return {
             "OponyNetto": wynik_netto,
-            "Koszt1KplOpon": self.tire_set_price,
+            "Koszt1KplOpon": effective_price,
             "IloscOpon": sets_needed,
             "Cena1KompletOpon": self.budget_tire_cost,
             "KwotaOdkupuOpon": odkup_kwota,

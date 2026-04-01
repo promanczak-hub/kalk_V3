@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Union
 from google.genai import types
 
@@ -12,6 +13,9 @@ from core.prompts import (
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
+
 
 from core.extractor_models import UtilityFeatureItem
 
@@ -159,7 +163,9 @@ def _call_gemini_pro(client, contents) -> dict:
         print("Pro standard JSON extraction succeeded.")
         return unified_data
     except Exception as e:
-        print(f"Extraction failed with JSONDecodeError or other error (Pro): {e}")
+        logger.exception(
+            f"Extraction failed with JSONDecodeError or other error (Pro): {e}"
+        )
         return {}
 
 
@@ -197,7 +203,7 @@ def _call_gemini_flash(client, contents) -> dict:
         print("Flash Structured Output extraction succeeded.")
         return unified_data
     except Exception as fallback_e:
-        print(f"Flash extraction completely failed: {fallback_e}")
+        logger.exception(f"Flash extraction completely failed: {fallback_e}")
         return {}
 
 

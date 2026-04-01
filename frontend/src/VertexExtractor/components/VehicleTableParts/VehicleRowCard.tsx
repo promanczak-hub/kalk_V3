@@ -13,14 +13,13 @@ import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { supabase } from "../../../lib/supabaseClient";
 import { apiClient } from '../../../lib/apiClient';
-import type { ControlCenterSettings } from "../../../hooks/useCalculator";
+import type { ControlCenterSettings } from "../../../types";
 
 // Custom Hooks
 import { useVehicleFinancing } from "../../hooks/useVehicleFinancing";
 import { useVehicleDataSync } from "../../hooks/useVehicleDataSync";
 import { useVehicleReadiness } from "../../hooks/useVehicleReadiness";
 import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
-import { useReferenceData } from "../../hooks/useReferenceData";
 import { useVehicleOptionsManager } from "../../hooks/useVehicleOptionsManager";
 import { useVehicleMetaManager } from "../../hooks/useVehicleMetaManager";
 import { useVehiclePricingManager } from "../../hooks/useVehiclePricingManager";
@@ -89,8 +88,9 @@ interface VehicleRowCardProps {
   crossCardAlerts?: DiscountAlert[];
   globalSettings?: ControlCenterSettings | null;
   isHighlighted?: boolean;
-  bodyTypes?: any[];
-  paintTypes?: any[];
+  bodyTypes?: { id: number; name: string; vehicle_class: string }[];
+  paintTypes?: { id: number; name: string; [key: string]: unknown }[];
+
 }
 
 export function VehicleRowCard({
@@ -171,7 +171,7 @@ export function VehicleRowCard({
     tireClass, setTireClass,
     tireCountMode, setTireCountMode,
     tireCostCorrectionEnabled, setTireCostCorrectionEnabled,
-    tireCostCorrection, setTireCostCorrection,
+    tireCostCorrectionMap, setTireCostCorrectionMap,
     rimDiameter, setRimDiameter,
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
@@ -180,16 +180,19 @@ export function VehicleRowCard({
   } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet, globalSettings);
 
   // Hook 3: Readiness Check API
+  // body_type: priorytet: localMappedData → mappedData → card_summary (przez widok: vehicle.body_style)
   const resolvedBodyType = localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined;
   const { readinessResult } = useVehicleReadiness(vehicle, mappedData, paintCategoryId === 2 || paintCategoryId === 3, resolvedBodyType);
 
-  // Extract drive type from card_summary (needed for hook 4)
+  // Extract drive type — priorytet: mapped_ai_data → card_summary (JSONB) → widok SQL
   const DRIVE_TYPE_MAP: Record<string, string> = {
     "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
     "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
   };
-  const rawDriveType = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
+  const rawDriveTypeFromSynthesis = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
     ?.card_summary?.drive_type as string | undefined;
+  // Fallback do vehicle.drive_type zmapowanego przez fleet_management_view (z card_summary.drive_type)
+  const rawDriveType = rawDriveTypeFromSynthesis || vehicle.drive_type || "";
   const detectedDriveType = rawDriveType
     ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
     : "";
@@ -446,7 +449,6 @@ export function VehicleRowCard({
     isDealerOffer,
     offerDiscountPercentage,
     suggestedDiscountPct,
-    suggestedDiscountConfidence,
     activeDiscountPct,
     activeFinalPriceNet,
     formatCalculatedPrice,
@@ -628,230 +630,236 @@ export function VehicleRowCard({
       id={`vehicle-row-${vehicle.id}`}
       data-vehicle-id={vehicle.id}
       className={cn(
-        "bg-white rounded-xl border transition-all duration-200 shadow-sm overflow-hidden group hover:shadow-md",
-        isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-200",
+        "bg-white rounded-xl border transition-all duration-300 shadow-sm overflow-hidden group hover:shadow-lg",
+        isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-400",
         isHighlighted && !isExpanded && "ring-4 ring-amber-300 border-amber-400 animate-highlight-fade"
       )}
     >
       <VehicleBaseInfo 
         vehicle={vehicle}
-        mappedData={mappedData}
         isExpanded={isExpanded}
         onToggleExpand={() => setIsExpanded(!isExpanded)}
         activeFinalPriceNet={activeFinalPriceNet}
         totalCatalogPriceNet={totalCatalogPriceNet}
         formatCalculatedPrice={formatCalculatedPrice}
-        samarCandidates={samarCandidates}
-        onSamarCategoryChange={handleSamarCategoryChange}
-        allSamarClasses={ALL_SAMAR_CLASSES}
-        engineCandidates={engineCandidates}
-        onEngineCategoryChange={handleEngineCategoryChange}
-        allEngineTypes={ALL_ENGINE_TYPES}
-        driveType={driveType}
-        onDriveTypeChange={handleDriveTypeChange}
-        bodyType={resolvedBodyType}
-        onBodyTypeChange={handleBodyTypeChange}
         onConfigurationCodeChange={handleConfigurationCodeChange}
-        onVehicleTypeChange={handleVehicleTypeChange}
-        bodyTypeOptions={bodyTypes}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
         crossCardAlerts={crossCardAlerts}
-        readinessResult={readinessResult}
         paramPreview={paramPreview}
+        discountMode={discountMode}
+        setDiscountMode={setDiscountMode}
+        customDiscountPctRaw={customDiscountPctRaw}
+        setCustomDiscountPctRaw={setCustomDiscountPctRaw}
+        offerDiscountPercentage={offerDiscountPercentage}
+        suggestedDiscountPct={suggestedDiscountPct}
       />
 
 
       {isExpanded && (
-        <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
-          {/* Business-style data visualizations */}
-          <div className="space-y-4 mb-6">
-            <VehicleSummaryCard 
-              vehicle={vehicle} 
-              onDirectSave={handleDirectSave}
-              isSaving={isSavingFields}
-              onRemapClassification={handleRemapClassification}
-              isRemapping={isRemappingClassification}
-              readinessResult={readinessResult}
-            />
+        <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out relative">
+          <div className="flex flex-col gap-6 items-start w-full">
+            
+            {/* Section 2 (moved to top): Summary and Details */}
+            <div className="w-full flex flex-col gap-6">
+
+              {/* Conditional rendering for verification status */}
+              {vehicle.verification_status === "cancelled" && (
+                <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
+                  <div className="flex justify-between items-center text-red-500 mb-2">
+                    <span>{vehicle.id}</span>
+                    <span>Przerwano przez użytkownika</span>
+                  </div>
+                </div>
+              )}
+
+              {vehicle.verification_status === "moved_to_library" && (
+                <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
+                  <div className="flex justify-between items-center text-blue-500 mb-2">
+                    <span>{vehicle.id}</span>
+                    <span>Przeniesiono do Biblioteki Cenników</span>
+                  </div>
+                </div>
+              )}
+
+              {vehicle.verification_status === "error" && (
+                <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
+                  <div className="flex justify-between items-center text-red-500 mb-2">
+                    <span>{vehicle.id}</span>
+                    <span>Wystąpił błąd podczas przetwarzania</span>
+                  </div>
+                </div>
+              )}
 
 
-            <VehicleEquipmentCard
-              vehicle={vehicle}
-              customFactoryOptions={customFactoryOptions}
-              handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
-              handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
-              handleUpdateFactoryOptionNoDiscount={handleUpdateFactoryOptionNoDiscount}
-              handleRemoveFactoryOption={handleRemoveFactoryOption}
-              handleAddManualFactoryOption={handleAddManualFactoryOption}
-              activeDiscountPct={activeDiscountPct}
-            />
-            <VehicleFeaturesCard
-              vehicleId={vehicle.id}
-              vehicleTypeHint={localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class}
-            />
-          </div>
 
-          <VehicleFinancialOptions 
-             vehicle={vehicle}
-             totalCatalogPriceNet={totalCatalogPriceNet}
-             activeFinalPriceNet={activeFinalPriceNet}
-             dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
-             catalogBasePriceNet={catalogBasePriceNet}
-             setCatalogBasePriceNet={setCatalogBasePriceNet}
-             aiExtractedBasePrice={aiExtractedBasePrice}
-             discountableOptionsTotal={discountableOptionsTotal}
-             nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
-             serviceOptionsTotal={customServiceOptionsPriceTotal}
-             discountMode={discountMode}
-             setDiscountMode={setDiscountMode}
-             customDiscountPctRaw={customDiscountPctRaw}
-             setCustomDiscountPctRaw={setCustomDiscountPctRaw}
-             isDealerOffer={isDealerOffer}
-             offerDiscountPercentage={offerDiscountPercentage}
-             suggestedDiscountPct={suggestedDiscountPct}
-             suggestedDiscountConfidence={suggestedDiscountConfidence}
-             activeDiscountPct={activeDiscountPct}
-             customServiceOptions={customServiceOptions}
-             handleUpdateServiceOptionName={handleUpdateServiceOptionName}
-             handleUpdateServiceOptionPrice={handleUpdateServiceOptionPrice}
-             handleUpdateServiceOptionIncludeInWr={handleUpdateServiceOptionIncludeInWr}
-             handleRemoveServiceOption={handleRemoveServiceOption}
-             handleAddManualServiceOption={handleAddManualServiceOption}
-             handleRestoreAllOptions={handleRestoreAllOptions}
-             handleSaveAllOptions={handleSaveAllOptions}
-             isSavingServices={isSavingServices}
-             // Financial parameters
-             wiborPct={wiborPct || 0}
-             setWiborPct={setWiborPct}
-             marginPct={marginPct || 0}
-             setMarginPct={setMarginPct}
-             pricingMarginPct={pricingMarginPct || 0}
-             setPricingMarginPct={setPricingMarginPct}
-             initialDepositPct={initialDepositPct || 0}
-             setInitialDepositPct={setInitialDepositPct}
-             otherServiceCosts={otherServiceCosts}
-             setOtherServiceCosts={setOtherServiceCosts}
-             // Toggles
-             expressPaysInsurance={expressPaysInsurance}
-             setExpressPaysInsurance={setExpressPaysInsurance}
-             replacementCar={replacementCar}
-             setReplacementCar={setReplacementCar}
-             gpsRequired={gpsRequired}
-             setGpsRequired={setGpsRequired}
-             includeServicing={includeServicing}
-             setIncludeServicing={setIncludeServicing}
-             hookInstallation={hookInstallation}
-             setHookInstallation={setHookInstallation}
-             // Tire parameters
-             tireClass={tireClass}
-             setTireClass={setTireClass}
-             tireCountMode={tireCountMode}
-             setTireCountMode={setTireCountMode}
-             tireCostCorrectionEnabled={tireCostCorrectionEnabled}
-             setTireCostCorrectionEnabled={setTireCostCorrectionEnabled}
-             tireCostCorrection={tireCostCorrection}
-             setTireCostCorrection={setTireCostCorrection}
-             rimDiameter={rimDiameter}
-             setRimDiameter={setRimDiameter}
-             // Service cost type
-             serviceCostType={serviceCostType}
-             setServiceCostType={setServiceCostType}
-             // Vehicle vintage & metalic
-             vehicleVintage={vehicleVintage}
-             setVehicleVintage={setVehicleVintage}
-             paintCategoryId={paintCategoryId}
-             setPaintCategoryId={setPaintCategoryId}
-             paintTypes={paintTypes}
-             isMetalicAutoDetected={autoDetectMetalic()}
-             hookAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.has_tow_hook === true}
-             vintageAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.is_current_year_vehicle != null}
-             // Price context for czynsz inicjalny calculations
-             activeFinalPriceForDeposit={activeFinalPriceNet}
-             crossCardAlerts={crossCardAlerts}
-             paramPreview={paramPreview}
-             controlCenter={controlCenter}
-          />
-
-          {/* Conditional rendering for verification status */}
-          {vehicle.verification_status === "cancelled" && (
-            <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
-              <div className="flex justify-between items-center text-red-500 mb-2">
-                <span>{vehicle.id}</span>
-                <span>Przerwano przez użytkownika</span>
+              <div className="space-y-4">
+                <VehicleSummaryCard 
+                  vehicle={vehicle} 
+                  mappedData={mappedData}
+                  samarCandidates={samarCandidates}
+                  allSamarClasses={ALL_SAMAR_CLASSES}
+                  onSamarCategoryChange={handleSamarCategoryChange}
+                  engineCandidates={engineCandidates}
+                  allEngineTypes={ALL_ENGINE_TYPES}
+                  onEngineCategoryChange={handleEngineCategoryChange}
+                  driveType={driveType}
+                  onDriveTypeChange={handleDriveTypeChange}
+                  bodyType={resolvedBodyType}
+                  onBodyTypeChange={handleBodyTypeChange}
+                  onVehicleTypeChange={handleVehicleTypeChange}
+                  bodyTypeOptions={bodyTypes}
+                  onDirectSave={handleDirectSave}
+                  isSaving={isSavingFields}
+                  onRemapClassification={handleRemapClassification}
+                  isRemapping={isRemappingClassification}
+                />
+                <VehicleEquipmentCard
+                  vehicle={vehicle}
+                  customFactoryOptions={customFactoryOptions}
+                  handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
+                  handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
+                  handleUpdateFactoryOptionNoDiscount={handleUpdateFactoryOptionNoDiscount}
+                  handleRemoveFactoryOption={handleRemoveFactoryOption}
+                  handleAddManualFactoryOption={handleAddManualFactoryOption}
+                  activeDiscountPct={activeDiscountPct}
+                />
+                <VehicleFeaturesCard
+                  vehicleId={vehicle.id}
+                  vehicleTypeHint={localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class}
+                />
               </div>
             </div>
-          )}
 
-          {vehicle.verification_status === "moved_to_library" && (
-            <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
-              <div className="flex justify-between items-center text-blue-500 mb-2">
-                <span>{vehicle.id}</span>
-                <span>Przeniesiono do Biblioteki Cenników</span>
+            {/* Section 1 (moved to bottom): Financial Config & Actions */}
+            <div className="w-full flex flex-col gap-4">
+              <VehicleFinancialOptions 
+                 vehicle={vehicle}
+                 totalCatalogPriceNet={totalCatalogPriceNet}
+                 activeFinalPriceNet={activeFinalPriceNet}
+                 dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
+                 catalogBasePriceNet={catalogBasePriceNet}
+                 setCatalogBasePriceNet={setCatalogBasePriceNet}
+                 aiExtractedBasePrice={aiExtractedBasePrice}
+                 discountableOptionsTotal={discountableOptionsTotal}
+                 nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
+                 serviceOptionsTotal={customServiceOptionsPriceTotal}
+                 isDealerOffer={isDealerOffer}
+                 offerDiscountPercentage={offerDiscountPercentage}
+                 suggestedDiscountPct={suggestedDiscountPct}
+                 activeDiscountPct={activeDiscountPct}
+                 customServiceOptions={customServiceOptions}
+                 handleUpdateServiceOptionName={handleUpdateServiceOptionName}
+                 handleUpdateServiceOptionPrice={handleUpdateServiceOptionPrice}
+                 handleUpdateServiceOptionIncludeInWr={handleUpdateServiceOptionIncludeInWr}
+                 handleRemoveServiceOption={handleRemoveServiceOption}
+                 handleAddManualServiceOption={handleAddManualServiceOption}
+                 handleRestoreAllOptions={handleRestoreAllOptions}
+                 handleSaveAllOptions={handleSaveAllOptions}
+                 isSavingServices={isSavingServices}
+                 // Financial parameters
+                 wiborPct={wiborPct || 0}
+                 setWiborPct={setWiborPct}
+                 marginPct={marginPct || 0}
+                 setMarginPct={setMarginPct}
+                 pricingMarginPct={pricingMarginPct || 0}
+                 setPricingMarginPct={setPricingMarginPct}
+                 initialDepositPct={initialDepositPct || 0}
+                 setInitialDepositPct={setInitialDepositPct}
+                 otherServiceCosts={otherServiceCosts}
+                 setOtherServiceCosts={setOtherServiceCosts}
+                 // Toggles
+                 expressPaysInsurance={expressPaysInsurance}
+                 setExpressPaysInsurance={setExpressPaysInsurance}
+                 replacementCar={replacementCar}
+                 setReplacementCar={setReplacementCar}
+                 gpsRequired={gpsRequired}
+                 setGpsRequired={setGpsRequired}
+                 includeServicing={includeServicing}
+                 setIncludeServicing={setIncludeServicing}
+                 hookInstallation={hookInstallation}
+                 setHookInstallation={setHookInstallation}
+                 // Tire parameters
+                 tireClass={tireClass}
+                 setTireClass={setTireClass}
+                 tireCountMode={tireCountMode}
+                 setTireCountMode={setTireCountMode}
+                 tireCostCorrectionEnabled={tireCostCorrectionEnabled}
+                 setTireCostCorrectionEnabled={setTireCostCorrectionEnabled}
+                 tireCostCorrectionMap={tireCostCorrectionMap}
+                 setTireCostCorrectionMap={setTireCostCorrectionMap}
+                 rimDiameter={rimDiameter}
+                 setRimDiameter={setRimDiameter}
+                 // Service cost type
+                 serviceCostType={serviceCostType}
+                 setServiceCostType={setServiceCostType}
+                 // Vehicle vintage & metalic
+                 vehicleVintage={vehicleVintage}
+                 setVehicleVintage={setVehicleVintage}
+                 paintCategoryId={paintCategoryId}
+                 setPaintCategoryId={setPaintCategoryId}
+                 paintTypes={paintTypes}
+                 isMetalicAutoDetected={autoDetectMetalic()}
+                 hookAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.has_tow_hook === true}
+                 vintageAutoDetected={(vehicle.synthesis_data as any)?.card_summary?.is_current_year_vehicle != null}
+                 // Price context for czynsz inicjalny calculations
+                 activeFinalPriceForDeposit={activeFinalPriceNet}
+                 crossCardAlerts={crossCardAlerts}
+                 paramPreview={paramPreview}
+                 controlCenter={controlCenter}
+              />
+              <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 bg-slate-50/50 rounded-b-xl">
+                 <VehicleActionButtons
+                   vehicle={vehicle}
+                   isSavingSetup={isSavingSetup}
+                   handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPriceNet, catalogBasePriceNet)}
+                   pricingMarginPct={pricingMarginPct || 0}
+                   initialDepositPct={initialDepositPct || 0}
+                   expressPaysInsurance={expressPaysInsurance}
+                   replacementCar={replacementCar}
+                   gpsRequired={gpsRequired}
+                   includeServicing={includeServicing}
+                   hookInstallation={hookInstallation}
+                   tireClass={tireClass}
+                   tireCountMode={tireCountMode}
+                   tireCostCorrectionEnabled={tireCostCorrectionEnabled}
+                   tireCostCorrectionMap={tireCostCorrectionMap}
+                   rimDiameter={rimDiameter}
+                   serviceCostType={serviceCostType}
+                   vehicleVintage={vehicleVintage}
+                   paintCategoryId={paintCategoryId}
+                   activeDiscountPct={activeDiscountPct}
+                   activeFinalPrice={activeFinalPriceNet}
+                   brochureData={brochureData}
+                   setIsBrochureModalOpen={setIsBrochureModalOpen}
+                   isGeneratingBrochure={isGeneratingBrochure}
+                   setIsGeneratingBrochure={setIsGeneratingBrochure}
+                   setBrochureData={setBrochureData}
+                   setBrochureImages={setBrochureImages}
+                   handleOpenSavedJson={handleOpenSavedJson}
+                   isViewerOpen={isViewerOpen}
+                   setIsViewerOpen={setIsViewerOpen}
+                   calculationBlockReason={calculationBlockReason}
+                   onCalculationCreated={(id, numer) => {
+                     setActiveKalkulacjaId(id);
+                     setActiveKalkulacjaNumer(numer);
+                     if (!isExpanded) setIsExpanded(true);
+                   }}
+                   activeKalkulacjaId={activeKalkulacjaId}
+                   activeKalkulacjaNumer={activeKalkulacjaNumer}
+                 />
               </div>
-            </div>
-          )}
 
-          {vehicle.verification_status === "error" && (
-            <div className={cn("p-6 rounded-lg text-sm border", isSelected ? "border-[var(--brand-primary)]" : "border-[var(--system-border)]")}>
-              <div className="flex justify-between items-center text-red-500 mb-2">
-                <span>{vehicle.id}</span>
-                <span>Wystąpił błąd podczas przetwarzania</span>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-col gap-3 pt-4 border-t border-slate-200">
-             <VehicleActionButtons
-               vehicle={vehicle}
-               isSavingSetup={isSavingSetup}
-               handleSaveSetup={() => handleSaveSetup(activeDiscountPct, activeFinalPriceNet, catalogBasePriceNet)}
-               pricingMarginPct={pricingMarginPct || 0}
-               initialDepositPct={initialDepositPct || 0}
-               expressPaysInsurance={expressPaysInsurance}
-               replacementCar={replacementCar}
-               gpsRequired={gpsRequired}
-               includeServicing={includeServicing}
-               hookInstallation={hookInstallation}
-               tireClass={tireClass}
-               tireCountMode={tireCountMode}
-               tireCostCorrectionEnabled={tireCostCorrectionEnabled}
-               tireCostCorrection={tireCostCorrection}
-               rimDiameter={rimDiameter}
-               serviceCostType={serviceCostType}
-               vehicleVintage={vehicleVintage}
-               paintCategoryId={paintCategoryId}
-               activeDiscountPct={activeDiscountPct}
-               activeFinalPrice={activeFinalPriceNet}
-               brochureData={brochureData}
-               setIsBrochureModalOpen={setIsBrochureModalOpen}
-               isGeneratingBrochure={isGeneratingBrochure}
-               setIsGeneratingBrochure={setIsGeneratingBrochure}
-               setBrochureData={setBrochureData}
-               setBrochureImages={setBrochureImages}
-               handleOpenSavedJson={handleOpenSavedJson}
-               isViewerOpen={isViewerOpen}
-               setIsViewerOpen={setIsViewerOpen}
-                calculationBlockReason={calculationBlockReason}
-               onCalculationCreated={(id, numer) => {
-                 setActiveKalkulacjaId(id);
-                 setActiveKalkulacjaNumer(numer);
-                 if (!isExpanded) setIsExpanded(true);
-               }}
-               activeKalkulacjaId={activeKalkulacjaId}
-               activeKalkulacjaNumer={activeKalkulacjaNumer}
-             />
-
-
+              {/* PDF Viewer — pełna szerokość, pod przyciskami akcji */}
               {isViewerOpen && vehicle.raw_pdf_url && (
-                <div className="w-full h-full xl:w-1/2 p-2 border-l border-slate-200 mt-4 rounded-lg">
+                <div className="w-full border border-slate-200 rounded-lg shadow-sm overflow-auto">
                   <PDFViewerFrame url={vehicle.raw_pdf_url} />
                 </div>
               )}
             </div>
 
             {activeKalkulacjaId && activeKalkulacjaNumer && (
-              <div id={`vehicle-matrix-${vehicle.id}`}>
+              <div id={`vehicle-matrix-${vehicle.id}`} className="w-full flex flex-col gap-6">
                 <VehicleRowCalculations
                   kalkulacjaId={activeKalkulacjaId}
                   kalkulacjaNumer={activeKalkulacjaNumer}
@@ -864,6 +872,7 @@ export function VehicleRowCard({
                 />
               </div>
             )}
+          </div>
         </div>
       )}
       {isBrochureModalOpen && brochureData && (

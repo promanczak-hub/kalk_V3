@@ -5,14 +5,14 @@ export interface ExtractedServiceOption {
   name: string;
   net_price: number;
   description_or_components?: string[];
-  effects?: any | null;
+  effects?: Record<string, unknown> | null;
 }
 import { NetGrossInput } from "./NetGrossInput";
 import { LinkedIndicator } from "./LinkedIndicator";
-import { CalculationReadinessBadge } from "./CalculationReadinessBadge";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { parsePriceToNumber } from "./PriceDualFormat";
+import { AccordionCard } from "./AccordionCard";
 
 interface VehicleFinancialOptionsProps {
   vehicle: FleetVehicleView;
@@ -27,16 +27,10 @@ interface VehicleFinancialOptionsProps {
   catalogBasePriceNet: number;
   setCatalogBasePriceNet: (val: number) => void;
   aiExtractedBasePrice: string | null;
-  // Discount state
-  discountMode: "offer" | "suggested" | "custom";
-  setDiscountMode: (mode: "offer" | "suggested" | "custom") => void;
-  customDiscountPctRaw: string | number;
-  setCustomDiscountPctRaw: (val: string) => void;
   // Other derived
   isDealerOffer: boolean;
   offerDiscountPercentage: number;
   suggestedDiscountPct: number;
-  suggestedDiscountConfidence: number;
   activeDiscountPct: number;
 
   // Service Options CRUD
@@ -91,7 +85,7 @@ interface VehicleFinancialOptionsProps {
   setVehicleVintage: (val: "current" | "previous") => void;
   paintCategoryId: number | null;
   setPaintCategoryId: (val: number) => void;
-  paintTypes?: any[];
+  paintTypes?: { id: number; name: string }[];
   isMetalicAutoDetected: boolean;
   hookAutoDetected: boolean;
   vintageAutoDetected: boolean;
@@ -153,8 +147,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   const {
     vehicle, activeFinalPriceNet,
     catalogBasePriceNet, setCatalogBasePriceNet, aiExtractedBasePrice,
-    discountMode, setDiscountMode, customDiscountPctRaw, setCustomDiscountPctRaw,
-    isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, suggestedDiscountConfidence, activeDiscountPct,
+    isDealerOffer, offerDiscountPercentage, suggestedDiscountPct, activeDiscountPct,
     discountableOptionsTotal, nonDiscountableOptionsTotal, serviceOptionsTotal,
     customServiceOptions, handleUpdateServiceOptionName,
     handleUpdateServiceOptionPrice, handleUpdateServiceOptionIncludeInWr,
@@ -180,6 +173,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   } = props;
 
   const crossCardAlerts = props.crossCardAlerts ?? [];
+
+  const [depositMode, setDepositMode] = useState<"%" | "PLN">("%");
 
   // Extracted wheel size from AI
   const extractedWheelSize = useMemo(() => {
@@ -218,119 +213,61 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   return (
     <>
       {/* --- Analiza Finansowa --- */}
-      <div className="border border-slate-200 rounded bg-white mb-8 mt-6">
-        <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <h4 className="flex items-center text-xs font-semibold uppercase tracking-wider text-slate-500">
-            <Banknote className="w-4 h-4 mr-2 text-slate-400" />
-            Analiza Finansowa
-          </h4>
-          <CalculationReadinessBadge
-            catalogBasePriceNet={catalogBasePriceNet}
-            rimDiameter={rimDiameter}
-            vehicle={vehicle}
-            paramPreview={paramPreview as any}
-            includeServicing={includeServicing}
-            replacementCar={replacementCar}
-          />
-        </div>
+      <AccordionCard
+        id={`financial-analysis-${vehicle.id}`}
+        title="Analiza Finansowa"
+        icon={<Banknote className="w-4 h-4 text-emerald-600" />}
+        defaultOpen={true}
+        className="mb-4"
+      >
+        <div className="space-y-5">
 
-        <div className="p-5 space-y-5">
-          {/* Rabat selector */}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Rabat:</span>
-              <select 
-                className="bg-white border border-slate-200 text-slate-700 font-medium text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
-                value={discountMode}
-                onChange={(e) => {
-                  const newMode = e.target.value as "offer" | "suggested" | "custom";
-                  if (newMode === "custom" && discountMode !== "custom") {
-                     setCustomDiscountPctRaw(activeDiscountPct.toString());
-                  }
-                  setDiscountMode(newMode);
-                }}
-              >
-                <option value="offer">Z oferty ({isDealerOffer ? offerDiscountPercentage : 0}%)</option>
-                <option value="suggested" disabled={suggestedDiscountPct === 0}>
-                  Suger. BD ({suggestedDiscountPct}%){suggestedDiscountConfidence > 0 ? ` [${suggestedDiscountConfidence}%]` : ''}
-                </option>
-                <option value="custom">Własny</option>
-              </select>
-              <div className="flex items-center bg-white rounded shadow-sm border border-slate-200 overflow-hidden">
-                <input 
-                  type="text"
-                  className={cn(
-                    "w-14 text-right text-xs px-1.5 py-1 focus:outline-none font-bold transition-colors",
-                    discountMode === "custom" ? "text-blue-700 bg-white" : "text-slate-400 bg-slate-50"
-                  )}
-                  value={discountMode === "custom" ? customDiscountPctRaw : activeDiscountPct}
-                  onFocus={() => {
-                    if (discountMode !== "custom") {
-                      setCustomDiscountPctRaw(activeDiscountPct.toString());
-                      setDiscountMode("custom");
-                    }
-                  }}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9.]/g, '');
-                    const parts = raw.split('.');
-                    const sanitized = parts.length > 2
-                      ? parts[0] + '.' + parts.slice(1).join('')
-                      : raw;
-                    const decimalParts = sanitized.split('.');
-                    const capped = decimalParts.length === 2 && decimalParts[1].length > 2
-                      ? decimalParts[0] + '.' + decimalParts[1].slice(0, 2)
-                      : sanitized;
-                    const num = parseFloat(capped);
-                    if (!capped || capped === '.') {
-                      setCustomDiscountPctRaw("");
-                    } else if (!isNaN(num) && num >= 0 && num <= 100) {
-                      setCustomDiscountPctRaw(capped);
-                    }
-                    setDiscountMode("custom");
-                  }}
-                  placeholder="0"
-                  title="Wpisz własny rabat"
-                />
-                <span className="text-xs font-bold pr-1.5 py-1 border-l text-slate-400 bg-slate-100 border-slate-200">%</span>
-              </div>
+
+          {/* Discount alerts */}
+          {(isDealerOffer && suggestedDiscountPct > 0 && offerDiscountPercentage > suggestedDiscountPct || crossCardAlerts.length > 0) && (
+            <div className="flex flex-col gap-2">
+              {isDealerOffer && suggestedDiscountPct > 0 && offerDiscountPercentage > suggestedDiscountPct && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-[11px] text-amber-800 text-left animate-in fade-in duration-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold">Dealer: {offerDiscountPercentage}%</span> vs BD: {suggestedDiscountPct}%
+                    <span className="font-semibold ml-1">(+{(offerDiscountPercentage - suggestedDiscountPct).toFixed(1)} pp.)</span>
+                  </div>
+                </div>
+              )}
+              {crossCardAlerts.map((alert, idx) => (
+                <div key={idx} className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-[11px] text-amber-800 text-left animate-in fade-in duration-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold">Inna oferta: {alert.siblingDiscountPct}%</span> vs obecne {alert.currentDiscountPct}%
+                    <span className="font-semibold ml-1">(+{alert.deltaPp} pp.)</span>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            {/* Discount alerts */}
-            {isDealerOffer && suggestedDiscountPct > 0 && offerDiscountPercentage > suggestedDiscountPct && (
-              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-[11px] text-amber-800 text-left animate-in fade-in duration-300">
-                <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <span className="font-bold">Dealer: {offerDiscountPercentage}%</span> vs BD: {suggestedDiscountPct}%
-                  <span className="font-semibold ml-1">(+{(offerDiscountPercentage - suggestedDiscountPct).toFixed(1)} pp.)</span>
-                </div>
-              </div>
-            )}
-            {crossCardAlerts.map((alert, idx) => (
-              <div key={idx} className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-[11px] text-amber-800 text-left animate-in fade-in duration-300">
-                <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <span className="font-bold">Inna oferta: {alert.siblingDiscountPct}%</span> vs obecne {alert.currentDiscountPct}%
-                  <span className="font-semibold ml-1">(+{alert.deltaPp} pp.)</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
 
           {/* Rozkład ceny table */}
           <div>
             <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Rozkład ceny</h5>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "34%" }} />
+                <col style={{ width: "33%" }} />
+                <col style={{ width: "33%" }} />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="py-1.5 text-left text-xs font-bold uppercase text-slate-400">Pozycja</th>
-                  <th className="py-1.5 text-right text-xs font-bold uppercase text-slate-400">Netto</th>
-                  <th className="py-1.5 text-right text-xs font-bold uppercase text-slate-400">Brutto</th>
+                  <th className="py-1.5 pr-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">Pozycja</th>
+                  <th className="py-1.5 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">Netto</th>
+                  <th className="py-1.5 pl-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">Brutto</th>
                 </tr>
               </thead>
               <tbody>
                 {/* Cena bazowa (katalogowa) — EDYTOWALNA */}
                 <tr className="border-b border-slate-100">
-                  <td className="py-2.5 text-xs text-slate-500 flex flex-col gap-0.5">
+                  <td className="py-2.5 pr-2 text-xs text-slate-500">
+                    <div className="flex flex-col gap-0.5">
                     <span className="flex items-center gap-1.5">
                       Cena bazowa katalogowa
                       {basePriceWasEdited && (
@@ -349,22 +286,22 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                         </button>
                       </span>
                     )}
+                    </div>
                   </td>
-                  <td className="py-2.5 text-right align-top">
-                    <NetGrossInput
-                      netValue={catalogBasePriceNet}
-                      onChangeNet={setCatalogBasePriceNet}
-                    />
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700 align-top">
-                    {catalogBasePriceNet > 0 ? fmtPLN(Math.round(catalogBasePriceNet * 1.23)) : "—"}
+                  <td colSpan={2} className="py-2.5 pl-2 align-top">
+                    <div className="flex w-full justify-between items-center gap-1">
+                      <NetGrossInput
+                        netValue={catalogBasePriceNet}
+                        onChangeNet={setCatalogBasePriceNet}
+                      />
+                    </div>
                   </td>
                 </tr>
 
                 {/* Suma przed rabatem (Katalog + Opcje + Serwis) */}
                 <tr className="border-b border-slate-200 bg-slate-50/30">
-                  <td className="py-2.5 text-xs font-bold text-slate-600">Suma przed rabatem</td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-bold text-slate-600">
+                  <td className="py-2.5 pr-2 text-xs font-bold text-slate-600">Suma przed rabatem</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums text-sm font-bold text-slate-600">
                     {fmtPLN(totalCatalogPriceNet + serviceOptionsTotal)}
                   </td>
                   <td className="py-2.5 text-right tabular-nums text-sm font-bold text-slate-800">
@@ -450,20 +387,22 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             </table>
           </div>
         </div>
-      </div>
+      </AccordionCard>
 
       {/* Usługi Serwisowe / Dodatkowe */}
-      <div className="mt-8">
-          <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-            <Wrench className="w-4 h-4 mr-2" />
-            Usługi Serwisowe / Dodatkowe (Digital Twin)
-          </h4>
-           <div className="bg-white rounded border border-slate-200 p-4 shadow-sm space-y-4">
+      <AccordionCard
+        id={`service-options-${vehicle.id}`}
+        title="Usługi Serwisowe / Dodatkowe"
+        icon={<Wrench className="w-4 h-4 text-slate-500" />}
+        defaultOpen={true}
+        className="mb-4"
+      >
+           <div className="space-y-4">
               {customServiceOptions.length > 0 ? (
                   <ul className="space-y-3">
                     {customServiceOptions.map((opt) => (
                       <li key={opt.id} className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-[11px] pb-3 border-b border-slate-50 last:border-0 last:pb-0">
-                        <input type="text" className="flex-1 px-3 py-1.5 border border-slate-200 rounded text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value={opt.name} onChange={(e) => handleUpdateServiceOptionName(opt.id, e.target.value)} placeholder="Nazwa Usługi" />
+                        <input type="text" className="flex-1 px-3 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value={opt.name} onChange={(e) => handleUpdateServiceOptionName(opt.id, e.target.value)} placeholder="Nazwa Usługi" />
                         <div className="flex items-center gap-2 mt-2 xl:mt-0 xl:w-auto w-full justify-between xl:justify-end">
                            <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-500 hover:text-slate-700 mr-2 border border-slate-100 px-2 py-1 rounded bg-slate-50/50">
                              <input type="checkbox" checked={opt.include_in_wr || false} onChange={(e) => handleUpdateServiceOptionIncludeInWr(opt.id, e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3" />
@@ -501,15 +440,17 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                  </div>
               </div>
            </div>
-      </div>
+      </AccordionCard>
 
       {/* --- Opony --- */}
-      <div className="mt-8">
-        <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-          <CircleDot className="w-4 h-4 mr-2" />
-          Opony
-        </h4>
-        <div className="bg-white rounded border border-slate-200 p-4 shadow-sm">
+      <AccordionCard
+        id={`tires-${vehicle.id}`}
+        title="Opony"
+        icon={<CircleDot className="w-4 h-4 text-slate-500" />}
+        defaultOpen={true}
+        className="mb-4"
+      >
+        <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             {/* Wheel size from AI */}
             <div>
@@ -597,15 +538,19 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             </div>
           </div>
         </div>
-      </div>
+      </AccordionCard>
 
       {/* Parametry Kalkulacji */}
-      <div className="mt-8">
-        <h4 className="flex items-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-          Parametry Kalkulacji
-        </h4>
-        <div className="bg-white rounded border border-slate-200 p-4 shadow-sm">
+      <AccordionCard
+        id={`calculation-params-${vehicle.id}`}
+        title="Parametry Kalkulacji"
+        icon={
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        }
+        defaultOpen={true}
+        className="mb-4"
+      >
+        <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1">WIBOR (%)</label>
@@ -619,18 +564,53 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Marża Sprzedaży LTR (%)</label>
               <input type="number" step="0.1" className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500" value={pricingMarginPct} onChange={e => setPricingMarginPct(parseFloat(e.target.value) || 0)} />
             </div>
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Czynsz inicjalny (%)</label>
+            <div className="row-span-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold uppercase text-slate-500">Czynsz inicjalny</label>
+                <div className="flex border border-slate-200 rounded overflow-hidden">
+                  <button 
+                    type="button" 
+                    onClick={() => setDepositMode("%")}
+                    className={cn("px-1.5 py-0.5 text-[9px] font-bold transition-colors", depositMode === "%" ? "bg-slate-100 text-slate-600" : "bg-white text-slate-400 hover:bg-slate-50")}
+                  >
+                    %
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setDepositMode("PLN")}
+                    className={cn("px-1.5 py-0.5 text-[9px] font-bold transition-colors", depositMode === "PLN" ? "bg-slate-100 text-slate-600" : "bg-white text-slate-400 hover:bg-slate-50")}
+                  >
+                    PLN
+                  </button>
+                </div>
+              </div>
               <div className="flex gap-1.5">
                 <input
-                  type="number" step="0.1"
-                  className="w-16 text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500"
-                  value={initialDepositPct}
-                  onChange={e => setInitialDepositPct(parseFloat(e.target.value) || 0)}
+                  type="number" step={depositMode === "%" ? "0.1" : "100"}
+                  className="w-20 text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-bold tabular-nums"
+                  value={depositMode === "%" ? initialDepositPct : Math.round(depositAmountNet)}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value) || 0;
+                    if (depositMode === "%") {
+                      setInitialDepositPct(val);
+                    } else {
+                      const newPct = activeFinalPriceForDeposit > 0 ? (val / activeFinalPriceForDeposit) * 100 : 0;
+                      setInitialDepositPct(parseFloat(newPct.toFixed(2)));
+                    }
+                  }}
                 />
                 <div className="flex-1 text-[9px] text-slate-400 flex flex-col justify-center leading-tight">
-                  <span>= {depositAmountNet.toFixed(0)} PLN netto</span>
-                  <span>= {depositAmountGross.toFixed(0)} PLN brutto</span>
+                  {depositMode === "%" ? (
+                    <>
+                      <span>= {depositAmountNet.toFixed(0)} PLN netto</span>
+                      <span>= {depositAmountGross.toFixed(0)} PLN brutto</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>= {initialDepositPct}%</span>
+                      <span>= {depositAmountGross.toFixed(0)} PLN brutto</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -740,7 +720,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
             </label>
           </div>
         </div>
-      </div>
+      </AccordionCard>
     </>
   );
 }

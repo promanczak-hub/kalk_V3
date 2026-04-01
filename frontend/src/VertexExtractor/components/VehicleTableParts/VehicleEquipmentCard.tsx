@@ -1,5 +1,6 @@
 import type { FleetVehicleView } from "../../types";
 import { NetGrossInput } from "./NetGrossInput";
+import { AccordionCard } from "./AccordionCard";
 
 interface VehicleEquipmentCardProps {
   vehicle: FleetVehicleView;
@@ -43,19 +44,18 @@ export function VehicleEquipmentCard({
   const totalNet = customFactoryOptions.reduce((sum, opt) => sum + opt.price_net, 0);
   const totalBrutto = totalNet * VAT;
 
-  return (
-    <div id="factory-options-section" className="border border-slate-200 rounded bg-white">
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-slate-200 bg-slate-50">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Opcje fabryczne
-          {customFactoryOptions.length > 0 && (
-            <span className="ml-2 text-slate-400">({customFactoryOptions.length})</span>
-          )}
-        </h4>
-      </div>
+  const titleNode = (
+    <div className="flex items-center">
+      Opcje fabryczne
+      {customFactoryOptions.length > 0 && (
+        <span className="ml-2 text-slate-400">({customFactoryOptions.length})</span>
+      )}
+    </div>
+  );
 
-      <div className="p-5 space-y-4">
+  return (
+    <AccordionCard title={titleNode} id="factory-options-section" defaultOpen={false}>
+      <div className="space-y-4">
         {/* Editable options list */}
         {customFactoryOptions.length > 0 ? (
           <div className="overflow-x-auto">
@@ -86,7 +86,7 @@ export function VehicleEquipmentCard({
                   >
                     <td className="py-2 pr-4">
                       <div className="flex items-center gap-2">
-                        <input
+                         <input
                           type="text"
                           className="flex-1 px-2 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           value={opt.name}
@@ -144,7 +144,7 @@ export function VehicleEquipmentCard({
         {customFactoryOptions.length > 0 && (
           <div className="pt-3 border-t border-slate-200 flex flex-wrap justify-between items-baseline gap-2">
             <span className="text-xs text-slate-400">
-              Suma opcji fabrycznych
+               Suma opcji fabrycznych
               {activeDiscountPct > 0 && (
                 <span className="ml-2 px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Rabatowany ({activeDiscountPct}%)
@@ -179,25 +179,21 @@ export function VehicleEquipmentCard({
         </div>
 
         {/* Standard Equipment (collapsed) */}
-        {hasStandardEquipment && (
-          <details className="group">
-            <summary className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-2 -mx-2 rounded transition-colors text-xs font-bold uppercase tracking-widest text-slate-400 select-none">
-              <span>Wyposażenie standardowe ({standardEquipment.length})</span>
-              <svg className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-            </summary>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-2">
+         {hasStandardEquipment && (
+          <AccordionCard title={`Wyposażenie standardowe (${standardEquipment.length})`} defaultOpen={false} className="mt-4 border-slate-100 shadow-none">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
               {standardEquipment.map((item, idx) => (
                 <div
                   key={`${item}-${idx}`}
-                  className="py-1 text-xs text-slate-600 border-b border-slate-50"
+                  className="py-1.5 text-xs text-slate-600 border-b border-slate-50"
                 >
                   {item}
                 </div>
               ))}
             </div>
-          </details>
+          </AccordionCard>
         )}
       </div>
-    </div>
+    </AccordionCard>
   );
 }

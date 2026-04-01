@@ -1,0 +1,355 @@
+﻿F401 [*] `json` imported but unused
+   --> backend\api\extract_routes.py:467:16
+    |
+465 |         import traceback
+466 |         import math
+467 |         import json
+    |                ^^^^
+468 |
+469 |         def _clean_nan(obj: Any) -> Any:
+    |
+help: Remove unused import: `json`
+
+F841 Local variable `upload_resp` is assigned to but never used
+  --> backend\api\oferty_routes.py:62:9
+   |
+61 |         # Zapis fizyczny pliku w Supabase Storage bucket 'offers_excel'
+62 |         upload_resp = supabase.storage.from_("offers_excel").upload(
+   |         ^^^^^^^^^^^
+63 |             path=filename,
+64 |             file=excel_bytes,
+   |
+help: Remove assignment to unused variable `upload_resp`
+
+F841 Local variable `grid` is assigned to but never used
+   --> backend\calc_ab33_2.py:102:5
+    |
+101 |     # Przebiegi i miesiace
+102 |     grid = [(48, 30000)]  # 48m/120k
+    |     ^^^^
+103 |     payload["wibor_pct"] = 5.85
+    |
+help: Remove assignment to unused variable `grid`
+
+F401 [*] `typing.Any` imported but unused
+ --> backend\core\models.py:1:30
+  |
+1 | from typing import Optional, Any
+  |                              ^^^
+2 | from pydantic import BaseModel, Field
+  |
+help: Remove unused import: `typing.Any`
+
+E722 Do not use bare `except`
+  --> backend\debug_limits.py:13:5
+   |
+11 |             val = val / 100.0
+12 |         return val
+13 |     except:
+   |     ^^^^^^
+14 |         return 0.0
+   |
+
+F841 Local variable `payload` is assigned to but never used
+  --> backend\debug_pipeline2.py:26:5
+   |
+24 |         return
+25 |
+26 |     payload = res.data[0]["stan_json"]
+   |     ^^^^^^^
+27 |
+28 |     # Run calculating pipeline manually or call the recalculation endpoint logic
+   |
+help: Remove assignment to unused variable `payload`
+
+F841 Local variable `dt` is assigned to but never used
+  --> backend\extract_bmw.py:17:9
+   |
+16 |         # Some are just dicts
+17 |         dt = syn.get("digital_twin", {})
+   |         ^^
+18 |
+19 |         # Check brand
+   |
+help: Remove assignment to unused variable `dt`
+
+F841 Local variable `response` is assigned to but never used
+  --> backend\fix_categories.py:33:45
+   |
+31 |     )
+32 |     try:
+33 |         with urllib.request.urlopen(req) as response:
+   |                                             ^^^^^^^^
+34 |             print(f"Upserted {len(data)} to {table}")
+35 |     except urllib.error.HTTPError as e:
+   |
+help: Remove assignment to unused variable `response`
+
+E722 Do not use bare `except`
+  --> backend\force_insert_mileage.py:22:5
+   |
+20 |             val = -0.9999
+21 |         return val
+22 |     except:
+   |     ^^^^^^
+23 |         return 0.0
+   |
+
+E722 Do not use bare `except`
+  --> backend\gen_sql.py:33:5
+   |
+31 |     try:
+32 |         return float(val)
+33 |     except:
+   |     ^^^^^^
+34 |         return 0.0
+   |
+
+E722 Do not use bare `except`
+  --> backend\interpolate_drafts.py:77:5
+   |
+75 |         float(value)
+76 |         return True
+77 |     except:
+   |     ^^^^^^
+78 |         return False
+   |
+
+F841 Local variable `engine_names` is assigned to but never used
+   --> backend\interpolate_drafts.py:139:5
+    |
+137 |     # 2. Generate all combinations: 35 SAMAR classes * X engines
+138 |     new_rows = []
+139 |     engine_names = [e["name"] for e in engines]
+    |     ^^^^^^^^^^^^
+140 |
+141 |     # We'll map suffix to engine category to help with fallback (e.g. "PB" -> "Benzyna (PB)")
+    |
+help: Remove assignment to unused variable `engine_names`
+
+F841 Local variable `fuel_type_id_parsed` is assigned to but never used
+   --> backend\migrate_excel_to_prod.py:177:9
+    |
+176 |         # We need `class_part` which is stripped of fuel
+177 |         fuel_type_id_parsed = None
+    |         ^^^^^^^^^^^^^^^^^^^
+178 |         class_part = monolith
+179 |         for suffix in _FUEL_SUFFIXES:
+    |
+help: Remove assignment to unused variable `fuel_type_id_parsed`
+
+F841 Local variable `existing` is assigned to but never used
+  --> backend\migrate_v3_drafts_to_prod.py:42:5
+   |
+40 |     # So we'll fetch existing first.
+41 |     res = supabase.table("paint_types").select("*").execute()
+42 |     existing = res.data or []
+   |     ^^^^^^^^
+43 |     id_map = {
+44 |         "Akryl (B/D)": 1,
+   |
+help: Remove assignment to unused variable `existing`
+
+E722 Do not use bare `except`
+  --> backend\migration_samar_v3.py:40:5
+   |
+38 |     try:
+39 |         return float(val)
+40 |     except:
+   |     ^^^^^^
+41 |         return 0.0
+   |
+
+E741 Ambiguous variable name: `l`
+ --> backend\refactor_samar.py:6:12
+  |
+5 | def find_line(lines, substr):
+6 |     for i, l in enumerate(lines):
+  |            ^
+7 |         if substr in l:
+8 |             return i
+  |
+
+F841 Local variable `engine_type_id` is assigned to but never used
+   --> backend\scripts\diagnose_calculators.py:132:5
+    |
+130 |     model = v_db.get("model", vehicle.get("model", "?"))
+131 |     klasa_id = str(v_db.get("samar_class_id", 0))
+132 |     engine_type_id = int(v_db.get("engine_type_id", 1))
+    |     ^^^^^^^^^^^^^^
+133 |     power_kw = float(v_db.get("power_kw", 100))
+    |
+help: Remove assignment to unused variable `engine_type_id`
+
+F841 Local variable `power_kw` is assigned to but never used
+   --> backend\scripts\diagnose_calculators.py:133:5
+    |
+131 |     klasa_id = str(v_db.get("samar_class_id", 0))
+132 |     engine_type_id = int(v_db.get("engine_type_id", 1))
+133 |     power_kw = float(v_db.get("power_kw", 100))
+    |     ^^^^^^^^
+134 |
+135 |     print(f"\n{SEP}")
+    |
+help: Remove assignment to unused variable `power_kw`
+
+F841 Local variable `rok_cols` is assigned to but never used
+   --> backend\scripts\fix_tab_okres_final.py:121:5
+    |
+119 |     print("Parsing sheet...")
+120 |     # Year headers
+121 |     rok_cols = []
+    |     ^^^^^^^^
+122 |
+123 |     # Expected columns definition for frontend
+    |
+help: Remove assignment to unused variable `rok_cols`
+
+F841 Local variable `res` is assigned to but never used
+  --> backend\scripts\import_tab_okres_final.py:76:9
+   |
+74 |     for i in range(0, len(records), batch_size):
+75 |         batch = records[i : i + batch_size]
+76 |         res = supabase.table("tab_okres_final").insert(batch).execute()
+   |         ^^^
+77 |         print(f"Inserted {len(batch)} records...")
+   |
+help: Remove assignment to unused variable `res`
+
+E722 Do not use bare `except`
+  --> backend\scripts\populate_rv_matrix_gsheet.py:66:13
+   |
+64 |                 v = str(v).replace(",", ".").replace("%", "").strip()
+65 |                 return float(v)
+66 |             except:
+   |             ^^^^^^
+67 |                 return 0.0
+   |
+
+E722 Do not use bare `except`
+  --> backend\scripts\sync_ubezpieczenia_gsheet.py:57:17
+   |
+55 |                 try:
+56 |                     return float(val)
+57 |                 except:
+   |                 ^^^^^^
+58 |                     return None
+   |
+
+E722 Do not use bare `except`
+  --> backend\scripts\sync_ubezpieczenia_gsheet.py:65:17
+   |
+63 |                 try:
+64 |                     return int(val)
+65 |                 except:
+   |                 ^^^^^^
+66 |                     return None
+   |
+
+F841 Local variable `header` is assigned to but never used
+   --> backend\seed_service_v4.py:120:9
+    |
+118 |     with open("tmp_multipliers.csv", mode="r", encoding="utf-8") as f:
+119 |         reader = csv.reader(f)
+120 |         header = next(reader)
+    |         ^^^^^^
+121 |         for row in reader:
+122 |             if not row or len(row) < 11:
+    |
+help: Remove assignment to unused variable `header`
+
+F841 Local variable `header` is assigned to but never used
+   --> backend\seed_service_v4.py:204:9
+    |
+202 |     with open("tmp_base_rates.csv", mode="r", encoding="utf-8") as f:
+203 |         reader = csv.reader(f)
+204 |         header = next(reader)
+    |         ^^^^^^
+205 |         for row in reader:
+206 |             if len(row) < 4:
+    |
+help: Remove assignment to unused variable `header`
+
+F841 Local variable `synth_id` is assigned to but never used
+  --> backend\test_card.py:9:9
+   |
+ 7 | def test_reprocess():
+ 8 |     try:
+ 9 |         synth_id = "011fd704-5f53-4813-afd2-fc53ff9d2cdb"  # Cupra Terramar
+   |         ^^^^^^^^
+10 |         resp = (
+11 |             supabase.table("vehicle_synthesis")
+   |
+help: Remove assignment to unused variable `synth_id`
+
+F841 Local variable `req_payload` is assigned to but never used
+   --> backend\test_pdf_upload_parity.py:112:5
+    |
+111 |     # --- Live z Vertex Extractor ---
+112 |     req_payload = {
+    |     ^^^^^^^^^^^
+113 |         "duration": DURATION,
+114 |         "total_mileage": MILEAGE_CAP,
+    |
+help: Remove assignment to unused variable `req_payload`
+
+F841 Local variable `supabase` is assigned to but never used
+ --> backend\test_refresh_fabia2.py:6:5
+  |
+5 | async def run_test():
+6 |     supabase = get_supabase_client()
+  |     ^^^^^^^^
+7 |     try:
+8 |         # Pushing only one element corresponding to Skoda Fabia
+  |
+help: Remove assignment to unused variable `supabase`
+
+F841 Local variable `catalog_base_net` is assigned to but never used
+  --> backend\test_wr.py:36:5
+   |
+34 |     base_gross = 181300.0
+35 |     options_gross = 41600.0
+36 |     catalog_base_net = base_gross / 1.23
+   |     ^^^^^^^^^^^^^^^^
+37 |     catalog_options_net = options_gross / 1.23
+38 |     rocznik = "current"
+   |
+help: Remove assignment to unused variable `catalog_base_net`
+
+F841 Local variable `catalog_options_net` is assigned to but never used
+  --> backend\test_wr.py:37:5
+   |
+35 |     options_gross = 41600.0
+36 |     catalog_base_net = base_gross / 1.23
+37 |     catalog_options_net = options_gross / 1.23
+   |     ^^^^^^^^^^^^^^^^^^^
+38 |     rocznik = "current"
+39 |     # Inject missing fields into vehicle_dict to avoid errors in SubCalc fallback
+   |
+help: Remove assignment to unused variable `catalog_options_net`
+
+F841 Local variable `legacy_map` is assigned to but never used
+  --> backend\update_okres_fks.py:20:5
+   |
+18 |     # Temporary fallback map mimicking seed_depreciation_rates.CLASS_MAP
+19 |     # mapping from Excel strings to actual IDs
+20 |     legacy_map = {
+   |     ^^^^^^^^^^
+21 |         "A": 1,
+22 |         "Asport": 12,
+   |
+help: Remove assignment to unused variable `legacy_map`
+
+F841 Local variable `fuel_map` is assigned to but never used
+  --> backend\update_okres_fks.py:58:5
+   |
+57 |     # 3. Engine map
+58 |     fuel_map = {
+   |     ^^^^^^^^
+59 |         "Pb": 1,
+60 |         "PB": 1,
+   |
+help: Remove assignment to unused variable `fuel_map`
+
+Found 32 errors.
+[*] 2 fixable with the `--fix` option (21 hidden fixes can be enabled with the `--unsafe-fixes` option).

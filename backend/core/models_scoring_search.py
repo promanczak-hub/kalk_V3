@@ -101,6 +101,18 @@ class TrimsAndOptionsResponse(BaseModel):
     paid_options: List[OptionItem] = []
 
 
+class SimilarityReasons(BaseModel):
+    """Structured breakdown explaining WHY a vehicle is similar."""
+
+    samar_match: bool = False
+    body_match: bool = False
+    fuel_match: bool = False
+    drive_match: bool = False
+    price_pct_diff: Optional[float] = None  # e.g. 4.2 — catalog price % difference
+    samar_category: Optional[str] = None  # e.g. "C Niższa Średnia"
+    body_style: Optional[str] = None  # e.g. "Sedan"
+
+
 class SimilarVehicleMatch(BaseModel):
     vehicle_id: str
     brand: Optional[str] = None
@@ -117,6 +129,8 @@ class SimilarVehicleMatch(BaseModel):
     body_style: Optional[str] = None
     vehicle_class: Optional[str] = None
     drive_type: Optional[str] = None
+    # Similarity breakdown — why this vehicle is similar
+    similarity_reasons: Optional[SimilarityReasons] = None
 
 
 class PriceForParamsResponse(BaseModel):

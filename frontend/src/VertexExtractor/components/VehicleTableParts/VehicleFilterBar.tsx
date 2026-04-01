@@ -8,9 +8,13 @@ import {
   X,
   Check,
   RotateCcw,
+  ChevronDown,
+  Filter,
+  DollarSign
 } from "lucide-react";
 import { format } from "date-fns";
 import type { SortKey, SortDir } from "../../hooks/useVehicleFilters";
+import { formatPrice } from "./PriceDualFormat";
 
 interface VehicleFilterBarProps {
   // Sort
@@ -20,15 +24,37 @@ interface VehicleFilterBarProps {
   // Live search
   liveSearchText: string;
   onLiveSearchChange: (text: string) => void;
+  
   // Date range
   dateRange: [number, number];
   dateBounds: { dateMin: number; dateMax: number };
   onDateRangeChange: (range: [number, number]) => void;
+
+  // Price range
+  priceRange: [number, number];
+  priceBounds: { priceMin: number; priceMax: number };
+  onPriceRangeChange: (range: [number, number]) => void;
+
+  // Multi-select dropdowns
+  availableBrands: string[];
+  selectedBrands: string[];
+  onSelectedBrandsChange: (brands: string[]) => void;
+
+  availableFuels: string[];
+  selectedFuels: string[];
+  onSelectedFuelsChange: (fuels: string[]) => void;
+
+  availableSamarClasses: string[];
+  selectedSamarClasses: string[];
+  onSelectedSamarClassesChange: (classes: string[]) => void;
+
   // Unmapped SAMAR
   showUnmappedSamarOnly: boolean;
   onShowUnmappedSamarChange: (val: boolean) => void;
+  
   // Reset
   onResetFilters: () => void;
+  
   // Selection
   selectedCount: number;
   totalVisible: number;
@@ -47,7 +73,121 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "price", label: "Cena" },
 ];
 
+function MultiSelectDropdown({
+  label,
+  options,
+  selectedOptions,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selectedOptions: string[];
+  onChange: (selected: string[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((o) =>
+    o.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleOption = (option: string) => {
+    if (selectedOptions.includes(option)) {
+      onChange(selectedOptions.filter((o) => o !== option));
+    } else {
+      onChange([...selectedOptions, option]);
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${
+          selectedOptions.length > 0
+            ? "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+        }`}
+      >
+        <Filter className="w-3.5 h-3.5" />
+        {label}
+        {selectedOptions.length > 0 && (
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800 text-[10px] tabular-nums">
+            {selectedOptions.length}
+          </span>
+        )}
+        <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 max-w-xs w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden flex flex-col">
+          <div className="p-2 border-b border-slate-100 bg-slate-50">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Szukaj..."
+                className="w-full pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-500">Brak wyników</div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = selectedOptions.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer rounded-md transition-colors"
+                  >
+                    <div
+                      className={`flex-shrink-0 w-4 h-4 border rounded flex items-center justify-center transition-colors ${
+                        isSelected ? "bg-blue-500 border-blue-500" : "bg-white border-slate-300"
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className={`text-xs truncate ${isSelected ? "font-medium text-slate-900" : "text-slate-700"}`}>
+                      {opt}
+                    </span>
+                    <input type="checkbox" className="hidden" checked={isSelected} onChange={() => toggleOption(opt)} />
+                  </label>
+                );
+              })
+            )}
+          </div>
+          {selectedOptions.length > 0 && (
+            <div className="p-2 border-t border-slate-100 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="w-full py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md hover:bg-slate-100 transition-colors"
+              >
+                Wyczyść ({selectedOptions.length})
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function VehicleFilterBar({
   sortKey,
@@ -58,6 +198,18 @@ export function VehicleFilterBar({
   dateRange,
   dateBounds,
   onDateRangeChange,
+  priceRange,
+  priceBounds,
+  onPriceRangeChange,
+  availableBrands,
+  selectedBrands,
+  onSelectedBrandsChange,
+  availableFuels,
+  selectedFuels,
+  onSelectedFuelsChange,
+  availableSamarClasses,
+  selectedSamarClasses,
+  onSelectedSamarClassesChange,
   showUnmappedSamarOnly,
   onShowUnmappedSamarChange,
   onResetFilters,
@@ -93,30 +245,54 @@ export function VehicleFilterBar({
   const hasActiveFilters =
     liveSearchText.length > 0 ||
     showUnmappedSamarOnly ||
+    selectedBrands.length > 0 ||
+    selectedFuels.length > 0 ||
+    selectedSamarClasses.length > 0 ||
     dateRange[0] > 0 ||
-    dateRange[1] < Infinity;
+    dateRange[1] < Infinity ||
+    priceRange[0] > 0 ||
+    priceRange[1] < Infinity;
 
   const dateSpan = dateBounds.dateMax - dateBounds.dateMin;
+  const priceSpan = priceBounds.priceMax - priceBounds.priceMin;
 
   return (
-    <div className="space-y-3 mb-5">
-      {/* Row 1: Sort + Live search */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Sort dropdown */}
-        <div className="flex items-center gap-1.5">
-          <label className="text-xs uppercase font-semibold text-slate-500 tracking-wider whitespace-nowrap">
-            Sortuj:
-          </label>
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div className="space-y-4 mb-5">
+      {/* Row 1: Search, Sort, Unmapped flag, Reset */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Left: Search & Sort */}
+        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={localSearch}
+              onChange={(e) => handleSearchInput(e.target.value)}
+              placeholder="Skan wyposażenia: klima, tapicerka, xenon..."
+              className="w-full pl-9 pr-8 py-2 border border-slate-200 bg-white rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
+            />
+            {localSearch && (
+              <button
+                onClick={() => handleSearchInput("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg shadow-sm pl-2">
+			      <label className="text-xs uppercase font-semibold text-slate-500 tracking-wider whitespace-nowrap">
+				      Sortuj:
+            </label>
             <select
               value={sortKey}
               onChange={(e) => onSortKeyChange(e.target.value as SortKey)}
-              className="text-xs text-slate-700 bg-transparent pl-2.5 pr-1 py-2 outline-none cursor-pointer font-medium"
+              className="text-xs text-slate-700 bg-transparent pl-3 pr-1 py-2 outline-none cursor-pointer font-medium"
             >
+              <option value="" disabled>Sortuj po...</option>
               {SORT_OPTIONS.map((opt) => (
-                <option key={opt.key} value={opt.key}>
-                  {opt.label}
-                </option>
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
               ))}
             </select>
             <button
@@ -129,85 +305,91 @@ export function VehicleFilterBar({
           </div>
         </div>
 
-        {/* Live search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          <input
-            type="text"
-            value={localSearch}
-            onChange={(e) => handleSearchInput(e.target.value)}
-            placeholder="Filtruj: klima, tapicerka, xenon..."
-            className="w-full pl-8 pr-8 py-2 border border-slate-200 bg-white rounded-lg text-xs outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-50 transition-all shadow-sm"
-          />
-          {localSearch && (
-            <button
-              onClick={() => handleSearchInput("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
+        {/* Right: Unmapped, Reset */}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer outline-none group select-none bg-orange-50 hover:bg-orange-100 border border-orange-200 hover:border-orange-300 transition-colors px-3 py-2 rounded-lg shadow-sm">
+            <div
+               className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                 showUnmappedSamarOnly
+                   ? "bg-orange-500 border-orange-500"
+                   : "bg-white border-orange-300 group-hover:border-orange-400"
+               }`}
             >
-              <X className="w-3.5 h-3.5" />
+               {showUnmappedSamarOnly && <Check className="w-3 h-3 text-white" />}
+            </div>
+            <span className="text-xs font-semibold text-orange-700 whitespace-nowrap">
+              Brak Klasy SAMAR
+            </span>
+            <input type="checkbox" className="hidden" checked={showUnmappedSamarOnly} onChange={(e) => onShowUnmappedSamarChange(e.target.checked)} />
+          </label>
+
+          {hasActiveFilters && (
+            <button
+              onClick={onResetFilters}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs uppercase font-bold text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50 border border-slate-200 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+              title="Resetuj wszystkie filtry"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset
             </button>
           )}
         </div>
-
-        {/* Toggle unmapped SAMAR */}
-        <div className="flex items-center gap-2">
-           <label className="flex items-center gap-2 cursor-pointer outline-none group select-none bg-orange-50 hover:bg-orange-100 border border-orange-200 hover:border-orange-300 transition-colors px-3 py-1.5 rounded-lg shadow-sm">
-             <div
-                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                  showUnmappedSamarOnly
-                    ? "bg-orange-500 border-orange-500"
-                    : "bg-white border-orange-300 group-hover:border-orange-400"
-                }`}
-             >
-                {showUnmappedSamarOnly && <Check className="w-3 h-3 text-white" />}
-             </div>
-             <span className="text-xs font-semibold text-orange-700 whitespace-nowrap">
-               Brak Klasy SAMAR (Odznaczone)
-             </span>
-             <input type="checkbox" className="hidden" checked={showUnmappedSamarOnly} onChange={(e) => onShowUnmappedSamarChange(e.target.checked)} />
-           </label>
-        </div>
-
-        {hasActiveFilters && (
-          <button
-            onClick={onResetFilters}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs uppercase font-bold text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50 border border-slate-200 rounded-lg shadow-sm transition-colors whitespace-nowrap"
-            title="Resetuj filtry"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset
-          </button>
-        )}
       </div>
 
-      {/* Row 2: Date slider + Price slider */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-slate-50/50 border border-slate-100 rounded-lg px-4 py-3">
+      {/* Row 2: Advanced Dropdowns */}
+      <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+        <span className="text-xs font-semibold uppercase text-slate-500 mr-2 tracking-wider">Filtry Zaawansowane</span>
+        
+        <MultiSelectDropdown 
+          label="Marka"
+          options={availableBrands}
+          selectedOptions={selectedBrands}
+          onChange={onSelectedBrandsChange}
+        />
+
+        <MultiSelectDropdown 
+          label="Silnik / Paliwo"
+          options={availableFuels}
+          selectedOptions={selectedFuels}
+          onChange={onSelectedFuelsChange}
+        />
+
+        <MultiSelectDropdown 
+          label="Klasa SAMAR"
+          options={availableSamarClasses}
+          selectedOptions={selectedSamarClasses}
+          onChange={onSelectedSamarClassesChange}
+        />
+      </div>
+
+      {/* Row 3: Sliders (Date & Price) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
         {/* Date range slider */}
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-center mb-1.5">
-            <span className="text-xs uppercase font-semibold text-slate-500 tracking-wider flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Data oferty
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs uppercase font-semibold text-slate-500 tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" /> Data oferty
             </span>
-            <span className="text-xs text-slate-500 tabular-nums font-medium">
+            <span className="text-xs text-slate-700 tabular-nums font-bold">
               {format(new Date(dateRange[0] > 0 ? dateRange[0] : dateBounds.dateMin), "dd.MM.yyyy")}
               {" — "}
               {format(new Date(dateRange[1] < Infinity ? dateRange[1] : dateBounds.dateMax), "dd.MM.yyyy")}
             </span>
           </div>
           {dateSpan > 0 ? (
-            <div className="relative h-5 flex items-center">
+            <div className="relative h-6 flex items-center mt-1">
               <input
                 type="range"
                 min={dateBounds.dateMin}
                 max={dateBounds.dateMax}
-                step={86400000}
+                step={86400000} // 1 day ms
                 value={dateRange[0] > 0 ? dateRange[0] : dateBounds.dateMin}
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   const maxVal = dateRange[1] < Infinity ? dateRange[1] : dateBounds.dateMax;
                   onDateRangeChange([Math.min(val, maxVal), dateRange[1]]);
                 }}
-                className="absolute w-full h-1 appearance-none bg-slate-200 rounded-full pointer-events-none z-[3] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer"
+                className="absolute w-full h-1 appearance-none bg-slate-200 rounded-full pointer-events-none z-[3] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-[2.5px] [&::-moz-range-thumb]:border-blue-500"
               />
               <input
                 type="range"
@@ -220,18 +402,65 @@ export function VehicleFilterBar({
                   const minVal = dateRange[0] > 0 ? dateRange[0] : dateBounds.dateMin;
                   onDateRangeChange([dateRange[0], Math.max(val, minVal)]);
                 }}
-                className="absolute w-full h-1 appearance-none bg-transparent rounded-full pointer-events-none z-[4] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer"
+                className="absolute w-full h-1 appearance-none bg-transparent rounded-full pointer-events-none z-[4] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-[2.5px] [&::-moz-range-thumb]:border-blue-500"
               />
             </div>
           ) : (
-            <span className="text-xs text-slate-400">Jedna data</span>
+            <span className="text-xs text-slate-400 mt-2 block">Jeden punkt na osi czasu</span>
+          )}
+        </div>
+
+        {/* Price slider */}
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs uppercase font-semibold text-slate-500 tracking-wider flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5" /> Cena Katalogowa
+            </span>
+            <span className="text-xs text-slate-700 tabular-nums font-bold">
+              {formatPrice(priceRange[0] > 0 ? priceRange[0] : priceBounds.priceMin)}
+              {" — "}
+              {formatPrice(priceRange[1] < Infinity ? priceRange[1] : priceBounds.priceMax)}
+            </span>
+          </div>
+          
+          {priceSpan > 0 ? (
+            <div className="relative h-6 flex items-center mt-1">
+              <input
+                type="range"
+                min={priceBounds.priceMin}
+                max={priceBounds.priceMax}
+                step={1000} 
+                value={priceRange[0] > 0 ? priceRange[0] : priceBounds.priceMin}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const maxVal = priceRange[1] < Infinity ? priceRange[1] : priceBounds.priceMax;
+                  onPriceRangeChange([Math.min(val, maxVal), priceRange[1]]);
+                }}
+                className={`absolute w-full h-1 appearance-none bg-slate-200 rounded-full pointer-events-none z-[3] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-slate-700 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer`}
+              />
+              <input
+                type="range"
+                min={priceBounds.priceMin}
+                max={priceBounds.priceMax}
+                step={1000}
+                value={priceRange[1] < Infinity ? priceRange[1] : priceBounds.priceMax}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const minVal = priceRange[0] > 0 ? priceRange[0] : priceBounds.priceMin;
+                  onPriceRangeChange([priceRange[0], Math.max(val, minVal)]);
+                }}
+                className={`absolute w-full h-1 appearance-none bg-transparent rounded-full pointer-events-none z-[4] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-slate-700 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer`}
+              />
+            </div>
+          ) : (
+            <span className="text-xs text-slate-400 mt-2 block">Brak zróżnicowania cen</span>
           )}
         </div>
       </div>
 
-      {/* Row 3: Selection bar (only when items exist) */}
+      {/* Row 4: Selection bar (only when items exist) */}
       {totalVisible > 0 && (
-        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-4 py-2.5 shadow-sm">
+        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-4 py-2.5 shadow-sm mt-4">
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <div
               onClick={onToggleSelectAll}
@@ -247,10 +476,10 @@ export function VehicleFilterBar({
                 <Check className="w-3 h-3 text-white" />
               )}
             </div>
-            <span className="text-xs text-slate-600">
+            <span className="text-xs text-slate-600 font-medium">
               {selectedCount > 0
                 ? `Zaznaczono ${selectedCount} z ${totalVisible}`
-                : `Zaznacz wszystkie (${totalVisible})`}
+                : `Zaznacz całą listę widoczną z filtru (${totalVisible})`}
             </span>
           </label>
 
@@ -260,9 +489,10 @@ export function VehicleFilterBar({
               <button
                 onClick={onDeleteSelected}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-100 rounded-md transition-colors"
+                title="Skasuj pojazd(y) i załączniki PDF/XLS z bazy i Cloud Storage"
               >
                 <Trash2 className="w-3 h-3" />
-                Usuń ({selectedCount})
+                Usuń Dokument z Ekstrakcją ({selectedCount})
               </button>
 
               {selectedCount >= 2 && selectedCount <= 5 && (

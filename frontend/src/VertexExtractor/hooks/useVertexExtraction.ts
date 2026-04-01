@@ -43,7 +43,7 @@ export function useVertexExtraction(
       }
     } catch (err) {
       console.error("Extraction failed:", err);
-      // eslint-disable-next-line no-alert
+       
       alert("Nie udało się przeanalizować zapytania. Spróbuj ponownie.");
     } finally {
       setExtracting(false);

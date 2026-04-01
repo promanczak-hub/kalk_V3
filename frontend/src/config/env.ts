@@ -8,14 +8,9 @@ export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 export function validateEnv(): boolean {
   const errors: string[] = [];
 
-  if (!API_BASE_URL) {
-    errors.push("Brak VITE_API_URL w zmiennych środowiskowych.");
-  }
-  
   if (!SUPABASE_URL) {
     errors.push("Brak SUPABASE_URL w zmiennych środowiskowych.");
   }
-
 
   if (!SUPABASE_ANON_KEY) {
     errors.push("Brak VITE_SUPABASE_ANON_KEY w zmiennych środowiskowych.");
@@ -29,3 +24,4 @@ export function validateEnv(): boolean {
 
   return true;
 }
+

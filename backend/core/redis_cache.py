@@ -34,10 +34,10 @@ def _get_client() -> Any:
     global _client, _redis_available, _redis_down_until
     if _client is not None:
         return _client
-        
+
     if time.time() < _redis_down_until:
         return None
-        
+
     try:
         import redis as redis_lib
 

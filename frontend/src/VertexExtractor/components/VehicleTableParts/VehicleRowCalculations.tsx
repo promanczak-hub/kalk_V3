@@ -11,6 +11,7 @@ import { MatrixHeatmapView, MatrixViewToggle } from "../../../CalculatorPanel/Ma
 import { fmtPLN } from "./calculations/calculations.utils";
 import { CellDetail } from "./calculations/CellDetail";
 import { useVehicleCalculations } from "./calculations/useVehicleCalculations";
+import { AccordionCard } from "./AccordionCard";
 
 export function VehicleRowCalculations({ 
   kalkulacjaId, 
@@ -91,98 +92,98 @@ export function VehicleRowCalculations({
   }
 
   return (
-    <Box sx={{ mt: 4, pt: 4, borderTop: "1px dashed #cbd5e1", backgroundColor: "transparent" }}>
-      {/* Top Banner */}
-      <Box sx={{ p: 2, mb: 2, bgcolor: "transparent" }}>
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <Calculator className="w-6 h-6 text-blue-700" />
-              <div>
-                <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
-                  Kalkulacja: {kalkulacjaNumer}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  ID: {kalkulacjaId}
-                </Typography>
-              </div>
-            </div>
-            {/* Added context details */}
-            {(offerNumber || configCode || vehicleName) && (
-              <div className="flex flex-wrap items-center gap-2 mt-1 pl-9 text-xs text-slate-500 font-medium">
-                {offerNumber && (
-                  <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">Oferta: {offerNumber}</span>
-                )}
-                {configCode && (
-                  <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">Kod: {configCode}</span>
-                )}
-                {vehicleName && (
-                  <span className="text-slate-600 ml-1">
-                    {vehicleName} {powertrain && `• ${powertrain}`} 
-                    {basePrice > 0 && ` • ${fmtPLN(basePrice)} PLN netto`}
-                  </span>
-                )}
-              </div>
+    <AccordionCard
+      id={`calculations-${vehicleId}`}
+      title={
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold tracking-tight text-slate-800">
+            Kalkulacja: {kalkulacjaNumer}
+          </span>
+          <span className="text-xs text-slate-500 font-medium hidden sm:inline-block">
+            (ID: {kalkulacjaId.slice(0, 8)}...)
+          </span>
+        </div>
+      }
+      icon={<Calculator className="w-4 h-4 text-blue-700" />}
+      defaultOpen={true}
+      className="mb-8"
+      headerRight={
+        <div className="flex items-center gap-2">
+          {modifiedCells.size > 0 && (
+            <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
+              {modifiedCells.size} zmodyfikowana(e)
+            </span>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); fetchMatrix(); }}
+            className="flex items-center text-xs font-semibold px-2 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors shadow-sm"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+            Reset
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {/* Context details */}
+        {(offerNumber || configCode || vehicleName) && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-medium">
+            {offerNumber && (
+              <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">Oferta: {offerNumber}</span>
+            )}
+            {configCode && (
+              <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">Kod: {configCode}</span>
+            )}
+            {vehicleName && (
+              <span className="text-slate-600 ml-1">
+                {vehicleName} {powertrain && `• ${powertrain}`} 
+                {basePrice > 0 && ` • ${fmtPLN(basePrice)} PLN netto`}
+              </span>
             )}
           </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
-                {modifiedCells.size > 0 && (
-                  <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
-                    {modifiedCells.size} zmodyfikowana(e)
-                  </span>
-                )}
-                <button
-                  onClick={fetchMatrix}
-                  className="flex items-center text-xs font-semibold px-3 py-1.5 rounded bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors shadow-sm"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                  Reset (odśwież z serwera)
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-4 mt-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Korekta: WR</span>
-                  <input
-                    type="number"
-                    step={500}
-                    value={globalWrCorrection}
-                    onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalWrCorrection(isNaN(parsed) ? globalWrCorrection : parsed); }}
-                    className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
-                    placeholder="WR"
-                  />
-                  <span className="text-[10px] text-slate-400">PLN</span>
-                </div>
+        )}
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🛞 Korekta: Opony</span>
-                  <input
-                    type="number"
-                    step={200}
-                    value={globalTireCorrection}
-                    onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalTireCorrection(isNaN(parsed) ? globalTireCorrection : parsed); }}
-                    className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
-                    placeholder="Opony"
-                  />
-                  <span className="text-[10px] text-slate-400">PLN</span>
-                </div>
-
-                <button
-                  onClick={handleGlobalRecalculate}
-                  disabled={isGlobalRecalculating || loading}
-                  className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md uppercase tracking-wide"
-                >
-                  {isGlobalRecalculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TrendingUp className="w-3.5 h-3.5" />}
-                  Przelicz Korekty
-                </button>
-              </div>
+        <div className="flex justify-end">
+          <div className="flex items-center gap-4 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Korekta: WR</span>
+              <input
+                type="number"
+                step={500}
+                value={globalWrCorrection}
+                onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalWrCorrection(isNaN(parsed) ? globalWrCorrection : parsed); }}
+                className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
+                placeholder="WR"
+              />
+              <span className="text-[10px] text-slate-400">PLN</span>
             </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🛞 Korekta: Opony</span>
+              <input
+                type="number"
+                step={200}
+                value={globalTireCorrection}
+                onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalTireCorrection(isNaN(parsed) ? globalTireCorrection : parsed); }}
+                className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
+                placeholder="Opony"
+              />
+              <span className="text-[10px] text-slate-400">PLN</span>
+            </div>
+
+            <button
+              onClick={handleGlobalRecalculate}
+              disabled={isGlobalRecalculating || loading}
+              className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md uppercase tracking-wide"
+            >
+              {isGlobalRecalculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TrendingUp className="w-3.5 h-3.5" />}
+              Przelicz Korekty
+            </button>
+          </div>
         </div>
-      </Box>
 
       {/* Main content */}
-      <Box sx={{ px: 0, width: "100%" }}>
+      <div className="w-full">
         {loading && (
           <div className="flex flex-col items-center justify-center py-16 text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100">
             <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-600" />
@@ -391,7 +392,8 @@ export function VehicleRowCalculations({
             </div>
           </div>
         )}
-      </Box>
-    </Box>
+      </div>
+      </div>
+    </AccordionCard>
   );
 }

@@ -7,7 +7,7 @@ import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo
 export function useVehicleMetaManager(
   vehicle: FleetVehicleView,
   serverMappedData: MappedData | undefined,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _localMappedData: MappedData | null,
   setLocalMappedData: React.Dispatch<React.SetStateAction<MappedData | null>>
 ) {

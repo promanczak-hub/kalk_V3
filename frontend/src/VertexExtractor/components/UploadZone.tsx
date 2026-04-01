@@ -104,11 +104,11 @@ export function UploadZone({ onFilesSelected }: UploadZoneProps) {
           </Box>
 
           <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Wybierz plik z komputera
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+              Panel kalkulacji najmu długoterminowego (LTR) oparty o technologię VisionAI - prześlij plik z ofertą dealera lub konfiguracją.
             </Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              lub przeciągnij go tutaj • PDF, XLS, XLSX, PNG, JPG do 50 MB
+            <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem" }}>
+              System poprawnie przyjmuje pliki, gdzie samochód występuje pojedynczo (PDF/XLS/XLSX). Maksymalny rozmiar: 10MB. Mile widziane rozbudowane detale (masy, wymiary, pełne wyposażenie).
             </Typography>
           </Box>
 

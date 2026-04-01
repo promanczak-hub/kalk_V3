@@ -255,7 +255,16 @@ def finalize_vehicle_pipeline(
         )
         generate_embedding_for_vehicle.delay(vehicle_id)
     except Exception as emb_e:
-        logger.error(f"[BG TASK] Błąd przy uruchamianiu celery dla wektorów: {emb_e}")
+        logger.warning(
+            f"[BG TASK] Celery niedostępny, generuję embedding synchronicznie: {emb_e}"
+        )
+        try:
+            result = generate_embedding_for_vehicle(vehicle_id)
+            logger.info(f"[BG TASK] Embedding synchroniczny: {result.get('status')}")
+        except Exception as sync_e:
+            logger.error(
+                f"[BG TASK] Błąd synchronicznego generowania embeddingu: {sync_e}"
+            )
 
     cache_invalidate_pattern("initial_data")
     cache_invalidate_pattern("filters:*")

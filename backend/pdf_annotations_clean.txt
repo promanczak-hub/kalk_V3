@@ -1,0 +1,193 @@
+PDF: C:\Users\proma\Downloads\opisapki.pdf
+Stron: 1
+================================================================================
+
+### Strona 1: 37 adnotacji
+------------------------------------------------------------
+
+  [1] Typ: Text | Autor: proma | Data: D:20260401151505+02'00'
+      Pozycja: x=54, y=87
+      TREŚĆ:
+        Panel kalkulacji najmu długoterminowego (LTR) oparty o technologię VisionAI - przeslij plik z ofertą dealera lub konfiguracją
+
+  [2] Typ: Text | Autor: proma | Data: D:20260401151813+02'00'
+      Pozycja: x=600, y=305
+      TREŚĆ:
+        to możesz usunąć bo to nie ma nic wpływt
+
+  [3] Typ: Text | Autor: proma | Data: D:20260401151826+02'00'
+      Pozycja: x=635, y=253
+      TREŚĆ:
+        to tez usun bo wyszukiwania samochodów jest w innym miejscu
+
+  [4] Typ: Text | Autor: proma | Data: D:20260401151843+02'00'
+      Pozycja: x=247, y=299
+      TREŚĆ:
+        to zostaw - skoro mamy skanowanie vektorowe to chcę wpisac np. klima, led, kombi i znaleźć samochód na tej liście
+
+  [5] Typ: Text | Autor: proma | Data: D:20260401151916+02'00'
+      Pozycja: x=333, y=176
+      TREŚĆ:
+        cały ten panel ma być malutki i niemal niewidoczny - napisz tylko, że system poprawnie przyjmuje pliki gdzie samochód występuje pojedynczo w danym pliku PDF?XLS, maksymalny rozmiar pliku to 10MB, mile widziane rozbudowane detale dot. samochodu tj masy, wymiary, pełne wyposażenie itd.
+
+  [6] Typ: Text | Autor: proma | Data: D:20260401152315+02'00'
+      Pozycja: x=231, y=258
+      TREŚĆ:
+        usun to digital twin
+
+  [7] Typ: Text | Autor: proma | Data: D:20260401152352+02'00'
+      Pozycja: x=56, y=303
+      TREŚĆ:
+        tutaj możesz dać również filtrowanie na zasadzie dropdownów gdzie można wybrać markę, model, slider obsustrinny z ceną (pokazuje cenę baza katalogowa + opcje fabryczne dodatkowo + wyposażenie serwisowe, jak wcisnę znacznik to pokazuje się cena po rabacie), zaproponuj co możesz jeszcze pokazywać w filtrach? może typ nadwozia, rodzaj silnika, klasa samar, osobowy/ciężarowy, rodzaj napędu, - uwzględnj pokazywanie i to ze jest paginacja
+
+  [8] Typ: Text | Autor: proma | Data: D:20260401152706+02'00'
+      Pozycja: x=118, y=356
+      TREŚĆ:
+        data oferty powinna być osią czasu i zeby z obu stron zawężąć - pownny być pokazane lata i miesiące
+
+  [9] Typ: Text | Autor: proma | Data: D:20260401152735+02'00'
+      Pozycja: x=90, y=394
+      TREŚĆ:
+        to można usunąć z widoku, ale jak zaznaczę np. 7 summary card to chce mieć obok zaznaczenia przycisk tam gdzie jestem "usuń" aby usunąć dany samochód wraz z danymi zależnymi tj PDF ale jak już raz zrobiłem kalkulacje na dany samochód to ona powinna zostać gdzieś w panelu kalkulacje aby był do niej wgląd (ale oznaczenie np. kalkulacja historyczna (ale nadl z dostępem do tego PDF - po prostu potrzebuję panel wykonanych kalkulacji gdzie będę widzieć numer kalkulacji, ID samochodu, cały powertrain itd, koszt dzienny (podany dla 48 miesięcy i 140.000km)
+
+  [10] Typ: Text | Autor: proma | Data: D:20260401153331+02'00'
+      Pozycja: x=615, y=510
+      TREŚĆ:
+        w tym widoku chcę widzieć cenę katalogową brutto bo teraz jest netto brutto
+
+  [11] Typ: Text | Autor: proma | Data: D:20260401153354+02'00'
+      Pozycja: x=710, y=514
+      TREŚĆ:
+        usun funkcję readiness całkiem a nie tylko ten znacznik - domyślnie kazdy samochód będzie mieć dane do własnych przeliczeń. Nie stosujemy zadnych fallbacków w procesie kalkulacyjnym - po prostu jesli czegos nie ma to proces się blokuje.
+
+  [12] Typ: Text | Autor: proma | Data: D:20260401153551+02'00'
+      Pozycja: x=584, y=747
+      TREŚĆ:
+        tutaj ma być dropdown wporst z tego co mamy powyżej tj. SILNIUK: Elektryczny BEV
+
+  [13] Typ: Text | Autor: proma | Data: D:20260401153703+02'00'
+      Pozycja: x=753, y=305
+      TREŚĆ:
+        co daje ten przycisk
+
+  [14] Typ: Text | Autor: proma | Data: D:20260401153726+02'00'
+      Pozycja: x=572, y=716
+      TREŚĆ:
+        Napęd to jest to samo co oś napędowa tj przód, tył, 4x4 i odnosi się do tej samej tabeli
+
+  [15] Typ: Text | Autor: proma | Data: D:20260401154107+02'00'
+      Pozycja: x=525, y=1143
+      TREŚĆ:
+        wielkość czcionek niech będzie taka sama jak ta użytwa do nazwy opcji
+
+  [16] Typ: Text | Autor: proma | Data: D:20260401154140+02'00'
+      Pozycja: x=651, y=1888
+      TREŚĆ:
+        jesli korzystamy z PDF i usunęlismy opcję mergowania z cennikami to usunmy casłkiem wzbogacanie cech. Jesli damy nowego PDFA z danym autem to będziemy mueisli od nowa go wgrać aby w pierwszym potoku dostać lepsze dane
+
+  [17] Typ: Text | Autor: proma | Data: D:20260401154447+02'00'
+      Pozycja: x=657, y=1946
+      TREŚĆ:
+        to usun bo wszsytko będzie przeciez dostępne do przeliczeń
+
+  [18] Typ: Text | Autor: proma | Data: D:20260401154510+02'00'
+      Pozycja: x=411, y=2084
+      TREŚĆ:
+        czcionka wielkość mniejsza i ujednolicona
+
+  [19] Typ: Text | Autor: proma | Data: D:20260401154532+02'00'
+      Pozycja: x=132, y=2234
+      TREŚĆ:
+        nazwij opcje serwisowe
+
+  [20] Typ: Text | Autor: proma | Data: D:20260401154543+02'00'
+      Pozycja: x=235, y=2234
+      TREŚĆ:
+        usun to digital twin
+
+  [21] Typ: Text | Autor: proma | Data: D:20260401154553+02'00'
+      Pozycja: x=680, y=2341
+      TREŚĆ:
+        usun tą funkjcę
+
+  [22] Typ: Text | Autor: proma | Data: D:20260401154604+02'00'
+      Pozycja: x=562, y=2338
+      TREŚĆ:
+        usun tą funkcję
+
+  [23] Typ: Text | Autor: proma | Data: D:20260401154617+02'00'
+      Pozycja: x=140, y=2425
+      TREŚĆ:
+        usun ten znacznik AI
+
+  [24] Typ: Text | Autor: proma | Data: D:20260401154631+02'00'
+      Pozycja: x=712, y=2424
+      TREŚĆ:
+        korekta kosztu musi zostać stąd usunięta i przeniesiona do matrixa (ona dotyczy przeliczenia na konkretny czas/okres)
+
+  [25] Typ: Text | Autor: proma | Data: D:20260401154705+02'00'
+      Pozycja: x=543, y=2541
+      TREŚĆ:
+        domyslna marża sprzedaży to 15% i wynika z tabeli Supabase
+
+  [26] Typ: Text | Autor: proma | Data: D:20260401154728+02'00'
+      Pozycja: x=646, y=2543
+      TREŚĆ:
+        Powinien być te czynsz inicjalny kwotowy do wpisania netto lub brutto a nie tylko procentowo
+
+  [27] Typ: Text | Autor: proma | Data: D:20260401154803+02'00'
+      Pozycja: x=129, y=2614
+      TREŚĆ:
+        to dotyczy pojedyńczego matrxia i powinno być do uzupełniania dla pojedyńczego matrixa i koszt poidawany jest dla całego okresu i przebiegu wiec w tym miejscu to nie moze być.
+
+  [28] Typ: Text | Autor: proma | Data: D:20260401154848+02'00'
+      Pozycja: x=675, y=2618
+      TREŚĆ:
+        tutaj ma być metalik i niemetalik - usun w ogóle opcję lakier bazowy i to się odnosi wprost do słownika z supabase.
+
+  [29] Typ: Text | Autor: proma | Data: D:20260401154923+02'00'
+      Pozycja: x=228, y=2745
+      TREŚĆ:
+        jak to klikam to chcę widzieć od razu kalkulacje ładowane na ten model a nie czekać... i widok robi sioę ciemny i muszę przewijać na górę aby to zobaczyć. Albo jak nacisnę to to moze mi podswietlac te kalkulacje w widoku kalkulacji, który opisywałem powyzej.
+
+  [30] Typ: Text | Autor: proma | Data: D:20260401155055+02'00'
+      Pozycja: x=438, y=2746
+      TREŚĆ:
+        nadl nie mam tego draftu... dlaczego to nie jest generowane,.
+
+  [31] Typ: Text | Autor: proma | Data: D:20260401155131+02'00'
+      Pozycja: x=201, y=9543
+      TREŚĆ:
+        tutaj daj slider do 5 lat tj od 24 do 60
+
+  [32] Typ: Text | Autor: proma | Data: D:20260401155151+02'00'
+      Pozycja: x=497, y=9523
+      TREŚĆ:
+        jak to włączę to mam mieć przebieg dla 300.000km maksymlanie i niezależnie od tego czy okres jest 24 czy 60 miesięcy.
+
+  [33] Typ: Text | Autor: proma | Data: D:20260401155224+02'00'
+      Pozycja: x=658, y=9543
+      TREŚĆ:
+        tutaj chce miec pole do wpisania marży
+
+  [34] Typ: Text | Autor: proma | Data: D:20260401155327+02'00'
+      Pozycja: x=696, y=9621
+      TREŚĆ:
+        po prostu nazwij to przelicz
+
+  [35] Typ: Text | Autor: proma | Data: D:20260401155341+02'00'
+      Pozycja: x=381, y=9715
+      TREŚĆ:
+        pokazuj co 5000km na kontrakt a nie co 1500km. W trybie liczenia wariantu precyzyjnego można przeliczyć kazdy matrix
+
+  [36] Typ: Text | Autor: proma | Data: D:20260401155430+02'00'
+      Pozycja: x=66, y=9900
+      TREŚĆ:
+        jak przewijam w prawo to chcę ten panel mieć cały czas widoczny aby nie znikał.
+
+  [37] Typ: Text | Autor: proma | Data: D:20260401155504+02'00'
+      Pozycja: x=198, y=10012
+      TREŚĆ:
+        to możesz usunąć stąd
+
+================================================================================

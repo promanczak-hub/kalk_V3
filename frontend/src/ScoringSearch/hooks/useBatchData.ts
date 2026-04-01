@@ -13,6 +13,16 @@ export interface PriceForParams {
   kalkulacja_id?: string;
 }
 
+export interface SimilarityReasons {
+  samar_match: boolean;
+  body_match: boolean;
+  fuel_match: boolean;
+  drive_match: boolean;
+  price_pct_diff: number | null;
+  samar_category: string | null;
+  body_style: string | null;
+}
+
 export interface SimilarVehicle {
   vehicle_id: string;
   brand: string | null;
@@ -23,11 +33,13 @@ export interface SimilarVehicle {
   best_monthly_price: number | null;
   similarity_score_pct: number | null;
   image_url?: string;
-  // New technical metadata
+  // Technical metadata
   power_hp: number | null;
   body_style: string | null;
   vehicle_class: string | null;
   drive_type: string | null;
+  // Why this vehicle is similar
+  similarity_reasons?: SimilarityReasons | null;
 }
 
 export function useBatchPrices(

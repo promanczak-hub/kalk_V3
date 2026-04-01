@@ -165,7 +165,7 @@ export function useDocumentProcessing(onSuccessSaved?: () => void) {
         console.error("Extraction error:", error);
         
         if (error instanceof Error && error.name === "AbortError") {
-          console.log("Upload aborted by user.");
+          // Upload aborted by user — expected behavior.
           return; // Ignore setting error states if intentionally aborted
         }
         

@@ -70,8 +70,6 @@ class LTRKalkulator:
             z_oponami=getattr(self.input_data, "z_oponami", True),
             klasa_opony_string=getattr(self.input_data, "klasa_opony_string", ""),
             srednica_felgi=getattr(self.input_data, "srednica_felgi", 0) or 0,
-            korekta_kosztu=getattr(self.input_data, "korekta_kosztu_opon", False),
-            koszt_opon_korekta=getattr(self.input_data, "koszt_opon_korekta", 0.0),
             sets_needed_override=getattr(
                 self.input_data, "liczba_kompletow_opon", None
             ),
@@ -98,6 +96,7 @@ class LTRKalkulator:
 
             if raw_v:
                 from core.models import VehicleDataDTO
+
                 self.vehicle = VehicleDataDTO(
                     id=str(raw_v.get("id", "0")),
                     brand=str(raw_v.get("brand", "UNKNOWN")),
@@ -419,8 +418,19 @@ class LTRKalkulator:
                 (months, km_per_year), int((km_per_year / 12) * months)
             )
 
-            # 1. Koszty Opon
-            tires_res = self.tires_calc.calculate_cost(months=months, total_km=total_km)
+            # 1. Koszty Opon — per-komórka korekta z mapy wejściowej
+            _correction_map: Dict[str, float] = (
+                getattr(self.input_data, "koszt_opon_korekta", {}) or {}
+            )
+            _cell_key = f"{months}_{total_km}"
+            _correction_for_cell = (
+                _correction_map.get(_cell_key, 0.0)
+                if getattr(self.input_data, "korekta_kosztu_opon", False)
+                else 0.0
+            )
+            tires_res = self.tires_calc.calculate_cost(
+                months=months, total_km=total_km, correction_gross=_correction_for_cell
+            )
             capex_for_financing = (
                 capex + tires_res["capex_initial_set"]
             )  # WartoĹ›Ä‡ opony do rat
@@ -823,5 +833,278 @@ class LTRKalkulator:
                 }
             )
             cells[-1]["ReportHtml"] = build_report_html(cells[-1])
+
+        return cells
+
+    def build_reverse_search_matrix(self) -> List[Dict[str, Any]]:
+        """Przelicza siatke kwot na potrzebe zapytan masowych w tle (Reverse Search).
+        Tylko minimalne wymagane klucze dla zadania matrix_cache_job.py, by odciazyc zbedne koszty obliczeniowe (brak PDF HTML).
+        Rozdzielczosc kroku umozliwia 212 unikatowych wyliczen: od 40k do 300 000 km co 5k.
+        """
+        cells = []
+
+        vehicle_capex, options_capex, capex_res = self._calculate_capex()
+        capex = vehicle_capex + options_capex
+
+        base_price_net_full = float(getattr(self.vehicle, "price_net", 0.0))
+        if base_price_net_full == 0.0:
+            base_price_net_full = float(getattr(self.input_data, "base_price_net", 0.0))
+
+        # Opcje pod WartoĹ›Ä‡ RezydualnÄ… (Zawsze Fabryczne + Serwisowe z include_in_wr)
+        base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
+        base_wr_options += sum(
+            opt.price_net
+            for opt in self.input_data.service_options
+            if getattr(opt, "include_in_wr", False)
+        )
+
+        margin_pct = 0.0001  # Fix for division by zero - Reverse Search operates solely on base net cost 0 margin
+
+        grid_params: List[tuple[int, int]] = []
+        contract_km_by_pair: Dict[tuple[int, int], int] = {}
+
+        # 4 periods, from 40k to 300k step 5k => ensures <=300k is explicitly calculated
+        for months in (24, 36, 48, 60):
+            for total_km in range(40000, 300001, 5000):
+                km_per_year = int(round((total_km / months) * 12))
+                pair = (months, km_per_year)
+                grid_params.append(pair)
+                contract_km_by_pair[pair] = total_km
+
+        for months, km_per_year in grid_params:
+            total_km = contract_km_by_pair[(months, km_per_year)]
+
+            # 1. Koszty Opon
+            tires_res = self.tires_calc.calculate_cost(months=months, total_km=total_km)
+            capex_for_financing = capex + tires_res["capex_initial_set"]
+
+            # Uzywamy tylko opcji wp_amortyzacja do WR
+            discount_pct = getattr(self.input_data, "discount_pct", 0) / 100.0
+            discounted_factory_options = base_wr_options * (1 - discount_pct)
+            wp_amortyzacja = vehicle_capex + discounted_factory_options
+
+            vat_rate = getattr(self.settings, "vat_rate", 1.23)
+            if vat_rate > 10.0:
+                vat_rate = 1.0 + (vat_rate / 100.0)
+
+            rv_calc_v3 = LTRSubCalculatorUtrataWartosciNew(
+                self.vehicle, self.input_data
+            )
+            rv_res = rv_calc_v3.calculate_values(
+                months=months,
+                total_km=total_km,
+                base_vehicle_catalog_gross=base_price_net_full * vat_rate,
+                options_catalog_gross=base_wr_options * vat_rate,
+            )
+            vr_samar = rv_res["WR"]
+
+            # PMT
+            vat_rate_fin = getattr(self.settings, "vat_rate", 1.23)
+            if vat_rate_fin > 10.0:
+                vat_rate_fin = 1.0 + (vat_rate_fin / 100.0)
+
+            finance_input = FinanseInput(
+                WartoscPoczatkowaNetto=capex_for_financing,
+                WrPrzewidywanaCenaSprzedazy=vr_samar,
+                CzynszInicjalny=float(
+                    getattr(self.input_data, "CzynszKwota", 0.0) or 0.0
+                ),
+                CzynszProcent=float(
+                    getattr(self.input_data, "CzynszProcent", 0.0) or 0.0
+                ),
+                RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
+                StawkaVAT=vat_rate_fin,
+                Okres=months,
+                WIBORProcent=float(
+                    self.input_data.wibor_pct
+                    if getattr(self.input_data, "wibor_pct", None) is not None
+                    else getattr(self.settings, "default_wibor", 5.0)
+                ),
+                MarzaFinansowaProcent=float(
+                    self.input_data.margin_pct
+                    if getattr(self.input_data, "margin_pct", None) is not None
+                    else getattr(self.settings, "default_ltr_margin", 2.0)
+                ),
+            )
+            finance_calc = FinanseCalculator(finance_input)
+            finance_res = finance_calc.calculate()
+
+            tires_base = float(
+                tires_res["monthly_hardware"]
+                + tires_res["monthly_storage"]
+                + tires_res["monthly_swaps"]
+            )
+
+            normatywny_przebieg = int(
+                getattr(self.settings, "normatywny_przebieg_mc", 0) or 0
+            )
+            if normatywny_przebieg <= 0:
+                raise ValueError(
+                    "Brak poprawnej wartosci `normatywny_przebieg_mc` w Control Center."
+                )
+            if not self.samar_id:
+                raise ValueError(
+                    "Brak `samar_class_id` dla pojazdu. Uzupelnij klase SAMAR w danych wejsciowych."
+                )
+
+            engine_type_id = int(getattr(self.vehicle, "engine_type_id", 0) or 0)
+            if engine_type_id <= 0:
+                engine_name_input = getattr(self.input_data, "engine_name", None)
+                if engine_name_input:
+                    try:
+                        engine_type_id = _resolve_engine_type_id(engine_name_input)
+                    except Exception:
+                        pass
+            if engine_type_id <= 0:
+                raise ValueError(
+                    "Brak `engine_type_id` dla pojazdu. Uzupelnij typ silnika w danych wejsciowych."
+                )
+
+            power_kw_input = getattr(self.input_data, "power_kw", None)
+            if power_kw_input and float(power_kw_input) > 0:
+                power_kw = float(power_kw_input)
+            else:
+                power_kw_val = getattr(self.vehicle, "power_kw", 0.0)
+                power_kw = float(power_kw_val if power_kw_val is not None else 0.0)
+            if power_kw <= 0.0:
+                raise ValueError(
+                    f"Brak poprawnej mocy `power_kw` pojazdu. power_kw_input={power_kw_input}, self.vehicle_power_kw={getattr(self.vehicle, 'power_kw', None)}"
+                )
+
+            pakiet_serwisowy_val = float(
+                getattr(self.input_data, "pakiet_serwisowy", 0.0)
+            )
+            inne_koszty_val = float(
+                getattr(self.input_data, "inne_koszty_serwisowania_netto", 0.0)
+            )
+
+            service_input = ServiceCalculatorInput(
+                z_serwisem=self.include_servicing,
+                opcja_serwisowa=self._opcja_serwisowa,
+                normatywny_przebieg_mc=normatywny_przebieg,
+                samar_class_id=int(self.samar_id),
+                brand_normalized=str(getattr(self.vehicle, "brand", "")),
+                fuel_type=str(
+                    getattr(
+                        self.vehicle,
+                        "engine_category",
+                        getattr(self.input_data, "engine_name", ""),
+                    )
+                ),
+                drive_type=str(getattr(self.vehicle, "drive_type", "")),
+                gearbox_type=str(
+                    getattr(
+                        self.vehicle,
+                        "gearbox",
+                        getattr(self.input_data, "gearbox_name", ""),
+                    )
+                ),
+                przebieg=total_km,
+                okres=months,
+                pakiet_serwisowy=pakiet_serwisowy_val,
+                inne_koszty_serwisowania_netto=inne_koszty_val,
+            )
+            service_calc = ServiceCalculator(service_input)
+            service_from_new_dict = service_calc.calculate()
+            service_from_new = float(service_from_new_dict["monthly_service"])
+
+            service_base = service_from_new
+            if self.include_servicing and service_from_new <= 0:
+                raise ValueError(
+                    f"Brak stawek serwisowych (ServiceCalculator zwrocil 0) dla "
+                    f"okres={months}, klasa={getattr(self.vehicle, 'samar_class_id', '?')}, "
+                    f"silnik={getattr(self.vehicle, 'engine_type_id', '?')}."
+                )
+
+            if getattr(self.input_data, "depreciation_pct", None) is not None:
+                procent_amortyzacji_miesiecznie = float(
+                    self.input_data.depreciation_pct
+                )
+            else:
+                amort_input = AmortyzacjaInput(
+                    wp_finansowanie=capex_for_financing,
+                    wp_amortyzacja=wp_amortyzacja,
+                    wr=vr_samar,
+                    okres=months,
+                )
+                amort_result = AmortyzacjaCalculator(amort_input).calculate()
+                procent_amortyzacji_miesiecznie = amort_result.amortyzacja_procent
+
+            s_class_id = str(self.samar_id)
+            insurance_rates = get_insurance_rates_from_db(s_class_id)
+            damage_coeffs = get_damage_coefficients_from_db(s_class_id)
+            ins_calc = InsuranceCalculator(
+                insurance_rates=insurance_rates,  # type: ignore
+                damage_coefficients=damage_coeffs,  # type: ignore
+                settings=self.settings,  # type: ignore
+                amortization_pct=procent_amortyzacji_miesiecznie,  # type: ignore
+                total_km=total_km,  # type: ignore
+            )
+            insurance_res = ins_calc.calculate_cost(months, capex_for_financing)  # type: ignore
+            insurance_base = float(insurance_res["monthly_insurance"])
+            insurance_total = float(
+                insurance_res.get("total_insurance", insurance_base * months)
+            )
+
+            rc_rate = get_replacement_car_rate_from_db(s_class_id)
+            rc_calc = ReplacementCarCalculator(rc_rate)  # type: ignore
+            rc_res = rc_calc.calculate_cost(
+                months=months, enabled=self.input_data.replacement_car_enabled
+            )
+            rc_base = float(rc_res["monthly_replacement_car"])
+            rc_total = float(rc_res.get("total_replacement_car", rc_base * months))
+
+            add_calc = AdditionalCostsCalculator(self.settings, self.input_data, months)
+            add_calc_res = add_calc.calculate_cost()
+            additional_costs_base = float(add_calc_res["monthly_additional_costs"])
+            additional_costs_total = additional_costs_base * months
+
+            tires_total = tires_base * months
+            service_total = service_base * months
+            utrata_z_czynszem = float(
+                rv_res.get(
+                    "UtrataWartosciZCzynszemInicjalnym", capex_for_financing - vr_samar
+                )
+            )
+            utrata_bez_czynszu = float(rv_res["UtrataWartosciBEZczynszu"])
+
+            kd_input = KosztDziennyInput(
+                utrata_wartosci_z_czynszem=utrata_z_czynszem,
+                utrata_wartosci_bez_czynszu=utrata_bez_czynszu,
+                koszt_finansowy=finance_res.SumaOdsetekZczynszem,
+                samochod_zastepczy_netto=rc_total,
+                koszty_dodatkowe_netto=additional_costs_total,
+                ubezpieczenie_netto=insurance_total,
+                opony_netto=tires_total,
+                serwis_netto=service_total,
+                suma_odsetek_bez_czynszu=finance_res.SumaOdsetekBEZczynszu,
+                okres=months,
+            )
+            kd_result = KosztDziennyCalculator(kd_input).calculate()
+
+            stawka_input = StawkaInput(
+                koszt_mc=kd_result.koszt_mc,
+                koszt_mc_bez_czynszu=kd_result.koszt_mc_bez_czynszu,
+                utrata_wartosci_netto=utrata_z_czynszem,
+                koszty_finansowe_netto=finance_res.SumaOdsetekZczynszem,
+                ubezpieczenie_netto=insurance_total,
+                samochod_zastepczy_netto=rc_total,
+                koszty_dodatkowe_netto=additional_costs_total,
+                opony_netto=tires_total,
+                serwis_netto=service_total,
+                okres=months,
+                marza=margin_pct,
+                czynsz_inicjalny=float(finance_res.CzynszInicjalnyNetto),
+            )
+            stawka_result = StawkaCalculator(stawka_input).calculate()
+
+            cells.append(
+                {
+                    "Okres": months,
+                    "Przebieg": km_per_year,
+                    "PrzebiegKontrakt": total_km,
+                    "LacznaStawka": round(stawka_result.oferowana_stawka, 0),
+                }
+            )
 
         return cells

@@ -72,7 +72,7 @@ export const useScoringSearch = () => {
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Search request aborted due to a newer request.');
+        // Search request aborted due to a newer request — expected behavior.
       } else {
         console.error(err);
         if (!signal.aborted) {

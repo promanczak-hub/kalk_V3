@@ -1,13 +1,9 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
-import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, CheckCircle, XCircle, AlertCircle, Edit3 } from "lucide-react";
-import { Autocomplete, TextField } from "@mui/material";
-import type { AutocompleteRenderInputParams } from "@mui/material";
+import React, { useState, useCallback, useMemo } from "react";
+import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, Edit3, Car, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
-import type { FleetVehicleView } from "../../types";
-import { PriceDualFormat } from "./PriceDualFormat";
 import { SamarCategoryDropdown } from "./SamarCategoryDropdown";
 import { EngineCategoryDropdown } from "./EngineCategoryDropdown";
-import { VehicleTypeDropdown } from "./VehicleTypeDropdown";
+import type { FleetVehicleView } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { ServiceCostMeter } from "./ServiceCostMeter";
 
@@ -25,7 +21,7 @@ body_type?: string;
 body_candidates?: { klasa: string; confidence: number }[];
 }
 
-interface SamarCandidate {
+export interface SamarCandidate {
 klasa: string;
 confidence: number;
 }
@@ -36,47 +32,42 @@ confidence: number;
 }
 
 interface VehicleBaseInfoProps {
-vehicle: FleetVehicleView;
-mappedData?: MappedData | null;
-isExpanded: boolean;
-onToggleExpand: () => void;
-activeFinalPriceNet: number;
-totalCatalogPriceNet: number;
-formatCalculatedPrice: (val: number) => string;
-samarCandidates?: SamarCandidate[];
-onSamarCategoryChange?: (newCategory: string) => void;
-allSamarClasses?: string[];
-engineCandidates?: EngineCandidate[];
-onEngineCategoryChange?: (newCategory: string) => void;
-allEngineTypes?: string[];
-driveType?: string;
-onDriveTypeChange?: (newDriveType: string) => void;
-bodyType?: string;
-onBodyTypeChange?: (newBodyType: string) => void;
-onVehicleTypeChange?: (newType: string) => void;
-/** DB body_types — single source of truth for dropdown options */
-bodyTypeOptions?: { name: string; vehicle_class: string }[];
-isSelected?: boolean;
-onToggleSelect?: () => void;
-onConfigurationCodeChange?: (newCode: string) => void;
-crossCardAlerts?: DiscountAlert[];
-onScrollToVehicle?: (vehicleId: string) => void;
-readinessResult?: {
-    overall_status: "ready" | "partial" | "not_ready";
+  vehicle: FleetVehicleView;
+  mappedData?: MappedData | null;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  activeFinalPriceNet: number;
+  totalCatalogPriceNet: number;
+  formatCalculatedPrice: (val: number) => string;
+  samarCandidates?: SamarCandidate[];
+  onSamarCategoryChange?: (newCategory: string) => void;
+  allSamarClasses?: string[];
+  engineCandidates?: EngineCandidate[];
+  onEngineCategoryChange?: (newCategory: string) => void;
+  allEngineTypes?: string[];
+  driveType?: string;
+  onDriveTypeChange?: (newDriveType: string) => void;
+  bodyType?: string;
+  onBodyTypeChange?: (newBodyType: string) => void;
+  bodyTypeOptions?: { name: string; vehicle_class: string }[];
+  readinessResult?: {
     samar_class_id: number | null;
     fuel_type_id: number | null;
-    checks: { param: string; status: string; value: string }[];
-    critical_count: number;
-    warning_count: number;
-    resolve_error?: string;
+    status: "ready" | "partial" | "missing";
     body_match?: {
-      matched_name: string | null;
-      vehicle_class: string | null;
+      matched: boolean;
+      body_type_id: number | null;
+      raw_input: string;
       score: number;
       match_method: string;
-      raw_input: string;
+      vehicle_class?: string;
     };
   } | null;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  onConfigurationCodeChange?: (newCode: string) => void;
+  crossCardAlerts?: DiscountAlert[];
+  onScrollToVehicle?: (vehicleId: string) => void;
   paramPreview?: {
     service: {
       found: boolean;
@@ -91,6 +82,12 @@ readinessResult?: {
       power_band?: string;
     };
   } | null;
+  discountMode?: "offer" | "suggested" | "custom";
+  setDiscountMode?: (mode: "offer" | "suggested" | "custom") => void;
+  customDiscountPctRaw?: string | number;
+  setCustomDiscountPctRaw?: (val: string) => void;
+  offerDiscountPercentage?: number;
+  suggestedDiscountPct?: number;
 }
 
 function detectPowerBand(
@@ -134,15 +131,69 @@ function hasValue(v: string | null | undefined): boolean {
 return Boolean(v && v !== "Brak" && v !== "-");
 }
 
-function Tag({ children, connected }: { children: React.ReactNode; connected?: boolean }) {
+export function Tag({ children, connected, icon: Icon }: { children: React.ReactNode; connected?: boolean; icon?: React.ElementType }) {
 return (
     <span
-      className={`inline-flex items-center font-medium text-slate-600 ${connected ? "justify-center h-full px-2.5 py-1 text-[11px] bg-slate-50/50" : "bg-slate-50 px-2 py-1 text-xs border border-slate-200 rounded"}`}
+      className={`inline-flex items-center gap-1.5 font-medium text-slate-600 ${connected ? "justify-center h-full px-2.5 py-1 text-[11px] bg-slate-50/50" : "bg-slate-50 px-2.5 py-1 text-xs border border-slate-200 rounded"}`}
       style={{ fontFamily: "'Geist Mono', monospace", lineHeight: 1 }}
     >
+      {Icon && <Icon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
       {children}
     </span>
 );
+}
+
+/** Readiness badge - shows SAMAR data availability with hover tooltip */
+function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
+  const STATUS_CONFIG = {
+    ready:   { icon: CheckCircle,  color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Gotowe" },
+    partial: { icon: AlertCircle,  color: "text-amber-600",   bg: "bg-amber-50",   border: "border-amber-200",   label: "Częściowe" },
+    missing: { icon: XCircle,      color: "text-red-500",     bg: "bg-red-50",     border: "border-red-200",     label: "Brak danych" },
+  };
+  const cfg = STATUS_CONFIG[result.status];
+  const IconComp = cfg.icon;
+
+  return (
+    <span className="relative group/rb">
+      <span className={`inline-flex items-center gap-1 h-[26px] px-2.5 rounded border text-[11px] font-semibold cursor-default transition-colors ${cfg.color} ${cfg.bg} ${cfg.border}`}
+        style={{ fontFamily: "'Geist Mono', monospace" }}>
+        <IconComp className="w-3.5 h-3.5" />
+        {cfg.label}
+      </span>
+      {/* Tooltip */}
+      <div className="absolute z-50 bottom-full mb-1.5 left-0 min-w-[220px] bg-white border border-slate-200 rounded-lg shadow-xl p-3 text-xs hidden group-hover/rb:block">
+        <p className="font-semibold text-slate-700 mb-1.5">Gotowość kalkulacyjna SAMAR</p>
+        <div className="space-y-1 text-slate-600">
+          <div className="flex justify-between">
+            <span>Klasa SAMAR:</span>
+            <span className={result.samar_class_id != null ? "text-emerald-600 font-medium" : "text-red-500"}>
+              {result.samar_class_id != null ? `ID: ${result.samar_class_id}` : "Brak"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Typ paliwa:</span>
+            <span className={result.fuel_type_id != null ? "text-emerald-600 font-medium" : "text-red-500"}>
+              {result.fuel_type_id != null ? `ID: ${result.fuel_type_id}` : "Brak"}
+            </span>
+          </div>
+          {result.body_match && (
+            <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+              <div className="flex justify-between">
+                <span>Nadwozie:</span>
+                {result.body_match.matched ? (
+                  <span className="text-emerald-600 font-medium">
+                    {result.body_match.score}% ({result.body_match.match_method})
+                  </span>
+                ) : (
+                  <span className="text-red-500">"{result.body_match.raw_input}" – brak</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </span>
+  );
 }
 
 const DRIVE_TYPE_OPTIONS = [
@@ -151,9 +202,9 @@ const DRIVE_TYPE_OPTIONS = [
 { value: "4x4 (AWD)", label: "4x4 (AWD)" },
 ];
 
-function DriveTypeTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
+export function DriveTypeTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
 if (!onChange) {
-    return current ? <Tag connected={connected}>Oś: {current}</Tag> : null;
+    return current ? <Tag connected={connected}>{current}</Tag> : null;
 }
 return (
     <span className="inline-flex items-center h-full">
@@ -201,7 +252,7 @@ const upper = trimmed.toUpperCase();
 return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
 }
 
-function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleType }: {
+export function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleType }: {
   current: string;
   dbOptions?: { name: string; vehicle_class: string }[];
   onChange?: (v: string) => void;
@@ -215,11 +266,14 @@ function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleTy
     // Filter by vehicle_class if provided
     let filtered = dbOptions;
     if (currentVehicleType) {
-      const isCommercial = currentVehicleType.toLowerCase().includes("commercial") || 
-                           currentVehicleType.toLowerCase().includes("dostawcz");
+      const typeLower = currentVehicleType.toLowerCase();
+      const isCommercial = typeLower.includes("commercial") || 
+                           typeLower.includes("dostawcz") ||
+                           typeLower.includes("ciężar") ||
+                           typeLower.includes("ciezar");
       filtered = dbOptions.filter(o => {
         const oClass = (o.vehicle_class || "").toLowerCase();
-        if (isCommercial) return oClass.includes("commercial") || oClass.includes("dostawcz");
+        if (isCommercial) return oClass.includes("commercial") || oClass.includes("dostawcz") || oClass.includes("ciężar") || oClass.includes("ciezar");
         return oClass.includes("passenger") || oClass.includes("osobow");
       });
       if (filtered.length === 0) filtered = dbOptions;
@@ -228,152 +282,28 @@ function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleTy
   }, [dbOptions, currentVehicleType]);
 
   if (!onChange) {
-    return current ? <Tag connected={connected}>Nadwozie: {normValue}</Tag> : null;
+    return current ? <Tag connected={connected} icon={Car}>{normValue}</Tag> : null;
   }
 
   return (
-    <div className="flex items-center h-full">
-      <Autocomplete
-        size="small"
-        options={options}
-        value={normValue || null}
-        onChange={(_: React.SyntheticEvent, newValue: string | null) => {
-          if (newValue) onChange(newValue);
-        }}
-        freeSolo
-        renderInput={(params: AutocompleteRenderInputParams) => (
-          <TextField
-            {...params}
-            placeholder="Nadwozie..."
-            variant="standard"
-            InputProps={{
-              ...params.InputProps,
-              disableUnderline: true,
-              style: { 
-                fontSize: '11px', 
-                fontFamily: "'Geist Mono', monospace",
-                padding: '0 10px',
-                height: '24px',
-                color: '#475569'
-              }
-            }}
-            sx={{
-              width: 140,
-              backgroundColor: 'transparent',
-              '& .MuiInputBase-root': { height: '100%' }
-            }}
-          />
-        )}
-        sx={{
-          '& .MuiAutocomplete-endAdornment': { display: 'none' }
-        }}
-      />
-    </div>
+    <span className="inline-flex items-center h-[26px] bg-slate-50/50 pl-2 pr-1 rounded">
+      <Car className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mr-1.5" />
+      <select
+        className={`bg-transparent font-medium text-slate-600 cursor-pointer hover:bg-slate-100 focus:outline-none focus:ring-inset focus:ring-1 focus:ring-indigo-400 ${connected ? "h-full text-[11px] border-0" : "text-xs border-0 py-0.5"}`}
+        style={{ fontFamily: "'Geist Mono', monospace" }}
+        value={normValue || ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
+      >
+        <option value="" disabled>Nadwozie...</option>
+        {options.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    </span>
   );
 }
 
-/** Readiness badge - shows SAMAR data availability with hover tooltip */
-function ReadinessBadge({ result }: { result: NonNullable<VehicleBaseInfoProps["readinessResult"]> }) {
-const [showTooltip, setShowTooltip] = useState(false);
-const tooltipRef = useRef<HTMLDivElement>(null);
-
-const statusConfig = {
-    ready:     { icon: CheckCircle,  color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Gotowe" },
-    partial:   { icon: AlertCircle,  color: "text-amber-600",   bg: "bg-amber-50",   border: "border-amber-200",   label: "Częściowo" },
-    not_ready: { icon: XCircle,      color: "text-red-600",     bg: "bg-red-50",     border: "border-red-200",     label: "Brak danych" },
-};
-
-const cfg = statusConfig[result.overall_status];
-const Icon = cfg.icon;
-
-return (
-    <span
-      className="relative inline-flex items-center"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <span
-        className={`inline-flex items-center gap-1 border ${cfg.border} ${cfg.bg} px-2 py-1 rounded text-xs font-medium ${cfg.color} cursor-default`}
-        style={{ fontFamily: "'Geist Mono', monospace", fontSize: "0.95rem", lineHeight: 1 }}
-      >
-        <Icon className="w-3.5 h-3.5" />
-        {cfg.label}
-      </span>
-
-      {showTooltip && (
-        <div
-          ref={tooltipRef}
-          className="absolute left-0 top-full mt-1 z-50 w-72 bg-white rounded-lg shadow-xl border border-slate-200 p-3 animate-in fade-in slide-in-from-top-1 duration-150"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Gotowość kalkulacyjna SAMAR
-          </div>
-          {result.resolve_error && (
-            <div className="text-xs text-red-600 font-medium mb-2 p-1.5 bg-red-50 rounded border border-red-100">
-              {result.resolve_error}
-            </div>
-          )}
-          {result.checks.length > 0 && (
-            <div className="space-y-1">
-              {result.checks.map((check, i) => {
-                const icon = check.status === "ok" ? "OK" : check.status === "warn" ? "WARN" : "ERR";
-                return (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-700">
-                      {icon} {check.param}
-                    </span>
-                    <span className={`font-mono text-[10px] ${
-                      check.status === "ok" ? "text-emerald-600" : check.status === "warn" ? "text-amber-600" : "text-red-600"
-                    }`}>
-                      {check.value}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {/* Body type match info */}
-          {result.body_match && result.body_match.raw_input && (
-            <div className="mt-2 pt-1.5 border-t border-slate-100">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Dopasowanie nadwozia
-              </div>
-              {result.body_match.score > 0 ? (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-700">
-                    {result.body_match.raw_input} → {result.body_match.matched_name}
-                  </span>
-                  <span className={`font-mono text-[10px] ${
-                    result.body_match.score >= 90 ? "text-emerald-600" : "text-amber-600"
-                  }`}>
-                    {result.body_match.score}% ({result.body_match.match_method})
-                  </span>
-                </div>
-              ) : (
-                <div className="text-xs text-red-600 font-medium p-1.5 bg-red-50 rounded border border-red-100">
-                  Uwaga: "{result.body_match.raw_input}" - brak dopasowania.
-                  Korekta WR za nadwozie = 0%
-                </div>
-              )}
-              {result.body_match.vehicle_class && (
-                <div className="text-[10px] text-slate-400 mt-0.5">
-                  Klasa: {result.body_match.vehicle_class}
-                </div>
-              )}
-            </div>
-          )}
-          {result.samar_class_id != null && (
-            <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400">
-              SAMAR ID: {result.samar_class_id} · Fuel ID: {result.fuel_type_id}
-            </div>
-          )}
-        </div>
-      )}
-    </span>
-);
-}
 
 /** Monospace VT323 tag for offer/config codes - click to copy */
 function CodeTag({ children }: { children: React.ReactNode }) {
@@ -413,33 +343,37 @@ return (
 }
 
 export function VehicleBaseInfo({
-vehicle,
-mappedData,
-isExpanded,
-onToggleExpand,
-activeFinalPriceNet,
-totalCatalogPriceNet,
-formatCalculatedPrice,
-samarCandidates = [],
-onSamarCategoryChange,
-allSamarClasses = [],
-engineCandidates = [],
-onEngineCategoryChange,
-allEngineTypes = [],
-driveType = "",
-onDriveTypeChange,
-bodyType = "",
-onBodyTypeChange,
-onVehicleTypeChange,
-bodyTypeOptions = [],
-
-isSelected = false,
-onToggleSelect,
-crossCardAlerts = [],
-onScrollToVehicle,
-readinessResult,
-paramPreview,
-onConfigurationCodeChange,
+  vehicle,
+  mappedData,
+  isExpanded,
+  onToggleExpand,
+  activeFinalPriceNet,
+  totalCatalogPriceNet,
+  formatCalculatedPrice,
+  samarCandidates = [],
+  onSamarCategoryChange,
+  allSamarClasses = [],
+  engineCandidates = [],
+  onEngineCategoryChange,
+  allEngineTypes = [],
+  driveType = "",
+  onDriveTypeChange,
+  bodyType = "",
+  onBodyTypeChange,
+  bodyTypeOptions = [],
+  readinessResult,
+  isSelected = false,
+  onToggleSelect,
+  crossCardAlerts = [],
+  onScrollToVehicle,
+  paramPreview,
+  onConfigurationCodeChange,
+  discountMode,
+  setDiscountMode,
+  customDiscountPctRaw,
+  setCustomDiscountPctRaw,
+  offerDiscountPercentage = 0,
+  suggestedDiscountPct = 0,
 }: VehicleBaseInfoProps) {
 const powerBand = detectPowerBand(vehicle);
 
@@ -448,231 +382,267 @@ return (
       className="p-4 sm:p-5 cursor-pointer select-none"
       onClick={onToggleExpand}
     >
-      {/* Row 1: Checkbox + Date + Vehicle Name + Price + Chevron */}
-      <div className="flex items-start gap-3">
-        {/* Selection checkbox */}
-        {onToggleSelect && (
-          <div
-            className="flex-shrink-0 pt-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelect();
-            }}
-          >
-            <div
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
-                isSelected
-                  ? "bg-blue-500 border-blue-500"
-                  : "border-slate-300 hover:border-blue-400"
-              }`}
-            >
-              {isSelected && <Check className="w-3 h-3 text-white" />}
-            </div>
-          </div>
-        )}
-
-        {/* Date */}
-        <div className="flex-shrink-0 pt-0.5">
-          <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
-            {format(new Date(vehicle.created_at), "dd.MM.yyyy")}
-          </span>
-        </div>
-
-        {/* Vehicle Identity - grows to fill */}
-        <div className="flex-grow min-w-0 overflow-hidden">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-slate-900 truncate">
-              {vehicle.brand || "?"} {vehicle.model}
-            </h3>
-            {hasValue(vehicle.trim_level) && (
-              <span className="text-xs text-slate-500 font-medium">{vehicle.trim_level}</span>
-            )}
-            {mappedData && (
-              <span
-                className="text-xs text-slate-500 hidden sm:inline-block"
-                title="Klasyfikacja AI"
-              >
-                {mappedData.fuel} · {mappedData.transmission}
-              </span>
-            )}
-
-          </div>
-
-          <p className="text-xs text-slate-600 line-clamp-1 mt-0.5">
-            {hasValue(vehicle.powertrain)
-              ? vehicle.powertrain
-              : "Brak danych napędu"}
-          </p>
-        </div>
-
-        {/* Price */}
-        <div className="flex-shrink-0 text-right min-w-[160px] flex flex-col items-end pt-0.5">
-          {activeFinalPriceNet > 0 && activeFinalPriceNet !== totalCatalogPriceNet ? (
-            <>
-              <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
-                Suma Całkowita
-              </span>
-              <span className="text-lg font-semibold tracking-tight text-slate-900 tabular-nums">
-                <PriceDualFormat
-                  priceStr={formatCalculatedPrice(activeFinalPriceNet)}
-                  align="right"
-                />
-              </span>
-            </>
-          ) : totalCatalogPriceNet > 0 ? (
-            <>
-              <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-0.5">
-                Cena Katalogowa
-              </span>
-              <span className="text-lg font-semibold tracking-tight text-slate-800 tabular-nums">
-                <PriceDualFormat priceStr={formatCalculatedPrice(totalCatalogPriceNet)} align="right" />
-              </span>
-            </>
-          ) : (
-            <span className="text-sm text-slate-500 mt-2">Brak wyceny</span>
-          )}
-        </div>
-
-        {/* Chevron */}
-        <div className="hidden sm:flex items-center pl-2 text-slate-300 group-hover:text-slate-500 transition-colors pt-1">
-          {isExpanded ? (
-            <ChevronUp className="w-5 h-5" />
-          ) : (
-            <ChevronDown className="w-5 h-5" />
-          )}
-        </div>
-
-        {/* Mobile chevron */}
-        <button className="sm:hidden p-1 text-slate-400 hover:text-slate-600 flex-shrink-0">
-          {isExpanded ? (
-            <ChevronUp className="w-5 h-5" />
-          ) : (
-            <ChevronDown className="w-5 h-5" />
-          )}
-        </button>
-      </div>
-
-      {/* Row 2: Badges — two dedicated lines for stable alignment */}
-      <div className="mt-2 ml-0 sm:ml-8 space-y-1.5">
-        {/* Line A: Kody identyfikacyjne + rabat */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {hasValue(vehicle.offer_number) && (
-            <CodeTag>{vehicle.offer_number}</CodeTag>
-          )}
-          {onConfigurationCodeChange ? (
-            <div className="flex items-center gap-1 border border-slate-300 bg-slate-100 px-2.5 py-0.5 rounded text-sm group focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400 transition-all">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">CONFIG</span>
-              <input
-                type="text"
-                defaultValue={vehicle.configuration_code || ""}
-                onBlur={(e) => {
-                  if (e.target.value !== vehicle.configuration_code) {
-                    onConfigurationCodeChange(e.target.value);
-                  }
+      <div className="flex flex-col gap-3">
+        
+        {/* ── RZĄD 1: Identyfikacja + Cena + Akcje ── */}
+        <div className="flex items-center gap-3 justify-between">
+          
+          {/* Lewa strona: Checkbox + Data + Nazwa + Kody */}
+          <div className="flex items-center gap-3 min-w-0 flex-grow">
+            {onToggleSelect && (
+              <div
+                className="flex-shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelect();
                 }}
-                className="bg-transparent border-none outline-none text-slate-700 font-mono text-sm w-32 focus:w-48 transition-all"
-                style={{ fontFamily: "'Geist Mono', monospace" }}
-                placeholder="Kod konfiguracji..."
-              />
-              <Edit3 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              >
+                <div
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-blue-500 border-blue-500"
+                      : "border-slate-300 hover:border-blue-400"
+                  }`}
+                >
+                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                </div>
+              </div>
+            )}
+
+            <span className="text-xs text-slate-400 tabular-nums whitespace-nowrap hidden sm:inline" style={{ fontFamily: "'Geist Mono', monospace" }}>
+              {format(new Date(vehicle.created_at), "dd.MM.yyyy")}
+            </span>
+
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <h3 className="text-sm font-semibold text-slate-900 truncate">
+                  {vehicle.brand || "?"} {vehicle.model}
+                </h3>
+                {hasValue(vehicle.trim_level) && (
+                  <span className="text-xs text-slate-500 font-medium">{vehicle.trim_level}</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 line-clamp-1" style={{ fontFamily: "'Geist Mono', monospace" }}>
+                {hasValue(vehicle.powertrain) ? vehicle.powertrain : "Brak danych napędu"}
+              </p>
             </div>
-          ) : hasValue(vehicle.configuration_code) && (
-            <CodeTag>{vehicle.configuration_code}</CodeTag>
-          )}
-          {vehicle.suggested_discount_pct != null ? (
-            <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
-          ) : vehicle.synthesis_data ? (
-            <Tag>Brak rabatu</Tag>
-          ) : null}
+          </div>
+
+          {/* Prawa strona: Cena + Readiness + Chevron */}
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold" style={{ fontFamily: "'Geist Mono', monospace" }}>
+                {activeFinalPriceNet > 0 && activeFinalPriceNet !== totalCatalogPriceNet ? "SUMA CAŁKOWITA" : totalCatalogPriceNet > 0 ? "CENA KATALOGOWA" : ""}
+              </span>
+              {(activeFinalPriceNet > 0 || totalCatalogPriceNet > 0) ? (
+                <>
+                  <span className="text-lg font-bold text-slate-900 tabular-nums tracking-tight" style={{ fontFamily: "'Geist Mono', monospace" }}>
+                    {formatCalculatedPrice(activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet)}{" "}
+                    <span className="text-xs font-semibold text-slate-500">PLN BRUTTO</span>
+                  </span>
+                  <span className="text-xs text-slate-400 tabular-nums mt-0.5" style={{ fontFamily: "'Geist Mono', monospace" }}>
+                    {formatCalculatedPrice(Math.round((activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet) / 1.23))} PLN NETTO
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-slate-400" style={{ fontFamily: "'Geist Mono', monospace" }}>Brak wyceny</span>
+              )}
+            </div>
+
+            <div className="text-slate-400 group-hover:text-blue-500 transition-colors bg-slate-50 group-hover:bg-blue-50 rounded-full p-1 border border-transparent group-hover:border-blue-100">
+              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </div>
         </div>
 
-        {/* Line B: Klasyfikacja + serwis + status — zawsze od lewej krawędzi */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-stretch border border-slate-200 rounded-md bg-white divide-x divide-slate-200 shadow-sm h-[26px]">
+        {/* ── RZĄD 2: Kody + Klasyfikacja SAMAR + Status ── */}
+        <div className="space-y-1.5">
+
+          {/* Linia A: Kody identyfikacyjne + rabat */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {hasValue(vehicle.offer_number) && (
+              <CodeTag>{vehicle.offer_number}</CodeTag>
+            )}
+            {onConfigurationCodeChange ? (
+              <div className="flex items-center gap-1 border border-slate-300 bg-slate-100 px-2.5 py-0.5 rounded text-sm group/edit focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400 transition-all">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">CONFIG</span>
+                <input
+                  type="text"
+                  defaultValue={vehicle.configuration_code || ""}
+                  onBlur={(e) => {
+                    if (e.target.value !== vehicle.configuration_code) {
+                      onConfigurationCodeChange(e.target.value);
+                    }
+                  }}
+                  className="bg-transparent border-none outline-none text-slate-700 font-mono text-sm w-24 focus:w-40 transition-all"
+                  style={{ fontFamily: "'Geist Mono', monospace" }}
+                  placeholder="Kod konfiguracji..."
+                />
+                <Edit3 className="w-3 h-3 text-slate-400 opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+              </div>
+            ) : hasValue(vehicle.configuration_code) && (
+              <CodeTag>{vehicle.configuration_code}</CodeTag>
+            )}
+
+            {/* Separator + rabat po prawej */}
+            <div className="flex items-center gap-2 ml-auto flex-shrink-0">{/* rabat przeniesiony niżej */}</div>
+          </div>
+
+          {/* Linia B: Klasyfikacja pojazdu + serwis + status */}
+          <div className="flex items-center h-[26px] bg-slate-50 border border-slate-100 rounded overflow-hidden divide-x divide-slate-200 w-fit max-w-full">
+            {/* SAMAR */}
             {mappedData?.samar_category && onSamarCategoryChange ? (
-              <SamarCategoryDropdown
-                currentCategory={mappedData.samar_category}
-                candidates={samarCandidates}
-                allSamarClasses={allSamarClasses}
-                onCategoryChange={onSamarCategoryChange}
-                connected={true}
-              />
+              <div className="h-full" onClick={(e) => e.stopPropagation()}>
+                <SamarCategoryDropdown
+                  currentCategory={mappedData.samar_category}
+                  candidates={samarCandidates}
+                  allSamarClasses={allSamarClasses}
+                  onCategoryChange={onSamarCategoryChange}
+                  connected={true}
+                />
+              </div>
             ) : mappedData?.samar_category ? (
               <Tag connected={true}>SAMAR: {mappedData.samar_category}</Tag>
             ) : null}
+
+            {/* Silnik */}
             {mappedData?.engine_class && onEngineCategoryChange ? (
-              <EngineCategoryDropdown
-                currentCategory={mappedData.fuel}
-                candidates={engineCandidates}
-                allEngineTypes={allEngineTypes}
-                onCategoryChange={onEngineCategoryChange}
-                connected={true}
-              />
+              <div className="h-full" onClick={(e) => e.stopPropagation()}>
+                <EngineCategoryDropdown
+                  currentCategory={mappedData.fuel}
+                  candidates={engineCandidates}
+                  allEngineTypes={allEngineTypes}
+                  onCategoryChange={onEngineCategoryChange}
+                  connected={true}
+                />
+              </div>
             ) : mappedData?.engine_class ? (
-              <Tag connected={true}>{mappedData.fuel} / {mappedData.engine_class}</Tag>
+              <Tag connected={true}>SILNIK: {mappedData.fuel} / {mappedData.engine_class}</Tag>
             ) : null}
+
+            {/* Serwis */}
             {(paramPreview?.service?.found || powerBand) && (
-              <div className="flex items-center px-3 bg-slate-50/50 h-full">
-                <ServiceCostMeter 
-                  mode="flat" 
+              <div className="h-full flex items-center" onClick={(e) => e.stopPropagation()}>
+                <ServiceCostMeter
+                  mode="flat"
                   totalMultiplier={paramPreview?.service?.total_multiplier || (powerBand === "HIGH" ? 1.25 : powerBand === "LOW" ? 0.75 : 1.0)}
                   multipliers={paramPreview?.service?.found ? {
                     brand: paramPreview.service.m_brand || 1.0,
                     fuel: paramPreview.service.m_fuel || 1.0,
                     drive: paramPreview.service.m_drive || 1.0,
                     gearbox: paramPreview.service.m_gearbox || 1.0
-                  } : {
-                    brand: 1.0,
-                    fuel: 1.0,
-                    drive: 1.0,
-                    gearbox: 1.0
-                  }}
+                  } : { brand: 1.0, fuel: 1.0, drive: 1.0, gearbox: 1.0 }}
                 />
               </div>
             )}
-            <DriveTypeTag current={driveType} onChange={onDriveTypeChange} connected={true} />
-            {onVehicleTypeChange && (
-              <VehicleTypeDropdown
-                currentType={mappedData?.vehicle_type || ""}
-                onTypeChange={onVehicleTypeChange}
-                connected={true}
-              />
-            )}
-            <BodyTypeTag
-              current={bodyType}
-              dbOptions={bodyTypeOptions}
-              onChange={onBodyTypeChange}
-              currentVehicleType={mappedData?.vehicle_type}
-              connected={true}
-            />
-          </div>
 
-          {readinessResult && <ReadinessBadge result={readinessResult} />}
+            {/* Oś napędowa */}
+            {(driveType || onDriveTypeChange) && (
+              <div className="h-full" onClick={(e) => e.stopPropagation()}>
+                <DriveTypeTag current={driveType} onChange={onDriveTypeChange} connected={true} />
+              </div>
+            )}
+
+            {/* Nadwozie */}
+            {(bodyType || onBodyTypeChange) && (
+              <div className="h-full" onClick={(e) => e.stopPropagation()}>
+                <BodyTypeTag
+                  current={bodyType}
+                  dbOptions={bodyTypeOptions}
+                  onChange={onBodyTypeChange}
+                  currentVehicleType={mappedData?.vehicle_type}
+                  connected={true}
+                />
+              </div>
+            )}
+
+            {/* Gotowe / status */}
+            {readinessResult && (
+              <div className="h-full flex items-center" onClick={(e) => e.stopPropagation()}>
+                <ReadinessBadge result={readinessResult} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── RZĄD 3: Rabat + Alert ── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {discountMode ? (
+            <div className="flex h-[26px] bg-slate-50 border border-slate-200 rounded text-[11px] font-medium text-slate-600 overflow-hidden divide-x divide-slate-200 shadow-sm">
+              <button
+                type="button"
+                className={`px-2.5 flex items-center transition-colors hover:bg-slate-100 ${
+                  discountMode === "offer" ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold" : ""
+                }`}
+                onClick={(e) => { e.stopPropagation(); setDiscountMode?.("offer"); }}
+                title="Rabat z oferty sprzedawcy"
+              >
+                <span className="mr-1 hidden sm:inline">Oferta:</span>
+                <span>{offerDiscountPercentage.toFixed(1)}%</span>
+              </button>
+              <button
+                type="button"
+                className={`px-2.5 flex items-center transition-colors hover:bg-slate-100 ${
+                  discountMode === "suggested" ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold" : ""
+                }`}
+                onClick={(e) => { e.stopPropagation(); setDiscountMode?.("suggested"); }}
+                title="Sugerowany rabat Express"
+              >
+                <span className="mr-1 hidden sm:inline">Express:</span>
+                <span>{(suggestedDiscountPct).toFixed(1)}%</span>
+              </button>
+              <div
+                className={`flex items-center transition-colors hover:bg-slate-100 cursor-pointer ${
+                  discountMode === "custom" ? "bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold pl-2" : "px-2.5"
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (discountMode !== "custom") setDiscountMode?.("custom");
+                }}
+                title="Własny rabat (kliknij aby edytować)"
+              >
+                <span className={discountMode === "custom" ? "mr-1 hidden sm:inline" : "hidden sm:inline"}>Własny:</span>
+                {discountMode === "custom" ? (
+                  <div className="flex items-center pl-1 bg-white border-l border-blue-200 h-full">
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="w-12 h-full bg-transparent text-right outline-none px-1 text-blue-900 font-mono text-[11px]"
+                      value={customDiscountPctRaw || ""}
+                      onChange={(e) => setCustomDiscountPctRaw?.(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                    <span className="pr-1.5 text-blue-900">%</span>
+                  </div>
+                ) : (
+                  <span>{customDiscountPctRaw || "0"}%</span>
+                )}
+              </div>
+            </div>
+          ) : vehicle.suggested_discount_pct != null ? (
+            <Tag>Rabat: {vehicle.suggested_discount_pct}%</Tag>
+          ) : vehicle.synthesis_data ? (
+            <Tag>Brak rabatu</Tag>
+          ) : null}
+
           {crossCardAlerts.length > 0 && (
             <button
               type="button"
-              className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
-              title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"} z rabatem ${crossCardAlerts[0].siblingDiscountPct}%`}
+              className="inline-flex items-center gap-1 border border-amber-300 bg-amber-50 px-2 py-1.5 rounded text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors cursor-pointer animate-in fade-in duration-300"
+              title={`Kliknij, aby przewinąć do oferty ${crossCardAlerts[0].siblingOfferNumber || "(brak nr)"}`}
               onClick={(e) => {
                 e.stopPropagation();
                 const targetId = crossCardAlerts[0].siblingVehicleId;
-                if (onScrollToVehicle) {
-                  onScrollToVehicle(targetId);
-                } else {
-                  const el = document.querySelector(`[data-vehicle-id="${targetId}"]`);
-                  if (el) {
-                    el.scrollIntoView({ behavior: "smooth", block: "center" });
-                    el.classList.add("ring-4", "ring-amber-300");
-                    setTimeout(() => el.classList.remove("ring-4", "ring-amber-300"), 2000);
-                  }
-                }
+                if (onScrollToVehicle) onScrollToVehicle(targetId);
               }}
             >
-              <AlertTriangle className="w-3 h-3" />
-              Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.) →
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Lepszy rabat (+{crossCardAlerts[0].deltaPp} pp.)
             </button>
           )}
         </div>
+
       </div>
     </div>
 );

@@ -33,6 +33,15 @@ export const parsePriceToNumber = (priceStr?: string | null): number => {
   return isNaN(num) ? 0 : num;
 };
 
+export function formatPrice(val: number): string {
+  return val
+    .toLocaleString("pl-PL", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })
+    .replace(",", ".") + " PLN";
+}
+
 export function PriceDualFormat({
   priceStr,
   align = "right",
@@ -52,14 +61,6 @@ export function PriceDualFormat({
   const value = parsePriceToNumber(priceStr);
   if (value === 0) return <span>{priceStr}</span>;
 
-  const formatCurrency = (val: number) =>
-    val
-      .toLocaleString("pl-PL", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      })
-      .replace(",", ".") + " PLN";
-
   // Jeśli nie określono, domyślnie brutto
   const isNetto = cleaned.includes("netto");
   const netto = isNetto ? value : value / 1.23;
@@ -68,8 +69,8 @@ export function PriceDualFormat({
   if (inline) {
     return (
        <span className={className}>
-         {formatCurrency(brutto)} <span className="text-[0.9em]">brutto</span> /{" "}
-         <span className="opacity-60">{formatCurrency(netto)} <span className="text-[0.9em]">netto</span></span>
+         {formatPrice(brutto)} <span className="text-[0.9em]">brutto</span> /{" "}
+         <span className="opacity-60">{formatPrice(netto)} <span className="text-[0.9em]">netto</span></span>
        </span>
     );
   }
@@ -84,13 +85,13 @@ export function PriceDualFormat({
   return (
     <div className={cn("flex flex-col", alignClass, className)}>
       <span className="flex items-baseline gap-1">
-        {formatCurrency(brutto)}
+        {formatPrice(brutto)}
         <span className="text-[0.7em] font-medium opacity-70 uppercase tracking-wider">
           brutto
         </span>
       </span>
       <span className="text-[0.65em] opacity-60 font-semibold leading-none mt-1 uppercase tracking-wider">
-        {formatCurrency(netto)} netto
+        {formatPrice(netto)} netto
       </span>
     </div>
   );

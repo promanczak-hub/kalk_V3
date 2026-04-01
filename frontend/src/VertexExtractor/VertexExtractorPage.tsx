@@ -1,6 +1,5 @@
 import { useVehicles } from "./hooks/useVehicles";
 import { useDocumentProcessing } from "./hooks/useDocumentProcessing";
-import { UploadZone } from "./components/UploadZone";
 import { DocumentList } from "./components/DocumentList";
 import { VehicleTable } from "./components/VehicleTable";
 import { JsonViewerModal } from "./components/JsonViewerModal";
@@ -8,18 +7,29 @@ import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
 import type { ControlCenterSettings } from "../types";
+import { supabase } from "../lib/supabaseClient";
 import {
   Box,
   Container,
-  Typography,
   Fab,
   Stack,
   useTheme,
   Tooltip,
 } from "@mui/material";
 import { CreateManualModal } from "../ManualKalkulacje/CreateManualModal";
-import { FilePlus } from "lucide-react";
-import { motion } from "framer-motion";
+import { UploadCloud } from "lucide-react";
+
+interface BodyTypeOption {
+  id: number;
+  name: string;
+  vehicle_class: string;
+}
+
+interface PaintTypeOption {
+  id: number;
+  name: string;
+  [key: string]: unknown;
+}
 
 export default function VertexExtractorPage() {
   const theme = useTheme();
@@ -38,13 +48,9 @@ export default function VertexExtractorPage() {
   const {
     savedVehicles,
     isLoadingSaved,
-    globalSearchQuery,
-    setGlobalSearchQuery,
-    isSearching,
     liveSearchText,
     setLiveSearchText,
     fetchSavedVehicles,
-    handleGlobalSearch,
     handleDeleteVehicle,
     page,
     setPage,
@@ -54,8 +60,9 @@ export default function VertexExtractorPage() {
 
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
-  const [bodyTypes, setBodyTypes] = useState<any[]>([]);
-  const [paintTypes, setPaintTypes] = useState<any[]>([]);
+  const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
+  const [paintTypes, setPaintTypes] = useState<PaintTypeOption[]>([]);
+
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -74,12 +81,17 @@ export default function VertexExtractorPage() {
     const fetchLookupData = async () => {
       try {
         const [{ data: bodies }, { data: paints }] = await Promise.all([
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).supabase.from("body_types").select("*").order("nazwa_nadwozia"),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).supabase.from("paint_types").select("*").order("id")
+          supabase.from("body_types").select("*").order("nazwa_nadwozia"),
+          supabase.from("paint_types").select("*").order("id")
         ]);
-        if (bodies) setBodyTypes(bodies);
+        if (bodies) {
+          // Normalizacja pól bazy (nazwa_nadwozia, typ_pojazdu) → kształt oczekiwany przez BodyTypeTag (name, vehicle_class)
+          setBodyTypes(bodies.map((item: { id: number; nazwa_nadwozia?: string; name?: string; typ_pojazdu?: string; vehicle_class?: string }) => ({
+            id: item.id,
+            name: item.nazwa_nadwozia || item.name || "",
+            vehicle_class: item.typ_pojazdu || item.vehicle_class || "",
+          })));
+        }
         if (paints) setPaintTypes(paints);
       } catch (e) {
         console.error("Failed to fetch lookup data", e);
@@ -103,37 +115,8 @@ export default function VertexExtractorPage() {
   return (
     <Box sx={{ pb: 6, minHeight: "100vh" }}>
       <Container maxWidth="xl">
-        {/* Hero Section - Compacted */}
-        <Stack spacing={2} sx={{ mb: 4 }}>
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <Box sx={{ mt: 1 }}>
-              <Typography
-                variant="h5"
-                component="h1"
-                sx={{
-                  fontWeight: 800,
-                  background: "linear-gradient(45deg, #1e3a8a 30%, #3b82f6 90%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  letterSpacing: "-0.02em",
-                  mb: 0.5,
-                }}
-              >
-                Ekstrakcja i Analiza AI
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 700, fontSize: '0.85rem' }}>
-                Prześlij dokumenty pojazdów (zdjęcia, PDF), aby wyodrębnić dane techniczne i finansowe za pomocą AI.
-              </Typography>
-            </Box>
-          </motion.div>
-
-          {/* Core Workflow - Compact Spacing */}
-          <UploadZone onFilesSelected={handleFiles} />
-          
+        {/* Main Content Area */}
+        <Stack spacing={2} sx={{ mb: 4, mt: 2 }}>
           {documents.length > 0 && (
             <DocumentList
               documents={documents}
@@ -146,10 +129,7 @@ export default function VertexExtractorPage() {
             <VehicleTable
               savedVehicles={savedVehicles}
               isLoadingSaved={isLoadingSaved}
-              globalSearchQuery={globalSearchQuery}
-              isSearching={isSearching}
-              setGlobalSearchQuery={setGlobalSearchQuery}
-              handleGlobalSearch={handleGlobalSearch}
+
               liveSearchText={liveSearchText}
               setLiveSearchText={setLiveSearchText}
               fetchSavedVehicles={fetchSavedVehicles}
@@ -167,17 +147,17 @@ export default function VertexExtractorPage() {
           </Box>
         </Stack>
   
-        <Tooltip title="Nowa Kalkulacja Manualna" placement="left">
+        <Tooltip title="Rozpocznij AI Ekstrakcję" placement="left">
           <Fab
-            color="secondary"
-            aria-label="nowa kalkulacja manualna"
-            onClick={() => setManualModalOpen(true)}
+            component="label"
+            aria-label="prześlij dokumenty"
             sx={{
               position: "fixed",
               bottom: 104, // Offset to sit above the Offer Cart FAB (usually at 32)
               right: 32,
               zIndex: 1100,
               background: "linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)",
+              color: "#ffffff",
               boxShadow: theme.palette.mode === 'dark' 
                 ? "0 8px 32px rgba(79, 70, 229, 0.4)" 
                 : "0 8px 20px rgba(79, 70, 229, 0.25)",
@@ -187,7 +167,18 @@ export default function VertexExtractorPage() {
               },
             }}
           >
-            <FilePlus />
+            <UploadCloud />
+            <input
+              type="file"
+              hidden
+              multiple
+              accept=".pdf,.xls,.xlsx,.png,.jpg,.jpeg"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleFiles(Array.from(e.target.files));
+                }
+              }}
+            />
           </Fab>
         </Tooltip>
       </Container>

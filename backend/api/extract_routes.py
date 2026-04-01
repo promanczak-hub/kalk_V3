@@ -419,9 +419,13 @@ def get_vehicle_synthesis(vehicle_id: str, lite: bool = False) -> Dict[str, Any]
     """Zwraca synthesis_data pojazdu po ID — używane przez VehicleFeaturesCard.
     lite=True zwraca tylko niezbędne pola dla cache cech (standard_equipment, paid_options, suggested_catalog).
     """
-    try:
+    from core.database import get_fresh_client
+    from httpcore import RemoteProtocolError as HttpcoreRemoteProtocolError
+    from httpx import RemoteProtocolError as HttpxRemoteProtocolError
+
+    def _fetch(client) -> Dict[str, Any]:
         response = (
-            supabase_client.table("vehicle_synthesis")
+            client.table("vehicle_synthesis")
             .select("id, brand, model, synthesis_data, verification_status")
             .eq("id", vehicle_id)
             .execute()
@@ -450,7 +454,7 @@ def get_vehicle_synthesis(vehicle_id: str, lite: bool = False) -> Dict[str, Any]
             "Fetch synthesis successful: id=%s size=%d chars", vehicle_id, payload_size
         )
 
-        result = {
+        return {
             "id": row.get("id"),
             "brand": row.get("brand"),
             "model": row.get("model"),
@@ -458,32 +462,28 @@ def get_vehicle_synthesis(vehicle_id: str, lite: bool = False) -> Dict[str, Any]
             "verification_status": row.get("verification_status"),
             "synthesis_data": synthesis,
         }
-        return result
+
+    try:
+        return _fetch(supabase_client)
+    except (HttpcoreRemoteProtocolError, HttpxRemoteProtocolError) as conn_err:
+        # HTTP/2 connection was dropped by Supabase (happens after hours of uptime).
+        # Retry once with a fresh client before giving up.
+        logger.warning(
+            "HTTP/2 Server disconnected for %s — retrying with fresh client. err=%s",
+            vehicle_id,
+            conn_err,
+        )
+        try:
+            return _fetch(get_fresh_client())
+        except (HttpcoreRemoteProtocolError, HttpxRemoteProtocolError) as retry_err:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Supabase connection unavailable after retry: {retry_err}",
+            ) from retry_err
     except HTTPException:
         raise
     except Exception as e:
         import traceback
-        import math
-        import json
-
-        def _clean_nan(obj: Any) -> Any:
-            """Recursively replace NaN/Inf with None for JSON safety."""
-            if isinstance(obj, float):
-                if math.isnan(obj) or math.isinf(obj):
-                    return None
-                return obj
-            if isinstance(obj, dict):
-                return {k: _clean_nan(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [_clean_nan(v) for v in obj]
-            return obj
-
-        try:
-            # Fallback cleanup attempt before crashing
-            if 'synthesis' in locals() and isinstance(synthesis, dict):
-                synthesis = _clean_nan(synthesis)
-        except Exception:
-            pass
 
         error_msg = f"Unexpected error in get_vehicle_synthesis for {vehicle_id}: {e}"
         logger.error(error_msg, exc_info=True)

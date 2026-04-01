@@ -12,12 +12,19 @@ export type SortKey =
 
 export type SortDir = "asc" | "desc";
 
-interface FilterState {
+export type PriceFilterMode = "catalog" | "discounted";
+
+export interface FilterState {
   sortKey: SortKey;
   sortDir: SortDir;
   dateRange: [number, number]; // timestamps
   priceRange: [number, number];
+  priceFilterMode: PriceFilterMode;
   showUnmappedSamarOnly: boolean;
+
+  selectedBrands: string[];
+  selectedFuels: string[];
+  selectedSamarClasses: string[];
 }
 
 function extractSamarCategory(v: FleetVehicleView): string {
@@ -41,34 +48,81 @@ function extractFuel(v: FleetVehicleView): string {
   return "";
 }
 
+function getBasePrice(v: FleetVehicleView): number {
+  return parsePriceToNumber(v.base_price);
+}
+
+function getDiscountedPrice(v: FleetVehicleView): number {
+  const base = getBasePrice(v);
+  const synth = v.synthesis_data as Record<string, unknown> | undefined;
+  const pricing = synth?.pricing as Record<string, unknown> | undefined;
+  
+  if (typeof pricing?.active_final_price_net === "number" && pricing.active_final_price_net > 0) {
+    return pricing.active_final_price_net;
+  }
+  if (typeof v.suggested_discount_pct === "number" && v.suggested_discount_pct > 0) {
+    return base * (1 - v.suggested_discount_pct);
+  }
+  return base; // Fallback to catalog if no discount found
+}
+
 // Minimum price threshold — below this it's noise (e.g. percentage, code, etc.)
 const MIN_VALID_PRICE = 1000;
 
-function computeBounds(vehicles: FleetVehicleView[]) {
+function computeAggregates(vehicles: FleetVehicleView[]) {
   if (vehicles.length === 0) {
     const now = Date.now();
-    return { dateMin: now, dateMax: now, priceMin: 0, priceMax: 0 };
+    return { 
+      dateMin: now, dateMax: now, 
+      catalogPriceMin: 0, catalogPriceMax: 0,
+      discountPriceMin: 0, discountPriceMax: 0,
+      brands: [] as string[],
+      fuels: [] as string[],
+      samarClasses: [] as string[],
+    };
   }
 
   let dateMin = Infinity;
   let dateMax = -Infinity;
-  let priceMin = Infinity;
-  let priceMax = -Infinity;
+  let catalogPriceMin = Infinity;
+  let catalogPriceMax = -Infinity;
+  let discountPriceMin = Infinity;
+  let discountPriceMax = -Infinity;
+
+  const brandsSet = new Set<string>();
+  const fuelsSet = new Set<string>();
+  const samarSet = new Set<string>();
 
   for (const v of vehicles) {
     const ts = new Date(v.created_at).getTime();
     if (ts < dateMin) dateMin = ts;
     if (ts > dateMax) dateMax = ts;
 
-    const price = parsePriceToNumber(v.base_price);
-    if (price >= MIN_VALID_PRICE) {
-      if (price < priceMin) priceMin = price;
-      if (price > priceMax) priceMax = price;
+    const catPrice = getBasePrice(v);
+    if (catPrice >= MIN_VALID_PRICE) {
+      if (catPrice < catalogPriceMin) catalogPriceMin = catPrice;
+      if (catPrice > catalogPriceMax) catalogPriceMax = catPrice;
     }
+
+    const discPrice = getDiscountedPrice(v);
+    if (discPrice >= MIN_VALID_PRICE) {
+      if (discPrice < discountPriceMin) discountPriceMin = discPrice;
+      if (discPrice > discountPriceMax) discountPriceMax = discPrice;
+    }
+
+    if (v.brand) brandsSet.add(v.brand);
+    
+    const f = extractFuel(v);
+    if (f) fuelsSet.add(f);
+
+    const s = extractSamarCategory(v);
+    if (s) samarSet.add(s);
   }
 
-  if (priceMin === Infinity) priceMin = 0;
-  if (priceMax === -Infinity) priceMax = 0;
+  if (catalogPriceMin === Infinity) catalogPriceMin = 0;
+  if (catalogPriceMax === -Infinity) catalogPriceMax = 0;
+  if (discountPriceMin === Infinity) discountPriceMin = 0;
+  if (discountPriceMax === -Infinity) discountPriceMax = 0;
 
   // Align date bounds to full-day boundaries so the slider step (86400000ms)
   // divides evenly into the range and thumbs can reach both ends of the track.
@@ -76,36 +130,49 @@ function computeBounds(vehicles: FleetVehicleView[]) {
   dateMin = Math.floor(dateMin / DAY_MS) * DAY_MS;
   dateMax = Math.ceil(dateMax / DAY_MS) * DAY_MS;
 
-  return { dateMin, dateMax, priceMin, priceMax };
+  return { 
+    dateMin, dateMax, 
+    catalogPriceMin, catalogPriceMax,
+    discountPriceMin, discountPriceMax,
+    brands: Array.from(brandsSet).sort(),
+    fuels: Array.from(fuelsSet).sort(),
+    samarClasses: Array.from(samarSet).sort()
+  };
 }
 
 export function useVehicleFilters(vehicles: FleetVehicleView[]) {
-  const bounds = useMemo(() => computeBounds(vehicles), [vehicles]);
+  const aggregates = useMemo(() => computeAggregates(vehicles), [vehicles]);
 
   const [filters, setFilters] = useState<FilterState>({
     sortKey: "created_at",
     sortDir: "desc",
     dateRange: [0, Infinity],
     priceRange: [0, Infinity],
+    priceFilterMode: "catalog",
     showUnmappedSamarOnly: false,
+    selectedBrands: [],
+    selectedFuels: [],
+    selectedSamarClasses: []
   });
 
   const activeDateRange = useMemo<[number, number]>(
     () => [
-      filters.dateRange[0] <= 0 ? bounds.dateMin : filters.dateRange[0],
-      filters.dateRange[1] >= Infinity ? bounds.dateMax : filters.dateRange[1],
+      filters.dateRange[0] <= 0 ? aggregates.dateMin : filters.dateRange[0],
+      filters.dateRange[1] >= Infinity ? aggregates.dateMax : filters.dateRange[1],
     ],
-    [filters.dateRange, bounds.dateMin, bounds.dateMax],
+    [filters.dateRange, aggregates.dateMin, aggregates.dateMax],
   );
+
+  const currentModePriceMin = filters.priceFilterMode === "catalog" ? aggregates.catalogPriceMin : aggregates.discountPriceMin;
+  const currentModePriceMax = filters.priceFilterMode === "catalog" ? aggregates.catalogPriceMax : aggregates.discountPriceMax;
 
   const activePriceRange = useMemo<[number, number]>(
     () => [
-      filters.priceRange[0] <= 0 ? bounds.priceMin : filters.priceRange[0],
-      filters.priceRange[1] >= Infinity
-        ? bounds.priceMax
-        : filters.priceRange[1],
+        filters.priceRange[0] <= 0 ? currentModePriceMin : filters.priceRange[0],
+        filters.priceRange[1] >= Infinity ? currentModePriceMax : filters.priceRange[1]
     ],
-    [filters.priceRange, bounds.priceMin, bounds.priceMax],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters.priceRange, currentModePriceMin, currentModePriceMax, filters.priceFilterMode]
   );
 
   const setSortKey = useCallback((key: SortKey) => {
@@ -124,18 +191,55 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     setFilters((prev) => ({ ...prev, priceRange: range }));
   }, []);
 
+  const setSelectedBrands = useCallback((brands: string[]) => {
+      setFilters(prev => ({ ...prev, selectedBrands: brands }));
+  }, []);
+
+  const setSelectedFuels = useCallback((fuels: string[]) => {
+      setFilters(prev => ({ ...prev, selectedFuels: fuels }));
+  }, []);
+
+  const setSelectedSamarClasses = useCallback((classes: string[]) => {
+      setFilters(prev => ({ ...prev, selectedSamarClasses: classes }));
+  }, []);
+
   const resetFilters = useCallback(() => {
     setFilters({
       sortKey: "created_at",
       sortDir: "desc",
       dateRange: [0, Infinity],
       priceRange: [0, Infinity],
+      priceFilterMode: "catalog",
       showUnmappedSamarOnly: false,
+      selectedBrands: [],
+      selectedFuels: [],
+      selectedSamarClasses: []
     });
   }, []);
 
   const filteredVehicles = useMemo(() => {
     let result = [...vehicles];
+
+    // Filter by Brand
+    if (filters.selectedBrands.length > 0) {
+      result = result.filter(v => v.brand && filters.selectedBrands.includes(v.brand));
+    }
+
+    // Filter by Fuel
+    if (filters.selectedFuels.length > 0) {
+      result = result.filter(v => {
+          const f = extractFuel(v);
+          return f && filters.selectedFuels.includes(f);
+      });
+    }
+
+    // Filter by SAMAR Class
+    if (filters.selectedSamarClasses.length > 0) {
+      result = result.filter(v => {
+          const sc = extractSamarCategory(v);
+          return sc && filters.selectedSamarClasses.includes(sc);
+      });
+    }
 
     // Filter unmapped SAMAR
     if (filters.showUnmappedSamarOnly) {
@@ -156,7 +260,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     const [pMin, pMax] = activePriceRange;
     if (pMin > 0 || pMax < Infinity) {
       result = result.filter((v) => {
-        const price = parsePriceToNumber(v.base_price);
+        const price = filters.priceFilterMode === "catalog" ? getBasePrice(v) : getDiscountedPrice(v);
         if (price === 0) return true; // Keep unpriced
         return price >= pMin && price <= pMax;
       });
@@ -188,8 +292,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
             new Date(b.created_at).getTime();
           break;
         case "price":
-          cmp =
-            parsePriceToNumber(a.base_price) - parsePriceToNumber(b.base_price);
+          cmp = getBasePrice(a) - getBasePrice(b);
           break;
       }
       return cmp * dir;
@@ -204,13 +307,18 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
 
   return {
     filters,
-    bounds,
+    aggregates,
     activeDateRange,
     activePriceRange,
+    currentModePriceMin,
+    currentModePriceMax,
     filteredVehicles,
     setSortKey,
     setDateRange,
     setPriceRange,
+    setSelectedBrands,
+    setSelectedFuels,
+    setSelectedSamarClasses,
     setShowUnmappedSamarOnly,
     resetFilters,
   };
