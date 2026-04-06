@@ -5,7 +5,6 @@ import {
 } from "@mui/material";
 import { Calculator, ChevronDown, ChevronUp, Loader2, FileCode2, RotateCcw, X, Settings, TrendingUp } from "lucide-react";
 import { MatrixFilterToolbar } from "../../../CalculatorPanel/MatrixFilterToolbar";
-import { ReversePriceLookup } from "../../../CalculatorPanel/ReversePriceLookup";
 import { MatrixHeatmapView, MatrixViewToggle } from "../../../CalculatorPanel/MatrixHeatmapView";
 
 import { fmtPLN } from "./calculations/calculations.utils";
@@ -112,6 +111,12 @@ export function VehicleRowCalculations({
           {modifiedCells.size > 0 && (
             <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
               {modifiedCells.size} zmodyfikowana(e)
+            </span>
+          )}
+          {(basePrice <= 0 || !powertrain) && (
+            <span className="text-[10px] text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-100 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              BRAK DANYCH
             </span>
           )}
           <button
@@ -229,9 +234,6 @@ export function VehicleRowCalculations({
               isRecalculating={marginRecalculating}
             />
 
-            {/* Reverse price lookup */}
-            <ReversePriceLookup basePayload={basePayload} vehicleId={vehicleId} />
-
             {/* Data quality warnings */}
             {cells.some(c => c.warnings?.service_fallback_used) && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
@@ -257,6 +259,12 @@ export function VehicleRowCalculations({
                 mileageMode={mileageMode} 
                 onShowTrace={(cell) => fetchTraceSingleCell(cell.Okres, cell.Przebieg)}
                 isFetchingTrace={fetchingTraceCell !== null}
+                getOverrides={getOverrides}
+                onOverridesChange={handleOverridesChange}
+                onRecalculate={recalculateSingleCell}
+                onReset={resetCell}
+                modifiedCells={modifiedCells}
+                recalculatingCell={recalculating}
               />
             ) : (
             /* Matrix Card Grid */

@@ -56,6 +56,10 @@ interface VehicleFilterBarProps {
   selectedTransmissions: string[];
   onSelectedTransmissionsChange: (transmissions: string[]) => void;
 
+  availableDrives: string[];
+  selectedDrives: string[];
+  onSelectedDrivesChange: (drives: string[]) => void;
+
   powerRange: [number, number];
   powerBounds: { powerMin: number; powerMax: number };
   onPowerRangeChange: (range: [number, number]) => void;
@@ -231,6 +235,9 @@ export function VehicleFilterBar({
   availableTransmissions,
   selectedTransmissions,
   onSelectedTransmissionsChange,
+  availableDrives,
+  selectedDrives,
+  onSelectedDrivesChange,
   powerRange,
   powerBounds,
   onPowerRangeChange,
@@ -273,6 +280,8 @@ export function VehicleFilterBar({
     selectedFuels.length > 0 ||
     selectedSamarClasses.length > 0 ||
     selectedBodyTypes.length > 0 ||
+    selectedTransmissions.length > 0 ||
+    selectedDrives.length > 0 ||
     dateRange[0] > 0 ||
     dateRange[1] < Infinity ||
     priceRange[0] > 0 ||
@@ -401,6 +410,13 @@ export function VehicleFilterBar({
           options={availableTransmissions}
           selectedOptions={selectedTransmissions}
           onChange={onSelectedTransmissionsChange}
+        />
+
+        <MultiSelectDropdown 
+          label="Napęd"
+          options={availableDrives}
+          selectedOptions={selectedDrives}
+          onChange={onSelectedDrivesChange}
         />
       </div>
 

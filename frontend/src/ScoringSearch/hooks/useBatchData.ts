@@ -22,6 +22,7 @@ export interface SimilarityReasons {
   equipment_similarity_pct: number | null;
   is_same_brand: boolean;
   price_pct_diff: number | null;
+  is_cheaper?: boolean | null;
   samar_category: string | null;
   body_style: string | null;
   base_price?: number | null;
@@ -162,4 +163,48 @@ export function useBatchSimilarVehicles(
   }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, mode, requirementsHash]);
 
   return { similarVehicles, loading };
+}
+
+export function useVehicleAlternatives(
+  vehicleId: string,
+  durationMonths: number,
+  annualMileage: number,
+  category: string,
+  enabled: boolean
+): { alternatives: SimilarVehicle[]; loading: boolean } {
+  const [alternatives, setAlternatives] = useState<SimilarVehicle[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !vehicleId || !category) {
+      setAlternatives([]);
+      return;
+    }
+    let cancelled = false;
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const queryParams = new URLSearchParams({
+          category,
+          duration_months: durationMonths.toString(),
+          annual_mileage: annualMileage.toString(),
+          limit: '5'
+        });
+        const r = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/alternatives?${queryParams}`);
+        const data = await r.json();
+        if (!cancelled) setAlternatives(Array.isArray(data) ? data : (data.results || []));
+      } catch {
+        if (!cancelled) setAlternatives([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    doFetch();
+    return () => { 
+      cancelled = true; 
+    };
+  }, [vehicleId, durationMonths, annualMileage, category, enabled]);
+
+  return { alternatives, loading };
 }

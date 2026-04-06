@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Star, Grid3X3, List, FileCode2, Loader2 } from "lucide-react";
+import { Star, Grid3X3, List, FileCode2, Loader2, RotateCcw, Settings } from "lucide-react";
 import type { MiniMatrixCell } from "../VertexExtractor/components/VehicleTableParts/decision-center/decision-center.types";
+import type { CellOverrides } from "../VertexExtractor/components/VehicleTableParts/calculations/useVehicleCalculations";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
 
@@ -10,6 +11,12 @@ interface MatrixHeatmapViewProps {
   onCellClick?: (cell: MiniMatrixCell) => void;
   onShowTrace?: (cell: MiniMatrixCell) => void;
   isFetchingTrace?: boolean;
+  getOverrides?: (months: number) => CellOverrides;
+  onOverridesChange?: (months: number, overrides: Partial<CellOverrides>) => void;
+  onRecalculate?: (months: number) => void;
+  onReset?: (months: number) => void;
+  modifiedCells?: Set<number>;
+  recalculatingCell?: number | null;
 }
 
 /* ── Margin Tier System ─────────────────────────────────────────────── */
@@ -61,7 +68,7 @@ function fmtPLN2(v: number): string {
 
 interface V1SummaryRow {
   label: string;
-  kind: "money" | "percent" | "plain";
+  kind: "money" | "percent" | "plain" | "interactive_wr";
   net: number | string;
   gross?: number | string;
   emphasize?: boolean;
@@ -94,7 +101,7 @@ function buildV1SummaryRows(cell: MiniMatrixCell): V1SummaryRow[] {
       kind: "money",
       net: cell.CenaZakupuBezOponIOpcjiSerwisowychIPakietu,
     },
-    { label: "WR", kind: "money", net: cell.WR, emphasize: true },
+    { label: "WR", kind: "interactive_wr", net: cell.WR, emphasize: true },
     { label: "WR % (od ceny zakupu z opcjami fabrycznymi)", kind: "percent", net: wrPctBase },
     { label: "WR dla LO", kind: "money", net: cell.WRdlaLO },
     { label: "Koszt dzienny", kind: "money", net: cell.KosztDzienny, emphasize: true },
@@ -138,7 +145,19 @@ const LEGEND_TIERS = [
 
 /* ── Main Component ────────────────────────────────────────────────── */
 
-export function MatrixHeatmapView({ cells, mileageMode = "annual", onCellClick, onShowTrace, isFetchingTrace }: MatrixHeatmapViewProps) {
+export function MatrixHeatmapView({ 
+  cells, 
+  mileageMode = "annual", 
+  onCellClick, 
+  onShowTrace, 
+  isFetchingTrace,
+  getOverrides,
+  onOverridesChange,
+  onRecalculate,
+  onReset,
+  modifiedCells,
+  recalculatingCell
+}: MatrixHeatmapViewProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const getContractKm = (c: MiniMatrixCell): number => c.PrzebiegKontrakt ?? Math.round((c.Okres / 12) * c.Przebieg);
@@ -218,7 +237,10 @@ export function MatrixHeatmapView({ cells, mileageMode = "annual", onCellClick, 
               <tr key={m}>
                 {/* Row header */}
                 <td className="py-2 px-3 border-b border-r border-slate-100 align-middle">
-                  <div className="text-xs font-bold text-slate-600">{m} mc</div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="text-xs font-bold text-slate-600">{m} mc</div>
+                    {modifiedCells?.has(m) && <span title="Zmodyfikowane parametry"><Settings className="w-3 h-3 text-blue-500" /></span>}
+                  </div>
                   <div className="text-[9px] text-slate-400">
                     {m === 12 ? "1 rok" : m === 24 ? "2 lata" : m === 36 ? "3 lata" : m === 48 ? "4 lata" : m === 60 ? "5 lat" : m === 72 ? "6 lat" : m === 84 ? "7 lat" : `${(m / 12).toFixed(1)} lat`}
                   </div>
@@ -403,12 +425,54 @@ export function MatrixHeatmapView({ cells, mileageMode = "annual", onCellClick, 
                     {v1Rows.map((row) => (
                       <tr key={row.label} className="border-t border-slate-100">
                         <td className={`px-2 py-1.5 ${row.emphasize ? "font-bold text-slate-800" : "text-slate-600"}`}>{row.label}</td>
-                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
-                          {renderV1CellValue(row, "net")}
+                        <td colSpan={row.kind === "interactive_wr" ? 2 : 1} className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
+                          {row.kind === "interactive_wr" ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="mr-4">
+                                <span className="text-[10px] text-slate-400 mr-1">Tabela:</span>
+                                {renderV1CellValue(row, "net")}
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Korekta:</span>
+                              <input
+                                type="number"
+                                step={500}
+                                value={getOverrides?.(cell.Okres)?.manual_wr_correction ?? ""}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  onOverridesChange?.(cell.Okres, { manual_wr_correction: isNaN(val) ? 0 : val });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") onRecalculate?.(cell.Okres);
+                                }}
+                                className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                                placeholder="0"
+                              />
+                              <button
+                                onClick={() => onRecalculate?.(cell.Okres)}
+                                disabled={recalculatingCell === cell.Okres}
+                                className="px-2 py-1 text-[10px] font-bold bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:opacity-50"
+                              >
+                                {recalculatingCell === cell.Okres ? "..." : "Przelicz"}
+                              </button>
+                              {(getOverrides?.(cell.Okres).manual_wr_correction !== null || modifiedCells?.has(cell.Okres)) && (
+                                <button
+                                  onClick={() => onReset?.(cell.Okres)}
+                                  className="px-2 py-1 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
+                                  title="Resetuj komórkę"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            renderV1CellValue(row, "net")
+                          )}
                         </td>
-                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
-                          {renderV1CellValue(row, "gross")}
-                        </td>
+                        {row.kind !== "interactive_wr" && (
+                          <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
+                            {renderV1CellValue(row, "gross")}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

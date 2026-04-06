@@ -1,0 +1,52 @@
+[A1] Express Sp. z o.o. Sp.k. | ul. Puszkarska 7F, 30-644 Kraków | www.express.pl
+[H1] Express | Kieruj się wygodą !
+[A4] OFERTA NAJMU DŁUGOTERMINOWEGO
+[A5] Data sporządzenia oferty: 2026-04-01
+[F5] Data ważności oferty: 2026-05-01
+[A7] Oferta przygotowana dla:
+ROBELIT PRO SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ
+[F7] Oferta przygotowana przez:
+Paweł Romańczak
+Key Account Manager
+promanczak@express.pl | m. 667-072-012
+[A10] Kod
+kalkulacji
+[B10] Model
+samochodu
+[C10] Wyposażenie
+fabryczne
+[D10] Wyposażenie
+serwisowe
+[E10] Okres
+umowy
+[F10] Limit
+km
+[G10] Czynsz
+inicjalny
+[H10] Miesięczna
+cena
+[I10] Część
+finansowa
+[J10] Część
+techniczna
+[K10] Opłata za
+nadprzebieg
+[L10] Rodzaj
+kosztów
+[A12] 0002/04/26
+[B12] VOLKSWAGEN Crafter 2,0 TDI ON 2x4 AT
+[C12] • Światła LED
+• Multimedia + Drzwi 270°...
+[D12] • Podłoga ze sklejki (kompatybilna z każdą wersją drzwi przesuwnych) (POD_SKL_L4)...
+[E12] 48 miesięcy
+[F12] 200 000
+[H12] 3590
+[I12] 2403
+[J12] 1187
+[K12] 0.5
+[L12] ASO
+[C13] • Amortyzowany Fotel
+• Pełna zabudowa przestrzeni ładunkowej z polipropylenu dla wersji 4D
+[A16] Informacje dodatkowe:
+[A17] 1) Wszystkie ceny podane w kalkulacji są cenami netto.
+2) Oferta ważna pod warunkiem utrzymania cen dealera.

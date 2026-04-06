@@ -78,7 +78,6 @@ export function ReversePriceLookup({ basePayload, vehicleId }: ReversePriceLooku
   
   const [similarCars, setSimilarCars] = useState<SimilarVehicle[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
-  const [searchMode, setSearchMode] = useState<"rule-based" | "semantic">("rule-based");
 
   const handleSearch = async () => {
     if (!basePayload) {
@@ -176,7 +175,7 @@ export function ReversePriceLookup({ basePayload, vehicleId }: ReversePriceLooku
 
       // After successful calculation, trigger discovery of similar cars if vehicleId exists
       if (vehicleId) {
-        fetchSimilarCars(vehicleId, mc, km, searchMode);
+        fetchSimilarCars(vehicleId, mc, km, "semantic");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nieznany błąd");
@@ -185,7 +184,7 @@ export function ReversePriceLookup({ basePayload, vehicleId }: ReversePriceLooku
     }
   };
 
-  const fetchSimilarCars = async (id: string, mc: number, km: number, mode: string = "rule-based") => {
+  const fetchSimilarCars = async (id: string, mc: number, km: number, mode: string = "semantic") => {
     setLoadingSimilar(true);
     setSimilarCars([]);
     try {
@@ -443,42 +442,15 @@ export function ReversePriceLookup({ basePayload, vehicleId }: ReversePriceLooku
 
               {/* Similar Cars Discovery Results */}
               <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50/50 to-purple-50/50 border border-indigo-100 shadow-sm">
-                  <div className="flex flex-col gap-2">
-                    <h4 className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-2">
                       Podobne pojazdy w tym budżecie
-                    </h4>
-                    
-                    {/* Search Mode Toggle */}
-                    <div className="flex items-center gap-1 p-1 bg-white/50 border border-indigo-100 rounded-lg w-fit">
-                      <button
-                        onClick={() => {
-                          setSearchMode("rule-based");
-                          if (vehicleId && result) fetchSimilarCars(vehicleId, result.months, result.totalKm, "rule-based");
-                        }}
-                        className={`px-3 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          searchMode === "rule-based" 
-                            ? "bg-indigo-600 text-white shadow-sm" 
-                            : "text-slate-500 hover:bg-white"
-                        }`}
-                      >
-                        SZYBKIE (REGUŁY)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSearchMode("semantic");
-                          if (vehicleId && result) fetchSimilarCars(vehicleId, result.months, result.totalKm, "semantic");
-                        }}
-                        className={`px-3 py-1 text-[9px] font-bold rounded-md transition-all ${
-                          searchMode === "semantic" 
-                            ? "bg-purple-600 text-white shadow-sm" 
-                            : "text-slate-500 hover:bg-white"
-                        }`}
-                      >
+                      <span className="px-1.5 py-0.5 text-[8px] font-bold bg-purple-600 text-white rounded shadow-sm">
                         GŁĘBOKIE (AI CECHY)
-                      </button>
-                    </div>
+                      </span>
+                    </h4>
+                    {loadingSimilar && <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />}
                   </div>
-                  {loadingSimilar && <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />}
 
                 {similarCars.length > 0 ? (
                   <div className="space-y-2">
@@ -500,16 +472,19 @@ export function ReversePriceLookup({ basePayload, vehicleId }: ReversePriceLooku
                             {car.version_name} • {car.body_type}
                           </div>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${
-                              searchMode === "semantic" ? "text-purple-600 bg-purple-50" : "text-emerald-600 bg-emerald-50"
-                            }`}>
-                              {searchMode === "semantic" 
-                                ? `Zgodność cech: ${Math.round(car.score || 0)}%`
-                                : `Dopasowanie: ${Math.round(car.score || 0)}%`
-                              }
+                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded text-purple-600 bg-purple-50">
+                              Zgodność cech: {Math.round(car.score || 0)}%
                             </span>
                             <span className="text-[9px] text-slate-400 font-medium italic">
-                              {searchMode === "semantic" ? "AI Similarity Search" : car.match_reason}
+                              AI Similarity Search
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 text-[9px] text-slate-500 font-medium">
+                            <span className="px-1.5 py-0.5 bg-slate-100 rounded">
+                              {result?.months || months} mc / {(result?.totalKm || Number(totalKm)).toLocaleString("pl-PL")} km
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded whitespace-nowrap">
+                              Marża: 0%
                             </span>
                           </div>
                         </div>

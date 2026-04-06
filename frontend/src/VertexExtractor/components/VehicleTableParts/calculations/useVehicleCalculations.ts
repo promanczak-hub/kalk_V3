@@ -18,6 +18,7 @@ export interface CellOverrides {
   replacement_car_enabled: boolean;
   custom_months: number | null;
   custom_km_per_year: number | null;
+  tire_cost_correction_brutto: number | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +68,19 @@ export function useVehicleCalculations({
   });
 
   const [basePayload, setBasePayload] = useState<Payload | null>(null);
+  
+  const validatePayload = (payload: Payload): string | null => {
+    if (!payload.base_price_net || payload.base_price_net <= 0) {
+      return "Błąd: Brak ceny bazowej pojazdu (musi być > 0). Uzupełnij dane w Vertex Extractor lub Karcie Pojazdu.";
+    }
+    if (!payload.engine_name || !payload.engine_name.trim()) {
+      return "Błąd: Brak rodzaju silnika (engine_name). Wymagane dla logiki stawkowej serwisu.";
+    }
+    if (!payload.samar_category || !payload.samar_category.trim()) {
+      return "Błąd: Brak klasy SAMAR. Wymagane dla logiki Wartości Rezydualnej.";
+    }
+    return null;
+  };
 
   const mileageReferenceMonths = useMemo(() => {
     const [from, to] = filters.monthsRange;
@@ -88,6 +102,7 @@ export function useVehicleCalculations({
     replacement_car_enabled: payload.replacement_car_enabled !== false,
     custom_months: null,
     custom_km_per_year: null,
+    tire_cost_correction_brutto: null,
   });
 
   const getOverrides = (months: number): CellOverrides => {
@@ -105,6 +120,7 @@ export function useVehicleCalculations({
       replacement_car_enabled: true,
       custom_months: null,
       custom_km_per_year: null,
+      tire_cost_correction_brutto: null,
     };
   };
 
@@ -132,9 +148,26 @@ export function useVehicleCalculations({
       const przebiegBazowy = mappedAi.total_km || 140000;
       kmPerMonthRef.current = przebiegBazowy / okresBazowy;
 
-      const rawBasePrice = String(cardSummary.base_price || cardSummary.total_price || "0");
+      // --- ROBUST PRICE DISCOVERY (SYNC WITH BACKEND READYNESS CHECK) ---
+      const sd = stanJson.synthesis_data || {};
+      const cs = sd.card_summary || {};
+      const setup = sd.calculator_setup || {};
+      const pp = cs.parsed_prices || {};
+      const uf = sd.universal_features || {};
+      const comp = sd.computed || {};
+
+      const rawBasePrice = String(
+        setup.catalog_base_price_net || 
+        cardSummary.base_price || 
+        cardSummary.total_price || 
+        pp.base || 
+        uf.cena_pojazdu || 
+        comp.estimated_price || 
+        "0"
+      );
+      
       const cleanBasePrice = parsePriceToNumber(rawBasePrice);
-      const priceDomain = cardSummary._price_domain || "unknown";
+      const priceDomain = cardSummary._price_domain || cardSummary.price_domain || "unknown";
       const isBrutto = rawBasePrice.toLowerCase().includes("brutto") || priceDomain === "brutto";
       
       const basePriceNet = isBrutto ? parseFloat((cleanBasePrice / 1.23).toFixed(2)) : cleanBasePrice;
@@ -204,7 +237,7 @@ export function useVehicleCalculations({
             ?? stanJson.KosztPrzygotowaniaDosprzedazyKorekta
             ?? 0
         ),
-        z_oponami: toggles.z_oponami !== false,
+        z_oponami: (toggles.include_tires ?? toggles.z_oponami) !== false,
         klasa_opony_string: stanJson.tire_params?.tire_class || "Medium",
         srednica_felgi: stanJson.tire_params?.rim_diameter || (cardSummary.wheels ? parseInt(String(cardSummary.wheels).replace(/\D/g, "")) : 16) || 16,
         liczba_kompletow_opon: stanJson.tire_params?.tire_count_mode === "auto" ? null : (isNaN(parseFloat(stanJson.tire_params?.tire_count_mode)) ? null : parseFloat(stanJson.tire_params?.tire_count_mode)),
@@ -227,11 +260,28 @@ export function useVehicleCalculations({
         paint_type_name: stanJson.mapped_ai_data?.color ?? stanJson.typ_lakieru ?? stanJson.paint_type_name ?? cardSummary.color ?? "",
         body_type_name: stanJson.mapped_ai_data?.body_type ?? stanJson.body_type_name ?? cardSummary.body_style ?? cardSummary.body_type ?? "",
         zabudowa_type_id: stanJson.zabudowa_type_id ?? ((typeof cardSummary.zabudowa_type_id === "number") ? cardSummary.zabudowa_type_id : null),
-        samar_category: stanJson.mapped_ai_data?.samar_category ?? stanJson.samar_category ?? cardSummary.samar_category ?? "",
-        engine_name: stanJson.mapped_ai_data?.fuel ?? stanJson.engine_category ?? cardSummary.engine_category ?? cardSummary.powertrain ?? "",
+        samar_category: stanJson.mapped_ai_data?.samar_category 
+          ?? stanJson.samar_category 
+          ?? cardSummary.samar_category 
+          ?? cs.samar_category 
+          ?? "",
+        engine_name: stanJson.mapped_ai_data?.fuel 
+          ?? stanJson.engine_category 
+          ?? cardSummary.engine_category 
+          ?? cardSummary.powertrain 
+          ?? cs.fuel_type 
+          ?? uf.rodzaj_paliwa 
+          ?? "",
       };
 
       setBasePayload(payload);
+
+      const validationError = validatePayload(payload);
+      if (validationError) {
+        setError(validationError);
+        setLoading(false);
+        return;
+      }
 
       const matrixResp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
         method: "POST",
@@ -300,6 +350,21 @@ export function useVehicleCalculations({
         replacement_car_enabled: ov.replacement_car_enabled,
       };
 
+      if (ov.tire_cost_correction_brutto !== null && ov.tire_cost_correction_brutto !== undefined) {
+        modifiedPayload.koszt_opon_korekta = {
+          ...(basePayload.koszt_opon_korekta || {}),
+          [`${effectiveMonths}_${targetKm}`]: ov.tire_cost_correction_brutto
+        };
+        modifiedPayload.korekta_kosztu_opon = true;
+      }
+
+      const validationError = validatePayload(modifiedPayload);
+      if (validationError) {
+        alert(validationError);
+        setRecalculating(null);
+        return;
+      }
+
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -350,6 +415,14 @@ export function useVehicleCalculations({
         replacement_car_enabled: ov.replacement_car_enabled,
       };
 
+      if (ov.tire_cost_correction_brutto !== null && ov.tire_cost_correction_brutto !== undefined) {
+        modifiedPayload.koszt_opon_korekta = {
+          ...(basePayload.koszt_opon_korekta || {}),
+          [`${effectiveMonths}_${targetKm}`]: ov.tire_cost_correction_brutto
+        };
+        modifiedPayload.korekta_kosztu_opon = true;
+      }
+
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-trace`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -384,8 +457,11 @@ export function useVehicleCalculations({
     });
   };
 
-  const handleOverridesChange = (months: number, overrides: CellOverrides) => {
-    setCellOverrides(prev => ({ ...prev, [months]: overrides }));
+  const handleOverridesChange = (months: number, overrides: Partial<CellOverrides>) => {
+    setCellOverrides(prev => {
+      const current = prev[months] || buildDefaultOverrides(basePayload || {});
+      return { ...prev, [months]: { ...current, ...overrides } as CellOverrides };
+    });
   };
 
   const filteredCells = useMemo(() => {
@@ -428,6 +504,14 @@ export function useVehicleCalculations({
         ...basePayload,
         pricing_margin_pct: marginPct,
       };
+
+      const validationError = validatePayload(modifiedPayload);
+      if (validationError) {
+        setError(validationError);
+        setMarginRecalculating(false);
+        return;
+      }
+
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -448,17 +532,21 @@ export function useVehicleCalculations({
     }
   }, [basePayload]);
 
-  const handleExactRecalculate = useCallback(async (months: number, kmPerYear: number, marginPct: number) => {
+  const handleExactRecalculate = useCallback(async (months: number, kmPerYear: number, marginPct: number, targetPrice?: number) => {
     if (!basePayload) return;
     setMarginRecalculating(true);
     try {
       const targetKm = Math.round((kmPerYear / 12) * months);
-      const modifiedPayload = {
+      const modifiedPayload: Payload = {
         ...basePayload,
         okres_bazowy: months,
         przebieg_bazowy: targetKm,
         pricing_margin_pct: marginPct,
       };
+      
+      if (targetPrice !== undefined && targetPrice > 0) {
+        modifiedPayload.pricing_exact_price = targetPrice;
+      }
 
       const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
         method: "POST",

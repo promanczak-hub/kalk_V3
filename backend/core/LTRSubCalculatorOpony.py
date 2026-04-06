@@ -74,6 +74,12 @@ class LTRSubCalculatorOpony:
         else:
             self.budget_tire_cost = 0.0
             self.odkup_opon_cost = 0.0
+            self.tire_set_price = 0.0
+            self.tire_set_price_base = 0.0
+            self.storage_cost_per_year = 0.0
+            self.swap_cost = 0.0
+            self.vat_rate = 1.23
+            self.thresholds = {}
 
     def _fetch_global_param(self, param_name: str) -> float:
         """Pobiera parametry globalne (np. koszt przekładki/przechowywania) z bazy."""
@@ -205,11 +211,12 @@ class LTRSubCalculatorOpony:
             if response.data and len(response.data) > 0:
                 row = cast(Dict[str, Any], response.data[0])
                 val = row.get(budget_col)
-                if val:
+                if val is not None:
                     return float(val)
-        except Exception:
-            pass
-        return self.tire_set_price_base
+        except Exception as e:
+            raise ValueError(f"Błąd bazy danych przy pobieraniu ceny budżetowej opon dla srednica={self.srednica_felgi}: {str(e)}") from e
+
+        raise ValueError(f"Brak ceny kompletu budżetowego ({budget_col}) w tabeli koszty_opon dla srednicy {self.srednica_felgi}")
 
     def _fetch_odkup_opon_cost(self) -> float:
         """Pobiera historyczną cenę odkupu opon z tabeli (V1: zmniejsza ogólny koszt netto)."""
@@ -227,16 +234,22 @@ class LTRSubCalculatorOpony:
             )
             if response.data and len(response.data) > 0:
                 row = cast(Dict[str, Any], response.data[0])
-                val = row.get("odkup_opon")
-                if val is not None:
-                    return float(val)
+                if "odkup_opon" not in row or row["odkup_opon"] is None:
+                    raise ValueError(f"Kolumna odkup_opon pusta lub brakująca dla srednicy {self.srednica_felgi}")
+                return float(row["odkup_opon"])
+        except ValueError as ve:
+            raise ve
         except Exception as e:
             logger.error(
                 f"Error fetching Odkup Opon for size {self.srednica_felgi}: {e}"
             )
-            pass
+            raise ValueError(f"Błąd krytyczny wyciągania kwoty odkupu opon: {str(e)}") from e
 
-        return 0.0
+        raise ValueError(
+            f"Zaznaczono opcję 'Odkup Opon', ale w tabeli 'koszty_opon' brakuje wpisu "
+            f"dla średnicy {self.srednica_felgi}. Dodaj kwotę w panelu administracyjnym "
+            f"lub odznacz opcję Odkupu."
+        )
 
     def _get_sets_needed(self, total_km: int) -> float:
         """Schodkowa logika ilości kompletów pobrana z tablic parametrycznych V3."""
@@ -379,7 +392,9 @@ class LTRSubCalculatorOpony:
                 ],
             }
 
-        total_hw_cost = self._get_total_hardware_cost(total_km, sets_needed, effective_price)
+        total_hw_cost = self._get_total_hardware_cost(
+            total_km, sets_needed, effective_price
+        )
 
         trace.append(
             {

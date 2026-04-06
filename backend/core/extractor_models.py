@@ -275,6 +275,10 @@ class CardSummary(BaseModel):
         None,
         description="Oznaczenie handlowe silnika / technologii, np. 'TSI', 'TDI', 'dCi', 'EcoBoost'. Zwróć 'Brak' lub null, jeśli brakuje.",
     )
+    engine_marketing_name: Optional[str] = Field(
+        None,
+        description="Marketingowa, handlowa nazwa silnika lub technologii (np. 'ECO-G', 'BlueHDi', 'e-Tech', 'Hybrid 136'). Zwróć null jeśli brak.",
+    )
     engine_category: Optional[NapedTyp] = Field(
         None,
         description="Przyporządkuj rodzaj i zasilanie napędu pojazdu z dokumentu ściśle do jednej z kategorii w Enum `NapedTyp`.",

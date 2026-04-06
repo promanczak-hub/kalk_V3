@@ -87,7 +87,35 @@ export function CellDetail({
         <tbody>
           <SimpleCostRow label="Finansowanie (PMT)" price={cell.CzynszFinansowy} />
           <SimpleCostRow label="Serwis" price={cell.Serwis} />
-          <SimpleCostRow label="Opony" price={cell.Opony} />
+          <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-100/50 transition-colors">
+            <td className="py-1 text-xs text-slate-600 flex items-center gap-2">
+              Opony
+              {overrides.tire_cost_correction_brutto != null && (
+                <span className="text-[9px] bg-sky-100 text-sky-700 px-1 py-0.5 rounded font-bold" title="Aktywna manualna korekta kosztu opon na cały kontrakt (brutto)">NADPISANE</span>
+              )}
+            </td>
+            <td className="py-1 text-xs text-right font-medium text-slate-700 tabular-nums">
+              <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    step={100}
+                    placeholder="Całość Brutto"
+                    value={overrides.tire_cost_correction_brutto ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      update({ tire_cost_correction_brutto: val === "" ? null : Number(val) });
+                    }}
+                    onBlur={() => onRecalculate()}
+                    className="w-24 text-[10px] p-0.5 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 bg-white transition-all hover:border-blue-300"
+                    title="Wpisz całkowity koszt opon na cały kontrakt w PLN BRUTTO. Naciśnij Przelicz lub użyj poza polem, by zaktualizować."
+                  />
+                  <span className="text-[9px] text-slate-400">brutto</span>
+                </div>
+                <span className="w-16">{fmtPLN(cell.Opony)}</span>
+              </div>
+            </td>
+          </tr>
           <SimpleCostRow label="Ubezpieczenie" price={cell.Ubezpieczenie} />
           <SimpleCostRow label="Samochód zastępczy" price={cell.SamochodZastepczy} />
           <SimpleCostRow label="Inne koszty" price={cell.Admin} />

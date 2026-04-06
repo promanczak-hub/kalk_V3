@@ -164,31 +164,49 @@ def upsert_vehicle_features(
         if not feat_info and feat.is_new_manual and feat.display_name:
             # Utworz nowa cechę uniwersalna w locie (Slugify feature_key and create)
             import re
-            
+
             # Simple slugify
-            slug = re.sub(r'[^a-z0-9]+', '_', feat.display_name.lower().strip()).strip('_')
-            
+            slug = re.sub(r"[^a-z0-9]+", "_", feat.display_name.lower().strip()).strip(
+                "_"
+            )
+
             # Wyszukaj kategorie "Inne" (lub ID innej popularnej)
-            cat_resp = sb.schema("reverse_search").table("universal_feature_categories").select("id").eq("category_key", "inne").execute()
+            cat_resp = (
+                sb.schema("reverse_search")
+                .table("universal_feature_categories")
+                .select("id")
+                .eq("category_key", "inne")
+                .execute()
+            )
             cat_id = cat_resp.data[0]["id"] if cat_resp.data else None
-            
+
             new_feat = {
                 "category_id": cat_id,
                 "feature_key": slug,
                 "display_name": feat.display_name,
-                "feature_type": "boolean" if feat.value_bool is not None else ("numeric" if feat.value_num is not None else "text"),
+                "feature_type": "boolean"
+                if feat.value_bool is not None
+                else ("numeric" if feat.value_num is not None else "text"),
                 "vehicle_scope": "both",
                 "is_active": True,
-                "sort_order": 999
+                "sort_order": 999,
             }
             try:
-                sb.schema("reverse_search").table("universal_features").upsert(new_feat, on_conflict="feature_key").execute()
+                sb.schema("reverse_search").table("universal_features").upsert(
+                    new_feat, on_conflict="feature_key"
+                ).execute()
                 # Reload map for this feature
-                new_info_resp = sb.schema("reverse_search").table("universal_features").select("id, feature_type").eq("feature_key", slug).execute()
+                new_info_resp = (
+                    sb.schema("reverse_search")
+                    .table("universal_features")
+                    .select("id, feature_type")
+                    .eq("feature_key", slug)
+                    .execute()
+                )
                 if new_info_resp.data:
                     row: dict[str, Any] = new_info_resp.data[0]
                     feat_info = {"id": str(row["id"]), "type": str(row["feature_type"])}
-                    feat.feature_key = slug # Zmiana klucza dla dalszego processingu
+                    feat.feature_key = slug  # Zmiana klucza dla dalszego processingu
             except Exception as e:
                 errors.append(f"Nie udało się utworzyć cechy {feat.display_name}: {e}")
                 continue

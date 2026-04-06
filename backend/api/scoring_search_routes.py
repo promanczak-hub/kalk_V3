@@ -129,7 +129,9 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
             else None,
             samar_category=raw_reasons.get("samar_category"),
             body_style=raw_reasons.get("body_style"),
-            base_price=float(raw_reasons["base_price"]) if raw_reasons.get("base_price") is not None else None,
+            base_price=float(raw_reasons["base_price"])
+            if raw_reasons.get("base_price") is not None
+            else None,
             paid_options=raw_reasons.get("paid_options"),
         )
 
@@ -141,7 +143,9 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         samar_category=str(row.get("samar_category") or row.get("v_samar") or "N/A"),
         fuel=str(row.get("fuel") or row.get("v_fuel") or "N/A"),
         transmission=str(row.get("transmission") or row.get("v_transmission") or "N/A"),
-        best_monthly_price=float(row.get("best_monthly_price") or row.get("min_price") or 0),
+        best_monthly_price=float(
+            row.get("best_monthly_price") or row.get("min_price") or 0
+        ),
         image_url=str(row.get("image_url") or row.get("v_image") or ""),
         similarity_score_pct=float(row.get("similarity_score_pct") or 0),
         power_hp=int(row.get("power_hp") or 0),
@@ -371,6 +375,72 @@ def get_similar_vehicles(
         )
 
 
+@router.get(
+    "/scoring-search/vehicle/{vehicle_id}/alternatives",
+    response_model=list[SimilarVehicleMatch],
+)
+def get_vehicle_alternatives(
+    vehicle_id: str,
+    category: str,
+    limit: int = 5,
+    duration_months: int | None = None,
+    annual_mileage: int | None = None,
+) -> list[SimilarVehicleMatch]:
+    """Get alternative vehicles based on math criteria or synthetic semantic queries."""
+    sb = supabase
+    try:
+        if category in ["cheaper", "stronger", "greener"]:
+            resp = _supabase_execute_with_retry(
+                sb.rpc(
+                    "rpc_get_alternatives_math",
+                    {
+                        "p_vehicle_id": vehicle_id,
+                        "p_category": category,
+                        "p_limit": limit,
+                        "p_duration_months": duration_months,
+                        "p_annual_mileage": annual_mileage,
+                    },
+                )
+            )
+            return [_build_similar_vehicle_match(row["similarity_json"]) for row in (resp.data or [])]
+            
+        elif category in ["safer", "more_comfortable"]:
+            # Generate synthetic text concept
+            if category == "safer":
+                synthetic_query = "Advanced safety systems, highest NCAP rating, multiple airbags, collision avoidance, blind spot monitoring, lane keep assist, robust structure."
+            else:
+                synthetic_query = "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom."
+                
+            logger.info("Generating embedding for synthetic query: '%s'", synthetic_query)
+            synthetic_vector = generate_embedding(synthetic_query)
+            
+            if not synthetic_vector:
+                raise ValueError("Failed to generate embedding for synthetic concept.")
+                
+            resp = _supabase_execute_with_retry(
+                sb.rpc(
+                    "rpc_get_alternatives_semantic",
+                    {
+                        "p_vehicle_id": vehicle_id,
+                        "p_synthetic_vector": synthetic_vector,
+                        "p_limit": limit,
+                        "p_duration_months": duration_months,
+                        "p_annual_mileage": annual_mileage,
+                    },
+                )
+            )
+            return [_build_similar_vehicle_match(row["similarity_json"]) for row in (resp.data or [])]
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown category: {category}")
+            
+    except Exception as e:
+        logger.exception("Error calling alternatives for category %s: %s", category, e)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch alternatives: {e}"
+        )
+
+
 @router.post(
     "/scoring-search/cache/batch-similar",
     response_model=SimilarBatchResponse,
@@ -396,7 +466,9 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                     "p_limit": req.limit,
                     "p_duration_months": req.duration_months,
                     "p_annual_mileage": req.annual_mileage,
-                    "p_requirements": [r.model_dump() for r in req.requirements] if req.requirements else [],
+                    "p_requirements": [r.model_dump() for r in req.requirements]
+                    if req.requirements
+                    else [],
                 },
             )
         )

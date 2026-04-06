@@ -49,6 +49,9 @@ class CalculatorInput(BaseModel):
     pricing_margin_pct: float = Field(
         default=15.0, description="Marża sprzedaży % z poziomu UI (preset/suwak)"
     )
+    pricing_exact_price: Optional[float] = Field(
+        default=None, description="Docelowa Rata Netto (używana w Goal Seek do wyliczenia pricing_margin_pct)"
+    )
     calculation_mode: Optional[str] = Field(
         default="standard",
         description="Tryb kalkulacji: 'standard' (z marżą) lub 'base_cost_only' (czysty koszt bez marży)",
@@ -68,7 +71,8 @@ class CalculatorInput(BaseModel):
         description="Włącz logikę obniżenia kosztów przez odkup opon (V1)",
     )
     korekta_kosztu_opon: bool = Field(
-        default=False, description="Master switch: czy stosować ręczną korektę kosztu opon"
+        default=False,
+        description="Master switch: czy stosować ręczną korektę kosztu opon",
     )
     koszt_opon_korekta: Dict[str, float] = Field(
         default_factory=dict,

@@ -21,6 +21,17 @@ class FuelType(str, Enum):
     FCEV = "Wodór (FCEV)"
 
 
+class GearboxType(str, Enum):
+    AUTOMATYCZNA = "AUTOMATYCZNA"
+    MANUALNA = "MANUALNA"
+
+
+class DriveType(str, Enum):
+    G_2X4 = "2X4"
+    G_4X4 = "4X4"
+    RWD = "RWD"
+
+
 class VehicleTypeType(str, Enum):
     OSOBOWY = "Osobowy"
     CIEZAROWY = "Ciężarowy"
@@ -37,9 +48,16 @@ class MappedVehicleData(BaseModel):
     fuel: FuelType = Field(
         ..., description="Rodzaj paliwa wybrany ściśle z dostępnej listy."
     )
+    gearbox: GearboxType = Field(
+        ..., description="Skrzynia biegów wybrana ściśle z dozwolonej listy."
+    )
+    drive_type: DriveType = Field(
+        ...,
+        description="Rodzaj napędu z dozwolonej listy. Zauważ: Napęd przedni (FWD) mapuj jako 2X4, a napęd na wszystkie (AWD) jako 4X4.",
+    )
     transmission: str = Field(
         ...,
-        description="Skrzynia biegów i ewentualnie rodzaj napędu (np. Automatyczna AWD).",
+        description="Pozostałe informacje techniczne (nazwa rynkowa skrzyni/napędu np. s-tronic quattro).",
     )
     vehicle_type: VehicleTypeType = Field(
         ..., description="Typ pojazdu (osobowy / ciężarowy)."
@@ -49,7 +67,9 @@ class MappedVehicleData(BaseModel):
 SYSTEM_PROMPT = """Jesteś ekspertem ds. analizy danych motoryzacyjnych.
 Twoim zadaniem jest na bazie przekazanego surowego JSONA z danymi pojazdu zwrócić obiekt zgodny ze schematem.
 Masz zakaz halucynacji. Musisz zdeterminować `vehicle_type` na podstawie modelu (np. Volkswagen Crafter to zazwyczaj ciężarowy furgon, a Golf to osobowy) oraz danych w JSONie.
-Paliwo `fuel` musi zostać kategorycznie zmapowane TYLKO do jednego z dozwolonych typów wyliczeniowych w systemie. Jeśli brakuje danych, zdedukuj najbardziej logiczny typ dla tego pojazdu, nie wolno Ci zwrócić NULL ani błędnego klucza. Zawsze musisz zwrócić kompletny JSON.
+Paliwo (`fuel`), skrzynia biegów (`gearbox`) i napęd (`drive_type`) muszą zostać kategorycznie zmapowane TYLKO do dozwolonych typów wyliczeniowych (Enum) w systemie. 
+Instrukcja napędu: FWD (przedni) mapuj jako 2X4. AWD/Quattro (na 4/wszystkie) mapuj jako 4X4. RWD mapuj jako RWD.
+Jeśli brakuje danych, zdedukuj najbardziej logiczny typ dla tego pojazdu, nie wolno Ci zwrócić NULL ani błędnego klucza. Zawsze musisz zwrócić kompletny JSON.
 """
 
 
@@ -57,7 +77,7 @@ def map_vehicle_data_flash(original_json: Dict[str, Any]) -> dict:
     """
     Takes original extracted JSON and forces Gemini Flash to map attributes
     strictly into the MappedVehicleData Pydantic schema to prevent hallucinations
-    and enforce specific enums (e.g. Fuel Type).
+    and enforce specific enums (e.g. Fuel Type, Gearbox, Drive Type).
     """
     api_key = os.environ.get("GEMINI_API_KEY")
 
@@ -102,6 +122,8 @@ def map_vehicle_data_flash(original_json: Dict[str, Any]) -> dict:
             "model": "Brak",
             "trim_level": "Brak",
             "fuel": "Benzyna (PB)",
+            "gearbox": "MANUALNA",
+            "drive_type": "2X4",
             "transmission": "Brak",
             "vehicle_type": "Osobowy",
         }

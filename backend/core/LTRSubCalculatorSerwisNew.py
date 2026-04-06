@@ -14,8 +14,7 @@
 import logging
 from functools import lru_cache
 from typing import Any, cast
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import supabase
 
@@ -73,7 +72,9 @@ def get_all_service_rates(samar_class_id: int) -> list[dict[str, Any]]:
 def get_service_multiplier(table_name: str, key_column: str, key_val: str) -> float:
     """Pobiera mnożnik wprost z bazy, używając wartości z wiersza 'multiplier'."""
     if not key_val:
-        return 1.0
+        raise ValueError(
+            f"Brak wartości klucza ({key_column}) przy próbie pobrania mnożnika z tabeli {table_name} (Fail-Fast)."
+        )
     try:
         response = (
             supabase.table(table_name)
@@ -84,9 +85,15 @@ def get_service_multiplier(table_name: str, key_column: str, key_val: str) -> fl
         if response.data and len(response.data) > 0:
             data = cast(list[dict[str, Any]], response.data)
             return float(data[0]["multiplier"])
+        else:
+            raise ValueError(
+                f"Brak mnożnika w tabeli {table_name} dla {key_column} = '{key_val}' (Fail-Fast)."
+            )
     except Exception as e:
-        logger.error(f"Error fetching service multiplier from {table_name}: {e!s}")
-    return 1.0
+        logger.error(f"Error fetching service multiplier from {table_name} for '{key_val}': {e!s}")
+        if isinstance(e, ValueError):
+            raise
+        raise ValueError(f"Błąd bazy podczas pobierania mnożnika z {table_name} dla '{key_val}': {e!s}")
 
 
 class ServiceCalculatorInput(BaseModel):
@@ -116,6 +123,47 @@ class ServiceCalculatorInput(BaseModel):
     fuel_type: str | None = Field(default=None)
     drive_type: str | None = Field(default=None)
     gearbox_type: str | None = Field(default=None)
+
+    @field_validator("drive_type", mode="before")
+    @classmethod
+    def normalize_drive_type(cls, v: Any) -> str | None:
+        if not isinstance(v, str):
+            return v
+        val = v.upper().strip()
+        if any(
+            x in val for x in ["AWD", "4X4", "QUATTRO", "ALL4", "XDRIVE", "4MOTION"]
+        ):
+            return "4X4"
+        if any(x in val for x in ["FWD", "PRZEDNI", "4X2", "2X4", "PZEDNI"]):
+            return "2X4"
+        if any(x in val for x in ["RWD", "TYLNY"]):
+            return "RWD"
+        return val
+
+    @field_validator("gearbox_type", mode="before")
+    @classmethod
+    def normalize_gearbox_type(cls, v: Any) -> str | None:
+        if not isinstance(v, str):
+            return v
+        val = v.upper().strip()
+        if any(
+            x in val
+            for x in [
+                "AUT",
+                "DSG",
+                "S-TRONIC",
+                "S TRONIC",
+                "TIPTRONIC",
+                "STEPTRONIC",
+                "EDC",
+                "DCT",
+                "PDK",
+            ]
+        ):
+            return "AUTOMATYCZNA"
+        if any(x in val for x in ["MAN", "RĘCZNA"]):
+            return "MANUALNA"
+        return val
 
     # Contract params
     przebieg: int

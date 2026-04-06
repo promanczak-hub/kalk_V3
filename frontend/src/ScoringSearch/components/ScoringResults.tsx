@@ -25,7 +25,7 @@ interface ScoringResultsProps {
 
 export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext, selectedFeatures }) => {
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
-  const [similarityMode, setSimilarityMode] = useState<'rule-based' | 'semantic'>('semantic');
+  const similarityMode = 'semantic';
 
   let searchDurationMin = searchContext.duration_months_range[0];
   let searchDurationMax = searchContext.duration_months_range[1];
@@ -129,20 +129,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
       {/* Sort Toolbar */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="caption" color="textSecondary">Podobne (Alternatywy):</Typography>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <Select
-              value={similarityMode}
-              onChange={(e: SelectChangeEvent) => setSimilarityMode(e.target.value as 'rule-based' | 'semantic')}
-              sx={{ fontSize: '0.8rem' }}
-            >
-              <MenuItem value="rule-based">W tej klasie (⚙️)</MenuItem>
-              <MenuItem value="semantic">Inteligentne (AI ✨)</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="caption" color="textSecondary">Sortuj:</Typography>
           <FormControl size="small" sx={{ minWidth: 180 }}>

@@ -19,7 +19,7 @@ interface MatrixFilterToolbarProps {
   referenceMonths: number;
   onFiltersChange: (f: MatrixFilters) => void;
   onMarginRecalculate: (marginPct: number) => void;
-  onExactRecalculate: (months: number, kmPerYear: number, marginPct: number) => void;
+  onExactRecalculate: (months: number, kmPerYear: number, marginPct: number, targetPrice?: number) => void;
   isRecalculating: boolean;
 }
 
@@ -52,7 +52,8 @@ function getMarginSliderColor(pct: number): string {
 }
 
 function pctOfRange(val: number, min: number, max: number): number {
-  return ((val - min) / (max - min)) * 100;
+  if (max === min) return 0;
+  return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
 }
 
 /* ── Dual-Range Slider (reusable) ─────────────────────────────────── */
@@ -241,6 +242,7 @@ export function MatrixFilterToolbar({
   const [exactMonths, setExactMonths] = useState<string>("48");
   const [exactKm, setExactKm] = useState<string>("40000");
   const [exactMargin, setExactMargin] = useState<string>(defaultMarginPct.toFixed(2));
+  const [exactPrice, setExactPrice] = useState<string>("");
 
   const safeReferenceMonths = referenceMonths > 0 ? referenceMonths : 48;
   const [prevMileageMode, setPrevMileageMode] = useState<typeof mileageMode>(mileageMode);
@@ -310,7 +312,9 @@ export function MatrixFilterToolbar({
       ? Math.round((inputKm / m) * 12)
       : inputKm;
 
-    onExactRecalculate(m, kmPerYear, mar);
+    const targetPrice = exactPrice.trim() !== "" ? parseFloat(exactPrice) : undefined;
+
+    onExactRecalculate(m, kmPerYear, mar, targetPrice && !isNaN(targetPrice) ? targetPrice : undefined);
   };
 
   const rawSliderValue = filters.targetKmPerYear !== null
@@ -321,7 +325,7 @@ export function MatrixFilterToolbar({
       ? Math.round((60_000 / 12) * safeReferenceMonths)
       : 60_000);
       
-  const sliderValue = Math.min(rawSliderValue, sliderMax);
+  const sliderValue = Math.max(sliderMin, Math.min(rawSliderValue, sliderMax));
 
   const kmLow = filters.targetKmPerYear
     ? Math.round(rawSliderValue * (1 - KM_MARGIN_PCT))
@@ -595,6 +599,19 @@ export function MatrixFilterToolbar({
                 value={exactMargin}
                 onChange={(e) => setExactMargin(e.target.value)}
                 className="w-14 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-white border border-blue-200 rounded-md px-2 py-1 shadow-sm">
+              <label className="text-[10px] text-blue-600 font-bold" htmlFor="exactPrice" title="Zostaw puste, aby użyć marży">Szukaj Wyniku (Netto):</label>
+              <input
+                id="exactPrice"
+                type="number"
+                min="0"
+                step="1"
+                value={exactPrice}
+                onChange={(e) => setExactPrice(e.target.value)}
+                placeholder="Rata docelowa"
+                className="w-20 text-xs font-bold text-blue-700 bg-transparent outline-none tabular-nums placeholder:text-blue-300 placeholder:font-normal"
               />
             </div>
             <button

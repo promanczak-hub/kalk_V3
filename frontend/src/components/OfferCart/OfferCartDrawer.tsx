@@ -110,19 +110,21 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
     setIsGenerating(true);
     setErrorMsg('');
     try {
+      const payload = {
+        client_name: clientData.companyName || "Klient Indywidualny",
+        client_nip: clientData.nip || "0000000000",
+        items: items.map(item => ({
+          ...item,
+          id: item.id
+        }))
+      };
+      
+      console.log('Sending offer generation request:', payload);
+      
       const response = await fetch('/api/offers/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_company: clientData.companyName,
-          client_nip: clientData.nip,
-          client_address: clientData.address,
-          client_representative: clientData.representative,
-          items: items.map(item => ({
-            ...item,
-            id: item.id
-          }))
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -132,9 +134,19 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
       
       // Open the generated Excel file URL
       if (data.url) {
-        window.open(data.url, '_blank');
+        // Use a hidden anchor to trigger download instead of window.open which might be blocked
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.target = '_blank';
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
         clearCart();
         onClose();
+      } else {
+        throw new Error('Nierezpoznany format odpowiedzi serwera (brak URL)');
       }
     } catch (error: unknown) {
       console.error(error);

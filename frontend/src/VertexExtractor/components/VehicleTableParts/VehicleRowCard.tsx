@@ -27,6 +27,7 @@ import { queuePreloadVehicleFeatures } from "../../hooks/useVehicleFeaturesCache
 
 // Extracted UI Components
 import { VehicleActionButtons } from "./VehicleActionButtons";
+import { VehicleCalculationsList } from "./VehicleCalculationsList";
 
 import { PDFViewerFrame } from "./PDFViewerFrame";
 import { VehicleRowCalculations } from "./VehicleRowCalculations";
@@ -167,6 +168,7 @@ export function VehicleRowCard({
     replacementCar, setReplacementCar,
     gpsRequired, setGpsRequired,
     includeServicing, setIncludeServicing,
+    includeTires, setIncludeTires,
     hookInstallation, setHookInstallation,
     tireClass, setTireClass,
     tireCountMode, setTireCountMode,
@@ -418,6 +420,26 @@ export function VehicleRowCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHighlighted, activeKalkulacjaId]);
 
+  const handleCloneCalculation = async (kalkulacjaId: string) => {
+    try {
+      const resp = await apiClient.fetch(`/api/kalkulacje/${kalkulacjaId}/duplicate`, {
+        method: "POST"
+      });
+      if (!resp.ok) throw new Error("Błąd podczas klonowania");
+      const data = await resp.json();
+
+      setActiveKalkulacjaId(data.id);
+      setActiveKalkulacjaNumer(data.numer_kalkulacji || `ID: ${data.id}`);
+
+      // Powiadom listę o nowej kalkulacji
+      const event = new CustomEvent('kalkulacjaCreated', { detail: { vehicleId: vehicle.id } });
+      window.dispatchEvent(event);
+    } catch (err) {
+      console.error(err);
+      alert("Nie udało się sklonować wariantu.");
+    }
+  };
+
   // ── Processing stages for progress stepper ──
   const PROCESSING_STAGES = [
     { key: "uploading", label: "Upload pliku do chmury" },
@@ -640,18 +662,41 @@ export function VehicleRowCard({
   
   const transmission = localMappedData?.transmission || mappedData?.transmission || detectedTransmission;
 
-  // Construct the unified technical description for the header
   const vehicleTypeHint = localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class;
   
-  const technicalDescriptionParts = [
+  const rawParts = [
     vehicle.powertrain,
     vehicleTypeHint,
     driveType,
     transmission,
     resolvedBodyType
-  ].filter(part => part && part.trim() !== "" && part !== "Brak" && part !== "-");
+  ];
+
+  const uniqueParts: string[] = [];
   
-  const technicalDescription = technicalDescriptionParts.join(" • ");
+  for (let part of rawParts) {
+    if (!part || part.trim() === "" || part === "Brak" || part === "-") continue;
+    
+    // Usunięcie znaków interpunkcyjnych z brzegów, które mogło wyciągnąć AI
+    part = part.replace(/^[•\s-\\|]+|[•\s-\\|]+$/g, "").trim();
+    if (!part) continue;
+
+    // Specyficzne czyszczenie dla skrzyni biegów - usunięcie duplikujących się informacji o napędzie, 
+    // ponieważ napęd (driveType) jest już zawsze wyświetlany jako oddzielny element (np. "4x2 (FWD)").
+    if (part === transmission) {
+       part = part.replace(/(?:\b|Napęd\s+)(FWD|RWD|AWD|4x2|4x4|4MOTION|QUATTRO|XDRIVE)(?:\b)/ig, "")
+                  .replace(/\s+/g, " ")
+                  .trim();
+       if (!part) continue;
+    }
+
+    // Zapobieganie dokładnie takim samym stringom w nagłówku
+    if (!uniqueParts.some(p => p.toLowerCase() === part.toLowerCase())) {
+      uniqueParts.push(part);
+    }
+  }
+
+  const technicalDescription = uniqueParts.join(" • ");
 
   return (
     <div
@@ -807,6 +852,8 @@ export function VehicleRowCard({
                  setGpsRequired={setGpsRequired}
                  includeServicing={includeServicing}
                  setIncludeServicing={setIncludeServicing}
+                 includeTires={includeTires}
+                 setIncludeTires={setIncludeTires}
                  hookInstallation={hookInstallation}
                  setHookInstallation={setHookInstallation}
                  // Tire parameters
@@ -852,6 +899,7 @@ export function VehicleRowCard({
                    hookInstallation={hookInstallation}
                    tireClass={tireClass}
                    tireCountMode={tireCountMode}
+                   includeTires={tireCountMode !== "BRAK"}
                    tireCostCorrectionEnabled={tireCostCorrectionEnabled}
                    tireCostCorrectionMap={tireCostCorrectionMap}
                    rimDiameter={rimDiameter}
@@ -877,6 +925,17 @@ export function VehicleRowCard({
                    }}
                    activeKalkulacjaId={activeKalkulacjaId}
                    activeKalkulacjaNumer={activeKalkulacjaNumer}
+                 />
+                 
+                 <VehicleCalculationsList 
+                   vehicleId={vehicle.id}
+                   activeKalkulacjaId={activeKalkulacjaId}
+                   onSelect={(id, numer) => {
+                     setActiveKalkulacjaId(id);
+                     setActiveKalkulacjaNumer(numer);
+                     if (!isExpanded) setIsExpanded(true);
+                   }}
+                   onClone={handleCloneCalculation}
                  />
               </div>
 

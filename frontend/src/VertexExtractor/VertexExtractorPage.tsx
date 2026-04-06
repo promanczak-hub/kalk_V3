@@ -62,6 +62,24 @@ export default function VertexExtractorPage() {
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
   const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
   const [paintTypes, setPaintTypes] = useState<PaintTypeOption[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(Array.from(e.dataTransfer.files));
+    }
+  };
 
 
   useEffect(() => {
@@ -151,19 +169,27 @@ export default function VertexExtractorPage() {
           <Fab
             component="label"
             aria-label="prześlij dokumenty"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             sx={{
               position: "fixed",
               bottom: 104, // Offset to sit above the Offer Cart FAB (usually at 32)
               right: 32,
               zIndex: 1100,
-              background: "linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)",
+              background: isDragging 
+                ? "linear-gradient(45deg, #6366f1 30%, #a855f7 90%)"
+                : "linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)",
               color: "#ffffff",
-              boxShadow: theme.palette.mode === 'dark' 
-                ? "0 8px 32px rgba(79, 70, 229, 0.4)" 
-                : "0 8px 20px rgba(79, 70, 229, 0.25)",
+              boxShadow: isDragging
+                ? "0 12px 48px rgba(79, 70, 229, 0.6)"
+                : (theme.palette.mode === 'dark' 
+                  ? "0 8px 32px rgba(79, 70, 229, 0.4)" 
+                  : "0 8px 20px rgba(79, 70, 229, 0.25)"),
+              transform: isDragging ? "scale(1.15)" : "scale(1)",
+              transition: "all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
               "&:hover": {
                 transform: "scale(1.08)",
-                transition: "transform 0.2s ease-in-out",
               },
             }}
           >

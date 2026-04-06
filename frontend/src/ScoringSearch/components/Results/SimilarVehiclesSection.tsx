@@ -1,86 +1,105 @@
-import React from 'react';
-import { Box, Typography, Skeleton, Chip, useTheme } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, CircularProgress, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import SpeedIcon from '@mui/icons-material/Speed';
+import SecurityIcon from '@mui/icons-material/Security';
+import NatureIcon from '@mui/icons-material/Nature';
+import WeekendIcon from '@mui/icons-material/Weekend';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+
+import { useVehicleAlternatives } from '../../hooks/useBatchData';
 import type { SimilarVehicle } from '../../hooks/useBatchData';
+import { SimilarVehiclesPanel } from '../SimilarVehiclesPanel';
 
 interface SimilarVehiclesSectionProps {
   vehicleId: string;
-  similar?: SimilarVehicle[];
-  loading?: boolean;
+  sourceVehicle: Record<string, unknown>;
+  targetDuration: number;
+  targetAnnualMileage: number;
+  similarData?: SimilarVehicle[];
 }
 
-export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({ similar, loading = false }) => {
-  const theme = useTheme();
+type CategoryKey = 'similar' | 'cheaper' | 'stronger' | 'safer' | 'more_comfortable' | 'greener';
 
-  if (loading) {
-    return (
-      <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary', mr: 1, display: 'flex', alignItems: 'center' }}>
-          Podobne oferty:
-        </Typography>
-        <Skeleton variant="rounded" width={80} height={24} />
-        <Skeleton variant="rounded" width={80} height={24} />
-      </Box>
-    );
-  }
+export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
+  vehicleId,
+  sourceVehicle,
+  targetDuration,
+  targetAnnualMileage,
+  similarData,
+}) => {
+  const [category, setCategory] = useState<CategoryKey>('similar');
 
-  if (!similar || similar.length === 0) return null;
+  const isDeepAI = category !== 'similar';
+
+  const { alternatives, loading } = useVehicleAlternatives(
+    vehicleId,
+    targetDuration,
+    targetAnnualMileage,
+    category,
+    isDeepAI
+  );
+
+  const handleCategoryChange = (
+    _event: React.MouseEvent<HTMLElement>,
+    newCategory: CategoryKey | null,
+  ) => {
+    if (newCategory) setCategory(newCategory);
+  };
+
+  const displayVehicles = isDeepAI ? alternatives : (similarData || []);
 
   return (
-    <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-      <Typography variant="caption" sx={{ color: 'text.secondary', mr: 0.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        Alternatywne oferty:
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="caption" sx={{ mb: 1, display: 'block', fontWeight: 'bold' }}>
+        Szukaj alternatyw (Deep AI):
       </Typography>
-      {similar.map((sim) => {
-        const isHighSim = sim.similarity_score_pct && sim.similarity_score_pct > 80;
-        return (
-          <Chip
-            key={`sim-${sim.vehicle_id}`}
-            size="small"
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                    {sim.brand} {sim.model}
-                  </Typography>
-                  {sim.similarity_score_pct ? (
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        fontSize: '0.6rem', 
-                        color: isHighSim ? theme.palette.success.main : theme.palette.text.secondary,
-                        fontWeight: isHighSim ? 700 : 400
-                      }}
-                    >
-                      AI: {sim.similarity_score_pct}%
-                    </Typography>
-                  ) : null}
-                </Box>
-                {sim.best_monthly_price && (
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem', color: theme.palette.primary.main, fontWeight: 700 }}>
-                    od {Number(sim.best_monthly_price).toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
-                  </Typography>
-                )}
-              </Box>
-            }
-            sx={{
-              height: 32,
-              px: 0.5,
-              cursor: 'pointer',
-              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-              border: `1px solid ${isHighSim ? theme.palette.success.main + '44' : theme.palette.divider}`,
-              borderRadius: '6px',
-              '&:hover': {
-                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                borderColor: theme.palette.primary.main
-              }
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              window.open(`/scoring-details/${sim.vehicle_id}`, '_blank');
-            }}
-          />
-        );
-      })}
+      <ToggleButtonGroup
+        value={category}
+        exclusive
+        onChange={handleCategoryChange}
+        size="small"
+        sx={{ flexWrap: 'wrap', mb: 1.5 }}
+      >
+        <ToggleButton value="similar" sx={{ fontSize: '0.7rem', textTransform: 'none' }}>
+          <CompareArrowsIcon sx={{ fontSize: 16, mr: 0.5 }} /> Bliźniaki
+        </ToggleButton>
+        <ToggleButton value="cheaper" sx={{ fontSize: '0.7rem', textTransform: 'none' }}>
+          <LocalOfferIcon sx={{ fontSize: 16, mr: 0.5 }} /> Tańszy
+        </ToggleButton>
+        <ToggleButton value="stronger" sx={{ fontSize: '0.7rem', textTransform: 'none' }}>
+          <SpeedIcon sx={{ fontSize: 16, mr: 0.5 }} /> Mocniejszy
+        </ToggleButton>
+        <ToggleButton value="safer" sx={{ fontSize: '0.7rem', textTransform: 'none' }}>
+          <SecurityIcon sx={{ fontSize: 16, mr: 0.5 }} /> Bezpieczniejszy
+        </ToggleButton>
+        <ToggleButton value="more_comfortable" sx={{ fontSize: '0.7rem', textTransform: 'none' }}>
+          <WeekendIcon sx={{ fontSize: 16, mr: 0.5 }} /> Bardziej komfortowy
+        </ToggleButton>
+        <ToggleButton value="greener" sx={{ fontSize: '0.7rem', textTransform: 'none' }}>
+          <NatureIcon sx={{ fontSize: 16, mr: 0.5 }} /> Bardziej ekologiczny
+        </ToggleButton>
+      </ToggleButtonGroup>
+
+      {loading && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CircularProgress size={20} />
+          <Typography variant="caption" color="text.secondary">Szukam najlepszych alternatyw...</Typography>
+        </Box>
+      )}
+
+      {!loading && displayVehicles.length > 0 && (
+        <SimilarVehiclesPanel
+          vehicles={displayVehicles}
+          sourceVehicle={sourceVehicle}
+        />
+      )}
+
+      {!loading && isDeepAI && displayVehicles.length === 0 && (
+        <Typography variant="caption" color="text.secondary">
+          Brak odpowiednich alternatyw dla tej kategorii.
+        </Typography>
+      )}
     </Box>
   );
 };

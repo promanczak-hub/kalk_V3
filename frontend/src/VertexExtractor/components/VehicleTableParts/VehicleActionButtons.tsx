@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Loader2, Database, ExternalLink, History, X } from "lucide-react";
+import { Loader2, Database, ExternalLink, X } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
@@ -7,12 +7,6 @@ import { apiClient } from '../../../lib/apiClient';
 import { supabase } from "../../../lib/supabaseClient";
 import { buildCalculationPayload } from "./calculations/payloadBuilder";
 
-interface HistoricalCalculation {
-  id: string;
-  numer_kalkulacji: string;
-  created_at: string;
-  cena_netto: number;
-}
 
 interface VehicleActionButtonsProps {
   vehicle: FleetVehicleView;
@@ -24,6 +18,7 @@ interface VehicleActionButtonsProps {
   replacementCar: boolean;
   gpsRequired: boolean;
   includeServicing: boolean;
+  includeTires: boolean;
   hookInstallation: boolean;
   tireClass: string;
   tireCountMode: string;
@@ -67,6 +62,7 @@ export function VehicleActionButtons({
   replacementCar,
   gpsRequired,
   includeServicing,
+  includeTires,
   hookInstallation,
   tireClass,
   tireCountMode,
@@ -98,10 +94,6 @@ export function VehicleActionButtons({
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [historyItems, setHistoryItems] = useState<HistoricalCalculation[]>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-
   // Phase-based progress mapping (CSS transition handles smooth animation)
   const PHASE_PROGRESS: Record<string, number> = {
     idle: 0,
@@ -110,27 +102,6 @@ export function VehicleActionButtons({
     done: 100,
   };
   const progress = PHASE_PROGRESS[phase] ?? 0;
-
-  const loadHistory = async () => {
-    setIsHistoryLoading(true);
-    try {
-      const res = await apiClient.fetch(`/api/kalkulacje/vehicle/${vehicle.id}`);
-      if (!res.ok) throw new Error("Błąd pobierania historii");
-      const data = await res.json();
-      setHistoryItems(data);
-    } catch (err) {
-      console.error(err);
-      alert("Nie udało się pobrać historii kalkulacji.");
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  };
-
-  const handleOpenHistory = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsHistoryModalOpen(true);
-    loadHistory();
-  };
 
   const handleCreateCalculation = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -171,6 +142,7 @@ export function VehicleActionButtons({
           replacementCar,
           gpsRequired,
           includeServicing,
+          includeTires,
           hookInstallation,
           tireClass,
           tireCountMode,
@@ -312,14 +284,6 @@ export function VehicleActionButtons({
         </div>
       )}
       <div className="flex justify-end items-center gap-3">
-      <button
-        onClick={handleOpenHistory}
-        disabled={isSavingSetup || isCreating || isCreateBlocked}
-        className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-orange-50 border border-orange-100 text-orange-700 hover:bg-orange-100 hover:border-orange-200 hover:shadow-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <History className="w-3.5 h-3.5 mr-2" />
-        Historia
-      </button>
 
       <button
         onClick={handleCreateCalculation}
@@ -409,76 +373,8 @@ export function VehicleActionButtons({
         className="flex items-center text-xs font-semibold px-4 py-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 hover:border-red-200 hover:shadow-sm transition-all shadow-sm"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-        {"Usuń"}
       </button>
       </div>
-
-      {/* MODAL: Historia kalkulacji dla pojazdu */}
-      {isHistoryModalOpen && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
-          onClick={(e) => { e.stopPropagation(); setIsHistoryModalOpen(false); }}
-        >
-          <div 
-            className="w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/80">
-              <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-slate-800">Historia Kalkulacji dla tego pojazdu</h3>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); setIsHistoryModalOpen(false); }}
-                className="p-1 hover:bg-slate-200 rounded-lg transition-colors text-slate-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4 overflow-y-auto flex-1 bg-slate-50/30">
-              {isHistoryLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                  <span className="ml-3 text-sm text-slate-500">Pobieranie historii...</span>
-                </div>
-              ) : historyItems.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-sm">
-                  Brak wcześniejszych kalkulacji dla tego pojazdu.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {historyItems.map((item) => (
-                    <div 
-                      key={item.id} 
-                      className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Po wybraniu, ładujemy tę kalkulację i zamykamy modal
-                        onCalculationCreated(item.id, item.numer_kalkulacji);
-                        setIsHistoryModalOpen(false);
-                      }}
-                    >
-                      <div>
-                        <div className="font-semibold text-sm text-slate-800">{item.numer_kalkulacji}</div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          Utworzono: {new Date(item.created_at).toLocaleString("pl-PL")}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-sm text-slate-800">
-                           {item.cena_netto ? `${item.cena_netto.toLocaleString('pl-PL')} PLN` : '-'}
-                        </div>
-                        <div className="text-xs text-blue-600 font-medium">Wczytaj &rarr;</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ export interface CalculationPayloadParams {
     replacementCar: boolean;
     gpsRequired: boolean;
     includeServicing: boolean;
+    includeTires: boolean;
     hookInstallation: boolean;
     tireClass: string;
     tireCountMode: string;
@@ -41,16 +42,27 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
     const existingToggles = (existingCalculatorSetup.toggles as Record<string, unknown>) || {};
     
     // Extract baseline pricing safely
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cardSummary = (vehicle.synthesis_data as Record<string, any>)?.card_summary || {};
-    const isDemo = String(cardSummary.is_demo || "").toLowerCase() === "true";
-    const rawBasePrice = isDemo 
-      ? (cardSummary.demo_price || cardSummary.base_price)
-      : cardSummary.base_price;
+    const sd = (vehicle.synthesis_data as Record<string, any>) || {};
+    const cs = sd.card_summary || {};
+    const setup = sd.calculator_setup || {};
+    const pp = cs.parsed_prices || {};
+    const uf = sd.universal_features || {};
+    const comp = sd.computed || {};
+
+    const isDemo = String(cs.is_demo || "").toLowerCase() === "true";
+    
+    // Robust hierarchy for price discovery
+    const rawBasePrice = setup.catalog_base_price_net || 
+      (isDemo ? (cs.demo_price || cs.base_price) : cs.base_price) || 
+      cs.total_price || 
+      pp.base || 
+      uf.cena_pojazdu || 
+      comp.estimated_price || 
+      "0";
       
     // Remove whitespaces and format to float
-    const cleanBasePrice = parseFloat(String(rawBasePrice || "").replace(/\s+/g, "").replace(",", ".")) || 0;
-    const priceDomain = cardSummary._price_domain || "unknown";
+    const cleanBasePrice = typeof rawBasePrice === "number" ? rawBasePrice : parseFloat(String(rawBasePrice || "").replace(/\s+/g, "").replace(",", ".")) || 0;
+    const priceDomain = cs._price_domain || cs.price_domain || "unknown";
     const isBrutto = String(rawBasePrice || "").toLowerCase().includes("brutto") || priceDomain === "brutto";
     
     // Normalize to Net
@@ -58,13 +70,13 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
 
     // Convert options array using business logic
     const fallbackFromPaid = extractOptionsFromPaidOptions(
-      cardSummary.paid_options || [],
-      String(cardSummary._price_domain || cardSummary.price_domain || "")
+      cs.paid_options || [],
+      String(cs._price_domain || cs.price_domain || "")
     );
 
     // Calculate rim diameter
     const finalRimDiameter = params.rimDiameter || 
-      (cardSummary.wheels ? parseInt(String(cardSummary.wheels).replace(/\D/g, "")) : 16) || 16;
+      (cs.wheels ? parseInt(String(cs.wheels).replace(/\D/g, "")) : 16) || 16;
       
     const tireCount = params.tireCountMode === "auto" ? null : 
       (isNaN(parseFloat(params.tireCountMode)) ? null : parseFloat(params.tireCountMode));
@@ -96,7 +108,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
         add_hook_installation: params.hookInstallation,
         include_servicing: params.includeServicing,
         
-        z_oponami: true,
+        z_oponami: params.includeTires,
         klasa_opony_string: params.tireClass || "Medium",
         liczba_kompletow_opon: tireCount,
         korekta_kosztu_opon: params.tireCostCorrectionEnabled,
@@ -118,6 +130,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
           replacement_car: params.replacementCar,
           gps_required: params.gpsRequired,
           include_servicing: params.includeServicing,
+          include_tires: params.includeTires,
           hook_installation: params.hookInstallation,
         },
         tire_params: {

@@ -24,6 +24,7 @@ export interface FleetVehicleView {
   offer_number: string | null;
   configuration_code: string | null;
   raw_pdf_url: string | null;
+  engine_marketing_name?: string | null;
   powertrain: string | null;
   body_style: string | null;
   document_category: string | null;

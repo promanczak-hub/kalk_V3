@@ -311,7 +311,7 @@ export function VehicleSummaryCard({
 
   const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
 
-  const techRows: typeof identityRows = [
+  const techConfigRows: typeof identityRows = [
     { 
       label: "Oś napędowa", 
       value: <DriveTypeTag current={driveType || ""} onChange={onDriveTypeChange} connected={false} />,
@@ -334,25 +334,11 @@ export function VehicleSummaryCard({
       ),
       type: "custom"
     },
-    { label: "Moc silnika (KM)", value: val(cardSummary?.power_hp?.toString()) },
-    { label: "Moc silnika (kW)", value: val(cardSummary?.power_kw?.toString()) },
     { 
       label: "Skrzynia biegów", 
       value: <TransmissionTag current={transmission || ""} onChange={onTransmissionChange} connected={false} />,
       type: "custom"
     },
-    { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
-    { label: "Emisja WLTP", value: val(vehicle.emissions) },
-    { 
-      label: "Rodzaj lakieru", 
-      value: extractPaintCategory(vehicle),
-      type: "dropdown",
-      options: [
-        { value: "Metalik", label: "Metalik" },
-        { value: "Niemetalik", label: "Niemetalik" }
-      ] 
-    },
-    { label: "Ilość miejsc", value: extractSeats(vehicle) },
     { 
       label: "Nadwozie", 
       value: (
@@ -366,6 +352,23 @@ export function VehicleSummaryCard({
       ),
       type: "custom" 
     }
+  ];
+
+  const techParamRows: typeof identityRows = [
+    { label: "Moc silnika (KM)", value: val(cardSummary?.power_hp?.toString()) },
+    { label: "Moc silnika (kW)", value: val(cardSummary?.power_kw?.toString()) },
+    { label: "Koła", value: vehicle.wheels && vehicle.wheels !== "Brak" ? `${vehicle.wheels}"` : EMPTY },
+    { label: "Emisja WLTP", value: val(vehicle.emissions) },
+    { 
+      label: "Rodzaj lakieru", 
+      value: extractPaintCategory(vehicle),
+      type: "dropdown",
+      options: [
+        { value: "Metalik", label: "Metalik" },
+        { value: "Niemetalik", label: "Niemetalik" }
+      ] 
+    },
+    { label: "Ilość miejsc", value: extractSeats(vehicle) }
   ];
 
 
@@ -451,10 +454,10 @@ export function VehicleSummaryCard({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Identyfikacja + Metadane */}
-        <div>
-          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+        <div className="lg:col-span-5">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
             Identyfikacja
           </h5>
           <table className="w-full">
@@ -463,7 +466,7 @@ export function VehicleSummaryCard({
             </tbody>
           </table>
 
-          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 mt-5">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 mt-5">
             Metadane oferty
           </h5>
           <table className="w-full">
@@ -474,15 +477,22 @@ export function VehicleSummaryCard({
         </div>
 
         {/* Specyfikacja techniczna */}
-        <div>
-          <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center">
+        <div className="lg:col-span-7">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center">
             Specyfikacja techniczna
           </h5>
-          <table className="w-full">
-            <tbody>
-              {renderRows(techRows)}
-            </tbody>
-          </table>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <table className="w-full">
+              <tbody>
+                {renderRows(techConfigRows)}
+              </tbody>
+            </table>
+            <table className="w-full">
+              <tbody>
+                {renderRows(techParamRows)}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </AccordionCard>

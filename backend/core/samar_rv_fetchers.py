@@ -390,8 +390,12 @@ def fetch_lo_param_cached() -> float:
 @redis_cache(ttl_seconds=1800, prefix="samar_rv:")
 def fetch_mileage_corrections_cached(
     samar_class_id: int,
+    brand_name: str,
+    engine_name: str,
 ) -> tuple[float, float, float]:
     """Pobiera korekty przebiegu z samar_class_mileage_corrections.
+
+    Filtruje po klasie i znormalizowanym rodzaju silnika (Fail-Fast).
 
     Returns:
         (korekta_lt_prog, korekta_gt_prog, km_prog)
@@ -399,10 +403,12 @@ def fetch_mileage_corrections_cached(
     from core.database import supabase
 
     try:
+        fuel_norm = _normalize_fuel_name(brand_name, engine_name)
         res = (
             supabase.table("samar_class_mileage_corrections")
             .select("korekta_lt_prog, korekta_gt_prog, prog_przebiegu_km")
             .eq("klasa_samar", samar_class_id)
+            .ilike("rodzaj_silnika", f"%{fuel_norm}%")
             .limit(1)
             .execute()
         )
@@ -413,7 +419,23 @@ def fetch_mileage_corrections_cached(
                 float(row.get("korekta_gt_prog") or 0.0),
                 float(row.get("prog_przebiegu_km") or 190000.0),
             )
+        else:
+            # Reverting to Fail-Fast strategy as per GEMINI.md 2A
+            logger.error(
+                "Brak stawek przebiegu w samar_class_mileage_corrections dla klasy=%s, silnik=%s",
+                samar_class_id,
+                fuel_norm,
+            )
+            raise ValueError(
+                f"Brak stawek przebiegu (tabela samar_class_mileage_corrections) "
+                f"dla klasy {samar_class_id} i silnika '{fuel_norm}'. "
+                "Uzupełnij dane w arkuszu/bazie."
+            )
+    except ValueError:
+        raise  # Propagate normalization errors
     except Exception as exc:
+        if isinstance(exc, ValueError):
+            raise
         logger.warning(
             "Błąd pobierania mileage corrections dla klasy=%s: %s", samar_class_id, exc
         )

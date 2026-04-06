@@ -23,6 +23,7 @@ export function useVehicleFinancing(
   const [replacementCar, setReplacementCar] = useState(true);
   const [gpsRequired, setGpsRequired] = useState(true);
   const [includeServicing, setIncludeServicing] = useState(true);
+  const [includeTires, setIncludeTires] = useState(true);
   const [hookInstallation, setHookInstallation] = useState(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cs = (vehicle.synthesis_data as any)?.card_summary;
@@ -121,6 +122,7 @@ export function useVehicleFinancing(
       if (t.replacement_car != null) setReplacementCar(t.replacement_car);
       if (t.gps_required != null) setGpsRequired(t.gps_required);
       if (t.include_servicing != null) setIncludeServicing(t.include_servicing);
+      if (t.include_tires != null) setIncludeTires(t.include_tires);
       if (t.hook_installation != null) setHookInstallation(t.hook_installation);
       if (t.add_sales_prep != null) setAddSalesPrep(t.add_sales_prep);
     }
@@ -192,6 +194,7 @@ export function useVehicleFinancing(
           replacement_car: replacementCar,
           gps_required: gpsRequired,
           include_servicing: includeServicing,
+          include_tires: includeTires,
           hook_installation: hookInstallation,
           add_sales_prep: addSalesPrep,
         },
@@ -237,6 +240,7 @@ export function useVehicleFinancing(
     replacementCar, setReplacementCar,
     gpsRequired, setGpsRequired,
     includeServicing, setIncludeServicing,
+    includeTires, setIncludeTires,
     hookInstallation, setHookInstallation,
     addSalesPrep, setAddSalesPrep,
     salesPrepCorrection, setSalesPrepCorrection,

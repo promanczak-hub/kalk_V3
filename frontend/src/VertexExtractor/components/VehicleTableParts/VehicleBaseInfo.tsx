@@ -427,11 +427,11 @@ export function VehicleBaseInfo({
             {(activeFinalPriceNet > 0 || totalCatalogPriceNet > 0) ? (
               <>
                 <span className="text-base sm:text-lg font-bold text-slate-900 tabular-nums tracking-tight leading-none mt-0.5" style={{ fontFamily: "'Geist Mono', monospace" }}>
-                  {formatCalculatedPrice(activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet)}{" "}
+                  {formatCalculatedPrice(Math.round((activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet) * 1.23))}{" "}
                   <span className="text-[10px] font-semibold text-slate-500">PLN BRUTTO</span>
                 </span>
                 <span className="text-[11px] text-slate-400 tabular-nums mt-1 leading-none" style={{ fontFamily: "'Geist Mono', monospace" }}>
-                  {formatCalculatedPrice(Math.round((activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet) / 1.23))} PLN NETTO
+                  {formatCalculatedPrice(activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet)} PLN NETTO
                 </span>
               </>
             ) : (

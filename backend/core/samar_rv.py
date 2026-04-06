@@ -176,7 +176,10 @@ class SamarRVCalculator:
 
     def _fetch_mileage_corrections(self) -> tuple[float, float, int]:
         """Stawki korekty przebiegu: (below, above, threshold)."""
-        return fetch_mileage_corrections_cached(self.data.samar_class_id)
+        engine_name = self.data.engine_name or self.data.fuel_name or "BENZYNA"
+        return fetch_mileage_corrections_cached(
+            self.data.samar_class_id, self.data.brand_name, engine_name
+        )
 
     def fetch_color_correction(self) -> float:
         """Korekta za kolor z paint_types.wr_correction."""

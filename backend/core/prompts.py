@@ -135,6 +135,7 @@ Na podstawie wszystkich informacji oceń całościowo pojazd i przypisz wartoś�
 Dodatkowo rozbij `powertrain` na części składowe:
 - `engine_capacity`: wyciągnij samą pojemność (np. "1.5", "2.0"). Jeśli brak, zostaw puste.
 - `engine_designation`: wyciągnij skrót i oznaczenie technologii (np. "TSI", "TDI", "dCi", "EcoBoost"). Jeśli brak, zostaw puste.
+- `engine_marketing_name`: wyciągnij specyficzne nazwy marketingowe i handlowe silnika (często z myślnikami lub wielkimi literami), np. "ECO-G", "BlueHDi", "e-Tech", "Hybrid 136". Uważaj, aby to nie była czysta technologia jak "TSI". Zostaw puste, jeśli brak.
 
 Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. Przeszukaj wszystkie kolekcje i listy opisujące pojazd, niezależnie od tego, czy nazywają się "standard_equipment", "wyposażenie seryjne", "specyfikacja" itp.
 Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedłużone gwarancje. Jeśli dokument zawiera opcje serwisowe/zabudowy, wyciągnij je do osobnego obiektu 'service_equipment', wyliczając poprawnie łączną kwotę netto i brutto całego pakietu. Ponadto, jeżeli suma ta składa się z pojedynczych części składowych, wypisz je wszystkie jako 'components' podając dla każdego cenę netto i brutto. 

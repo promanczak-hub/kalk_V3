@@ -42,46 +42,181 @@ function extractSamarCategory(v: FleetVehicleView): string {
 }
 
 function extractFuel(v: FleetVehicleView): string {
-  if (v.fuel) return v.fuel;
-  const synth = v.synthesis_data as Record<string, unknown> | undefined;
-  if (!synth) return "";
-  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
-  if (mapped?.fuel) return mapped.fuel;
-  const card = synth.card_summary as Record<string, string> | undefined;
-  if (card?.fuel) return card.fuel;
-  return "";
+  let raw = "";
+  if (v.fuel) raw = v.fuel;
+  else {
+    const synth = v.synthesis_data as Record<string, unknown> | undefined;
+    if (synth) {
+      const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+      if (mapped?.fuel) raw = mapped.fuel;
+      else {
+        const card = synth.card_summary as Record<string, string> | undefined;
+        if (card?.fuel) raw = card.fuel;
+      }
+    }
+  }
+
+  if (!raw) return "";
+
+  const low = raw.toLowerCase().trim();
+
+  // 1. Wodór (FCEV)
+  if (low.includes("wodór") || low.includes("fcev") || low.includes("hydrogen")) return "Wodór (FCEV)";
+
+  // 2. Plug-in Hybrid (PHEV)
+  if (low.includes("phev") || low.includes("plug-in") || low.includes("plugin") || low.includes("plug in")) return "Plug-in Hybrid (PHEV)";
+  
+  // 3. i 4. mHEV (Diesel / Benzyna)
+  if (low.includes("mhev") || low.includes("mild") || low.includes("mięk")) {
+    if (low.includes("diesel") || low.includes("olej") || low.includes(" on") || low === "on") {
+      return "Diesel mHEV (ON-mHEV)";
+    }
+    return "Benzyna mHEV (PB-mHEV)";
+  }
+  
+  // 5. Hybryda (HEV)
+  if (low.includes("hev") || low.includes("hybryd") || low.includes("hybrid")) return "Hybryda (HEV)";
+  
+  // 6. LPG
+  if (low.includes("lpg") || low.includes("gaz")) return "LPG";
+  
+  // 7. Elektryczny (BEV)
+  if (low.includes("elektr") || low.includes("bev") || low === "ev") return "Elektryczny (BEV)";
+  
+  // 8. Diesel (ON)
+  if (low.includes("diesel") || low.includes("olej nap") || low === "on" || low.includes(" on")) return "Diesel (ON)";
+  
+  // 9. Benzyna (PB)
+  if (low.includes("benzyna") || low.includes("petrol") || low === "pb" || low.includes("pb")) return "Benzyna (PB)";
+
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
 function extractBodyType(v: FleetVehicleView): string {
-  if (v.body_style) return v.body_style;
-  const synth = v.synthesis_data as Record<string, unknown> | undefined;
-  if (!synth) return "";
-  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
-  if (mapped?.body_type) return mapped.body_type;
-  return "";
+  let raw = "";
+  if (v.body_style) raw = v.body_style;
+  else {
+    const synth = v.synthesis_data as Record<string, unknown> | undefined;
+    if (synth) {
+      const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+      if (mapped?.body_type) raw = mapped.body_type;
+    }
+  }
+  
+  if (!raw) return "";
+
+  const low = raw.toLowerCase();
+  if (low.includes("suv") || low.includes("crossover") || low.includes("sav")) return "SUV";
+  if (low.includes("kombi") || low.includes("station wagon") || low.includes("touring") || low.includes("estate") || low.includes("variant") || low.includes("shooting brake")) return "Kombi";
+  if (low.includes("sedan") || low.includes("limuzyna") || low.includes("saloon")) return "Limuzyna";
+  if (low.includes("hatchback") || low.includes("compact")) return "Hatchback";
+  if (low.includes("liftback") || low.includes("sportback") || low.includes("fastback")) return "Liftback";
+  if (low.includes("furgon") || low.includes("van") || low.includes("bus")) return "Furgon";
+  if (low.includes("avant")) return "Avant";
+  if (low.includes("coupe") || low.includes("coupé")) return "Coupe";
+  if (low.includes("cabrio") || low.includes("kabriolet") || low.includes("spider") || low.includes("roadster")) return "Cabrio";
+  if (low.includes("pickup") || low.includes("pick-up")) return "Pickup";
+  if (low.includes("minivan") || low.includes("mpv")) return "Minivan";
+
+  // capitalize first char
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
 function extractTransmission(v: FleetVehicleView): string {
-  if (v.transmission) return v.transmission;
-  const synth = v.synthesis_data as Record<string, unknown> | undefined;
-  if (!synth) return "";
-  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
-  if (mapped?.transmission) return mapped.transmission;
-  const card = synth.card_summary as Record<string, string> | undefined;
-  if (card?.transmission) return card.transmission;
-  return "";
+  let raw = "";
+  if (v.transmission) raw = v.transmission;
+  else {
+    const synth = v.synthesis_data as Record<string, unknown> | undefined;
+    if (synth) {
+      const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+      if (mapped?.transmission) raw = mapped.transmission;
+      else {
+        const card = synth.card_summary as Record<string, string> | undefined;
+        if (card?.transmission) raw = card.transmission;
+      }
+    }
+  }
+
+  if (!raw) return "";
+
+  const low = raw.toLowerCase();
+  
+  // Checking for automatic variants
+  if (
+    low.includes("aut") || 
+    low.includes("dsg") || 
+    low.includes("cvt") || 
+    low.includes("dct") || 
+    low.includes("pdk") || 
+    low.includes("stronic") || 
+    low.includes("s-tronic") ||
+    low.includes("s tronic") ||
+    low.includes("tronic") ||
+    low.includes("edc") || 
+    low.includes("eat") ||
+    low.includes("7-biegowa") ||
+    low.includes("8-biegowa") ||
+    low.includes("9-biegowa")
+  ) {
+    // some manual strings might contain "biegowa" but usually they are prefixed with "manualna" 
+    // let's explicitly look for manual first for safety
+  }
+
+  if (low.includes("man") || low.includes("ręcz") || low.includes("manualna")) {
+    return "Manualna";
+  }
+
+  // Double check if it matches automatic patterns
+  if (
+    low.includes("aut") || 
+    low.includes("dsg") || 
+    low.includes("cvt") || 
+    low.includes("dct") || 
+    low.includes("pdk") || 
+    low.includes("stronic") || 
+    low.includes("s-tronic") ||
+    low.includes("s tronic") ||
+    low.includes("tronic") ||
+    low.includes("edc") || 
+    low.includes("eat")
+  ) {
+    return "Automatyczna";
+  }
+
+  // fallback logic: if it has "biegowa" and we didn't return manual above
+  // we assume it's automatic since in premium cars list almost all are auto unless specified as manual
+  if (low.includes("biegowa") || low.includes("biegowy") || low.includes("stopniowa")) {
+    return "Automatyczna";
+  }
+
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
 function extractDriveType(v: FleetVehicleView): string {
-  if (v.drive_type) return v.drive_type;
-  const synth = v.synthesis_data as Record<string, unknown> | undefined;
-  if (!synth) return "";
-  const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
-  if (mapped?.drive_type) return mapped.drive_type;
-  if (mapped?.drivetrain) return mapped.drivetrain; // just in case
-  const card = synth.card_summary as Record<string, string> | undefined;
-  if (card?.drive_type) return card.drive_type;
-  return "";
+  let raw = "";
+  if (v.drive_type) raw = v.drive_type;
+  else {
+    const synth = v.synthesis_data as Record<string, unknown> | undefined;
+    if (synth) {
+      const mapped = synth.mapped_ai_data as Record<string, string> | undefined;
+      if (mapped?.drive_type) raw = mapped.drive_type;
+      else if (mapped?.drivetrain) raw = mapped.drivetrain;
+      else {
+        const card = synth.card_summary as Record<string, string> | undefined;
+        if (card?.drive_type) raw = card.drive_type;
+      }
+    }
+  }
+
+  if (!raw) return "";
+
+  const low = raw.toLowerCase();
+  
+  if (low.includes("fwd") || low.includes("4x2") || low.includes("przód") || low.includes("przedni")) return "FWD";
+  if (low.includes("awd") || low.includes("4x4") || low.includes("quattro") || low.includes("xdrive") || low.includes("4matic") || low.includes("all4")) return "AWD";
+  if (low.includes("rwd") || low.includes("tył") || low.includes("tylni") || low.includes("tylny")) return "RWD";
+
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
 function extractPower(v: FleetVehicleView): number {

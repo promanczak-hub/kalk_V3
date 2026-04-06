@@ -12,7 +12,7 @@ import type { SearchContext } from '../../types';
 import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
 import { fuelColor, fuelIcon } from '../../utils/vehicleFormatters';
 import { LtrPriceBlock } from './LtrPriceBlock';
-import { SimilarVehiclesPanel } from '../SimilarVehiclesPanel';
+import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
 
 interface VehicleResultCardProps {
@@ -46,9 +46,12 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
     const marginVal = (searchContext.margin_pct || 0) / 100.0;
     const finalPrice = marginVal < 1.0 ? basePrice / (1.0 - marginVal) : basePrice;
     const variantPriceData = priceData?.price_for_params;
+
+    // Build unique ID based on vehicle and params to prevent duplicates of exact same config
+    const uniqueId = `${vehicleId}_${variantPriceData?.duration_months || targetDuration}_${variantPriceData?.annual_mileage || targetAnnualMileage}`;
     
     addToCart({
-      id: crypto.randomUUID(),
+      id: uniqueId,
       brand: (car.brand as string) || '',
       model: (car.model as string) || '',
       powertrain: (car.fuel as string) || '',
@@ -65,19 +68,36 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
       standard_equipment: [],
       factory_options: [],
       dealer_options: [],
-      calculation_data: car,
+      calculation_data: {
+        ...car,
+        vehicle_id: vehicleId,
+        kalkulacja_id: variantPriceData?.kalkulacja_id
+      },
     });
   };
+
+  const isInCart = useOfferCartStore(state => 
+    state.items.some(i => i.id.startsWith(vehicleId))
+  );
 
   const cleanPrice = (val?: string | null) => val ? val.replace(/netto|brutto|pln/gi, '').trim() : '';
 
   return (
-    <Card elevation={1} sx={{ borderRadius: 2, transition: 'all 0.3s ease', border: '1px solid transparent', '&:hover': { boxShadow: 6, borderColor: 'primary.light' } }}>
+    <Card elevation={1} sx={{ 
+      borderRadius: 2, 
+      transition: 'all 0.3s ease', 
+      border: '1px solid transparent', 
+      borderColor: isInCart ? 'success.light' : 'transparent',
+      '&:hover': { boxShadow: 6, borderColor: isInCart ? 'success.main' : 'primary.light' } 
+    }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
           {/* Left Side: Vehicle Info & Specs */}
           <Box sx={{ flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              {isInCart && (
+                <Chip label="W OFERCIE" size="small" color="success" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800 }} />
+              )}
               <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{car.brand as string} {car.model as string}</Typography>
               {!!car.trim_level && car.trim_level !== 'Brak' && (
                 <Chip label={car.trim_level as string} size="small" variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '4px' }} />
@@ -175,7 +195,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
               <Box sx={{ textAlign: 'right' }}>
                 <LtrPriceBlock
                   hasCache={!!(car.has_ltr_cache)}
-                  bestMonthlyPrice={(car.best_monthly_price as number) || null}
+                  bestMonthlyPrice={(car.best_monthly_price as number) || 0}
                   marginPct={searchContext.margin_pct || 0}
                   suggestedDiscountPct={car.suggested_discount_pct as number | undefined}
                   targetDuration={targetDuration}
@@ -245,12 +265,13 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
           </Box>
         )}
 
-        {similarData && similarData.length > 0 && (
-          <SimilarVehiclesPanel 
-            vehicles={similarData}
-            sourceVehicle={car}
-          />
-        )}
+        <SimilarVehiclesSection
+          vehicleId={vehicleId}
+          sourceVehicle={car}
+          targetDuration={targetDuration}
+          targetAnnualMileage={targetAnnualMileage}
+          similarData={similarData}
+        />
       </CardContent>
     </Card>
   );

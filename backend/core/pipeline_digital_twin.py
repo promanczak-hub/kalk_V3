@@ -29,10 +29,13 @@ class EquipmentItem(BaseModel):
 
 class VehicleExtractionSchema(BaseModel):
     brand: str = Field(
-        description="Zidentyfikowana marka pojazdu, np. Skoda, Audi, Tayron"
+        description="Zidentyfikowana marka pojazdu, np. Volkswagen, Skoda, Audi"
     )
     model: str = Field(
-        description="Zidentyfikowany model i ewentualnie wersja, np. Kodiaq L&K"
+        description="Zidentyfikowany główny model pojazdu (bez marki i bez wersji wyposażenia), np. Tayron, Kodiaq, A6"
+    )
+    trim_level: Optional[str] = Field(
+        None, description="Wersja wyposażenia / linia, np. L&K, Elegance, R-Line"
     )
     offer_number: Optional[str] = Field(
         None, description="Numer oferty widoczny na dokumencie (jeśli występuje)"
@@ -86,6 +89,7 @@ def _format_unified_data(extracted_data: dict) -> dict:
     return {
         "brand": extracted_data.get("brand", ""),
         "model": extracted_data.get("model", ""),
+        "trim_level": extracted_data.get("trim_level", ""),
         "offer_number": extracted_data.get("offer_number", ""),
         "configuration_code": extracted_data.get("configuration_code", ""),
         "digital_twin": {

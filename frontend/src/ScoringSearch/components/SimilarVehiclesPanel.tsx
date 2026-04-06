@@ -21,8 +21,9 @@ function getSimilarityCategory(v: SimilarVehicle): SimilarityCategory {
   const reasons = v.similarity_reasons;
   if (!reasons) return { label: 'Podobny wybór', color: 'default' };
 
-  const { samar_match, body_match, fuel_match, price_pct_diff, equipment_match, is_same_brand } = reasons;
-  const isCheap = price_pct_diff !== null && price_pct_diff >= 15;
+  const { samar_match, body_match, fuel_match, price_pct_diff, is_cheaper, equipment_match, is_same_brand } = reasons;
+  const isSignificantlyCheaper = Boolean(is_cheaper) && price_pct_diff !== null && price_pct_diff >= 15;
+  const isSignificantlyMoreExpensive = is_cheaper === false && price_pct_diff !== null && price_pct_diff >= 15;
   
   const targetFuel = (v.fuel || '').toLowerCase();
   const isEV = reasons.fuel_match === false && (
@@ -39,6 +40,12 @@ function getSimilarityCategory(v: SimilarVehicle): SimilarityCategory {
   if (samar_match && body_match && price_pct_diff !== null && price_pct_diff <= 5) {
     return { label: 'Bliźniak', color: 'success' };
   }
+  if (isSignificantlyCheaper) {
+    return { label: 'Znacznie tańszy', color: 'success' };
+  }
+  if (isSignificantlyMoreExpensive && samar_match) {
+    return { label: 'Klasa wyżej w budżecie', color: 'warning' };
+  }
   if (samar_match && body_match) {
     return { label: 'Ta sama klasa i typ', color: 'primary' };
   }
@@ -47,9 +54,6 @@ function getSimilarityCategory(v: SimilarVehicle): SimilarityCategory {
   }
   if (body_match && price_pct_diff !== null && price_pct_diff <= 10) {
     return { label: 'Ten sam typ', color: 'info' };
-  }
-  if (isCheap) {
-    return { label: 'Znacznie tańszy', color: 'success' };
   }
   if (!fuel_match && isEV) {
     return { label: 'Alternatywa EV', color: 'secondary' };
@@ -97,39 +101,54 @@ function buildReasonTags(reasons: SimilarityReasons | null | undefined): ReasonT
   return tags.slice(0, 3); // Cap at 3 tags
 }
 
-// ── Tooltip Component ────────────────────────────────────────────────────────
-const PriceOptionsTooltip: React.FC<{ reasons: SimilarityReasons | null | undefined }> = ({ reasons }) => {
-  if (!reasons) return null;
-  const options = reasons.paid_options || [];
-  const basePrice = reasons.base_price;
-  
-  if (!basePrice && (!options || options.length === 0)) return null;
+const PriceOptionsTooltip: React.FC<{ vehicle: SimilarVehicle }> = ({ vehicle }) => {
+  const reasons = vehicle.similarity_reasons;
+  const options = reasons?.paid_options || [];
+  const basePrice = reasons?.base_price;
 
   return (
-    <Box sx={{ p: 0.5, minWidth: 200 }}>
+    <Box sx={{ p: 0.5, minWidth: 220 }}>
+      {/* Powertrain / Specs */}
+      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, color: '#fff' }}>
+        {vehicle.brand} {vehicle.model} {vehicle.version && <Typography component="span" variant="caption" sx={{ opacity: 0.8 }}>({vehicle.version})</Typography>}
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)', pb: 1 }}>
+        {vehicle.fuel && <Chip size="small" label={vehicle.fuel} sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(255,255,255,0.1)', color: '#fff', '& .MuiChip-label': { px: 1 } }} />}
+        {vehicle.power_hp && <Chip size="small" label={`${vehicle.power_hp} KM`} sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(255,255,255,0.1)', color: '#fff', '& .MuiChip-label': { px: 1 } }} />}
+        {vehicle.transmission && <Chip size="small" label={vehicle.transmission} sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(255,255,255,0.1)', color: '#fff', '& .MuiChip-label': { px: 1 } }} />}
+        {vehicle.drive_type && <Chip size="small" label={vehicle.drive_type} sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(255,255,255,0.1)', color: '#fff', '& .MuiChip-label': { px: 1 } }} />}
+      </Box>
+
       {basePrice ? (
         <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)', pb: 0.5 }}>
           Cena bazowa: {basePrice.toLocaleString('pl-PL')} zł
         </Typography>
       ) : null}
       
-      {options && options.length > 0 && (
+      {options && options.length > 0 ? (
         <>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', display: 'block', mb: 0.5 }}>
             Opcje w tej konfiguracji:
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 150, overflowY: 'auto' }}>
             {options.map((opt: Record<string, unknown> | string, i: number) => {
               const name = typeof opt === 'string' ? opt : ((opt?.name as string) || (opt?.description as string) || 'Opcja');
               const price = typeof opt === 'object' && opt !== null && 'price_gross' in opt ? opt.price_gross 
                 : (typeof opt === 'object' && opt !== null && 'price' in opt ? opt.price : null);
               
+              let displayPrice = '';
+              if (typeof price === 'number') {
+                displayPrice = `${price.toLocaleString('pl-PL')} zł`;
+              } else if (typeof price === 'string') {
+                displayPrice = price;
+              }
+              
               return (
                 <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                   <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{name}</Typography>
-                  {price !== null && (
+                  {displayPrice && (
                     <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                      {Number(price).toLocaleString('pl-PL')} zł
+                      {displayPrice}
                     </Typography>
                   )}
                 </Box>
@@ -137,6 +156,10 @@ const PriceOptionsTooltip: React.FC<{ reasons: SimilarityReasons | null | undefi
             })}
           </Box>
         </>
+      ) : (
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', fontStyle: 'italic', mt: 0.5 }}>
+          Brak płatnych opcji dodatkowych (wersja bazowa lub pakiety w standardzie).
+        </Typography>
       )}
     </Box>
   );
@@ -208,10 +231,18 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
           return (
             <Tooltip
               key={v.vehicle_id}
-              title={<PriceOptionsTooltip reasons={v.similarity_reasons} />}
-              placement="right"
+              title={<PriceOptionsTooltip vehicle={v} />}
+              placement="top"
               arrow
-              disableInteractive
+              enterDelay={100}
+              leaveDelay={300}
+              slotProps={{
+                popper: {
+                  sx: {
+                    zIndex: 9999,
+                  },
+                },
+              }}
             >
               <Card
                 sx={{

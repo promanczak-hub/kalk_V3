@@ -60,5 +60,3 @@ def process_document_task_from_storage(
         md5_hash=md5_hash,
         force_doc_type=force_doc_type,
     )
-
-

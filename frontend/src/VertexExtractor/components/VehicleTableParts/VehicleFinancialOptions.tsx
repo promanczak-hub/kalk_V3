@@ -64,6 +64,8 @@ interface VehicleFinancialOptionsProps {
   setGpsRequired: (val: boolean) => void;
   includeServicing: boolean;
   setIncludeServicing: (val: boolean) => void;
+  includeTires: boolean;
+  setIncludeTires: (val: boolean) => void;
   hookInstallation: boolean;
   setHookInstallation: (val: boolean) => void;
   // Tire parameters
@@ -125,7 +127,6 @@ const TIRE_CLASS_OPTIONS = [
 
 const TIRE_COUNT_OPTIONS = [
   { value: "auto", label: "Auto (z przebiegu)" },
-  { value: "0", label: "Brak opon (0 kompletów)" },
   { value: "1", label: "1 komplet" },
   { value: "1.5", label: "1,5 kompletu" },
   { value: "2", label: "2 komplety" },
@@ -157,6 +158,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     initialDepositPct, setInitialDepositPct, otherServiceCosts, setOtherServiceCosts,
     expressPaysInsurance, setExpressPaysInsurance, replacementCar, setReplacementCar,
     gpsRequired, setGpsRequired, includeServicing, setIncludeServicing,
+    includeTires, setIncludeTires,
     hookInstallation, setHookInstallation,
     tireClass, setTireClass, tireCountMode, setTireCountMode,
     tireCostCorrectionEnabled, setTireCostCorrectionEnabled,
@@ -276,7 +278,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                     </span>
                     {aiExtractedBasePrice && basePriceWasEdited && (
                       <span className="text-[10px] text-amber-600 leading-tight mt-1 bg-amber-50 p-1 rounded border border-amber-100 w-max">
-                        Wg AI: <b>{aiExtractedBasePrice}</b>
+                        Wartość odczytana: <b>{aiExtractedBasePrice}</b>
                         <button
                           type="button"
                           className="ml-1.5 text-blue-600 hover:text-blue-800 underline cursor-pointer font-semibold"
@@ -428,13 +430,13 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                        Dodaj ręcznie
                      </button>
                      <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
-                        <button onClick={handleRestoreAllOptions} className="w-full sm:w-auto flex items-center justify-center text-[11px] font-semibold px-4 py-2 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors" title="Odrzuć zmiany i przywróć opcje wyekstrahowane z bazy">
+                        <button onClick={handleRestoreAllOptions} className="w-full sm:w-auto flex items-center justify-center text-[11px] font-semibold px-4 py-2 rounded border border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors" title="Odrzuć zmiany i przywróć opcje domyślne">
                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                           Przywróć JSON
+                           Cofnij zmiany
                         </button>
-                        <button onClick={handleSaveAllOptions} disabled={isSavingServices} className="w-full sm:w-auto flex items-center justify-center text-xs font-semibold px-6 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm">
+                        <button onClick={handleSaveAllOptions} disabled={isSavingServices} className="w-full sm:w-auto flex items-center justify-center text-xs font-semibold px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm">
                            {isSavingServices ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
-                           {isSavingServices ? "Zapisywanie..." : "Zapisz Opcje i Usługi"}
+                           {isSavingServices ? "Zapisywanie..." : "Zapisz zmiany"}
                         </button>
                      </div>
                  </div>
@@ -442,180 +444,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
            </div>
       </AccordionCard>
 
-      {/* --- Opony --- */}
-      <AccordionCard
-        id={`tires-${vehicle.id}`}
-        title="Opony"
-        icon={<CircleDot className="w-4 h-4 text-slate-500" />}
-        defaultOpen={true}
-        className="mb-4"
-      >
-        <div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {/* Wheel size from AI */}
-            <div>
-              <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
-                Średnica felgi
-                <LinkedIndicator tableName="koszty_opon" isLinked={!!(paramPreview?.tires?.found && rimDiameter)} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl` : undefined} />
-              </label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min="14"
-                  max="24"
-                  step="1"
-                  className={cn(
-                    "w-16 text-xs p-1.5 border rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold",
-                    rimDiameter ? "border-slate-200 text-slate-700" : "border-amber-300 text-amber-700 bg-amber-50"
-                  )}
-                  value={rimDiameter ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setRimDiameter(val ? parseInt(val, 10) || null : null);
-                  }}
-                  placeholder={extractedWheelSize ? String(extractedWheelSize) : "—"}
-                />
-                <span className="text-xs text-slate-400">"</span>
-                {vehicle.wheels && <span className="text-[10px] text-slate-400 ml-1">z AI: {vehicle.wheels}</span>}
-                {!rimDiameter && <span className="text-[10px] text-amber-600 font-semibold ml-1">⚠ wymagane</span>}
-              </div>
-            </div>
 
-            {/* Tire class dropdown */}
-            <div>
-              <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
-                Klasa opon
-                <LinkedIndicator tableName="koszty_opon" isLinked={!!paramPreview?.tires?.found} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl (${paramPreview.tires.tire_class})` : undefined} />
-              </label>
-              <select
-                className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
-                value={tireClass}
-                onChange={(e) => setTireClass(e.target.value)}
-              >
-                {TIRE_CLASS_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tire count */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Liczba kompletów</label>
-              <select
-                className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
-                value={tireCountMode}
-                onChange={(e) => setTireCountMode(e.target.value)}
-              >
-                {TIRE_COUNT_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tire cost correction per-komórka */}
-            <div className="col-span-2 md:col-span-4">
-              <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="checkbox"
-                  id={`tire-corr-enabled-${vehicle.id}`}
-                  checked={tireCostCorrectionEnabled}
-                  onChange={(e) => setTireCostCorrectionEnabled(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3"
-                />
-                <label htmlFor={`tire-corr-enabled-${vehicle.id}`} className="text-xs font-bold uppercase text-slate-500 cursor-pointer">
-                  Korekta kosztu opon per-komórka (brutto PLN)
-                </label>
-                {tireCostCorrectionEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTireCostCorrectionMap({ ...tireCostCorrectionMap, "48_120000": 0 });
-                    }}
-                    className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-                  >
-                    + Dodaj korektę
-                  </button>
-                )}
-              </div>
-              {tireCostCorrectionEnabled && Object.keys(tireCostCorrectionMap).length > 0 && (
-                <div className="space-y-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="grid grid-cols-[80px_100px_100px_28px] gap-1.5 text-[9px] font-bold uppercase text-slate-400 px-1">
-                    <span>Okres (mies.)</span>
-                    <span>Km/rok</span>
-                    <span>Kwota brutto</span>
-                    <span></span>
-                  </div>
-                  {Object.entries(tireCostCorrectionMap).map(([key, val]) => {
-                    const parts = key.split("_");
-                    const months = parseInt(parts[0], 10) || 48;
-                    const totalKm = parseInt(parts[1], 10) || 0;
-                    const kmPerYear = totalKm > 0 && months > 0 ? Math.round((totalKm / months) * 12) : 0;
-                    return (
-                      <div key={key} className="grid grid-cols-[80px_100px_100px_28px] gap-1.5 items-center">
-                        <select
-                          className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-                          value={months}
-                          onChange={(e) => {
-                            const newMonths = parseInt(e.target.value, 10);
-                            const newTotalKm = kmPerYear > 0 ? Math.round((kmPerYear / 12) * newMonths) : totalKm;
-                            const newKey = `${newMonths}_${newTotalKm}`;
-                            const updated = { ...tireCostCorrectionMap };
-                            delete updated[key];
-                            updated[newKey] = val;
-                            setTireCostCorrectionMap(updated);
-                          }}
-                        >
-                          {[24, 36, 48, 60].map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                        <input
-                          type="number"
-                          step="5000"
-                          min="0"
-                          className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                          value={kmPerYear}
-                          onChange={(e) => {
-                            const newKmPerYear = parseInt(e.target.value, 10) || 0;
-                            const newTotalKm = Math.round((newKmPerYear / 12) * months);
-                            const newKey = `${months}_${newTotalKm}`;
-                            const updated = { ...tireCostCorrectionMap };
-                            delete updated[key];
-                            updated[newKey] = val;
-                            setTireCostCorrectionMap(updated);
-                          }}
-                        />
-                        <input
-                          type="number"
-                          step="1"
-                          className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                          value={val}
-                          onChange={(e) => {
-                            setTireCostCorrectionMap({ ...tireCostCorrectionMap, [key]: parseFloat(e.target.value) || 0 });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...tireCostCorrectionMap };
-                            delete updated[key];
-                            setTireCostCorrectionMap(updated);
-                          }}
-                          className="flex items-center justify-center h-6 w-6 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                  <p className="text-[9px] text-slate-400 px-1 pt-1">Klucz: mies_totalKm · Backend: kwota ÷ 1.23 → netto</p>
-                </div>
-              )}
-              {tireCostCorrectionEnabled && Object.keys(tireCostCorrectionMap).length === 0 && (
-                <p className="text-[10px] text-slate-400 italic">Brak korekt — kliknij Dodaj korektę aby ustawić per-komórka.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </AccordionCard>
 
       {/* Parametry Kalkulacji */}
       <AccordionCard
@@ -721,8 +550,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               Rocznik pojazdu
                 <LinkedIndicator tableName="ltr_admin_korekta_wr_roczniks" isLinked={!!paramPreview?.vintage?.found} previewValue={paramPreview?.vintage?.found ? `${(paramPreview.vintage.correction_pct * 100).toFixed(1)}% (${paramPreview.vintage.label})` : undefined} />
                 {vintageAutoDetected && (
-                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
-                    AI
+                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200" title="Wartość wyodrębniona automatycznie">
+                    AUTO
                   </span>
                 )}
               </label>
@@ -742,8 +571,8 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 Kategoria lakieru
                 <LinkedIndicator tableName="paint_types" isLinked={!!paramPreview?.color?.found} previewValue={paramPreview?.color?.found ? `${(paramPreview.color.correction_pct * 100).toFixed(1)}% (${paramPreview.color.label})` : undefined} />
                 {isMetalicAutoDetected && (
-                   <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
-                     AI
+                   <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200" title="Wartość wyodrębniona automatycznie">
+                     AUTO
                    </span>
                  )}
               </label>
@@ -768,7 +597,11 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
           </div>
 
           {/* Toggles Row */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-2 pt-3 border-t border-slate-100">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-x-6 gap-y-2 pt-3 border-t border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
+              <input type="checkbox" checked={includeTires} onChange={e => setIncludeTires(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
+              <span className="font-semibold text-blue-700">Express dolicza opony</span>
+            </label>
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900 py-1">
               <input type="checkbox" checked={expressPaysInsurance} onChange={e => setExpressPaysInsurance(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
               Express płaci ubezpieczenie
@@ -789,13 +622,186 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
               <input type="checkbox" checked={hookInstallation} onChange={e => setHookInstallation(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" />
               <span className="flex items-center">Hak holowniczy <LinkedIndicator tableName="control_center" isLinked={true} previewValue={controlCenter ? `${controlCenter.cost_hook_installation} PLN` : undefined} />
                 {hookAutoDetected && (
-                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold ring-1 ring-emerald-200">
-                    AI
+                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200" title="Wartość wyodrębniona automatycznie">
+                    AUTO
                   </span>
                 )}
               </span>
             </label>
           </div>
+
+          {/* --- Opony (wewnątrz Parametry Kalkulacji) --- */}
+          {includeTires && (
+            <div className="mt-4 pt-4 border-t border-slate-200 transition-all duration-300 bg-blue-50/30 ring-1 ring-blue-500/20 p-2 rounded-lg relative">
+              <div className="flex items-center mb-3">
+              <CircleDot className="w-4 h-4 text-emerald-600 mr-2" />
+              <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Parametry Opon</h4>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Wheel size from AI */}
+              <div>
+                <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
+                  Średnica felgi
+                  <LinkedIndicator tableName="koszty_opon" isLinked={!!(paramPreview?.tires?.found && rimDiameter)} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl` : undefined} />
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="14"
+                    max="24"
+                    step="1"
+                    className={cn(
+                      "w-16 text-xs p-1.5 border rounded outline-none focus:ring-1 focus:ring-blue-500 font-semibold",
+                      rimDiameter ? "border-slate-200 text-slate-700" : "border-amber-300 text-amber-700 bg-amber-50"
+                    )}
+                    value={rimDiameter ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRimDiameter(val ? parseInt(val, 10) || null : null);
+                    }}
+                    placeholder={extractedWheelSize ? String(extractedWheelSize) : "—"}
+                  />
+                  <span className="text-xs text-slate-400">"</span>
+                  {vehicle.wheels && <span className="text-[10px] text-slate-400 ml-1">z dokumentu: {vehicle.wheels}</span>}
+                  {!rimDiameter && <span className="text-[10px] text-amber-600 font-semibold ml-1">⚠ wymagane</span>}
+                </div>
+              </div>
+
+              {/* Tire class dropdown */}
+              <div>
+                <label className="flex items-center text-xs font-bold uppercase text-slate-500 mb-1">
+                  Klasa opon
+                  <LinkedIndicator tableName="koszty_opon" isLinked={!!paramPreview?.tires?.found} previewValue={paramPreview?.tires?.found ? `${paramPreview.tires.set_price_net} PLN/kpl (${paramPreview.tires.tire_class})` : undefined} />
+                </label>
+                <select
+                  className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
+                  value={tireClass}
+                  onChange={(e) => setTireClass(e.target.value)}
+                >
+                  {TIRE_CLASS_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tire count */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Liczba kompletów</label>
+                <select
+                  className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium text-slate-700"
+                  value={tireCountMode}
+                  onChange={(e) => setTireCountMode(e.target.value)}
+                >
+                  {TIRE_COUNT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tire cost correction per-komórka */}
+              <div className="col-span-2 md:col-span-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id={`tire-corr-enabled-${vehicle.id}`}
+                    checked={tireCostCorrectionEnabled}
+                    onChange={(e) => setTireCostCorrectionEnabled(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3"
+                  />
+                  <label htmlFor={`tire-corr-enabled-${vehicle.id}`} className="text-xs font-bold uppercase text-slate-500 cursor-pointer">
+                    Korekta kosztu opon per-komórka (brutto PLN)
+                  </label>
+                  {tireCostCorrectionEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTireCostCorrectionMap({ ...tireCostCorrectionMap, "48_120000": 0 });
+                      }}
+                      className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                    >
+                      + Dodaj korektę
+                    </button>
+                  )}
+                </div>
+                {tireCostCorrectionEnabled && Object.keys(tireCostCorrectionMap).length > 0 && (
+                  <div className="space-y-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="grid grid-cols-[80px_100px_100px_28px] gap-1.5 text-[9px] font-bold uppercase text-slate-400 px-1">
+                      <span>Okres (mies.)</span>
+                      <span>Km/rok</span>
+                      <span>Kwota brutto</span>
+                      <span></span>
+                    </div>
+                    {Object.entries(tireCostCorrectionMap).map(([key, val]) => {
+                      const parts = key.split("_");
+                      const months = parseInt(parts[0], 10) || 48;
+                      const totalKm = parseInt(parts[1], 10) || 0;
+                      const kmPerYear = totalKm > 0 && months > 0 ? Math.round((totalKm / months) * 12) : 0;
+                      return (
+                        <div key={key} className="grid grid-cols-[80px_100px_100px_28px] gap-1.5 items-center">
+                          <select
+                            className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                            value={months}
+                            onChange={(e) => {
+                              const newMonths = parseInt(e.target.value, 10);
+                              const newTotalKm = kmPerYear > 0 ? Math.round((kmPerYear / 12) * newMonths) : totalKm;
+                              const newKey = `${newMonths}_${newTotalKm}`;
+                              const updated = { ...tireCostCorrectionMap };
+                              delete updated[key];
+                              updated[newKey] = val;
+                              setTireCostCorrectionMap(updated);
+                            }}
+                          >
+                            {[24, 36, 48, 60].map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <input
+                            type="number"
+                            step="5000"
+                            min="0"
+                            className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            value={kmPerYear}
+                            onChange={(e) => {
+                              const newKmPerYear = parseInt(e.target.value, 10) || 0;
+                              const newTotalKm = Math.round((newKmPerYear / 12) * months);
+                              const newKey = `${months}_${newTotalKm}`;
+                              const updated = { ...tireCostCorrectionMap };
+                              delete updated[key];
+                              updated[newKey] = val;
+                              setTireCostCorrectionMap(updated);
+                            }}
+                          />
+                          <input
+                            type="number"
+                            step="1"
+                            className="text-xs p-1 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            value={val}
+                            onChange={(e) => {
+                              setTireCostCorrectionMap({ ...tireCostCorrectionMap, [key]: parseFloat(e.target.value) || 0 });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...tireCostCorrectionMap };
+                              delete updated[key];
+                              setTireCostCorrectionMap(updated);
+                            }}
+                            className="flex items-center justify-center h-6 w-6 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <p className="text-[9px] text-slate-400 px-1 pt-1">Klucz: mies_totalKm · Backend: kwota ÷ 1.23 → netto</p>
+                  </div>
+                )}
+                {tireCostCorrectionEnabled && Object.keys(tireCostCorrectionMap).length === 0 && (
+                  <p className="text-[10px] text-slate-400 italic">Brak korekt — kliknij Dodaj korektę aby ustawić per-komórka.</p>
+                )}
+              </div>
+            </div>
+          </div>
+          )}
         </div>
       </AccordionCard>
     </>

@@ -70,6 +70,7 @@ export function VehicleTable({
     activePowerRange,
     setSelectedBodyTypes,
     setSelectedTransmissions,
+    setSelectedDrives,
     setPowerRange,
   } = useVehicleFilters(savedVehicles);
 
@@ -271,6 +272,10 @@ export function VehicleTable({
             availableTransmissions={aggregates.transmissions}
             selectedTransmissions={filters.selectedTransmissions}
             onSelectedTransmissionsChange={setSelectedTransmissions}
+
+            availableDrives={aggregates.drives}
+            selectedDrives={filters.selectedDrives}
+            onSelectedDrivesChange={setSelectedDrives}
 
             powerRange={activePowerRange}
             powerBounds={{ powerMin: aggregates.powerMin, powerMax: aggregates.powerMax }}
