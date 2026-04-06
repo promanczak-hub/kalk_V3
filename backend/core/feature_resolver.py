@@ -1,4 +1,4 @@
-"""Feature state resolver — merges evidence into vehicle_feature_state.
+"""Feature state resolver — merges evidence into vehicle_specs_normalized.
 
 Implements the merge strategy:
 1. spec (priority 1)
@@ -34,13 +34,31 @@ _SOURCE_PRIORITY: dict[str, int] = {
     "llm_inference": 7,
 }
 
+_SOURCE_TO_DOC_TYPE: dict[str, str] = {
+    "spec": "config",
+    "variant_doc": "config",
+    "catalog": "pricelist",
+    "brochure": "brochure",
+    "price_list": "pricelist",
+    "excel_import": "manual",
+    "service_option": "config",
+    "body_parameters": "config",
+    "manual_override": "manual",
+    "llm_inference": "llm_inference",
+}
+
+
+def _map_source_to_doc_type(source_type: str) -> str:
+    """Map legacy source_type to vehicle_specs_normalized source_document_type."""
+    return _SOURCE_TO_DOC_TYPE.get(source_type, "config")
+
 
 def _resolve_single_feature(
     evidences: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Resolve a single feature from its evidence records.
 
-    Returns a dict suitable for upsert into vehicle_feature_state.
+    Returns a dict suitable for upsert into vehicle_specs_normalized.
     """
     if not evidences:
         return {
@@ -122,12 +140,13 @@ def _evidence_to_state(
 
     return {
         "resolved_status": resolved_status,
-        "resolved_value_bool": evidence.get("value_bool"),
-        "resolved_value_num": evidence.get("value_num"),
-        "resolved_value_text": evidence.get("value_text"),
+        "value_bool": evidence.get("value_bool"),
+        "value_numeric": evidence.get("value_num"),
+        "value_text": evidence.get("value_text"),
         "resolved_unit": evidence.get("unit"),
-        "confidence": evidence.get("confidence", 0.8),
-        "resolution_source": source_type,
+        "confidence_score": evidence.get("confidence", 0.8),
+        "source_document_type": _map_source_to_doc_type(source_type),
+        "source_text": evidence.get("source_text"),
         "is_manual_override": is_override,
     }
 
@@ -169,7 +188,7 @@ def resolve_vehicle_features(
     """Resolve all features for a vehicle from its evidence.
 
     Reads vehicle_feature_evidence, resolves conflicts,
-    and upserts into vehicle_feature_state.
+    and upserts into vehicle_specs_normalized.
 
     Returns summary of resolution.
     """
@@ -205,22 +224,19 @@ def resolve_vehicle_features(
     # ── Delete existing state for this vehicle/bundle ──
     del_query = (
         sb.schema("reverse_search")
-        .table("vehicle_feature_state")
+        .table("vehicle_specs_normalized")
         .delete()
-        .eq("source_vehicle_id", vehicle_id)
+        .eq("vehicle_id", vehicle_id)
     )
     if bundle_id:
-        del_query = del_query.eq("bundle_id", bundle_id)
-    else:
-        del_query = del_query.is_("bundle_id", "null")
+        del_query = del_query.eq("source_text", f"bundle:{bundle_id}")
     del_query.execute()
 
     # ── Build state rows and batch insert ──
     state_rows: list[dict[str, Any]] = []
     for feature_id, evidences in by_feature.items():
         state = _resolve_single_feature(evidences)
-        state["source_vehicle_id"] = vehicle_id
-        state["bundle_id"] = bundle_id
+        state["vehicle_id"] = vehicle_id
         state["feature_id"] = feature_id
         state_rows.append(state)
 
@@ -228,8 +244,11 @@ def resolve_vehicle_features(
     if state_rows:
         try:
             sb.schema("reverse_search").table(
-                "vehicle_feature_state",
-            ).insert(state_rows).execute()
+                "vehicle_specs_normalized",
+            ).upsert(
+                state_rows,
+                on_conflict="vehicle_id,feature_id",
+            ).execute()
             resolved_count = len(state_rows)
         except Exception as e:
             logger.error(

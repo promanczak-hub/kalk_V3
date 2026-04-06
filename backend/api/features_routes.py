@@ -425,7 +425,7 @@ def reverse_search_vehicles(
 ) -> FeatureSearchResponse:
     """Search vehicles by feature criteria.
 
-    Filters on vehicle_feature_state joined with vehicle_synthesis.
+    Filters on vehicle_specs_normalized joined with vehicle_synthesis.
     """
     sb = supabase
 
@@ -699,10 +699,10 @@ def reverse_search_vehicles(
         chunk = result_ids_list[:150]
         facet_resp = (
             sb.schema("reverse_search")
-            .table("vehicle_feature_state")
+            .table("vehicle_specs_normalized")
             .select("feature_id, universal_features!inner(feature_key)")
-            .in_("source_vehicle_id", chunk)
-            .eq("resolved_value_bool", True)
+            .in_("vehicle_id", chunk)
+            .eq("value_bool", True)
             .in_(
                 "resolved_status",
                 [

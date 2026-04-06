@@ -116,9 +116,9 @@ def wipe_vehicle_features(
     try:
         resp = (
             sb.schema("reverse_search")
-            .table("vehicle_feature_state")
+            .table("vehicle_specs_normalized")
             .delete()
-            .eq("source_vehicle_id", vehicle_id)
+            .eq("vehicle_id", vehicle_id)
             .execute()
         )
         state_deleted = len(resp.data or [])

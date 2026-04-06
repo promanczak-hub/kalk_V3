@@ -55,14 +55,14 @@ def get_vehicle_features(
 
     state_resp = (
         sb.schema("reverse_search")
-        .table("vehicle_feature_state")
+        .table("vehicle_specs_normalized")
         .select(
             "id, feature_id, resolved_status, "
-            "resolved_value_bool, resolved_value_num, "
-            "resolved_value_text, resolved_unit, "
-            "confidence, resolution_source, is_manual_override"
+            "value_bool, value_numeric, "
+            "value_text, resolved_unit, "
+            "confidence_score, source_document_type, is_manual_override"
         )
-        .eq("source_vehicle_id", vehicle_id)
+        .eq("vehicle_id", vehicle_id)
         .execute()
     )
     state_rows: list[dict[str, Any]] = state_resp.data or []
@@ -103,12 +103,12 @@ def get_vehicle_features(
                 "category_key": cat_info.get("category_key", ""),
                 "category_name": cat_info.get("display_name", ""),
                 "resolved_status": row["resolved_status"],
-                "value_bool": row["resolved_value_bool"],
-                "value_num": row["resolved_value_num"],
-                "value_text": row["resolved_value_text"],
+                "value_bool": row["value_bool"],
+                "value_num": row["value_numeric"],
+                "value_text": row["value_text"],
                 "unit": row["resolved_unit"],
-                "confidence": row["confidence"],
-                "source": row["resolution_source"],
+                "confidence": row["confidence_score"],
+                "source": row["source_document_type"],
                 "is_manual": row["is_manual_override"],
             }
         )
@@ -216,27 +216,27 @@ def upsert_vehicle_features(
             continue
 
         state_row: dict[str, Any] = {
-            "source_vehicle_id": vehicle_id,
+            "vehicle_id": vehicle_id,
             "feature_id": feat_info["id"],
             "resolved_status": "present_confirmed_primary",
-            "confidence": 1.0,
-            "resolution_source": "manual_override",
+            "confidence_score": 1.0,
+            "source_document_type": "manual",
             "is_manual_override": True,
         }
 
         if feat.value_bool is not None:
-            state_row["resolved_value_bool"] = feat.value_bool
+            state_row["value_bool"] = feat.value_bool
         if feat.value_num is not None:
-            state_row["resolved_value_num"] = feat.value_num
+            state_row["value_numeric"] = feat.value_num
         if feat.value_text is not None:
-            state_row["resolved_value_text"] = feat.value_text
+            state_row["value_text"] = feat.value_text
         if feat.unit is not None:
             state_row["resolved_unit"] = feat.unit
 
         try:
-            sb.schema("reverse_search").table("vehicle_feature_state").upsert(
+            sb.schema("reverse_search").table("vehicle_specs_normalized").upsert(
                 state_row,
-                on_conflict="source_vehicle_id,feature_id",
+                on_conflict="vehicle_id,feature_id",
             ).execute()
             upserted += 1
         except Exception as exc:
@@ -281,8 +281,8 @@ def delete_vehicle_feature(
     feature_id = rows[0]["id"]
 
     # Delete state
-    sb.schema("reverse_search").table("vehicle_feature_state").delete().eq(
-        "source_vehicle_id", vehicle_id
+    sb.schema("reverse_search").table("vehicle_specs_normalized").delete().eq(
+        "vehicle_id", vehicle_id
     ).eq("feature_id", feature_id).execute()
 
     # Also delete evidence

@@ -31,6 +31,7 @@ from api.pdf_parser_routes import router as pdf_parser_router
 from api.scoring_search_routes import router as scoring_search_router
 from api.oferty_routes import router as oferty_router
 from api.brochure_routes import router as brochure_router
+from api.tender_routes import router as tender_router
 
 from api.router_tasks import router as router_tasks
 from api.ltr_manual_routes import router as ltr_manual_router
@@ -91,6 +92,7 @@ app.include_router(scoring_search_router, prefix="/api")
 app.include_router(oferty_router, prefix="/api/offers", tags=["Oferty"])
 app.include_router(brochure_router, prefix="/api")
 app.include_router(mileage_adjustments_router, prefix="/api")
+app.include_router(tender_router)
 
 app.include_router(router_tasks)
 app.include_router(ltr_manual_router)
