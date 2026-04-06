@@ -9,6 +9,7 @@ export interface FeatureItem {
   resolved_value_num: number | null;
   confidence_score: number | null;
   category_name: string;
+  feature_tier?: 'CORE' | 'EXTENDED' | 'EDGE' | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
