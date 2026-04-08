@@ -1,8 +1,8 @@
 import pandas as pd
 import json
 
-path = r'C:\Users\proma\Downloads\DRAFT_KALKULATORA_WARTOŚCI_REZYDUALNYCH_ver_aktualna_JŁ_02_02_2026 (3).xlsx'
-sheet = 'KALKULATOR DH (dubel)'
+path = r"C:\Users\proma\Downloads\DRAFT_KALKULATORA_WARTOŚCI_REZYDUALNYCH_ver_aktualna_JŁ_02_02_2026 (3).xlsx"
+sheet = "KALKULATOR DH (dubel)"
 
 df = pd.read_excel(path, sheet_name=sheet, header=None)
 
@@ -19,6 +19,6 @@ for i in range(80):
     col_name = f"{header1[i]} | {header2[i]} | {header3[i]}"
     output[col_name] = row[i]
 
-with open('row_1679.json', 'w', encoding='utf-8') as f:
+with open("row_1679.json", "w", encoding="utf-8") as f:
     json.dump(output, f, default=str, indent=2, ensure_ascii=False)
-print('Done!')
+print("Done!")

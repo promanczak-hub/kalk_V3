@@ -1,6 +1,6 @@
 import json
 
-with open('import_data.json', 'r', encoding='utf-8') as f:
+with open("import_data.json", "r", encoding="utf-8") as f:
     import_data = json.load(f)
 
 # The keys in the Excel are like APb, AHEV, DsuvON, etc.
@@ -30,7 +30,7 @@ class_mapping = {
     2: "Mvan",
     4: "R",
     5: "P",
-    3: "T PICK-UP"
+    3: "T PICK-UP",
 }
 
 # Mapping fuel_type_id to the suffix in Excel
@@ -44,7 +44,7 @@ fuel_mapping = {
     5: "HEV",
     6: "PHEV",
     7: "EV",
-    8: "EV"
+    8: "EV",
 }
 
 updates = []
@@ -63,7 +63,7 @@ for class_id, fuel_id, val in updates:
     sql = f"UPDATE samar_class_depreciation_rates SET base_depreciation_percent = {val} WHERE year = 0 AND samar_class_id = {class_id} AND fuel_type_id = {fuel_id};"
     sql_statements.append(sql)
 
-with open('update_rates.sql', 'w', encoding='utf-8') as f:
+with open("update_rates.sql", "w", encoding="utf-8") as f:
     f.write("\n".join(sql_statements))
 
 print("Wrote update_rates.sql")

@@ -11,16 +11,31 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 try:
     print("--- Feature Categories ---")
-    cats_response = supabase.schema("reverse_search").table("feature_categories").select("id, name, sort_order").order("sort_order").execute()
+    cats_response = (
+        supabase.schema("reverse_search")
+        .table("feature_categories")
+        .select("id, name, sort_order")
+        .order("sort_order")
+        .execute()
+    )
     cats = cats_response.data
     for cat in cats:
-        cat_id = cat['id']
+        cat_id = cat["id"]
         print(f"[{cat['sort_order']}] {cat['name']} (ID: {cat_id})")
-        
-        feat_response = supabase.schema("reverse_search").table("universal_features").select("feature_key, display_name, feature_type, sort_order").eq("category_id", cat_id).order("sort_order").order("display_name").execute()
+
+        feat_response = (
+            supabase.schema("reverse_search")
+            .table("universal_features")
+            .select("feature_key, display_name, feature_type, sort_order")
+            .eq("category_id", cat_id)
+            .order("sort_order")
+            .order("display_name")
+            .execute()
+        )
         features = feat_response.data
         for f in features:
             print(f"  - {f['display_name']} ({f['feature_key']}): {f['feature_type']}")
-except Exception as e:
+except Exception:
     import traceback
+
     traceback.print_exc()

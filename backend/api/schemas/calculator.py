@@ -50,7 +50,8 @@ class CalculatorInput(BaseModel):
         default=15.0, description="Marża sprzedaży % z poziomu UI (preset/suwak)"
     )
     pricing_exact_price: Optional[float] = Field(
-        default=None, description="Docelowa Rata Netto (używana w Goal Seek do wyliczenia pricing_margin_pct)"
+        default=None,
+        description="Docelowa Rata Netto (używana w Goal Seek do wyliczenia pricing_margin_pct)",
     )
     calculation_mode: Optional[str] = Field(
         default="standard",
@@ -150,6 +151,9 @@ class CalculatorInput(BaseModel):
     )
     paint_type_name: Optional[str] = Field(
         default=None, description="Nazwa typu lakieru z dropdownu/UI (opcjonalnie)"
+    )
+    gearbox_name: Optional[str] = Field(
+        default=None, description="Skrzynia biegów z dropdownu/UI (opcjonalnie)"
     )
     zabudowa_type_id: Optional[int] = Field(
         default=None,

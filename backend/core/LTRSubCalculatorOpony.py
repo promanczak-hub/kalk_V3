@@ -214,9 +214,13 @@ class LTRSubCalculatorOpony:
                 if val is not None:
                     return float(val)
         except Exception as e:
-            raise ValueError(f"Błąd bazy danych przy pobieraniu ceny budżetowej opon dla srednica={self.srednica_felgi}: {str(e)}") from e
+            raise ValueError(
+                f"Błąd bazy danych przy pobieraniu ceny budżetowej opon dla srednica={self.srednica_felgi}: {str(e)}"
+            ) from e
 
-        raise ValueError(f"Brak ceny kompletu budżetowego ({budget_col}) w tabeli koszty_opon dla srednicy {self.srednica_felgi}")
+        raise ValueError(
+            f"Brak ceny kompletu budżetowego ({budget_col}) w tabeli koszty_opon dla srednicy {self.srednica_felgi}"
+        )
 
     def _fetch_odkup_opon_cost(self) -> float:
         """Pobiera historyczną cenę odkupu opon z tabeli (V1: zmniejsza ogólny koszt netto)."""
@@ -235,7 +239,9 @@ class LTRSubCalculatorOpony:
             if response.data and len(response.data) > 0:
                 row = cast(Dict[str, Any], response.data[0])
                 if "odkup_opon" not in row or row["odkup_opon"] is None:
-                    raise ValueError(f"Kolumna odkup_opon pusta lub brakująca dla srednicy {self.srednica_felgi}")
+                    raise ValueError(
+                        f"Kolumna odkup_opon pusta lub brakująca dla srednicy {self.srednica_felgi}"
+                    )
                 return float(row["odkup_opon"])
         except ValueError as ve:
             raise ve
@@ -243,7 +249,9 @@ class LTRSubCalculatorOpony:
             logger.error(
                 f"Error fetching Odkup Opon for size {self.srednica_felgi}: {e}"
             )
-            raise ValueError(f"Błąd krytyczny wyciągania kwoty odkupu opon: {str(e)}") from e
+            raise ValueError(
+                f"Błąd krytyczny wyciągania kwoty odkupu opon: {str(e)}"
+            ) from e
 
         raise ValueError(
             f"Zaznaczono opcję 'Odkup Opon', ale w tabeli 'koszty_opon' brakuje wpisu "

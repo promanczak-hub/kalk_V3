@@ -1,10 +1,12 @@
 import sys
+
 sys.path.append(r"d:\kalk_v3\backend")
 from core.database import supabase
-import pandas as pd
 
 # Fetch dicts from DB to see what the pipeline expects
-res_przebieg = supabase.table("ltr_admin_tabela_wr_przebiegs").select("*").limit(10).execute()
+res_przebieg = (
+    supabase.table("ltr_admin_tabela_wr_przebiegs").select("*").limit(10).execute()
+)
 print("ltr_admin_tabela_wr_przebiegs sample:")
 for r in res_przebieg.data:
     print(r)

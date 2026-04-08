@@ -1,9 +1,10 @@
 import sys
+
 sys.path.append(r"d:\kalk_v3\backend")
 
 # Manual simulation
 base_netto = 247850.0  # From PDF
-options_netto = 34500.0 # From PDF (or 34700)
+options_netto = 34500.0  # From PDF (or 34700)
 months = 48
 total_km = 140000
 
@@ -30,7 +31,7 @@ for yr in [5, 6, 7]:
     v = v * (1.0 - rate)
     value_table[yr] = v
 
-print("Krok 2 Cascade table:", {k: round(v, 2) for k,v in sorted(value_table.items())})
+print("Krok 2 Cascade table:", {k: round(v, 2) for k, v in sorted(value_table.items())})
 
 years = int((months * 30.5) / 365)
 print("Years mapped:", years)
@@ -51,13 +52,15 @@ paczki_under = przebieg_ponizej / 10000.0
 przebieg_powyzej = max(total_km - 190000, 0)
 paczki_over = przebieg_powyzej / 10000.0
 
-korekta_przebieg = (under_rate * rv_total * paczki_under) + (over_rate * rv_total * paczki_over)
+korekta_przebieg = (under_rate * rv_total * paczki_under) + (
+    over_rate * rv_total * paczki_over
+)
 print("Krok 4: przebieg corr =", korekta_przebieg)
 
 # Krok 5: kolor, nadwozie
-# We need color correction for SKODA Superb Diesel. 
+# We need color correction for SKODA Superb Diesel.
 # Usually niemetalik = 0, metalik = 0 (maybe)
-color_corr = 0.0 
+color_corr = 0.0
 body_corr = 0.0
 
 rv_pre_manual = rv_total + color_corr + body_corr - korekta_przebieg
@@ -68,4 +71,3 @@ vintage_pct = 0.0
 rv_final = rv_pre_manual + vintage_pct * (base_netto + options_netto)
 
 print("Final RV =", rv_final)
-

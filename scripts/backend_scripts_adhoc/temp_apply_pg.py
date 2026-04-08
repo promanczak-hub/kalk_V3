@@ -9,6 +9,7 @@ DB_NAME = "postgres"
 DB_USER = "postgres.gnpsdiarmwvqhqbyetce"
 DB_PASSWORD = "Rockyramboa17@"
 
+
 def main():
     print("Connecting to Supabase Pooler...")
     try:
@@ -19,11 +20,11 @@ def main():
             user=DB_USER,
             password=DB_PASSWORD,
             sslmode="require",
-            connect_timeout=15
+            connect_timeout=15,
         )
         conn.autocommit = True
         print("CONNECTED ✓")
-        
+
         sql = MIGRATION_FILE.read_text(encoding="utf-8")
         cur = conn.cursor()
         print("Executing migration...")
@@ -33,6 +34,7 @@ def main():
         conn.close()
     except Exception as e:
         print(f"FAILED: {e}")
+
 
 if __name__ == "__main__":
     main()

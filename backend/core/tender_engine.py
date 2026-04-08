@@ -15,7 +15,7 @@ from uuid import UUID
 
 from supabase import Client
 
-from backend.core.mdm_models import (
+from core.mdm_models import (
     ComplianceStatus,
     CriterionResult,
     TenderCriterion,

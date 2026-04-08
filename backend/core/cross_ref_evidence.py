@@ -152,11 +152,6 @@ def _extract_dimensions(
         key = f"overall_{dim_name}" if is_overall else dim_name
         dims[key] = feat.value_num
 
-    # Fallback: overall → cargo when cargo not available
-    for dim in ("length_mm", "width_mm", "height_mm"):
-        if dim not in dims and f"overall_{dim}" in dims:
-            dims[dim] = dims[f"overall_{dim}"]
-
     return dims
 
 
@@ -164,20 +159,16 @@ def create_body_param_evidence(
     vehicle_id: str,
     match_result: VariantMatchResult,
     feature_id_map: dict[str, str],
+    is_commercial: bool = False,
 ) -> int:
     """Create body parameter evidence from dimensions.
 
     Uses batch upsert (single DB call).
+    Only calculates cargo parameters (e.g., pallets, volume) for commercial vehicles.
     """
     dims = _extract_dimensions(match_result)
     if not dims:
         return 0
-
-    params = calculate_cargo_params(
-        cargo_length_mm=dims.get("length_mm"),
-        cargo_width_mm=dims.get("width_mm"),
-        cargo_height_mm=dims.get("height_mm"),
-    )
 
     calc_features: dict[str, tuple[float | int | None, str]] = {
         "długość_całkowita": (
@@ -192,13 +183,24 @@ def create_body_param_evidence(
             dims.get("overall_height_mm"),
             "mm",
         ),
-        "m2": (params.area_m2, "m²"),
-        "ilość_europalet": (params.europallets, "szt"),
-        "kubatura_przestrzeni_ładunkowej_w_m3": (
-            params.volume_m3,
-            "m³",
-        ),
     }
+
+    if is_commercial:
+        params = calculate_cargo_params(
+            cargo_length_mm=dims.get("length_mm"),
+            cargo_width_mm=dims.get("width_mm"),
+            cargo_height_mm=dims.get("height_mm"),
+        )
+        calc_features.update(
+            {
+                "m2": (params.area_m2, "m²"),
+                "ilość_europalet": (params.europallets, "szt"),
+                "kubatura_przestrzeni_ładunkowej_w_m3": (
+                    params.volume_m3,
+                    "m³",
+                ),
+            }
+        )
 
     evidence_batch: list[dict[str, Any]] = []
     for feat_key, (value, unit) in calc_features.items():

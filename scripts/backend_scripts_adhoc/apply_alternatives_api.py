@@ -2,7 +2,10 @@ import requests
 
 PROJECT_REF = "gnpsdiarmwvqhqbyetce"
 ACCESS_TOKEN = "sbp_aaa03eb39fadec3d0b69ac0590ff7440d104e8a9"
-MIGRATION_FILE = r"d:\kalk_v3\supabase\migrations\20260402214700_add_alternatives_rpcs.sql"
+MIGRATION_FILE = (
+    r"d:\kalk_v3\supabase\migrations\20260402214700_add_alternatives_rpcs.sql"
+)
+
 
 def apply_migration():
     try:
@@ -25,7 +28,7 @@ def apply_migration():
 
     try:
         response = requests.post(url, headers=headers, json=payload)
-        
+
         if response.status_code in [200, 201]:
             print("Migration applied successfully via Management API!")
             print(response.text)
@@ -34,6 +37,7 @@ def apply_migration():
             print(f"Response: {response.text}")
     except Exception as e:
         print(f"An error occurred: {e}")
+
 
 if __name__ == "__main__":
     apply_migration()

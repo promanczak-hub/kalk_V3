@@ -1,5 +1,3 @@
-import sys
-
 with open("d:/kalk_v3/frontend/src/CalculatorPanel.tsx", "r", encoding="utf-8") as f:
     text = f.read()
 

@@ -13,7 +13,7 @@ for r in res.data or []:
     print(f"  samar_classes id={r['id']:>3}: '{name}'")
     if "TERENOWO-REKREACYJNE C" in name.upper() and "NIŻSZA" in name.upper():
         troc_id = r["id"]
-        print(f"  ^^^ MATCH for T-Roc (TERENOWO-REKREACYJNE C NIŻSZA)")
+        print("  ^^^ MATCH for T-Roc (TERENOWO-REKREACYJNE C NIŻSZA)")
 
 # 2. Jakie fuel_type_id to benzyna PB?
 print("\n--- engine_types (fuel types) ---")

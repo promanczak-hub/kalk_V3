@@ -9,6 +9,7 @@ sys.path.append(os.path.join(os.getcwd(), "backend"))
 from backend.core.LTRKalkulator import LTRKalkulator
 from backend.api.schemas.calculator import CalculatorInput, VehicleOptions
 
+
 async def diagnose():
     input_data = CalculatorInput(
         vehicle_id="117a61bf-9488-4b61-a1c3-1461f25fdea5",
@@ -35,10 +36,12 @@ async def diagnose():
         srednica_felgi=19,
         klasa_opony_string="Medium",
         factory_options=[
-            VehicleOptions(name="Options total", price_net=28211.38, price_gross=34700.0)
-        ]
+            VehicleOptions(
+                name="Options total", price_net=28211.38, price_gross=34700.0
+            )
+        ],
     )
-    
+
     class MockSettings:
         def __init__(self):
             self.vat_rate = 1.23
@@ -56,14 +59,14 @@ async def diagnose():
             self.ins_nnw_annual_rate = 150.0
             self.ins_ass_annual_rate = 200.0
             self.ins_green_card_annual_rate = 50.0
-            
+
     settings = MockSettings()
-    
+
     print("--- ROZPOCZECIE DIAGNOSTYKI (V4 FIXED) ---")
     calc = LTRKalkulator(input_data=input_data, settings=settings)
-    
+
     matrix = calc.build_matrix(only_exact=False)
-    
+
     for cell in matrix:
         if cell["Okres"] == 36 and cell["Przebieg"] == 20000:
             print("\n--- ZNALEZIONO KOMÓRKĘ 36/20000 ---")
@@ -75,17 +78,22 @@ async def diagnose():
             print(f"    - Opony: {cell['Opony']} PLN")
             print(f"    - Samochod Zastepczy: {cell['SamochodZastepczy']} PLN")
             print(f"    - Admin: {cell['Admin']} PLN")
-            
+
             for t in cell.get("calculation_trace", []):
                 if isinstance(t, dict):
                     krok = str(t.get("krok", ""))
                     if "Finanse (PMT)" in krok:
-                        print(f"\nTRACE FINANSE: {json.dumps(t, indent=2, ensure_ascii=False)}")
+                        print(
+                            f"\nTRACE FINANSE: {json.dumps(t, indent=2, ensure_ascii=False)}"
+                        )
                     if "Ubezpieczenie" in krok:
-                        print(f"\nTRACE UBEZPIECZENIE: {json.dumps(t, indent=2, ensure_ascii=False)}")
+                        print(
+                            f"\nTRACE UBEZPIECZENIE: {json.dumps(t, indent=2, ensure_ascii=False)}"
+                        )
             return
 
     print("\nNie znaleziono 36/20000.")
+
 
 if __name__ == "__main__":
     asyncio.run(diagnose())

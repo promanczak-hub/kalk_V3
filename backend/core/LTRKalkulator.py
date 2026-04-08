@@ -395,7 +395,7 @@ class LTRKalkulator:
         else:
             # V3 Matrix Strategy: Use contract mileage mode with 5000km step
             # This significantly reduces the payload size and speeds up calculations.
-            contract_km_min = 10000
+            contract_km_min = 40000
             contract_km_max = 300000
             contract_km_step = 5000
 

@@ -194,7 +194,9 @@ def create_manual_kalkulacja(req: CreateManualRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _extract_list_fields(row: Dict[str, Any], rata_netto: Optional[float] = None, matrix_count: int = 0) -> KalkulacjaListItem:
+def _extract_list_fields(
+    row: Dict[str, Any], rata_netto: Optional[float] = None, matrix_count: int = 0
+) -> KalkulacjaListItem:
     """Extract enriched fields from stan_json for list view."""
     sj = cast(Dict[str, Any], row.get("stan_json") or {})
     vehicle_mapped = cast(Dict[str, Any], sj.get("vehicle_mapped") or {})
@@ -219,14 +221,18 @@ def _extract_list_fields(row: Dict[str, Any], rata_netto: Optional[float] = None
         or discount_block.get("active_discount_pct"),
         options_count=len(factory_opts) + len(service_opts),
         toggles_summary={
-            "z_oponami": sj.get("z_oponami", True) if "z_oponami" in sj else (sj.get("tire_params", {}).get("tire_count_mode") != "BRAK"),
-            "express_pays_insurance": sj.get("toggles", {}).get("express_pays_insurance", False),
+            "z_oponami": sj.get("z_oponami", True)
+            if "z_oponami" in sj
+            else (sj.get("tire_params", {}).get("tire_count_mode") != "BRAK"),
+            "express_pays_insurance": sj.get("toggles", {}).get(
+                "express_pays_insurance", False
+            ),
             "include_servicing": sj.get("toggles", {}).get("include_servicing", False),
             "replacement_car": sj.get("toggles", {}).get("replacement_car", False),
-            "is_metalic": sj.get("is_metalic", False)
+            "is_metalic": sj.get("is_metalic", False),
         },
         rata_netto=rata_netto,
-        matrix_count=matrix_count
+        matrix_count=matrix_count,
     )
 
 
@@ -272,11 +278,16 @@ def get_kalkulacje():
             return []
 
         kalk_ids = [r["id"] for r in res.data]
-        rates_res = supabase.table("vehicle_matrix_cache").select("kalkulacja_id,monthly_price_net").in_("kalkulacja_id", kalk_ids).execute()
-        
+        rates_res = (
+            supabase.table("vehicle_matrix_cache")
+            .select("kalkulacja_id,monthly_price_net")
+            .in_("kalkulacja_id", kalk_ids)
+            .execute()
+        )
+
         best_rates = {}
         matrix_counts = {}
-        for m in (rates_res.data or []):
+        for m in rates_res.data or []:
             k_id = m.get("kalkulacja_id")
             if k_id:
                 matrix_counts[k_id] = matrix_counts.get(k_id, 0) + 1
@@ -286,7 +297,14 @@ def get_kalkulacje():
                     if k_id not in best_rates or val < best_rates[k_id]:
                         best_rates[k_id] = val
 
-        return [_extract_list_fields(r, rata_netto=best_rates.get(r["id"]), matrix_count=matrix_counts.get(r["id"], 0)) for r in res.data]
+        return [
+            _extract_list_fields(
+                r,
+                rata_netto=best_rates.get(r["id"]),
+                matrix_count=matrix_counts.get(r["id"], 0),
+            )
+            for r in res.data
+        ]
     except Exception as e:
         logger.exception("GET /kalkulacje failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -341,11 +359,16 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
             return []
 
         kalk_ids = [r["id"] for r in res.data]
-        rates_res = supabase.table("vehicle_matrix_cache").select("kalkulacja_id,monthly_price_net").in_("kalkulacja_id", kalk_ids).execute()
-        
+        rates_res = (
+            supabase.table("vehicle_matrix_cache")
+            .select("kalkulacja_id,monthly_price_net")
+            .in_("kalkulacja_id", kalk_ids)
+            .execute()
+        )
+
         best_rates = {}
         matrix_counts = {}
-        for m in (rates_res.data or []):
+        for m in rates_res.data or []:
             k_id = m.get("kalkulacja_id")
             if k_id:
                 matrix_counts[k_id] = matrix_counts.get(k_id, 0) + 1
@@ -355,7 +378,14 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
                     if k_id not in best_rates or val < best_rates[k_id]:
                         best_rates[k_id] = val
 
-        return [_extract_list_fields(r, rata_netto=best_rates.get(r["id"]), matrix_count=matrix_counts.get(r["id"], 0)) for r in res.data]
+        return [
+            _extract_list_fields(
+                r,
+                rata_netto=best_rates.get(r["id"]),
+                matrix_count=matrix_counts.get(r["id"], 0),
+            )
+            for r in res.data
+        ]
     except Exception as e:
         logger.exception("GET /kalkulacje/vehicle/%s failed", vehicle_id)
         raise HTTPException(status_code=500, detail=str(e))

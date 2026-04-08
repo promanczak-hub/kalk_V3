@@ -17,7 +17,7 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 
-from core.extractor_models import UtilityFeatureItem
+from core.extractor_models import CargoAndDimensions
 
 
 class EquipmentItem(BaseModel):
@@ -79,9 +79,9 @@ class VehicleExtractionSchema(BaseModel):
     optional_equipment: List[EquipmentItem] = Field(
         description="Lista płatnego i darmowego wybranego wyposażenia (opcje/akcesoria/pakiety)"
     )
-    utility_features: List[UtilityFeatureItem] = Field(
-        default_factory=list,
-        description="Parametry fizyczne (np. pojemność bagażnika, długość, masa) - Bądź agresywny w szukaniu!",
+    dimensions: Optional[CargoAndDimensions] = Field(
+        None,
+        description="Wymiary, masy, pojemności i ładowność pojazdu - Bądź agresywny w szukaniu!",
     )
 
 
@@ -113,7 +113,7 @@ def _format_unified_data(extracted_data: dict) -> dict:
             },
             "standard_equipment": extracted_data.get("standard_equipment", []),
             "optional_equipment": extracted_data.get("optional_equipment", []),
-            "utility_features": extracted_data.get("utility_features", []),
+            "dimensions": extracted_data.get("dimensions"),
         },
     }
 

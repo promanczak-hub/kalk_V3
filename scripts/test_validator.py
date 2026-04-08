@@ -1,5 +1,4 @@
 import json
-from pprint import pprint
 from core.pipeline_price_validator import validate_card_summary_prices
 
 with open("test_out.json", "r", encoding="utf-8") as f:

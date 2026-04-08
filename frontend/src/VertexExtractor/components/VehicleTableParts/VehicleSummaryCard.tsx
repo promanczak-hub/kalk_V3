@@ -310,6 +310,21 @@ export function VehicleSummaryCard({
   ];
 
   const cardSummary = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+  const digitalTwin = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.digital_twin as Record<string, unknown> | undefined;
+  const dimensions = digitalTwin?.dimensions as Record<string, number | null> | undefined;
+
+  const formatDim = (val: number | null | undefined, unit: string) => val ? `${val} ${unit}` : EMPTY;
+  
+  const dimensionsRows: typeof identityRows = [
+    { label: "Poj. ładunkowa", value: formatDim(dimensions?.cargo_volume_m3, "m³") },
+    { label: "Ładowność", value: formatDim(dimensions?.payload_kg, "kg") },
+    { label: "Długość paki", value: formatDim(dimensions?.cargo_length_mm, "mm") },
+    { label: "Szerokość paki", value: formatDim(dimensions?.cargo_width_mm, "mm") },
+    { label: "Wysokość paki", value: formatDim(dimensions?.cargo_height_mm, "mm") },
+    { label: "Rozstaw osi", value: formatDim(dimensions?.wheelbase_mm, "mm") },
+    { label: "Długość pojazdu", value: formatDim(dimensions?.vehicle_length_mm, "mm") },
+    { label: "Liczba europalet", value: dimensions?.europallet_capacity ? String(dimensions.europallet_capacity) : EMPTY },
+  ].filter(row => row.value !== EMPTY); // Only show rows that have data
 
   const techConfigRows: typeof identityRows = [
     { 
@@ -493,6 +508,26 @@ export function VehicleSummaryCard({
               </tbody>
             </table>
           </div>
+
+          {dimensionsRows.length > 0 && (
+            <>
+              <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 mt-5 flex items-center">
+                Wymiary i przestrzeń ładunkowa
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <table className="w-full">
+                  <tbody>
+                    {renderRows(dimensionsRows.slice(0, Math.ceil(dimensionsRows.length / 2)))}
+                  </tbody>
+                </table>
+                <table className="w-full">
+                  <tbody>
+                    {renderRows(dimensionsRows.slice(Math.ceil(dimensionsRows.length / 2)))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </AccordionCard>

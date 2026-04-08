@@ -1,37 +1,43 @@
-import os
 import asyncio
 from dotenv import load_dotenv
 import json
 
-load_dotenv(r'd:\kalk_v3\backend\.env')
+load_dotenv(r"d:\kalk_v3\backend\.env")
 
 import sys
-sys.path.append(r'd:\kalk_v3\backend')
+
+sys.path.append(r"d:\kalk_v3\backend")
 
 from core.database import supabase
+
 
 async def verify():
     all_data = []
     start = 0
     while True:
-        res = supabase.table('vehicle_synthesis').select('id, synthesis_data').range(start, start + 999).execute()
+        res = (
+            supabase.table("vehicle_synthesis")
+            .select("id, synthesis_data")
+            .range(start, start + 999)
+            .execute()
+        )
         if not res.data:
             break
         all_data.extend(res.data)
         start += 1000
 
-    print(f'Total vehicles: {len(all_data)}')
+    print(f"Total vehicles: {len(all_data)}")
     for item in all_data:
         try:
-            if isinstance(item.get('synthesis_data'), str):
-                sd = json.loads(item['synthesis_data'])
+            if isinstance(item.get("synthesis_data"), str):
+                sd = json.loads(item["synthesis_data"])
             else:
-                sd = item.get('synthesis_data') or {}
-            
-            p_id = sd.get('pojazd', {}).get('id')
-            if p_id == 'CJYHGY2X':
-                print('Found!', item['id'])
-                with open('trace_skoda.py', 'w', encoding='utf-8') as f:
+                sd = item.get("synthesis_data") or {}
+
+            p_id = sd.get("pojazd", {}).get("id")
+            if p_id == "CJYHGY2X":
+                print("Found!", item["id"])
+                with open("trace_skoda.py", "w", encoding="utf-8") as f:
                     f.write(f'''
 import asyncio
 import os
@@ -49,7 +55,7 @@ from core.models import ControlCenterSettings
 from core.matrix_cache_job import build_calculator_input
 
 async def calc():
-    res = supabase.table("vehicle_synthesis").select("id, synthesis_data").eq("id", "{item['id']}").execute()
+    res = supabase.table("vehicle_synthesis").select("id, synthesis_data").eq("id", "{item["id"]}").execute()
     car = res.data[0]
     
     sd = car.get("synthesis_data")
@@ -80,8 +86,9 @@ async def calc():
 asyncio.run(calc())
 ''')
                 return
-        except Exception as e:
+        except Exception:
             pass
-    print('Not found CJYHGY2X in synthesis_data.pojazd.id')
+    print("Not found CJYHGY2X in synthesis_data.pojazd.id")
+
 
 asyncio.run(verify())

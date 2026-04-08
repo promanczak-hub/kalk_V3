@@ -10,6 +10,7 @@ load_dotenv(".env")
 
 from core.database import supabase
 
+
 def check_ltr_offers():
     try:
         # Check ltr_offers
@@ -19,9 +20,10 @@ def check_ltr_offers():
         else:
             # If no data, try to fetch column names via RPC or just assume it's correct if insert works
             print("No data in ltr_offers to check columns.")
-            
+
     except Exception as e:
         print("Error checking ltr_offers schema:", str(e))
+
 
 if __name__ == "__main__":
     check_ltr_offers()

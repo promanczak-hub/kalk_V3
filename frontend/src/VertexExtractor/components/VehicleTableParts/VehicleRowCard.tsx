@@ -188,17 +188,24 @@ export function VehicleRowCard({
 
   // Extract drive type — priorytet: mapped_ai_data → card_summary (JSONB) → widok SQL
   const DRIVE_TYPE_MAP: Record<string, string> = {
-    "Napęd FWD": "4x2 (FWD)", "Napęd RWD": "4x2 (RWD)", "Napęd AWD": "4x4 (AWD)",
-    "FWD": "4x2 (FWD)", "RWD": "4x2 (RWD)", "AWD": "4x4 (AWD)",
+    "Napęd FWD": "FWD", "Napęd RWD": "RWD", "Napęd AWD": "AWD",
+    "FWD": "FWD", "RWD": "RWD", "AWD": "AWD",
+    "4X4": "AWD", "4x4": "AWD", "4WD": "AWD", "ALL": "AWD",
+    "4X2": "FWD", "4x2": "FWD", "2WD": "FWD"
   };
+  
+  const normalizeDriveType = (val: string | undefined | null) => {
+    if (!val) return "";
+    const cleanVal = val.trim();
+    return DRIVE_TYPE_MAP[cleanVal] || DRIVE_TYPE_MAP[cleanVal.toUpperCase()] || cleanVal;
+  };
+
   const rawDriveTypeFromSynthesis = (vehicle.synthesis_data as Record<string, Record<string, unknown>> | undefined)
     ?.card_summary?.drive_type as string | undefined;
   // Fallback do vehicle.drive_type zmapowanego przez fleet_management_view (z card_summary.drive_type)
   const rawDriveType = rawDriveTypeFromSynthesis || vehicle.drive_type || "";
-  const detectedDriveType = rawDriveType
-    ? (DRIVE_TYPE_MAP[rawDriveType] ?? rawDriveType)
-    : "";
-  const driveType = mappedData?.drive_type || detectedDriveType;
+  const detectedDriveType = normalizeDriveType(rawDriveType);
+  const driveType = normalizeDriveType(mappedData?.drive_type) || detectedDriveType;
 
   // Hook 4: Param Preview API
   const { paramPreview, controlCenter } = useVehicleParamPreview(

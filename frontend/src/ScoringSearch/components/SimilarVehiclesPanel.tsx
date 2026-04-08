@@ -8,6 +8,7 @@ import { useOfferCartStore } from '../../stores/offerCartStore';
 interface SimilarVehiclesPanelProps {
   vehicles: SimilarVehicle[];
   sourceVehicle: Record<string, unknown>;
+  title?: string;
 }
 
 // ── Similarity Category Logic ────────────────────────────────────────────────
@@ -167,7 +168,7 @@ const PriceOptionsTooltip: React.FC<{ vehicle: SimilarVehicle }> = ({ vehicle })
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehicles, sourceVehicle }) => {
+export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehicles, sourceVehicle, title }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
 
   const handleAddToCart = (e: React.MouseEvent, v: SimilarVehicle) => {
@@ -209,7 +210,7 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
           letterSpacing: 0.5,
         }}
       >
-        <DirectionsCarIcon sx={{ fontSize: 16 }} /> Inteligentne Alternatywy AI
+        <DirectionsCarIcon sx={{ fontSize: 16 }} /> {title || 'Inteligentne Alternatywy AI'}
       </Typography>
 
       <Box

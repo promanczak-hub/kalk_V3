@@ -3,7 +3,7 @@ from supabase import create_client
 from dotenv import load_dotenv
 
 # Load env from backend/.env
-load_dotenv('backend/.env')
+load_dotenv("backend/.env")
 
 url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")

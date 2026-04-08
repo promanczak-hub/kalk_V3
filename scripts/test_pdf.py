@@ -18,20 +18,23 @@ try:
 
     result_json = extract_vehicle_data_v2(file_bytes)
     result = json.loads(result_json)
-    
+
     card = result.get("card_summary", {})
-    print(f"\n--- Price Summary ---")
+    print("\n--- Price Summary ---")
     print(f"Base Price: {card.get('base_price')}")
     print(f"Options Price: {card.get('options_price')}")
     print(f"Total Price: {card.get('total_price')}")
     print(f"Valid: {card.get('_validation', {}).get('is_valid')}")
-    print(f"Warnings: {json.dumps(card.get('_validation', {}).get('warnings', []), indent=2, ensure_ascii=False)}")
-    
+    print(
+        f"Warnings: {json.dumps(card.get('_validation', {}).get('warnings', []), indent=2, ensure_ascii=False)}"
+    )
+
     options = card.get("paid_options", [])
     print(f"\n--- Paid Options ({len(options)}) ---")
     for opt in options:
         print(f"  - {opt.get('name')}: {opt.get('price')}")
-        
-except Exception as e:
+
+except Exception:
     import traceback
+
     traceback.print_exc()

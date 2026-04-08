@@ -1,6 +1,7 @@
 import pymupdf
 import sys
 
+
 def extract_pdf_data(pdf_path):
     print(f"Opening PDF: {pdf_path}")
     doc = pymupdf.open(pdf_path)
@@ -9,6 +10,7 @@ def extract_pdf_data(pdf_path):
         text += f"\n--- PAGE {page_num + 1} ---\n"
         text += page.get_text()
     return text
+
 
 if __name__ == "__main__":
     pdf_path = r"C:\Users\proma\Downloads\Segmentacja rynku SAMAR 202510 (1).pdf"

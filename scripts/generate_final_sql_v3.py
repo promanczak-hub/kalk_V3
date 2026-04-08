@@ -1,40 +1,193 @@
-import json
-
 # Data from browser subagent
 MILEAGE_CORRECTIONS = [
-    {"class": "Autobusy - AUTOBUSY", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Kombivany - H KOMBI-VANY", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Lekkie dostawcze - KOMBI VAN", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Lekkie dostawcze - VAN", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Minibusy - I MINIBUSY", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Pick-up - PICK-UP", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - A MINI", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - B MAŁE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - C NIŻSZA ŚREDNIA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - D ŚREDNIA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - E WYŻSZA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - F LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Podstawowa - G SUPER LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - A MINI", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - B MAŁE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - D ŚREDNIA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - E WYŻSZA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - F LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Sportowo-rekreacyjne - G SUPER LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Średnie dostawcze - ŚREDNIE DOSTAWCZE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Terenowo-rekreacyjne (SUV) - B MAŁE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Terenowo-rekreacyjne (SUV) - D ŚREDNIA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Terenowo-rekreacyjne (SUV) - E WYŻSZA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Terenowo-rekreacyjne (SUV) - F LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Vany - B MICROVANY", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Vany - C MINIVANY", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
+    {
+        "class": "Autobusy - AUTOBUSY",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Ciężkie dostawcze - CIĘŻKIE DOSTAWCZE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Kombivany - H KOMBI-VANY",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Lekkie dostawcze - KOMBI VAN",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Lekkie dostawcze - VAN",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Minibusy - I MINIBUSY",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Pick-up - PICK-UP",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - A MINI",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - B MAŁE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - C NIŻSZA ŚREDNIA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - D ŚREDNIA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - E WYŻSZA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - F LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Podstawowa - G SUPER LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - A MINI",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - B MAŁE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - C NIŻSZA ŚREDNIA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - D ŚREDNIA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - E WYŻSZA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - F LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Sportowo-rekreacyjne - G SUPER LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Średnie dostawcze - ŚREDNIE DOSTAWCZE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - B MAŁE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - D ŚREDNIA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - E WYŻSZA",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - F LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - G SUPER LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Vany - B MICROVANY",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
+    {
+        "class": "Vany - C MINIVANY",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
     {"class": "Vany - D VANY", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
     {"class": "Vany - E WYŻSZA", "max_mileage": 190000, "below": 0.0, "above": -0.0003},
-    {"class": "Vany - F LUKSUSOWE", "max_mileage": 190000, "below": 0.0, "above": -0.0003}
+    {
+        "class": "Vany - F LUKSUSOWE",
+        "max_mileage": 190000,
+        "below": 0.0,
+        "above": -0.0003,
+    },
 ]
 
 REPLACEMENT_CAR = [
@@ -64,10 +217,14 @@ REPLACEMENT_CAR = [
     {"class": "Sportowo-rekreacyjne - F LUKSUSOWE", "days": 6.5, "rate": 100},
     {"class": "Sportowo-rekreacyjne - G SUPER LUKSUSOWE", "days": 6.5, "rate": 100},
     {"class": "Terenowo-rekreacyjne (SUV) - B MAŁE", "days": 6.5, "rate": 100},
-    {"class": "Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA", "days": 6.5, "rate": 100},
+    {
+        "class": "Terenowo-rekreacyjne (SUV) - C NIŻSZA ŚREDNIA",
+        "days": 6.5,
+        "rate": 100,
+    },
     {"class": "Terenowo-rekreacyjne (SUV) - D ŚREDNIA", "days": 6.5, "rate": 100},
     {"class": "Terenowo-rekreacyjne (SUV) - E WYŻSZA", "days": 6.5, "rate": 100},
-    {"class": "Terenowo-rekreacyjne (SUV) - F LUKSUSOWE", "days": 6.5, "rate": 100}
+    {"class": "Terenowo-rekreacyjne (SUV) - F LUKSUSOWE", "days": 6.5, "rate": 100},
 ]
 
 BODY_TYPE_CORRECTIONS = [
@@ -78,7 +235,7 @@ BODY_TYPE_CORRECTIONS = [
     {"body": "5 drzwiowy VAN", "corr": 0.004},
     {"body": "2 drzwiowy", "corr": 0.004},
     {"body": "3 drzwiowy", "corr": 0.004},
-    {"body": "Kombi Dostawczy", "corr": 0.004}
+    {"body": "Kombi Dostawczy", "corr": 0.004},
 ]
 
 # Mapping Classes 1-33
@@ -115,15 +272,31 @@ CLASS_MAP = {
     "Vany - C MINIVANY": 30,
     "Vany - D VANY": 31,
     "Vany - E WYŻSZA": 32,
-    "Vany - F LUKSUSOWE": 33
+    "Vany - F LUKSUSOWE": 33,
 }
 
 # Mapping Body Types
 BODY_MAP = {
-    "Hatchback": 1, "Kombi": 2, "Sedan": 3, "SUV": 4, "Liftback": 5,
-    "Coupe": 6, "Cabrio": 7, "Minivan": 8, "5 drzwiowy": 9, "4 drzwiowy": 10,
-    "Furgon": 11, "Pickup": 12, "Van": 13, "Podwozie": 14, "Wieloosobowy": 15,
-    "Dwuosobowy": 16, "5 drzwiowy VAN": 17, "2 drzwiowy": 18, "3 drzwiowy": 19, "Kombi Dostawczy": 20
+    "Hatchback": 1,
+    "Kombi": 2,
+    "Sedan": 3,
+    "SUV": 4,
+    "Liftback": 5,
+    "Coupe": 6,
+    "Cabrio": 7,
+    "Minivan": 8,
+    "5 drzwiowy": 9,
+    "4 drzwiowy": 10,
+    "Furgon": 11,
+    "Pickup": 12,
+    "Van": 13,
+    "Podwozie": 14,
+    "Wieloosobowy": 15,
+    "Dwuosobowy": 16,
+    "5 drzwiowy VAN": 17,
+    "2 drzwiowy": 18,
+    "3 drzwiowy": 19,
+    "Kombi Dostawczy": 20,
 }
 
 sql = []
@@ -137,13 +310,17 @@ sql.append("TRUNCATE TABLE ltr_admin_korekta_wr_markas CASCADE;")
 for m in MILEAGE_CORRECTIONS:
     class_id = CLASS_MAP.get(m["class"])
     if class_id:
-        sql.append(f"INSERT INTO samar_mileage_adjustments (samar_class_id, max_mileage_target, correction_below_threshold, correction_above_threshold) VALUES ({class_id}, {m['max_mileage']}, {m['below']}, {m['above']});")
+        sql.append(
+            f"INSERT INTO samar_mileage_adjustments (samar_class_id, max_mileage_target, correction_below_threshold, correction_above_threshold) VALUES ({class_id}, {m['max_mileage']}, {m['below']}, {m['above']});"
+        )
 
 # Replacement Car
 for r in REPLACEMENT_CAR:
     class_id = CLASS_MAP.get(r["class"])
     if class_id:
-        sql.append(f"INSERT INTO replacement_car_rates (samar_class_id, samar_class_name, average_days_per_year, daily_rate_net) VALUES ({class_id}, '{r['class']}', {r['days']}, {r['rate']});")
+        sql.append(
+            f"INSERT INTO replacement_car_rates (samar_class_id, samar_class_name, average_days_per_year, daily_rate_net) VALUES ({class_id}, '{r['class']}', {r['days']}, {r['rate']});"
+        )
 
 # Body Type
 for b in BODY_TYPE_CORRECTIONS:
@@ -155,7 +332,9 @@ for b in BODY_TYPE_CORRECTIONS:
         # Actually, let's see current data in body_type_wr_corrections.
         # If it was 0 previously, maybe we don't need to specify class if the calculator handles NULL or 0.
         # I'll insert with samar_class_id = NULL if nullable, or 0.
-        sql.append(f"INSERT INTO body_type_wr_corrections (samar_class_id, body_type_id, correction_percent, brand_name) VALUES (1, {body_id}, {b['corr']}, '');")
+        sql.append(
+            f"INSERT INTO body_type_wr_corrections (samar_class_id, body_type_id, correction_percent, brand_name) VALUES (1, {body_id}, {b['corr']}, '');"
+        )
 
 # Brand Corrections (Exceptions)
 # {"Class": "Lekkie dostawcze - KOMBI VAN", "Brand": "FIAT", "Model": "", "Engine": "", "Correction": 0.02}
@@ -171,7 +350,9 @@ BRAND_CORRECTIONS = [
 for bc in BRAND_CORRECTIONS:
     class_id = CLASS_MAP.get(bc["class"])
     if class_id:
-        sql.append(f"INSERT INTO ltr_admin_korekta_wr_markas (samar_class_id, brand_name, korekta_procent, rodzaj_paliwa) VALUES ({class_id}, '{bc['brand']}', {bc['corr']}, 1);")
+        sql.append(
+            f"INSERT INTO ltr_admin_korekta_wr_markas (samar_class_id, brand_name, korekta_procent, rodzaj_paliwa) VALUES ({class_id}, '{bc['brand']}', {bc['corr']}, 1);"
+        )
 
 sql.append("COMMIT;")
 

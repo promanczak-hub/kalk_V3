@@ -1,5 +1,5 @@
-import os
 import sys
+
 sys.path.append(r"d:\kalk_v3\backend")
 from core.database import supabase
 
@@ -12,11 +12,18 @@ fuel_id = 2
 year = 4
 new_rate = 0.26
 
-print(f"Updating class {class_id} fuel {fuel_id} year {year} options_depreciation_percent to {new_rate}...")
+print(
+    f"Updating class {class_id} fuel {fuel_id} year {year} options_depreciation_percent to {new_rate}..."
+)
 
-res = supabase.table("samar_class_depreciation_rates").update(
-    {"options_depreciation_percent": new_rate}
-).eq("samar_class_id", class_id).eq("fuel_type_id", fuel_id).eq("year", year).execute()
+res = (
+    supabase.table("samar_class_depreciation_rates")
+    .update({"options_depreciation_percent": new_rate})
+    .eq("samar_class_id", class_id)
+    .eq("fuel_type_id", fuel_id)
+    .eq("year", year)
+    .execute()
+)
 
 print("Update result:", res.data)
 

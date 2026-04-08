@@ -117,7 +117,7 @@ def generate_sql():
                 meta_str = f"'{meta_json}'::jsonb"
 
             sql_lines.append(
-                f"INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) "
+                "INSERT INTO reverse_search.universal_features (id, category_id, feature_key, display_name, feature_type, metadata) "
             )
             sql_lines.append(
                 f"VALUES ('{f_id}', '{cat_id}', '{f_key}', '{f_name}', '{f_type}', {meta_str});"

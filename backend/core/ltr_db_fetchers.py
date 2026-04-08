@@ -165,6 +165,14 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
                 "Uzupełnij dane w panelu."
             )
 
+        gearbox_str = str(
+            cs.get("gearbox_type")
+            or mai.get("gearbox")
+            or mai.get("transmission")
+            or cs.get("transmission")
+            or ""
+        )
+
         vehicle_dict: Dict[str, Any] = {
             "id": vid,
             "brand": row.get("brand", ""),
@@ -172,11 +180,14 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
             "Segment": samar_category,
             "samar_class_id": int(samar_class_id),
             "engine_type_id": engine_type_id,
+            "engine_category": engine_category,
+            "fuel_type": engine_category,
             "power_kw": float(power_kw_raw),
             "paint_type_id": cs.get("paint_type_id"),
             "body_type_id": body_type_id,
             "body_type_name": body_type_name,
             "drive_type": mai.get("drive_type") or cs.get("drive_type") or "",
+            "gearbox": gearbox_str,
             "zabudowa_apr_wr": bool(
                 row.get("zabudowa_apr_wr", False) or zabudowa_type_id
             ),

@@ -15,6 +15,8 @@ from core.feature_enrichment import (
     enrich_vehicle_features,
 )
 
+import pytest
+
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
 
@@ -70,39 +72,54 @@ LLM_HIGH_CONFIDENCE_RESPONSE = {
 
 
 def _mock_gemini_response(payload: dict[str, Any]) -> MagicMock:
-    """Build a mock Gemini response object with .text set to JSON."""
-    import json
+    """Build a mock Gemini response object with .parsed set to matched models."""
+    from pydantic import BaseModel
+
+    class MockMatchItem(BaseModel):
+        item: str
+        feature_key: str
+        confidence: float
+
+    class MockMatchesSchema(BaseModel):
+        matches: list[MockMatchItem]
 
     mock_resp = MagicMock()
-    mock_resp.text = json.dumps(payload)
+    matches = [MockMatchItem(**m) for m in payload.get("matches", [])]
+    mock_resp.parsed = MockMatchesSchema(matches=matches)
     return mock_resp
 
 
 # ── _llm_match_equipment ──────────────────────────────────────────────────
 
 
-def test_llm_match_returns_only_high_confidence() -> None:
+@pytest.mark.asyncio
+async def test_llm_match_returns_only_high_confidence() -> None:
     """Items below the confidence threshold must be filtered out."""
+    from unittest.mock import AsyncMock
+
     with patch("core.feature_enrichment.get_gemini_client") as mock_client:
-        mock_client.return_value.models.generate_content.return_value = (
-            _mock_gemini_response(LLM_HIGH_CONFIDENCE_RESPONSE)
+        mock_client.return_value.aio.models.generate_content = AsyncMock(
+            return_value=_mock_gemini_response(LLM_HIGH_CONFIDENCE_RESPONSE)
         )
         items = ["Klimatyzacja automatyczna", "nieznana opcja xyz"]
-        results = _llm_match_equipment(items, SAMPLE_FEATURES)
+        results = await _llm_match_equipment(items, SAMPLE_FEATURES)
 
     assert len(results) == 1
     assert results[0]["feature_key"] == "klimatyzacja_automatyczna"
     assert results[0]["confidence"] >= _CONFIDENCE_THRESHOLD
 
 
-def test_spare_wheel_not_matched_as_alloy_rim() -> None:
+@pytest.mark.asyncio
+async def test_spare_wheel_not_matched_as_alloy_rim() -> None:
     """Regression: 'Koło zapasowe z felgą aluminiową' must NOT match 'felga_aluminiowa'."""
+    from unittest.mock import AsyncMock
+
     with patch("core.feature_enrichment.get_gemini_client") as mock_client:
-        mock_client.return_value.models.generate_content.return_value = (
-            _mock_gemini_response(LLM_SPARE_WHEEL_RESPONSE)
+        mock_client.return_value.aio.models.generate_content = AsyncMock(
+            return_value=_mock_gemini_response(LLM_SPARE_WHEEL_RESPONSE)
         )
         items = ["felga aluminiowa", "Koło zapasowe z felgą aluminiową"]
-        results = _llm_match_equipment(items, SAMPLE_FEATURES)
+        results = await _llm_match_equipment(items, SAMPLE_FEATURES)
 
     matched_keys = [r["feature_key"] for r in results]
     assert "felga_aluminiowa" in matched_keys, "alloy rim should still match"
@@ -110,29 +127,36 @@ def test_spare_wheel_not_matched_as_alloy_rim() -> None:
     assert len(results) == 1, "spare wheel must produce no match"
 
 
-def test_llm_match_fallback_on_error() -> None:
+@pytest.mark.asyncio
+async def test_llm_match_fallback_on_error() -> None:
     """LLM error must return empty list, not raise an exception."""
+    from unittest.mock import AsyncMock
+
     with patch("core.feature_enrichment.get_gemini_client") as mock_client:
-        mock_client.return_value.models.generate_content.side_effect = RuntimeError(
-            "quota exceeded"
+        mock_client.return_value.aio.models.generate_content = AsyncMock(
+            side_effect=RuntimeError("quota exceeded")
         )
-        results = _llm_match_equipment(["felga aluminiowa"], SAMPLE_FEATURES)
+        try:
+            await _llm_match_equipment(["felga aluminiowa"], SAMPLE_FEATURES)
+            assert False, "Should raise exception due to Fail Fast"
+        except RuntimeError:
+            pass
 
-    assert results == []
 
-
-def test_llm_match_empty_inputs() -> None:
+@pytest.mark.asyncio
+async def test_llm_match_empty_inputs() -> None:
     """Empty items or features list returns empty without calling LLM."""
     with patch("core.feature_enrichment.get_gemini_client") as mock_client:
-        assert _llm_match_equipment([], SAMPLE_FEATURES) == []
-        assert _llm_match_equipment(["felga aluminiowa"], []) == []
+        assert await _llm_match_equipment([], SAMPLE_FEATURES) == []
+        assert await _llm_match_equipment(["felga aluminiowa"], []) == []
         mock_client.assert_not_called()
 
 
 # ── enrich_vehicle_features ───────────────────────────────────────────────
 
 
-def test_enrich_vehicle_features_uses_llm_for_equipment() -> None:
+@pytest.mark.asyncio
+async def test_enrich_vehicle_features_uses_llm_for_equipment() -> None:
     """End-to-end: enrich calls _llm_match_equipment for std_equipment."""
     synthesis_data = {
         "card_summary": {
@@ -140,6 +164,8 @@ def test_enrich_vehicle_features_uses_llm_for_equipment() -> None:
             "paid_options": [],
         }
     }
+    from unittest.mock import AsyncMock
+
     with (
         patch(
             "core.feature_enrichment._load_feature_catalog",
@@ -147,13 +173,15 @@ def test_enrich_vehicle_features_uses_llm_for_equipment() -> None:
         ),
         patch(
             "core.feature_enrichment._llm_match_equipment",
-            return_value=[
-                {
-                    "item": "felga aluminiowa",
-                    "feature_key": "felga_aluminiowa",
-                    "confidence": 0.95,
-                }
-            ],
+            AsyncMock(
+                return_value=[
+                    {
+                        "item": "felga aluminiowa",
+                        "feature_key": "felga_aluminiowa",
+                        "confidence": 0.95,
+                    }
+                ]
+            ),
         ),
         patch("core.feature_enrichment.sb_client") as mock_sb,
         patch(
@@ -163,15 +191,16 @@ def test_enrich_vehicle_features_uses_llm_for_equipment() -> None:
     ):
         mock_sb.schema.return_value.table.return_value.upsert.return_value.execute.return_value = MagicMock()
 
-        result = enrich_vehicle_features("vehicle-uuid", synthesis_data)
+        result = await enrich_vehicle_features("vehicle-uuid", synthesis_data)
 
         assert result["evidence_created"] == 1
         assert result["errors"] == []
 
 
-def test_enrich_returns_error_on_missing_card_summary() -> None:
+@pytest.mark.asyncio
+async def test_enrich_returns_error_on_missing_card_summary() -> None:
     """Missing card_summary must return an error dict, not crash."""
-    result = enrich_vehicle_features("vehicle-uuid", {})
+    result = await enrich_vehicle_features("vehicle-uuid", {})
     assert "error" in result
     assert result["evidence_created"] == 0
 

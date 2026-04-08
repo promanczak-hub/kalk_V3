@@ -4,19 +4,16 @@ from dotenv import load_dotenv
 
 load_dotenv("backend/.env")
 
+
 def create_bucket():
     password = os.environ.get("POSTGRES_PASSWORD")
     host = "aws-1-eu-central-1.pooler.supabase.com"
     user = "postgres.gnpsdiarmwvqhqbyetce"
     dbname = "postgres"
-    
+
     try:
         conn = psycopg2.connect(
-            dbname=dbname,
-            user=user,
-            password=password,
-            host=host,
-            port=5432
+            dbname=dbname, user=user, password=password, host=host, port=5432
         )
         cur = conn.cursor()
         print("Checking storage.buckets...")
@@ -38,11 +35,12 @@ def create_bucket():
             except Exception as e:
                 print(f"Failed to insert into storage.buckets: {e}")
                 conn.rollback()
-        
+
         cur.close()
         conn.close()
     except Exception as e:
         print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     create_bucket()

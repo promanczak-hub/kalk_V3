@@ -49,10 +49,19 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
 
   const displayVehicles = isDeepAI ? alternatives : (similarData || []);
 
+  const categoryTitles: Record<CategoryKey, string> = {
+    similar: 'Klasyczne alternatywy',
+    cheaper: 'Tańsze alternatywy według AI',
+    stronger: 'Mocniejsze alternatywy według AI',
+    safer: 'Bezpieczniejsze alternatywy według AI',
+    more_comfortable: 'Bardziej komfortowe warianty (AI)',
+    greener: 'Ekologiczne alternatywy (Mniejsza emisja)'
+  };
+
   return (
     <Box sx={{ mt: 2 }}>
       <Typography variant="caption" sx={{ mb: 1, display: 'block', fontWeight: 'bold' }}>
-        Szukaj alternatyw (Deep AI):
+        Kierunek poszukiwań alternatyw:
       </Typography>
       <ToggleButtonGroup
         value={category}
@@ -92,6 +101,7 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
         <SimilarVehiclesPanel
           vehicles={displayVehicles}
           sourceVehicle={sourceVehicle}
+          title={categoryTitles[category]}
         />
       )}
 

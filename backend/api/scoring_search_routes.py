@@ -386,54 +386,48 @@ def get_vehicle_alternatives(
     duration_months: int | None = None,
     annual_mileage: int | None = None,
 ) -> list[SimilarVehicleMatch]:
-    """Get alternative vehicles based on math criteria or synthetic semantic queries."""
+    """Get alternative vehicles based on synthetic semantic queries."""
     sb = supabase
     try:
-        if category in ["cheaper", "stronger", "greener"]:
-            resp = _supabase_execute_with_retry(
-                sb.rpc(
-                    "rpc_get_alternatives_math",
-                    {
-                        "p_vehicle_id": vehicle_id,
-                        "p_category": category,
-                        "p_limit": limit,
-                        "p_duration_months": duration_months,
-                        "p_annual_mileage": annual_mileage,
-                    },
-                )
-            )
-            return [_build_similar_vehicle_match(row["similarity_json"]) for row in (resp.data or [])]
-            
-        elif category in ["safer", "more_comfortable"]:
-            # Generate synthetic text concept
-            if category == "safer":
-                synthetic_query = "Advanced safety systems, highest NCAP rating, multiple airbags, collision avoidance, blind spot monitoring, lane keep assist, robust structure."
-            else:
-                synthetic_query = "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom."
-                
-            logger.info("Generating embedding for synthetic query: '%s'", synthetic_query)
-            synthetic_vector = generate_embedding(synthetic_query)
-            
-            if not synthetic_vector:
-                raise ValueError("Failed to generate embedding for synthetic concept.")
-                
-            resp = _supabase_execute_with_retry(
-                sb.rpc(
-                    "rpc_get_alternatives_semantic",
-                    {
-                        "p_vehicle_id": vehicle_id,
-                        "p_synthetic_vector": synthetic_vector,
-                        "p_limit": limit,
-                        "p_duration_months": duration_months,
-                        "p_annual_mileage": annual_mileage,
-                    },
-                )
-            )
-            return [_build_similar_vehicle_match(row["similarity_json"]) for row in (resp.data or [])]
-            
-        else:
+        synthetic_queries = {
+            "cheaper": "Budget friendly, affordable, economical, low cost of ownership, high value for money, cheap to maintain, basic standard.",
+            "stronger": "High performance, powerful engine, fast acceleration, sporty driving, huge horsepower, high torque, dynamic.",
+            "greener": "Eco-friendly, full electric, plug-in hybrid, low emissions, green energy, sustainable, low fuel consumption.",
+            "safer": "Advanced safety systems, highest NCAP rating, multiple airbags, collision avoidance, blind spot monitoring, lane keep assist, robust structure.",
+            "more_comfortable": "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom.",
+        }
+
+        if category not in synthetic_queries:
             raise HTTPException(status_code=400, detail=f"Unknown category: {category}")
-            
+
+        synthetic_query = synthetic_queries[category]
+        logger.info(
+            "Generating embedding for synthetic query: '%s' (category: %s)",
+            synthetic_query,
+            category,
+        )
+        synthetic_vector = generate_embedding(synthetic_query)
+
+        if not synthetic_vector:
+            raise ValueError("Failed to generate embedding for synthetic concept.")
+
+        resp = _supabase_execute_with_retry(
+            sb.rpc(
+                "rpc_get_alternatives_semantic",
+                {
+                    "p_vehicle_id": vehicle_id,
+                    "p_synthetic_vector": synthetic_vector,
+                    "p_limit": limit,
+                    "p_duration_months": duration_months,
+                    "p_annual_mileage": annual_mileage,
+                },
+            )
+        )
+        return [
+            _build_similar_vehicle_match(row["similarity_json"])
+            for row in (resp.data or [])
+        ]
+
     except Exception as e:
         logger.exception("Error calling alternatives for category %s: %s", category, e)
         raise HTTPException(

@@ -48,7 +48,7 @@ Dla KAŻDEGO wariantu wyciągnij:
 - cargo_width_mm: szerokość przestrzeni ładunkowej w mm
 - cargo_height_mm: wysokość przestrzeni ładunkowej w mm
 - cargo_volume_m3: kubatura przestrzeni ładunkowej w m3
-- europallets: ilość europalet (jeśli podana)
+- europallets: ilość europalet (tylko jeśli podana wprost w tekście dla aut dostawczych)
 - cargo_area_m2: powierzchnia ładunkowa w m2 (jeśli podana)
 - wheelbase_mm: rozstaw osi w mm
 - overall_length_mm: długość całkowita pojazdu w mm
@@ -66,7 +66,7 @@ WAŻNE:
 - NIE łącz wariantów które różnią się napędem (FWD vs 4MOTION = 2 warianty)
 - NIE łącz wariantów które różnią się długością/wysokością (L3H3 vs L4H2 = 2 warianty)
 - Wymiary ładunkowe przypisuj do KONKRETNEGO wariantu (nie ogólnie)
-- Jeśli europalety dotyczą danego wariantu, przypisz je do niego
+- Jeśli europalety dotyczą danego wariantu (tylko auta DOSTAWCZE/KOMERCYJNE), przypisz je do niego. NIGDY nie szacuj samodzielnie ilości palet dla aut OSOBOWYCH.
 
 Zwróć JSON:
 {

@@ -1,4 +1,5 @@
 """Rebuild script for samar_rv.py — extracts only needed parts."""
+
 from __future__ import annotations
 
 content = open("backend/core/samar_rv.py", "r", encoding="utf-8").read()
@@ -72,6 +73,7 @@ line_count = len(new_content.splitlines())
 print(f"Written {line_count} lines")
 
 import ast
+
 try:
     ast.parse(new_content)
     print("Syntax OK")
@@ -81,5 +83,5 @@ except SyntaxError as e:
     ctx_lines = new_content.splitlines()
     start = max(0, e.lineno - 3)
     end = min(len(ctx_lines), e.lineno + 2)
-    for i, l in enumerate(ctx_lines[start:end], start=start+1):
+    for i, l in enumerate(ctx_lines[start:end], start=start + 1):
         print(f"  {i}: {l}")

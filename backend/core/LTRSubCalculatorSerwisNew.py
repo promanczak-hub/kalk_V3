@@ -69,8 +69,15 @@ def get_all_service_rates(samar_class_id: int) -> list[dict[str, Any]]:
 
 
 @lru_cache(maxsize=512)
-def get_service_multiplier(table_name: str, key_column: str, key_val: str) -> float:
-    """Pobiera mnożnik wprost z bazy, używając wartości z wiersza 'multiplier'."""
+def get_service_multiplier(
+    table_name: str,
+    key_column: str,
+    key_val: str,
+    fallback_val: str | None = "POZOSTAŁE",
+) -> float:
+    """Pobiera mnożnik wprost z bazy, używając wartości z wiersza 'multiplier'.
+    Jeśli klucz nie zostanie znaleziony, wykonuje próbę data-driven fallback.
+    """
     if not key_val:
         raise ValueError(
             f"Brak wartości klucza ({key_column}) przy próbie pobrania mnożnika z tabeli {table_name} (Fail-Fast)."
@@ -85,15 +92,37 @@ def get_service_multiplier(table_name: str, key_column: str, key_val: str) -> fl
         if response.data and len(response.data) > 0:
             data = cast(list[dict[str, Any]], response.data)
             return float(data[0]["multiplier"])
-        else:
-            raise ValueError(
-                f"Brak mnożnika w tabeli {table_name} dla {key_column} = '{key_val}' (Fail-Fast)."
+
+        # Próba fallbacku do zawartości konfiguracyjnej (np. "POZOSTAŁE") z bazy
+        if fallback_val and key_val != fallback_val:
+            logger.warning(
+                f"Brak wartości '{key_val}' w {table_name}. Próba użycia fallbacku: '{fallback_val}'."
             )
+            fallback_response = (
+                supabase.table(table_name)
+                .select("multiplier")
+                .eq(key_column, fallback_val)
+                .execute()
+            )
+            if fallback_response.data and len(fallback_response.data) > 0:
+                logger.warning(
+                    f"Użyto mnożnika fallback '{fallback_val}' w tabeli {table_name} dla oryginalnego klucza '{key_val}'."
+                )
+                return float(fallback_response.data[0]["multiplier"])
+
+        raise ValueError(
+            f"Brak mnożnika w tabeli {table_name} dla {key_column} = '{key_val}' "
+            f"(Klucz ratunkowy '{fallback_val}' również nie istnieje) (Fail-Fast)."
+        )
     except Exception as e:
-        logger.error(f"Error fetching service multiplier from {table_name} for '{key_val}': {e!s}")
+        logger.error(
+            f"Error fetching service multiplier from {table_name} for '{key_val}': {e!s}"
+        )
         if isinstance(e, ValueError):
             raise
-        raise ValueError(f"Błąd bazy podczas pobierania mnożnika z {table_name} dla '{key_val}': {e!s}")
+        raise ValueError(
+            f"Błąd bazy podczas pobierania mnożnika z {table_name} dla '{key_val}': {e!s}"
+        )
 
 
 class ServiceCalculatorInput(BaseModel):
@@ -124,6 +153,41 @@ class ServiceCalculatorInput(BaseModel):
     drive_type: str | None = Field(default=None)
     gearbox_type: str | None = Field(default=None)
 
+    @field_validator("fuel_type", mode="before")
+    @classmethod
+    def normalize_fuel_type(cls, v: Any) -> str | None:
+        if not isinstance(v, str):
+            return v
+        val = v.upper().strip()
+
+        # MHEV priorities
+        if "MHEV" in val and "BENZYNA" in val:
+            return "BENZYNA MHEV (PB-MHEV)"
+        if "MHEV" in val and "DIESEL" in val:
+            return "DIESEL MHEV (ON-MHEV)"
+
+        # PHEV before general hybrid
+        if any(x in val for x in ["PLUG-IN", "PHEV"]):
+            return "PLUG-IN HYBRID (PHEV)"
+
+        # HEV
+        if any(x in val for x in ["HYBRYDA", "HEV"]):
+            return "HYBRYDA (HEV)"
+
+        # Others
+        if "LPG" in val:
+            return "LPG"
+        if "BENZYNA" in val:
+            return "BENZYNA (PB)"
+        if "DIESEL" in val:
+            return "DIESEL (ON)"
+        if any(x in val for x in ["ELEKTRYCZNY", "BEV"]):
+            return "ELEKTRYCZNY (BEV)"
+        if any(x in val for x in ["WODÓR", "WODOR", "FCEV", "H2"]):
+            return "WODÓR (FCEV)"
+
+        return val
+
     @field_validator("drive_type", mode="before")
     @classmethod
     def normalize_drive_type(cls, v: Any) -> str | None:
@@ -133,9 +197,9 @@ class ServiceCalculatorInput(BaseModel):
         if any(
             x in val for x in ["AWD", "4X4", "QUATTRO", "ALL4", "XDRIVE", "4MOTION"]
         ):
-            return "4X4"
+            return "AWD"
         if any(x in val for x in ["FWD", "PRZEDNI", "4X2", "2X4", "PZEDNI"]):
-            return "2X4"
+            return "FWD"
         if any(x in val for x in ["RWD", "TYLNY"]):
             return "RWD"
         return val

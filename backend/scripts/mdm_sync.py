@@ -38,7 +38,10 @@ SHEET_TO_DB: dict[str, str] = {
     "Trigger_Keywords": "trigger_keywords",
     "Visibility_Group": "body_context",
     "Feature_Tier": "feature_tier",
+    "Kategoria_Pojazdu": "vehicle_category",
     "Body_Context": "body_context",
+    "Powertrain_Context": "powertrain_context",
+    "Drivetrain_Context": "drivetrain_context",
     "Is_Tender_Criteria": "is_tender_criteria",
     "Required_For_Tender": "required_for_tender",
     "Is_Derived": "is_derived",
@@ -93,6 +96,16 @@ def _map_data_type(sheet_type: str) -> str:
     return mapping.get(sheet_type.strip().lower(), "text")
 
 
+def _map_vehicle_category(val: str) -> str:
+    """Map Polish Kategoria_Pojazdu to DB vehicle_category enum."""
+    val = val.strip().lower()
+    if val in ("osobowe", "passenger"):
+        return "PASSENGER"
+    elif val in ("ciężarowe", "dostawcze", "commercial"):
+        return "COMMERCIAL"
+    return "ALL"
+
+
 # ---------------------------------------------------------------------------
 # IMPORT: Sheet → DB
 # ---------------------------------------------------------------------------
@@ -131,6 +144,16 @@ def import_from_sheet() -> dict[str, int]:
     if "Technical_Key" not in col_indices:
         msg = f"Missing required column 'Technical_Key'. Found headers: {headers}"
         raise ValueError(msg)
+
+    import re
+
+    # Load body types for M2M Fail-Fast logic
+    body_types_result = (
+        supabase.table("body_types").select("id, nazwa_nadwozia, typ_pojazdu").execute()
+    )
+    body_types_dict: dict[str, dict] = {
+        bt["nazwa_nadwozia"].strip().upper(): bt for bt in body_types_result.data
+    }
 
     # Load existing features for matching
     existing_result = (
@@ -191,12 +214,16 @@ def import_from_sheet() -> dict[str, int]:
                     tier = raw.strip().upper()
                     if tier in ("CORE", "EXTENDED", "EDGE"):
                         payload[db_col] = tier
+                elif db_col == "vehicle_category":
+                    payload[db_col] = _map_vehicle_category(raw)
                 else:
                     payload[db_col] = raw
 
             # Upsert logic
+            feature_id = None
             existing = existing_by_tech_key.get(tech_key)
             if existing:
+                feature_id = existing["id"]
                 # UPDATE existing feature
                 payload.pop("technical_key", None)
                 if payload:
@@ -204,7 +231,7 @@ def import_from_sheet() -> dict[str, int]:
                         supabase.schema("reverse_search")
                         .table("universal_features")
                         .update(payload)
-                        .eq("id", existing["id"])
+                        .eq("id", feature_id)
                         .execute()
                     )
                     stats["updated"] += 1
@@ -218,12 +245,13 @@ def import_from_sheet() -> dict[str, int]:
                 )
 
                 if match:
+                    feature_id = match["id"]
                     # UPDATE existing + set technical_key
                     (
                         supabase.schema("reverse_search")
                         .table("universal_features")
                         .update(payload)
-                        .eq("id", match["id"])
+                        .eq("id", feature_id)
                         .execute()
                     )
                     stats["updated"] += 1
@@ -234,13 +262,90 @@ def import_from_sheet() -> dict[str, int]:
                     payload["feature_key"] = tech_key
                     payload["is_active"] = True
 
-                    (
+                    inserted = (
                         supabase.schema("reverse_search")
                         .table("universal_features")
                         .insert(payload)
                         .execute()
                     )
+                    if inserted.data:
+                        feature_id = inserted.data[0]["id"]
                     stats["added"] += 1
+
+            # Build M2M body relations using Fail-Fast
+            if feature_id and "Body_Context" in col_indices:
+                raw_body = row[col_indices["Body_Context"]].strip()
+                # Clear any existing relations (cleanup)
+                supabase.schema("reverse_search").table(
+                    "feature_body_applicability"
+                ).delete().eq("feature_id", feature_id).execute()
+
+                veh_cat = payload.get("vehicle_category", "ALL")
+                universe_ids = set()
+                for uname, udata in body_types_dict.items():
+                    if veh_cat == "PASSENGER" and udata.get("typ_pojazdu") != "Osobowy":
+                        continue
+                    if (
+                        veh_cat == "COMMERCIAL"
+                        and udata.get("typ_pojazdu") != "Ciężarowy"
+                    ):
+                        continue
+                    universe_ids.add(udata["id"])
+
+                if not raw_body or raw_body.upper() in ("ALL", "WSZYSTKIE", "WSZYSTKO"):
+                    body_ids = universe_ids
+                else:
+                    parts = [
+                        p.strip() for p in re.split(r"[/,]", raw_body) if p.strip()
+                    ]
+                    body_ids = set()
+
+                    # If all parts are exclusions, start with universe
+                    if all(p.startswith(("!", "-")) for p in parts):
+                        body_ids = set(universe_ids)
+
+                    for p in parts:
+                        is_exclusion = p.startswith(("!", "-"))
+                        p_clean = p[1:].strip().upper() if is_exclusion else p.upper()
+
+                        if p_clean not in body_types_dict:
+                            raise ValueError(
+                                f"Nieznany typ nadwozia: '{p_clean}' w CESZE '{tech_key}'. Weryfikacja Fail-Fast odrzucona!"
+                            )
+
+                        bt_data = body_types_dict[p_clean]
+                        bt_id = bt_data["id"]
+
+                        # Cross-validation
+                        if (
+                            veh_cat == "PASSENGER"
+                            and bt_data.get("typ_pojazdu") != "Osobowy"
+                        ):
+                            raise ValueError(
+                                f"Niezgodność: Cecha '{tech_key}' ma kategorię Osobowe, ale typ nadwozia '{p_clean}' to Ciężarowy. Weryfikacja Fail-Fast odrzucona!"
+                            )
+                        if (
+                            veh_cat == "COMMERCIAL"
+                            and bt_data.get("typ_pojazdu") != "Ciężarowy"
+                        ):
+                            raise ValueError(
+                                f"Niezgodność: Cecha '{tech_key}' ma kategorię Ciężarowe, ale typ nadwozia '{p_clean}' to Osobowy. Weryfikacja Fail-Fast odrzucona!"
+                            )
+
+                        if is_exclusion:
+                            body_ids.discard(bt_id)
+                        else:
+                            body_ids.add(bt_id)
+
+                # Update relations
+                if body_ids:
+                    m2m_payload = [
+                        {"feature_id": feature_id, "body_type_id": bid}
+                        for bid in set(body_ids)
+                    ]
+                    supabase.schema("reverse_search").table(
+                        "feature_body_applicability"
+                    ).insert(m2m_payload).execute()
 
         except Exception:
             logger.exception("Error processing row %d", row_idx)
@@ -296,7 +401,10 @@ def export_to_sheet() -> int:
         "Transformation",
         "Trigger_Keywords",
         "Feature_Tier",
+        "Kategoria_Pojazdu",
         "Body_Context",
+        "Powertrain_Context",
+        "Drivetrain_Context",
         "Is_Filterable",
         "Is_Tender_Criteria",
         "Required_For_Tender",
@@ -319,7 +427,10 @@ def export_to_sheet() -> int:
         "Transformation": "transformation_rule",
         "Trigger_Keywords": "trigger_keywords",
         "Feature_Tier": "feature_tier",
+        "Kategoria_Pojazdu": "vehicle_category",
         "Body_Context": "body_context",
+        "Powertrain_Context": "powertrain_context",
+        "Drivetrain_Context": "drivetrain_context",
         "Is_Filterable": "is_filterable",
         "Is_Tender_Criteria": "is_tender_criteria",
         "Required_For_Tender": "required_for_tender",
@@ -347,6 +458,15 @@ def export_to_sheet() -> int:
                 value = "; ".join(str(v) for v in value)
             else:
                 value = str(value)
+
+            # Polonize Vehicle Category for Business Output
+            if header == "Kategoria_Pojazdu":
+                if value == "PASSENGER":
+                    value = "Osobowe"
+                elif value == "COMMERCIAL":
+                    value = "Ciężarowe"
+                else:
+                    value = "Wszystkie"
 
             # Use feature_key as fallback for technical_key
             if header == "Technical_Key" and not value:

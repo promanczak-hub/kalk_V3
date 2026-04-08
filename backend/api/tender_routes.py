@@ -17,8 +17,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from backend.core.database import get_supabase
-from backend.core.mdm_models import (
+from core.database import supabase
+from core.mdm_models import (
     FeatureDictionaryEntry,
     FeatureTier,
     TenderEvaluateRequest,
@@ -26,8 +26,8 @@ from backend.core.mdm_models import (
     VehicleSpecsResponse,
     VehicleSpecValue,
 )
-from backend.core.tender_engine import evaluate_tender
-from backend.core.tender_excel_parser import (
+from core.tender_engine import evaluate_tender
+from core.tender_excel_parser import (
     parse_tender_csv,
     parse_tender_excel,
 )
@@ -48,7 +48,7 @@ async def tender_evaluate(request: TenderEvaluateRequest) -> TenderEvaluateRespo
 
     Accepts criteria built in UI or parsed from Excel upload.
     """
-    sb = get_supabase()
+    sb = supabase
     try:
         return evaluate_tender(sb, request)
     except ValueError as exc:
@@ -87,7 +87,7 @@ async def tender_upload(
             detail=f"Unsupported file format: {ext}. Use .csv or .xlsx",
         )
 
-    sb = get_supabase()
+    sb = supabase
     try:
         return evaluate_tender(sb, request)
     except ValueError as exc:
@@ -100,7 +100,7 @@ async def tender_criteria() -> list[FeatureDictionaryEntry]:
 
     Returns only features with is_tender_criteria=TRUE or feature_tier=CORE.
     """
-    sb = get_supabase()
+    sb = supabase
 
     result = (
         sb.schema("reverse_search")
@@ -151,7 +151,7 @@ async def features_dictionary(
     - tier: CORE, EXTENDED, EDGE
     - body_context: ALL, Van, Pickup, SUV, EV, etc.
     """
-    sb = get_supabase()
+    sb = supabase
 
     query = (
         sb.schema("reverse_search")
@@ -206,7 +206,7 @@ async def vehicle_specs(vehicle_id: UUID) -> VehicleSpecsResponse:
     - Advanced view: core_specs + extended_specs
     - Technical view: all specs
     """
-    sb = get_supabase()
+    sb = supabase
 
     # Get vehicle label
     vehicle = (

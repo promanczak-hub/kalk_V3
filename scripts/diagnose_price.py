@@ -1,11 +1,11 @@
-
 import sys
 import os
 
 # Add backend to path
-sys.path.append(os.path.join(os.getcwd(), 'backend'))
+sys.path.append(os.path.join(os.getcwd(), "backend"))
 
 from core.price_parser import parse_price_string
+
 
 def _parse_price_to_net(price_val, is_brutto):
     try:
@@ -15,7 +15,9 @@ def _parse_price_to_net(price_val, is_brutto):
                 print(f"DEBUG: parse_price_string returned None for '{price_val}'")
                 return 0.0
             val = parsed.value
-            print(f"DEBUG: Parsed '{price_val}' -> value={val}, tax_type={parsed.tax_type}")
+            print(
+                f"DEBUG: Parsed '{price_val}' -> value={val}, tax_type={parsed.tax_type}"
+            )
             if parsed.tax_type == "brutto":
                 return round(val / 1.23, 2)
             if parsed.tax_type == "netto":
@@ -30,6 +32,7 @@ def _parse_price_to_net(price_val, is_brutto):
     except Exception as e:
         print(f"DEBUG: Exception parsing {price_val}: {e}")
         return 0.0
+
 
 test_cases = [
     ("183 550 PLN brutto", True),

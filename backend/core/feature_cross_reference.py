@@ -179,7 +179,7 @@ def cross_reference_vehicle(
     # 1. Load vehicle card_summary
     v_resp = (
         sb.table("vehicle_synthesis")
-        .select("id, synthesis_data")
+        .select("id, synthesis_data, document_category")
         .eq("id", vehicle_id)
         .limit(1)
         .execute()
@@ -188,6 +188,34 @@ def cross_reference_vehicle(
         return {"error": f"Vehicle {vehicle_id} not found"}
 
     synthesis = v_resp.data[0].get("synthesis_data") or {}
+
+    # Determine if commercial for body parameter logic
+    doc_cat = v_resp.data[0].get("document_category")
+    if doc_cat:
+        is_commercial = doc_cat == "commercial"
+    else:
+        v_class_lower = (
+            synthesis.get("card_summary", {}).get("vehicle_class", "").lower()
+        )
+        b_style_lower = synthesis.get("card_summary", {}).get("body_style", "").lower()
+        comm_kws = [
+            "dostawcz",
+            "van",
+            "furgon",
+            "pick-up",
+            "skrzyni",
+            "kontener",
+            "chłodnia",
+            "izoterma",
+            "plandeka",
+            "podwozie",
+            "autolaweta",
+        ]
+        pass_kws = ["minivan", "microvan", "kombivan"]
+        has_comm = any(k in v_class_lower or k in b_style_lower for k in comm_kws)
+        has_pass = any(k in v_class_lower or k in b_style_lower for k in pass_kws)
+        is_commercial = has_comm and not has_pass
+
     card_summary = synthesis.get("card_summary", {})
     if not card_summary:
         return {"error": "Vehicle has no card_summary"}
@@ -214,7 +242,12 @@ def cross_reference_vehicle(
     )
 
     # 6. Body parameter calculations (batch)
-    body_count = create_body_param_evidence(vehicle_id, match_result, feature_id_map)
+    body_count = create_body_param_evidence(
+        vehicle_id,
+        match_result,
+        feature_id_map,
+        is_commercial=is_commercial,
+    )
 
     # 7. Save audit trail (use catalog_id from variant)
     matched_cat_id = _resolve_catalog_id(match_result, variant_catalog_ids, catalog_ids)

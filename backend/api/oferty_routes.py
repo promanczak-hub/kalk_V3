@@ -57,19 +57,30 @@ def generate_offer(request: OfferGenerateRequest):
                     query = query.eq("kalkulacja_id", calc_id)
                 else:
                     # Fallback to last known calculation for this vehicle if specific calc_id is missing
-                    query = query.eq("vehicle_id", vehicle_id).order("created_at", desc=True).limit(20)
-                
+                    query = (
+                        query.eq("vehicle_id", vehicle_id)
+                        .order("created_at", desc=True)
+                        .limit(20)
+                    )
+
                 matrix_res = query.execute()
                 if matrix_res.data:
                     item["matrix_data"] = matrix_res.data
 
             # 2. Fetch Full Equipment from vehicle_synthesis if missing
-            if vehicle_id and (not item.get("standard_equipment") or not item.get("factory_options")):
-                synth_res = supabase.table("vehicle_synthesis").select("synthesis_data").eq("id", vehicle_id).execute()
+            if vehicle_id and (
+                not item.get("standard_equipment") or not item.get("factory_options")
+            ):
+                synth_res = (
+                    supabase.table("vehicle_synthesis")
+                    .select("synthesis_data")
+                    .eq("id", vehicle_id)
+                    .execute()
+                )
                 if synth_res.data:
                     synth = synth_res.data[0].get("synthesis_data", {})
                     digital_twin = synth.get("digital_twin", [])
-                    
+
                     # Normalization: If digital_twin is a dict, treat values as lists
                     all_features = []
                     if isinstance(digital_twin, list):
@@ -84,7 +95,7 @@ def generate_offer(request: OfferGenerateRequest):
                     # Standard Equipment
                     if not item.get("standard_equipment"):
                         item["standard_equipment"] = all_features
-                    
+
                     # Factory Options - extract common patterns if not explicitly provided
                     if not item.get("factory_options"):
                         opts = []
@@ -93,9 +104,20 @@ def generate_offer(request: OfferGenerateRequest):
                                 f_str = f.get("name", str(f))
                             else:
                                 f_str = str(f)
-                            if any(x in f_str.lower() for x in ["pakiet", "lakier", "felgi", "tapicerka", "opcja"]):
+                            if any(
+                                x in f_str.lower()
+                                for x in [
+                                    "pakiet",
+                                    "lakier",
+                                    "felgi",
+                                    "tapicerka",
+                                    "opcja",
+                                ]
+                            ):
                                 opts.append(f_str)
-                        item["factory_options"] = opts if opts else ["Specyfikacja wg standardu producenta"]
+                        item["factory_options"] = (
+                            opts if opts else ["Specyfikacja wg standardu producenta"]
+                        )
 
         # Init generatora (generowanie natywne openpyxl)
         generator = ExcelOfferGenerator()
@@ -126,11 +148,11 @@ def generate_offer(request: OfferGenerateRequest):
             file_url = supabase.storage.from_("offers_excel").get_public_url(filename)
         except Exception as storage_err:
             print(f"Storage Error: {storage_err}")
-            # If storage fails (e.g. missing bucket), we still want to save the record in DB 
+            # If storage fails (e.g. missing bucket), we still want to save the record in DB
             # with a placeholder or handle it. For now, let's raise a specific message.
             raise HTTPException(
-                status_code=500, 
-                detail=f"Błąd zapisu w chmurze (Bucket 'offers_excel' prawdopodobnie nie istnieje). Proszę o utworzenie bucketu w Supabase Dashboard. Błąd: {str(storage_err)}"
+                status_code=500,
+                detail=f"Błąd zapisu w chmurze (Bucket 'offers_excel' prawdopodobnie nie istnieje). Proszę o utworzenie bucketu w Supabase Dashboard. Błąd: {str(storage_err)}",
             )
 
         # Odkładamy ślad w ltr_offers - archiwizacja stawek (JSONB object)
@@ -156,5 +178,6 @@ def generate_offer(request: OfferGenerateRequest):
         raise
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

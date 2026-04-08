@@ -30,6 +30,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_routes={
         "process_document_task": {"queue": "uploads"},
+        "process_document_task_from_storage": {"queue": "uploads"},
         "extract_pdf_pricelist_task": {"queue": "uploads"},
     },
     beat_schedule={

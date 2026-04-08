@@ -23,7 +23,12 @@ def main() -> None:
 
     # 1. Get ALL kalkulacje
     logger.info("Pobieranie wszystkich kalkulacji z ltr_kalkulacje...")
-    kalk_res = supabase.table("ltr_kalkulacje").select("id, dane_pojazdu, numer_kalkulacji, cena_netto, stan_json").order("created_at", desc=True).execute()
+    kalk_res = (
+        supabase.table("ltr_kalkulacje")
+        .select("id, dane_pojazdu, numer_kalkulacji, cena_netto, stan_json")
+        .order("created_at", desc=True)
+        .execute()
+    )
     all_kalks = kalk_res.data or []
     logger.info("Znaleziono %d kalkulacji w sumie.", len(all_kalks))
 
@@ -33,9 +38,14 @@ def main() -> None:
 
     # 2. Get ALL kalkulacja_ids that DO have matrix cache entries
     kalk_ids = [k["id"] for k in all_kalks]
-    cache_res = supabase.table("vehicle_matrix_cache").select("kalkulacja_id").in_("kalkulacja_id", kalk_ids).execute()
+    cache_res = (
+        supabase.table("vehicle_matrix_cache")
+        .select("kalkulacja_id")
+        .in_("kalkulacja_id", kalk_ids)
+        .execute()
+    )
     cached_kalk_ids = set()
-    for row in (cache_res.data or []):
+    for row in cache_res.data or []:
         cached_kalk_ids.add(row["kalkulacja_id"])
 
     # 3. Find kalkulacje WITHOUT cache

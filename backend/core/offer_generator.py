@@ -4,23 +4,29 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
+
 class ExcelOfferGenerator:
     """
     Generates premium Excel offers using native openpyxl, mimicking the classic structure.
     """
+
     def __init__(self):
         # We generate everything from scratch
-        self.BRAND_COLOR = "003366" # Express "dark blue"
+        self.BRAND_COLOR = "003366"  # Express "dark blue"
         self.LIGHT_BLUE = "E7F0FD"
         self.BORDER_COLOR = "D0D7DE"
         self.GRAY_TEXT = "555555"
 
         self.font_normal = Font(name="Calibri", size=11)
         self.font_small_gray = Font(name="Calibri", size=10, color=self.GRAY_TEXT)
-        self.font_title = Font(name="Calibri", size=16, bold=True, color=self.BRAND_COLOR)
+        self.font_title = Font(
+            name="Calibri", size=16, bold=True, color=self.BRAND_COLOR
+        )
         self.font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
         self.font_bold = Font(name="Calibri", size=11, bold=True)
-        self.font_slogan = Font(name="Calibri", size=18, bold=True, color=self.BRAND_COLOR)
+        self.font_slogan = Font(
+            name="Calibri", size=18, bold=True, color=self.BRAND_COLOR
+        )
 
         thin = Side(border_style="thin", color="000000")
         self.border_thin = Border(top=thin, left=thin, right=thin, bottom=thin)
@@ -51,18 +57,29 @@ class ExcelOfferGenerator:
 
         # --- Column Widths ---
         widths = {
-            "A": 18.0, "B": 40.0, "C": 25.0, "D": 25.0, "E": 15.0, 
-            "F": 12.0, "G": 15.0, "H": 12.0, "I": 12.0, "J": 12.0, 
-            "K": 12.0, "L": 25.0
+            "A": 18.0,
+            "B": 40.0,
+            "C": 25.0,
+            "D": 25.0,
+            "E": 15.0,
+            "F": 12.0,
+            "G": 15.0,
+            "H": 12.0,
+            "I": 12.0,
+            "J": 12.0,
+            "K": 12.0,
+            "L": 25.0,
         }
         for col_letter, width in widths.items():
             ws.column_dimensions[col_letter].width = width
 
         # --- Document Header ---
-        ws["A1"] = "Express Sp. z o.o. Sp.k. | ul. Puszkarska 7F, 30-644 Kraków | www.express.pl"
+        ws["A1"] = (
+            "Express Sp. z o.o. Sp.k. | ul. Puszkarska 7F, 30-644 Kraków | www.express.pl"
+        )
         ws["A1"].font = self.font_small_gray
         ws["A1"].alignment = Alignment(vertical="bottom")
-        
+
         ws["H1"] = "Express | Kieruj się wygodą !"
         ws["H1"].font = self.font_slogan
         ws["H1"].alignment = Alignment(horizontal="center", vertical="center")
@@ -75,7 +92,7 @@ class ExcelOfferGenerator:
 
         now = datetime.now()
         valid_until = now + timedelta(days=30)
-        
+
         ws["A5"] = f"Data sporządzenia oferty: {now.strftime('%Y-%m-%d')}"
         ws["A5"].font = self.font_normal
         ws["F5"] = f"Data ważności oferty: {valid_until.strftime('%Y-%m-%d')}"
@@ -114,15 +131,21 @@ class ExcelOfferGenerator:
         ]
 
         # Use brand blue fill for headers
-        header_fill = PatternFill(start_color=self.BRAND_COLOR, end_color=self.BRAND_COLOR, fill_type="solid")
+        header_fill = PatternFill(
+            start_color=self.BRAND_COLOR, end_color=self.BRAND_COLOR, fill_type="solid"
+        )
 
         for top_addr, bot_addr, text in headers:
             # We construct a double row header
             col_letter = top_addr[0]
-            ws[top_addr] = text.replace('\n', ' ') # Just put it together if merging, but original split on two rows
+            ws[top_addr] = text.replace(
+                "\n", " "
+            )  # Just put it together if merging, but original split on two rows
             ws[top_addr] = text
             ws[top_addr].font = self.font_header
-            ws[top_addr].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            ws[top_addr].alignment = Alignment(
+                horizontal="center", vertical="center", wrap_text=True
+            )
             ws[top_addr].fill = header_fill
             ws[top_addr].border = self.border_thin
             ws.merge_cells(f"{top_addr}:{bot_addr}")
@@ -134,23 +157,29 @@ class ExcelOfferGenerator:
         ws.row_dimensions[11].height = 20
 
         # --- Zebra Striping Fills ---
-        fill_white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-        fill_zebra = PatternFill(start_color="F2F6FA", end_color="F2F6FA", fill_type="solid")
+        fill_white = PatternFill(
+            start_color="FFFFFF", end_color="FFFFFF", fill_type="solid"
+        )
+        fill_zebra = PatternFill(
+            start_color="F2F6FA", end_color="F2F6FA", fill_type="solid"
+        )
 
         # --- Fill Items ---
         current_row = 12
         for idx, item in enumerate(items):
             # Calculate mock splits if not provided
             net_installment = float(item.get("net_installment", 0))
-            
+
             # Temporary fallback for fin/tech split if not available from backend pipeline yet
             calc_data = item.get("calculation_data") or {}
-            # Assuming financial is ~70% and technical ~30% for a placeholder if not present. 
+            # Assuming financial is ~70% and technical ~30% for a placeholder if not present.
             # In V3 they might be in calc_data.
             fin_part = float(calc_data.get("rata_finansowa_net", net_installment * 0.7))
-            tech_part = float(calc_data.get("rata_serwisowa_net", net_installment * 0.3))
+            tech_part = float(
+                calc_data.get("rata_serwisowa_net", net_installment * 0.3)
+            )
             over_mileage = float(calc_data.get("opłata_nadprzebieg", 0.50))
-            
+
             # Format equipment nicely
             factory_eq_raw = self._normalize_eq(item.get("factory_options", []))
             base_eq_raw = self._normalize_eq(item.get("standard_equipment", []))
@@ -173,18 +202,23 @@ class ExcelOfferGenerator:
             dealer_combined = as_bullets(dealer_eq_raw)
 
             toggles = calc_data.get("toggles", {})
-            include_servicing = calc_data.get("include_servicing", toggles.get("include_servicing", True))
-            
+            include_servicing = calc_data.get(
+                "include_servicing", toggles.get("include_servicing", True)
+            )
+
             if not include_servicing:
                 service_type = "Brak"
             else:
-                service_type = calc_data.get("service_cost_type", calc_data.get("service_type", item.get("service", "ASO")))
+                service_type = calc_data.get(
+                    "service_cost_type",
+                    calc_data.get("service_type", item.get("service", "ASO")),
+                )
                 if service_type == "nonASO":
                     service_type = "Niezależny"
 
             # Map the values layout
             row_vals = {
-                "A": f"{datetime.now().strftime('%y%m%d')}/{idx+1}",  # Kod kalkulacji
+                "A": f"{datetime.now().strftime('%y%m%d')}/{idx + 1}",  # Kod kalkulacji
                 "B": f"{item.get('brand', '')} {item.get('model', '')} {item.get('powertrain', '')}",
                 "C": factory_combined,
                 "D": dealer_combined if dealer_combined else "-",
@@ -207,7 +241,7 @@ class ExcelOfferGenerator:
 
                 if col == "H":
                     cell.font = self.font_bold
-                
+
                 # Zebra striping
                 cell.fill = fill_zebra if idx % 2 == 1 else fill_white
 
@@ -216,20 +250,18 @@ class ExcelOfferGenerator:
                     cell.number_format = '#,##0.00 "zł"'
                     cell.alignment = Alignment(horizontal="right", vertical="top")
                 elif col == "F":
-                    cell.number_format = '#,##0'
+                    cell.number_format = "#,##0"
                     cell.alignment = Alignment(horizontal="right", vertical="top")
                 elif col == "K":
-                    cell.number_format = '#,##0.00'
+                    cell.number_format = "#,##0.00"
                     cell.alignment = Alignment(horizontal="right", vertical="top")
 
             # Adjust row height so text fits (openpyxl does not auto-height perfectly, so we guess)
             lines = max(
-                len(factory_combined.split("\n")), 
-                len(dealer_combined.split("\n")),
-                1
+                len(factory_combined.split("\n")), len(dealer_combined.split("\n")), 1
             )
             ws.row_dimensions[current_row].height = min(lines * 15 + 10, 200)
-            
+
             current_row += 1
 
         # --- Filter & Freeze Panes ---
@@ -240,16 +272,19 @@ class ExcelOfferGenerator:
         footer_row = current_row + 3
         ws[f"A{footer_row}"] = "Informacje dodatkowe:"
         ws[f"A{footer_row}"].font = self.font_bold
-        
-        ws[f"A{footer_row+1}"] = "1) Wszystkie ceny podane w kalkulacji są cenami netto."
-        ws[f"A{footer_row+1}"].font = self.font_normal
 
-        ws[f"A{footer_row+2}"] = "2) Oferta ważna pod warunkiem utrzymania cen dealera."
-        ws[f"A{footer_row+2}"].font = self.font_normal
+        ws[f"A{footer_row + 1}"] = (
+            "1) Wszystkie ceny podane w kalkulacji są cenami netto."
+        )
+        ws[f"A{footer_row + 1}"].font = self.font_normal
+
+        ws[f"A{footer_row + 2}"] = (
+            "2) Oferta ważna pod warunkiem utrzymania cen dealera."
+        )
+        ws[f"A{footer_row + 2}"].font = self.font_normal
 
         # Final bytes export
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
         return output.read()
-

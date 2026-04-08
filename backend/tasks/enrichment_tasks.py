@@ -70,9 +70,10 @@ def enrich_vehicle_features_from_catalog(vehicle_id: str) -> dict:
         logger.info(
             f"No 100% exact match found for {vehicle_id}. Falling back to standard LLM enrichment from PDF spec."
         )
+        import asyncio
         from core.feature_enrichment import enrich_vehicle_features
 
-        fallback_result = enrich_vehicle_features(vehicle_id, synthesis)
+        fallback_result = asyncio.run(enrich_vehicle_features(vehicle_id, synthesis))
         return {"status": "fallback_success", "fallback_result": fallback_result}
 
     logger.info(

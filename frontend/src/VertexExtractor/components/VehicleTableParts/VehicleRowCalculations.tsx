@@ -113,7 +113,7 @@ export function VehicleRowCalculations({
               {modifiedCells.size} zmodyfikowana(e)
             </span>
           )}
-          {(basePrice <= 0 || !powertrain) && (
+          {(basePrice <= 0 || !powertrain || !!error) && (
             <span className="text-[10px] text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-100 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               BRAK DANYCH

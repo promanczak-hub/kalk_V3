@@ -16,7 +16,7 @@ import io
 import logging
 from pathlib import Path
 
-from backend.core.mdm_models import (
+from core.mdm_models import (
     TenderCriterion,
     TenderEvaluateRequest,
     TenderPriority,

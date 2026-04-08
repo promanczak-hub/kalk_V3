@@ -238,7 +238,9 @@ def finalize_vehicle_pipeline(
         f"[BG TASK] Uruchamiam standardowe wzbogacanie cech dla {vehicle_id}..."
     )
     try:
-        enrich_result = enrich_vehicle_features(vehicle_id, parsed_data)
+        import asyncio
+
+        enrich_result = asyncio.run(enrich_vehicle_features(vehicle_id, parsed_data))
         logger.info(
             f"[BG TASK] Zakończono wzbogacanie. Utworzono {enrich_result.get('evidence_created', 0)} cech."
         )

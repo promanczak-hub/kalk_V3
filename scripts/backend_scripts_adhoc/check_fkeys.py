@@ -1,5 +1,5 @@
 import psycopg2
-import sys
+
 
 def main():
     try:
@@ -27,6 +27,7 @@ def main():
         conn.close()
     except Exception as e:
         print("ERROR:", e)
+
 
 if __name__ == "__main__":
     main()

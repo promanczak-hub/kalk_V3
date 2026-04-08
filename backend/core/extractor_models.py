@@ -176,9 +176,9 @@ class NapedTyp(str, Enum):
 
 
 class NapedRodzaj(str, Enum):
-    FWD = "Napęd FWD"
-    RWD = "Napęd RWD"
-    AWD = "Napęd AWD"
+    FWD = "FWD"
+    RWD = "RWD"
+    AWD = "AWD"
 
 
 class PrzedzialMocy(str, Enum):
@@ -232,6 +232,40 @@ class UtilityFeatureItem(BaseModel):
     )
     value: str = Field(
         description="Wartość z jednostką (np. 3450 mm, 14.4 m3, 1140 kg). Przekaż absolutnie bez zmian z pliku."
+    )
+
+
+class CargoAndDimensions(BaseModel):
+    length_mm: Optional[int] = Field(None, description="Długość całkowita (w mm)")
+    width_mm: Optional[int] = Field(None, description="Szerokość (w mm, bez lusterek)")
+    height_mm: Optional[int] = Field(None, description="Wysokość całkowita (w mm)")
+    wheelbase_mm: Optional[int] = Field(None, description="Rozstaw osi (w mm)")
+
+    cargo_length_mm: Optional[int] = Field(
+        None, description="Długość przedziału ładunkowego / paki (w mm)"
+    )
+    cargo_width_mm: Optional[int] = Field(
+        None, description="Szerokość przedziału ładunkowego (w mm)"
+    )
+    cargo_height_mm: Optional[int] = Field(
+        None, description="Wysokość przedziału ładunkowego (w mm)"
+    )
+    cargo_volume_m3: Optional[float] = Field(
+        None, description="Objętość / kubatura przestrzeni ładunkowej (w m3)"
+    )
+
+    curb_weight_kg: Optional[int] = Field(
+        None, description="Masa własna pojazdu (w kg)"
+    )
+    payload_kg: Optional[int] = Field(
+        None, description="Ładowność (w kg) - szczególnie ważne dla dostawczych"
+    )
+    gross_vehicle_weight_kg: Optional[int] = Field(
+        None, description="DMC (dopuszczalna masa całkowita, np. 3500 kg)"
+    )
+
+    fuel_tank_capacity_l: Optional[int] = Field(
+        None, description="Pojemność zbiornika paliwa (w litrach)"
     )
 
 
@@ -303,13 +337,13 @@ class CardSummary(BaseModel):
         None,
         description="Wyciągnięta moc pojazdu w kilowatach (kW) jako liczba całkowita (int).",
     )
-    utility_features: List[UtilityFeatureItem] = Field(
-        default_factory=list,
-        description="Lista parametrów użytkowych (wymiary, masy, objętości) wyciągnięta z tekstu lub tabel.",
+    dimensions: Optional[CargoAndDimensions] = Field(
+        None,
+        description="Wyciągnięte wymiary, masy i ładowność bezpośrednio z PDF.",
     )
     drive_type: Optional[NapedRodzaj] = Field(
         None,
-        description="Rodzaj napędu (FWD, RWD, AWD). Musi być przyporządkowane do jednej z opcji Enum `NapedRodzaj` lub pozostać puste, jeśli brak jednoznacznej informacji.",
+        description="Rodzaj napędu znormalizowany do (FWD, RWD, AWD). Zasady: '4x4' i 'ALL' mapuj zawsze na 'AWD'. '4x2' mapuj na 'FWD' (lub RWD). Wynik musi być przyporządkowany do jednej z opcji Enum `NapedRodzaj` lub pozostać pusty.",
     )
     transmission: str = Field(
         description="Rodzaj skrzyni biegów, np. 'Automatyczna', 'Manualna', 'DSG'. Zwróć 'Brak' jeśli nie przypisano."

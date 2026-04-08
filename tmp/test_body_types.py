@@ -2,18 +2,20 @@ import sys
 import os
 
 # Add backend to path
-sys.path.append(os.path.join(os.getcwd(), 'backend'))
+sys.path.append(os.path.join(os.getcwd(), "backend"))
 
 from core.database import supabase
 
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
+
 
 class BodyTypeSchema(BaseModel):
     id: Optional[int] = None
     nazwa_nadwozia: str
     typ_pojazdu: str
     created_at: Optional[str] = None
+
 
 try:
     print("Testing body_types fetch and Pydantic validation (NEW SCHEMA)...")
@@ -26,5 +28,5 @@ try:
 except Exception as e:
     print(f"FAILED: {e}")
     import traceback
-    traceback.print_exc()
 
+    traceback.print_exc()

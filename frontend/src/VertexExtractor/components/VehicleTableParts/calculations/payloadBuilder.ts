@@ -42,6 +42,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
     const existingToggles = (existingCalculatorSetup.toggles as Record<string, unknown>) || {};
     
     // Extract baseline pricing safely
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sd = (vehicle.synthesis_data as Record<string, any>) || {};
     const cs = sd.card_summary || {};
     const setup = sd.calculator_setup || {};
@@ -90,6 +91,18 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
         service_options: fallbackFromPaid.service,
         brand: vehicle.brand || "",
         model: vehicle.model || "",
+        
+        // Critical Fix: Explicitly pass transmission to backend
+        gearbox_name: vehicle.transmission || cs.transmission || uf.skrzynia_biegow || comp.transmission || "",
+        drive_type: vehicle.drive_type || cs.drive_type || "",
+        
+        // Ensure critical fields match backend validation explicitly
+        power_kw: Number(sd.power_kw ?? cs.power_kw ?? (cs.power_hp ? Number(cs.power_hp) * 0.73549875 : 0)),
+        paint_type_name: sd.mapped_ai_data?.color ?? sd.typ_lakieru ?? sd.paint_type_name ?? cs.color ?? "",
+        body_type_name: sd.mapped_ai_data?.body_type ?? sd.body_type_name ?? cs.body_style ?? cs.body_type ?? "",
+        zabudowa_type_id: sd.zabudowa_type_id ?? ((typeof cs.zabudowa_type_id === "number") ? cs.zabudowa_type_id : null),
+        samar_category: sd.mapped_ai_data?.samar_category ?? sd.samar_category ?? cs.samar_category ?? "",
+        engine_name: sd.mapped_ai_data?.fuel ?? sd.engine_category ?? cs.engine_category ?? cs.powertrain ?? cs.fuel_type ?? uf.rodzaj_paliwa ?? "",
 
         // Flattened fields strictly required by backend's CalculatorInput model cache job
         // Note: we leave wibor_pct and margin_pct passing what we have, but we will pass null 

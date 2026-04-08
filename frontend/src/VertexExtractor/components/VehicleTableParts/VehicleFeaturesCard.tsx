@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronDown, ChevronRight, Loader2, Package, Settings, Eye, EyeOff, Star, Layers, Sparkles } from "lucide-react";
+import { Loader2, Package, Settings, Sparkles } from "lucide-react";
 import VehicleFeaturesCrud from "../VehicleFeaturesCrud";
 import { AccordionCard } from "./AccordionCard";
 import {
@@ -12,14 +12,6 @@ interface CategoryGroup {
   name: string;
   features: FeatureItem[];
   presentCount: number;
-}
-
-type FeatureTier = 'CORE' | 'EXTENDED' | 'EDGE';
-
-interface TieredCategory extends CategoryGroup {
-  core: FeatureItem[];
-  extended: FeatureItem[];
-  edge: FeatureItem[];
 }
 
 interface VehicleFeaturesCardProps {
@@ -39,13 +31,14 @@ const STATUS_STYLES: Record<string, string> = {
   conflict: "bg-amber-100 text-amber-800 border-amber-300 font-semibold",
 };
 
-const DEFAULT_STYLE = "bg-slate-50 text-slate-500 border-slate-200";
-
-const TIER_CONFIG: Record<FeatureTier, { icon: typeof Star; label: string; color: string; bgStripe: string }> = {
-  CORE: { icon: Star, label: "Kluczowe", color: "text-amber-600", bgStripe: "bg-amber-50/50" },
-  EXTENDED: { icon: Layers, label: "Rozszerzone", color: "text-blue-500", bgStripe: "bg-blue-50/30" },
-  EDGE: { icon: Sparkles, label: "Szczegółowe", color: "text-purple-400", bgStripe: "bg-purple-50/20" },
+const NORMALIZED_STATUS_STYLES: Record<string, string> = {
+  ...STATUS_STYLES,
+  present_confirmed_primary: "bg-violet-50 text-violet-700 border-violet-200",
+  present_confirmed_secondary: "bg-purple-50 text-purple-700 border-purple-200",
+  present_inferred: "bg-indigo-50 text-indigo-700 border-indigo-200",
 };
+
+const DEFAULT_STYLE = "bg-slate-50 text-slate-500 border-slate-200";
 
 function getStatusIcon(status: string): string {
   if (status.startsWith("present")) return "✓";
@@ -86,7 +79,10 @@ function sortFeatures(features: FeatureItem[]): FeatureItem[] {
 }
 
 function FeatureChip({ f }: { f: FeatureItem }) {
-  const style = STATUS_STYLES[f.resolved_status] || DEFAULT_STYLE;
+  const isNormalized = !f.feature_key?.startsWith("config_");
+  const style = isNormalized
+    ? (NORMALIZED_STATUS_STYLES[f.resolved_status] || DEFAULT_STYLE)
+    : (STATUS_STYLES[f.resolved_status] || DEFAULT_STYLE);
   const icon = getStatusIcon(f.resolved_status);
   return (
     <span
@@ -106,38 +102,27 @@ function FeatureChip({ f }: { f: FeatureItem }) {
   );
 }
 
-function TierSection({ tier, features, defaultOpen }: { tier: FeatureTier; features: FeatureItem[]; defaultOpen: boolean }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  const config = TIER_CONFIG[tier];
-  const TierIcon = config.icon;
-  const presentCount = features.filter(f => f.resolved_status?.startsWith("present")).length;
+function EdgeSection({ features }: { features: FeatureItem[] }) {
+  const [isOpen, setIsOpen] = useState(false);
 
   if (features.length === 0) return null;
 
   return (
-    <div className={`rounded-md ${config.bgStripe} border border-slate-100/60`}>
+    <div className="rounded-md bg-purple-50/20 border border-purple-100/60">
       <button
         onClick={() => setIsOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/40 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/40 transition-colors"
       >
         <div className="flex items-center gap-1.5">
-          {isOpen ? <ChevronDown className="w-3 h-3 text-slate-400" /> : <ChevronRight className="w-3 h-3 text-slate-400" />}
-          <TierIcon className={`w-3 h-3 ${config.color}`} />
-          <span className={`text-[10px] font-semibold uppercase tracking-wide ${config.color}`}>
-            {config.label}
+          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-purple-400">
+            Szczegółowe / Edge
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          {presentCount > 0 && (
-            <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
-              {presentCount}
-            </span>
-          )}
-          <span className="text-[9px] text-slate-400">{features.length}</span>
-        </div>
+        <span className="text-[10px] text-purple-300">{features.length} cech {isOpen ? '▲' : '▼'}</span>
       </button>
       {isOpen && (
-        <div className="px-3 pb-2 pt-0.5 flex flex-wrap gap-1.5">
+        <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5">
           {sortFeatures(features).map(f => <FeatureChip key={f.feature_key} f={f} />)}
         </div>
       )}
@@ -149,29 +134,23 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
   const [rawCategories, setRawCategories] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(["Konfiguracja"]));
   const [isPanelCollapsed] = useState(true);
   const [showCrudPanel, setShowCrudPanel] = useState(false);
-  const [viewMode, setViewMode] = useState<'tiered' | 'flat'>('tiered');
-  const [showEdge, setShowEdge] = useState(false);
 
   const fetchFeatures = async (forceRefetch = false) => {
     const hasCache = !forceRefetch && featuresCache.has(vehicleId);
     if (!hasCache) setLoading(true);
-    
     setError(null);
     try {
       if (!hasCache) {
-          await fetchFeaturesForCache(vehicleId);
+        await fetchFeaturesForCache(vehicleId);
       }
-      
       const cached = featuresCache.get(vehicleId)!;
-      
       const instantFeatures = cached.instantFeatures;
       const data = cached.data;
-      
+
       let grouped: CategoryGroup[] = [];
-      
+
       if (instantFeatures.length > 0) {
         grouped.push({
           name: "Konfiguracja",
@@ -182,29 +161,18 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
 
       const apiGroups = Object.entries(data.categories as Record<string, FeatureItem[]>)
         .map(([name, apiFeatures]) => {
-          const processedFeatures = apiFeatures.map(f => {
-            const status = f.resolved_status;
-            return { ...f, resolved_status: status };
-          });
-
+          const processedFeatures = apiFeatures.map(f => ({ ...f }));
           return {
             name,
             features: processedFeatures,
-            presentCount: processedFeatures.filter(
-              (f) => f.resolved_status?.startsWith("present")
-            ).length,
+            presentCount: processedFeatures.filter(f => f.resolved_status?.startsWith("present")).length,
           };
         })
         .filter((g) => g.features.length > 0)
         .sort((a, b) => b.presentCount - a.presentCount);
-      
-      grouped = [...grouped, ...apiGroups];
 
+      grouped = [...grouped, ...apiGroups];
       setRawCategories(grouped);
-      const autoExpand = new Set(
-        grouped.filter((g) => g.presentCount > 0).map((g) => g.name)
-      );
-      setExpandedCats(prev => new Set([...prev, "Konfiguracja", ...autoExpand]));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd pobierania cech");
     } finally {
@@ -214,32 +182,33 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
 
   useEffect(() => {
     if (!featuresCache.has(vehicleId)) {
-        setRawCategories([]);
+      setRawCategories([]);
     }
     setError(null);
     fetchFeatures();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId]);
 
   const categories = isPassengerVehicleType(vehicleTypeHint)
     ? rawCategories.filter((group) => !isCargoCategory(group.name))
     : rawCategories;
 
-  // Build tiered categories for progressive disclosure
-  const tieredCategories: TieredCategory[] = useMemo(() => {
-    return categories.map(cat => {
-      const core = cat.features.filter(f => f.feature_tier === 'CORE');
-      const extended = cat.features.filter(f => !f.feature_tier || f.feature_tier === 'EXTENDED');
-      const edge = cat.features.filter(f => f.feature_tier === 'EDGE');
-      return { ...cat, core, extended, edge };
-    });
-  }, [categories]);
+  const allFeatures = useMemo(() => categories.flatMap(cat => cat.features), [categories]);
 
-  const totalFeatures = categories.reduce((sum, cat) => sum + cat.features.length, 0);
-  const totalPresent = categories.reduce((sum, cat) => sum + cat.presentCount, 0);
-  const totalCore = tieredCategories.reduce((sum, cat) => sum + cat.core.length, 0);
-  const totalExtended = tieredCategories.reduce((sum, cat) => sum + cat.extended.length, 0);
-  const totalEdge = tieredCategories.reduce((sum, cat) => sum + cat.edge.length, 0);
+  // Main features: CORE + EXTENDED (flat, no section headers)
+  const mainFeatures = useMemo(
+    () => allFeatures.filter(f => f.feature_tier !== 'EDGE'),
+    [allFeatures]
+  );
+  // Edge: niche/specialized features shown separately
+  const edgeFeatures = useMemo(
+    () => allFeatures.filter(f => f.feature_tier === 'EDGE'),
+    [allFeatures]
+  );
+
+  const totalFeatures = allFeatures.length;
+  const totalPresent = allFeatures.filter(f => f.resolved_status?.startsWith("present")).length;
+  const totalEdge = edgeFeatures.length;
 
   useEffect(() => {
     const handleRefresh = (e: CustomEvent) => {
@@ -249,20 +218,8 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
     };
     window.addEventListener('refreshVehicleFeatures', handleRefresh as EventListener);
     return () => window.removeEventListener('refreshVehicleFeatures', handleRefresh as EventListener);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId]);
-
-  const toggleCategory = (name: string) => {
-    setExpandedCats((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-      } else {
-        next.add(name);
-      }
-      return next;
-    });
-  };
 
   const titleNode = (
     <div className="flex items-center gap-2">
@@ -273,35 +230,17 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
 
   const headerRightNodes = (
     <div className="flex items-center gap-3">
-      {loading && (
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
-      )}
+      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
       {!loading && totalFeatures > 0 && (
         <div className="flex items-center gap-2">
-          {/* Tier badges */}
-          {viewMode === 'tiered' && (
-            <div className="flex items-center gap-1">
-              {totalCore > 0 && <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full" title="CORE">⭐ {totalCore}</span>}
-              {totalExtended > 0 && <span className="text-[9px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full" title="EXTENDED">📋 {totalExtended}</span>}
-              {totalEdge > 0 && <span className="text-[9px] font-bold bg-purple-100 text-purple-500 px-1.5 py-0.5 rounded-full" title="EDGE">✨ {totalEdge}</span>}
-            </div>
+          {totalEdge > 0 && (
+            <span className="text-[9px] font-bold bg-purple-100 text-purple-500 px-1.5 py-0.5 rounded-full" title="EDGE">
+              ✨ {totalEdge}
+            </span>
           )}
-          <span className="text-xs text-slate-400">
-            {totalPresent} / {totalFeatures}
-          </span>
+          <span className="text-xs text-slate-400">{totalPresent} / {totalFeatures}</span>
         </div>
       )}
-      {/* View mode toggle */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setViewMode(v => v === 'tiered' ? 'flat' : 'tiered');
-        }}
-        className="p-1 rounded hover:bg-slate-100 transition-colors"
-        title={viewMode === 'tiered' ? 'Widok płaski' : 'Widok warstwowy'}
-      >
-        {viewMode === 'tiered' ? <Eye className="w-3.5 h-3.5 text-slate-400" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
-      </button>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -327,110 +266,51 @@ export function VehicleFeaturesCard({ vehicleId, vehicleTypeHint }: VehicleFeatu
       headerRight={headerRightNodes}
       defaultOpen={!isPanelCollapsed}
     >
-      {/* CRUD Panel (full editing mode) */}
       {showCrudPanel && (
-            <div className="p-2">
-              <VehicleFeaturesCrud
-                vehicleId={vehicleId}
-                onClose={() => setShowCrudPanel(false)}
-              />
+        <div className="p-2">
+          <VehicleFeaturesCrud
+            vehicleId={vehicleId}
+            onClose={() => setShowCrudPanel(false)}
+          />
+        </div>
+      )}
+
+      {!showCrudPanel && (
+        <div className="p-5">
+          {loading && (
+            <div className="flex items-center justify-center py-8 text-slate-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span className="text-sm">Ładowanie cech...</span>
             </div>
           )}
 
-          {/* Content */}
-          {!showCrudPanel && (
-            <div className="p-5">
-              {loading && (
-                <div className="flex items-center justify-center py-8 text-slate-400">
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  <span className="text-sm">Ładowanie cech...</span>
-                </div>
-              )}
+          {error && (
+            <div className="text-sm text-red-500 py-4 text-center">{error}</div>
+          )}
 
-              {error && (
-                <div className="text-sm text-red-500 py-4 text-center">
-                  {error}
-                </div>
-              )}
+          {!loading && !error && categories.length === 0 && (
+            <div className="text-sm text-slate-400 py-6 text-center">
+              Brak danych o cechach użytkowych dla tego pojazdu.
+            </div>
+          )}
 
-              {!loading && !error && categories.length === 0 && (
-                <div className="text-sm text-slate-400 py-6 text-center">
-                  Brak danych o cechach użytkowych dla tego pojazdu.
-                </div>
-              )}
-
-              {!loading && !error && categories.length > 0 && (
-                <div className="space-y-2">
-                  {(viewMode === 'tiered' ? tieredCategories : categories).map((cat) => (
-                    <div key={cat.name} className="border border-slate-100 rounded-lg overflow-hidden">
-                      {/* Category header */}
-                      <button
-                        onClick={() => toggleCategory(cat.name)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-2">
-                          {expandedCats.has(cat.name) ? (
-                            <ChevronDown className="w-4 h-4 text-slate-400" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-slate-400" />
-                          )}
-                          <span className="text-sm font-medium text-slate-700">{cat.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {cat.presentCount > 0 && (
-                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                              {cat.presentCount}
-                            </span>
-                          )}
-                          <span className="text-[10px] text-slate-400">
-                            {cat.features.length} cech
-                          </span>
-                        </div>
-                      </button>
-
-                      {/* Features — Progressive Disclosure or Flat */}
-                      {expandedCats.has(cat.name) && (
-                        viewMode === 'tiered' && 'core' in cat ? (
-                          <div className="px-3 pb-3 pt-1 space-y-1.5">
-                            <TierSection
-                              tier="CORE"
-                              features={(cat as TieredCategory).core}
-                              defaultOpen={true}
-                            />
-                            <TierSection
-                              tier="EXTENDED"
-                              features={(cat as TieredCategory).extended}
-                              defaultOpen={(cat as TieredCategory).core.length === 0}
-                            />
-                            {showEdge ? (
-                              <TierSection
-                                tier="EDGE"
-                                features={(cat as TieredCategory).edge}
-                                defaultOpen={false}
-                              />
-                            ) : (cat as TieredCategory).edge.length > 0 && (
-                              <button
-                                onClick={() => setShowEdge(true)}
-                                className="w-full text-center text-[10px] text-purple-400 hover:text-purple-600 py-1 transition-colors"
-                              >
-                                + {(cat as TieredCategory).edge.length} szczegółowych cech
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5">
-                            {sortFeatures(cat.features).map((f) => (
-                              <FeatureChip key={f.feature_key} f={f} />
-                            ))}
-                          </div>
-                        )
-                      )}
-                    </div>
+          {!loading && !error && categories.length > 0 && (
+            <div className="space-y-3">
+              {/* Flat list — all CORE + EXTENDED features without section headers */}
+              {mainFeatures.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {sortFeatures(mainFeatures).map(f => (
+                    <FeatureChip key={f.feature_key} f={f} />
                   ))}
                 </div>
               )}
+
+              {/* EDGE — collapsible, only when present */}
+              <EdgeSection features={edgeFeatures} />
             </div>
           )}
+        </div>
+      )}
     </AccordionCard>
   );
 }

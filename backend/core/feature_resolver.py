@@ -276,6 +276,14 @@ def resolve_vehicle_features(
         except Exception as exc:
             logger.warning("Failed to invalidate cache for %s: %s", vehicle_id, exc)
 
+    # Refresh JSONB Materialized View for fast search
+    try:
+        sb.rpc("refresh_vehicle_search_index").execute()
+    except Exception as exc:
+        logger.warning(
+            "Failed to refresh materialized view for vehicle search: %s", exc
+        )
+
     return {
         "resolved": resolved_count,
         "total_evidence": len(all_evidence),

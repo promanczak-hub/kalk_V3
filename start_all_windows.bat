@@ -7,7 +7,7 @@ echo 1. Uruchamianie Redis (Docker)
 docker-compose up -d redis
 
 echo 2. Uruchamianie Backend (FastAPI) w nowym oknie
-start "Backend" cmd /c "cd backend && poetry run python run_dev.py"
+start "Backend" cmd /c "cd backend && poetry run uvicorn main:app --reload"
 
 echo 3. Uruchamianie Celery Worker (Docker)
 docker-compose up -d celery_worker --build

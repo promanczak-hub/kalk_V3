@@ -12,10 +12,12 @@ to the feature "felga aluminiowa".
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 import re
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from google.genai import types
 
@@ -66,11 +68,13 @@ _NUMERIC_DIRECT_MAP: dict[str, tuple[str, str]] = {
     "height_mm": ("wysokość_pojazdu_w_mm", "mm"),
     "wheelbase_mm": ("wheelbase_mm", "mm"),
     "cargo_volume_l": ("kubatura_przestrzeni_ładunkowej_w_m3", "m³"),
+    "cargo_volume_m3": ("kubatura_przestrzeni_ładunkowej_w_m3", "m³"),
     "cargo_length_mm": ("długość_przestrzeni_ładunkowej_w_mm", "mm"),
     "cargo_width_mm": ("szerokość_przestrzeni_ładunkowej_w_mm", "mm"),
     "cargo_height_mm": ("wysokość_przestrzeni_ładunkowej_w_mm", "mm"),
     "payload_kg": ("dopuszczalna_ładowność_w_kg", "kg"),
     "dmc_kg": ("dmc_kg", "kg"),
+    "gross_vehicle_weight_kg": ("dmc_kg", "kg"),
     "curb_weight_kg": ("curb_weight_kg", "kg"),
     "euro_pallets": ("ilość_europalet", "szt"),
     "battery_capacity_kwh": (
@@ -82,9 +86,9 @@ _NUMERIC_DIRECT_MAP: dict[str, tuple[str, str]] = {
 }
 
 # Canonical drive type values — ALL raw LLM outputs are normalized to these.
-_CANONICAL_DRIVE_FWD = "4x2 (FWD)"
-_CANONICAL_DRIVE_RWD = "4x2 (RWD)"
-_CANONICAL_DRIVE_AWD = "4x4 (AWD)"
+_CANONICAL_DRIVE_FWD = "FWD"
+_CANONICAL_DRIVE_RWD = "RWD"
+_CANONICAL_DRIVE_AWD = "AWD"
 
 # Exact-match map (case-insensitive via .strip().lower()).
 _DRIVE_TYPE_EXACT: dict[str, str] = {
@@ -134,6 +138,45 @@ _DRIVE_TYPE_KEYWORDS: list[tuple[str, str]] = [
     ("front-wheel", _CANONICAL_DRIVE_FWD),
     ("przednią oś", _CANONICAL_DRIVE_FWD),
 ]
+
+
+class LLMMatchItem(BaseModel):
+    item: str = Field(description="Original equipment item name (verbatim).")
+    feature_key: str = Field(
+        default="",
+        description="Matched feature_key from the catalog, or empty string when no match.",
+    )
+    confidence: float = Field(description="Match certainty 0.0-1.0.")
+
+
+class LLMMatchesSchema(BaseModel):
+    matches: list[LLMMatchItem]
+
+
+class UtilityMatchItem(BaseModel):
+    item_name: str = Field(description="Original utility feature name.")
+    feature_key: str = Field(
+        default="",
+        description="Matched feature_key from the catalog, or empty string when no match.",
+    )
+    value_num: float | None = Field(
+        default=None, description="Wyciągnięta wartość liczbowa z cechy."
+    )
+    unit: str = Field(default="", description="Jednostka wyciągnięta z tekstu.")
+    confidence: float = Field(description="Match certainty 0.0-1.0.")
+
+
+class UtilityMatchesSchema(BaseModel):
+    matches: list[UtilityMatchItem]
+
+
+class PackageContentsSchema(BaseModel):
+    package_name: str
+    contents: list[str]
+
+
+class PackagesSchema(BaseModel):
+    packages: list[PackageContentsSchema]
 
 
 def _normalize_drive_type(raw: str) -> str:
@@ -215,96 +258,34 @@ def _safe_parse_num(raw_value: Any) -> float | None:
     if isinstance(raw_value, (int, float)):
         return float(raw_value)
     if isinstance(raw_value, str):
-        cleaned = raw_value.strip().replace(",", ".").replace(" ", "")
-        match = re.match(r"^-?[\d]+\.?[\d]*", cleaned)
+        # Usuń spacje przed walidacją (często 1 200,50)
+        cleaned = raw_value.strip().replace(" ", "")
+
+        # Oczyszczenie z niedozwolonych znaków
+        cleaned = re.sub(r"[^\d,\.\-]", "", cleaned)
+        if not cleaned:
+            return None
+
+        # Obsługa wariantu z tysięcznym separatorem i miejscami po przecinku
+        if "." in cleaned and "," in cleaned:
+            last_dot = cleaned.rfind(".")
+            last_comma = cleaned.rfind(",")
+            if last_comma > last_dot:
+                # "1.250,55"
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+            else:
+                # "1,250.55"
+                cleaned = cleaned.replace(",", "")
+        elif "," in cleaned:
+            cleaned = cleaned.replace(",", ".")
+
+        match = re.match(r"^-?\d+\.?\d*", cleaned)
         if match:
             try:
                 return float(match.group(0))
             except ValueError:
                 return None
     return None
-
-
-# JSON schema returned by the LLM matcher.
-_LLM_RESPONSE_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "matches": {
-            "type": "array",
-            "description": ("One entry per input equipment item, in the same order."),
-            "items": {
-                "type": "object",
-                "properties": {
-                    "item": {
-                        "type": "string",
-                        "description": "Original equipment item name (verbatim).",
-                    },
-                    "feature_key": {
-                        "type": "string",
-                        "description": (
-                            "Matched feature_key from the catalog, "
-                            "or empty string when no match."
-                        ),
-                    },
-                    "confidence": {
-                        "type": "number",
-                        "description": "Match certainty 0.0–1.0.",
-                    },
-                },
-                "required": ["item", "feature_key", "confidence"],
-            },
-        },
-    },
-    "required": ["matches"],
-}
-
-_LLM_UTILITY_RESPONSE_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "matches": {
-            "type": "array",
-            "description": (
-                "One entry per input utility feature item, in the same order."
-            ),
-            "items": {
-                "type": "object",
-                "properties": {
-                    "item_name": {
-                        "type": "string",
-                        "description": "Original utility feature name.",
-                    },
-                    "feature_key": {
-                        "type": "string",
-                        "description": (
-                            "Matched feature_key from the catalog, "
-                            "or empty string when no match."
-                        ),
-                    },
-                    "value_num": {
-                        "type": "number",
-                        "description": "Wyciągnięta wartość liczbowa z cechy (np. 14.4 dla '14.4 m3' albo 3450 dla '3450 mm').",
-                    },
-                    "unit": {
-                        "type": "string",
-                        "description": "Jednostka wyciągnięta z tekstu (np. 'm3', 'kg', 'mm').",
-                    },
-                    "confidence": {
-                        "type": "number",
-                        "description": "Match certainty 0.0–1.0.",
-                    },
-                },
-                "required": [
-                    "item_name",
-                    "feature_key",
-                    "value_num",
-                    "unit",
-                    "confidence",
-                ],
-            },
-        },
-    },
-    "required": ["matches"],
-}
 
 
 def _build_feature_catalog_text(features: list[dict[str, Any]]) -> str:
@@ -317,7 +298,7 @@ def _build_feature_catalog_text(features: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _llm_match_equipment(
+async def _llm_match_equipment(
     equipment_items: list[str],
     features: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -327,8 +308,8 @@ def _llm_match_equipment(
     and structured JSON output.  Returns only matches whose confidence
     meets or exceeds ``_CONFIDENCE_THRESHOLD``.
 
-    Falls back to an empty list on any LLM error (safe degradation —
-    the vehicle is enriched without features rather than crashing).
+    Fail-fast: Rzuca poważnym błędem (wyjątkiem) z logami,
+    jesli wywołanie API do LLMa nie zadziała – aby nie kontynuować błędnego zapisu do bazy.
 
     Parameters
     ----------
@@ -362,7 +343,7 @@ WAŻNE ZASADY:
    pojawia się w nazwie pozycji (np. "Koło zapasowe z felgą aluminiową" NIE pasuje do
    cechy "felga_aluminiowa" — to osobna kategoria akcesorium).
 2. Każda pozycja oceniana jest NIEZALEŻNIE — nie grupuj ich.
-3. Zwróć wyник dla KAŻDEJ pozycji z listy, w tej samej kolejności.
+3. Zwróć wynik dla KAŻDEJ pozycji z listy, w tej samej kolejności.
 
 Pozycje wyposażenia do dopasowania:
 {items_text}
@@ -370,19 +351,20 @@ Pozycje wyposażenia do dopasowania:
 
     try:
         client = get_gemini_client()
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
-                response_schema=_LLM_RESPONSE_SCHEMA,
+                response_schema=LLMMatchesSchema,
                 safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             ),
         )
-        resp_text = getattr(response, "text", "{}") or "{}"
-        result = json.loads(resp_text)
-        matches: list[dict[str, Any]] = result.get("matches", [])
+        if not response.parsed:
+            return []
+
+        matches = [m.model_dump() for m in response.parsed.matches]
 
         return [
             m
@@ -391,15 +373,15 @@ Pozycje wyposażenia do dopasowania:
         ]
 
     except Exception as exc:
-        logger.warning(
-            "LLM feature matching failed for batch of %d items: %s",
-            len(equipment_items),
-            exc,
+        logger.error(
+            f"FATAL: LLM feature matching failed for batch of {len(equipment_items)} items: {exc}"
         )
-        return []
+        raise RuntimeError(
+            "Zatrzymano proces enrichment - błąd komunikacji z LLM."
+        ) from exc
 
 
-def _llm_match_utility_features(
+async def _llm_match_utility_features(
     utility_items: list[dict[str, Any]],
     features: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -429,19 +411,20 @@ Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
 
     try:
         client = get_gemini_client()
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
-                response_schema=_LLM_UTILITY_RESPONSE_SCHEMA,
+                response_schema=UtilityMatchesSchema,
                 safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             ),
         )
-        resp_text = getattr(response, "text", "{}") or "{}"
-        result = json.loads(resp_text)
-        matches: list[dict[str, Any]] = result.get("matches", [])
+        if not response.parsed:
+            return []
+
+        matches = [m.model_dump() for m in response.parsed.matches]
 
         return [
             m
@@ -450,44 +433,12 @@ Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
         ]
 
     except Exception as exc:
-        logger.warning(
-            "LLM utility matching failed for batch of %d items: %s",
-            len(utility_items),
-            exc,
+        logger.error(
+            f"FATAL: LLM utility matching failed for {len(utility_items)} items: {exc}"
         )
-        return []
-
-
-# ── Package Decomposition ─────────────────────────────────────────────────
-
-_PACKAGE_DECOMPOSITION_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "packages": {
-            "type": "array",
-            "description": "One entry per input package.",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "package_name": {
-                        "type": "string",
-                        "description": "Original package name (verbatim).",
-                    },
-                    "contents": {
-                        "type": "array",
-                        "description": (
-                            "List of individual equipment items "
-                            "included in this package."
-                        ),
-                        "items": {"type": "string"},
-                    },
-                },
-                "required": ["package_name", "contents"],
-            },
-        },
-    },
-    "required": ["packages"],
-}
+        raise RuntimeError(
+            "Zatrzymano proces enrichment - błąd komunikacji z LLM."
+        ) from exc
 
 
 def _is_package_name(name: str) -> bool:
@@ -496,7 +447,7 @@ def _is_package_name(name: str) -> bool:
     return any(kw in lower for kw in _PACKAGE_KEYWORDS)
 
 
-def _llm_decompose_packages(
+async def _llm_decompose_packages(
     package_names: list[str],
     brand: str,
     model: str,
@@ -531,19 +482,20 @@ ZASADY:
 
     try:
         client = get_gemini_client()
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
-                response_schema=_PACKAGE_DECOMPOSITION_SCHEMA,
+                response_schema=PackagesSchema,
                 safety_settings=SAFETY_SETTINGS_PERMISSIVE,
             ),
         )
-        resp_text = getattr(response, "text", "{}") or "{}"
-        result = json.loads(resp_text)
-        packages: list[dict[str, Any]] = result.get("packages", [])
+        if not response.parsed:
+            return {}
+
+        packages = [m.model_dump() for m in response.parsed.packages]
 
         decomposed: dict[str, list[str]] = {}
         for pkg in packages:
@@ -561,33 +513,37 @@ ZASADY:
         return decomposed
 
     except Exception as exc:
-        logger.warning(
-            "LLM package decomposition failed for %d packages: %s",
-            len(package_names),
-            exc,
+        logger.error(
+            f"FATAL: LLM package decomposition failed for {len(package_names)} packages: {exc}"
         )
-        return {}
+        raise RuntimeError(
+            "Zatrzymano proces enrichment - błąd komunikacji z LLM (pakiety)."
+        ) from exc
 
 
-def _load_feature_catalog() -> list[dict[str, Any]]:
-    """Load all active universal_features."""
-    resp = (
-        sb_client.schema("reverse_search")
-        .table("universal_features")
-        .select("id, feature_key, display_name, feature_type")
-        .execute()
-    )
+async def _load_feature_catalog() -> list[dict[str, Any]]:
+    """Load all active universal_features from DB asynchronously."""
+
+    def _fetch():
+        return (
+            sb_client.schema("reverse_search")
+            .table("universal_features")
+            .select("id, feature_key, display_name, feature_type")
+            .execute()
+        )
+
+    resp = await asyncio.to_thread(_fetch)
     return resp.data or []
 
 
-def enrich_vehicle_features(
+async def enrich_vehicle_features(
     vehicle_id: str,
     synthesis_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Extract features from card_summary and create evidence.
 
     Uses LLM-based semantic matching to map equipment names to universal
-    features.  Direct field mappings (fuel, transmission, …) are applied
+    features. Direct field mappings (fuel, transmission, …) are applied
     separately without LLM involvement.
 
     Parameters
@@ -602,7 +558,6 @@ def enrich_vehicle_features(
     dict
         Summary dict with counts and any errors.
     """
-    sb = sb_client
     card_summary = synthesis_data.get("card_summary", {})
     if not card_summary or not isinstance(card_summary, dict):
         # Fallback to synthesis_data itself (for V1/Flat synthesis)
@@ -612,7 +567,7 @@ def enrich_vehicle_features(
     if not isinstance(card_summary, dict) or len(card_summary) < 2:
         return {"error": "No valid vehicle data found", "evidence_created": 0}
 
-    features = _load_feature_catalog()
+    features = await _load_feature_catalog()
     if not features:
         return {"error": "Feature catalog empty", "evidence_created": 0}
 
@@ -654,11 +609,20 @@ def enrich_vehicle_features(
                                 parsed,
                             )
 
+    # ── 0b. Flatten 'dimensions' dict into card_summary for direct mapping ──
+    dimensions_dict = card_summary.get("dimensions", {})
+    if isinstance(dimensions_dict, dict):
+        for k, v in dimensions_dict.items():
+            if k not in card_summary or card_summary[k] is None:
+                parsed = _safe_parse_num(v)
+                if parsed is not None:
+                    card_summary[k] = parsed
+
     # ── 1. Standard equipment → LLM match → boolean "present" evidence ──
     std_equipment: list[str] = card_summary.get("standard_equipment", [])
     std_items = [i for i in std_equipment if isinstance(i, str) and i.strip()]
 
-    std_matches = _llm_match_equipment(std_items, features)
+    std_matches = await _llm_match_equipment(std_items, features)
     for match in std_matches:
         feat_id = feature_by_key.get(match["feature_key"])
         if not feat_id:
@@ -683,7 +647,7 @@ def enrich_vehicle_features(
         if isinstance(opt, dict) and (opt.get("name") or "").strip()
     ]
 
-    opt_matches = _llm_match_equipment(opt_names, features)
+    opt_matches = await _llm_match_equipment(opt_names, features)
     for match in opt_matches:
         feat_id = feature_by_key.get(match["feature_key"])
         if not feat_id:
@@ -719,7 +683,7 @@ def enrich_vehicle_features(
 
     pkg_evidence_count = 0
     if package_names and brand:
-        decomposed = _llm_decompose_packages(package_names, brand, model_name)
+        decomposed = await _llm_decompose_packages(package_names, brand, model_name)
         all_sub_features: list[str] = []
         sub_feature_to_package: dict[str, str] = {}
         for pkg_name, contents in decomposed.items():
@@ -728,7 +692,7 @@ def enrich_vehicle_features(
                 sub_feature_to_package[sub] = pkg_name
 
         if all_sub_features:
-            sub_matches = _llm_match_equipment(all_sub_features, features)
+            sub_matches = await _llm_match_equipment(all_sub_features, features)
             for match in sub_matches:
                 feat_id = feature_by_key.get(match["feature_key"])
                 if not feat_id:
@@ -766,7 +730,7 @@ def enrich_vehicle_features(
         if isinstance(opt, dict) and opt.get("name") and opt.get("value")
     ]
 
-    utility_matches = _llm_match_utility_features(valid_utility, features)
+    utility_matches = await _llm_match_utility_features(valid_utility, features)
     for match in utility_matches:
         feat_id = feature_by_key.get(match["feature_key"])
         if not feat_id:
@@ -889,11 +853,19 @@ def enrich_vehicle_features(
 
         deduped_batch = list(unique_evidence_map.values())
 
+        def _do_upsert():
+            return (
+                sb_client.schema("reverse_search")
+                .table("vehicle_feature_evidence")
+                .upsert(
+                    deduped_batch,
+                    on_conflict="source_vehicle_id,feature_id,source_type",
+                )
+                .execute()
+            )
+
         try:
-            sb.schema("reverse_search").table("vehicle_feature_evidence").upsert(
-                deduped_batch,
-                on_conflict="source_vehicle_id,feature_id,source_type",
-            ).execute()
+            await asyncio.to_thread(_do_upsert)
             created_count = len(deduped_batch)
         except Exception as exc:
             msg = f"Evidence batch upsert error: {exc}"
@@ -903,7 +875,11 @@ def enrich_vehicle_features(
     # ── 5. Resolve features ──
     resolve_result: dict[str, Any] = {}
     if created_count > 0:
-        resolve_result = resolve_vehicle_features(vehicle_id)
+
+        def _do_resolve():
+            return resolve_vehicle_features(vehicle_id)
+
+        resolve_result = await asyncio.to_thread(_do_resolve)
 
     logger.info(
         "Enriched vehicle %s: %d evidence records, %d errors",
@@ -927,19 +903,21 @@ def enrich_vehicle_features(
     }
 
 
-def enrich_all_vehicles(
+async def enrich_all_vehicles(
     limit: int = 100,
 ) -> dict[str, Any]:
     """Batch-enrich all vehicles that have card_summary data."""
-    sb = sb_client
 
-    resp = (
-        sb.table("vehicle_synthesis")
-        .select("id, synthesis_data")
-        .not_.is_("synthesis_data", "null")
-        .limit(limit)
-        .execute()
-    )
+    def _fetch_vehicles():
+        return (
+            sb_client.table("vehicle_synthesis")
+            .select("id, synthesis_data")
+            .not_.is_("synthesis_data", "null")
+            .limit(limit)
+            .execute()
+        )
+
+    resp = await asyncio.to_thread(_fetch_vehicles)
     vehicles = resp.data or []
 
     results: list[dict[str, Any]] = []
@@ -953,7 +931,7 @@ def enrich_all_vehicles(
         if not isinstance(synthesis.get("card_summary"), dict):
             continue
 
-        result = enrich_vehicle_features(v["id"], synthesis)
+        result = await enrich_vehicle_features(v["id"], synthesis)
         results.append(result)
         total_evidence += result.get("evidence_created", 0)
         total_errors += len(result.get("errors", []))

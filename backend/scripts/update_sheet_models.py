@@ -1,4 +1,3 @@
-import os
 import logging
 import gspread
 from google.oauth2.service_account import Credentials
@@ -43,14 +42,16 @@ MODEL_MAPPING = {
     31: "BMW 2 Active Tourer, Dacia Jogger, Mercedes B-Klasa, Volkswagen Touran",
     32: "Forthing U-Tour",
     33: "Lexus LM",
-    34: "Forthing V-Tour, Voyah Dream"
+    34: "Forthing V-Tour, Voyah Dream",
 }
+
 
 def get_gspread_client():
     key_path = "D:/kalk_v3/backend/google_sa_key.json"
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_file(key_path, scopes=scopes)
     return gspread.authorize(creds)
+
 
 def update_sheet():
     logger.info("Connecting to Google Sheets...")
@@ -63,18 +64,19 @@ def update_sheet():
         return
 
     logger.info(f"Updating Column C in worksheet: {ws.title}")
-    
+
     # We'll build a batch update to minimize API calls
     # Column C is the 3rd column. We start from Row 2 to 34.
     # range_name = 'C2:C34'
-    
+
     rows_to_update = []
     for r in range(2, 35):
         val = MODEL_MAPPING.get(r, "")
         rows_to_update.append([val])
-    
-    ws.update(range_name='C2:C34', values=rows_to_update)
+
+    ws.update(range_name="C2:C34", values=rows_to_update)
     logger.info("Successfully updated Column C (Rows 2-34).")
+
 
 if __name__ == "__main__":
     update_sheet()

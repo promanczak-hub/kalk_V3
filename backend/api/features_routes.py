@@ -756,7 +756,7 @@ def get_features_brochure(
 
 
 @router.post("/features/vehicle/{vehicle_id}/enrich")
-def enrich_single_vehicle(
+async def enrich_single_vehicle(
     vehicle_id: str,
 ) -> dict[str, Any]:
     """Enrich a single vehicle with features from card_summary."""
@@ -782,7 +782,7 @@ def enrich_single_vehicle(
             detail="Vehicle has no synthesis_data",
         )
 
-    result = enrich_vehicle_features(vehicle_id, synthesis)
+    result = await enrich_vehicle_features(vehicle_id, synthesis)
     return result
 
 

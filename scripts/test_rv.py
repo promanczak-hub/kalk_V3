@@ -14,22 +14,22 @@ payload = {
             "price_net": 2195.12,
             "price_gross": 2700,
             "no_discount": False,
-            "include_in_wr": False # options_in_wr are processed independently inside calculator (usually true if in factory_options, or SAMAR RV checks it natively!) wait, let me set to True as it's included in factory prices!
+            "include_in_wr": False,  # options_in_wr are processed independently inside calculator (usually true if in factory_options, or SAMAR RV checks it natively!) wait, let me set to True as it's included in factory prices!
         },
         {
             "name": "Dywaniki tekstylne (OTD)",
             "price_net": 243.90,
             "price_gross": 300,
             "no_discount": False,
-            "include_in_wr": False
+            "include_in_wr": False,
         },
         {
             "name": "Zapasowe koło (PJA)",
             "price_net": 569.11,
             "price_gross": 700,
             "no_discount": False,
-            "include_in_wr": False
-        }
+            "include_in_wr": False,
+        },
     ],
     "service_options": [],
     "samar_category": "Podstawowa - C NIŻSZA ŚREDNIA",
@@ -49,7 +49,7 @@ payload = {
     "vehicle_vintage": "current",
     "is_metalic": True,
     "matrix_km_mode": "annual",
-    "srednica_felgi": 17
+    "srednica_felgi": 17,
 }
 
 headers = {"Content-Type": "application/json"}
@@ -64,10 +64,9 @@ try:
         # Pokaż rezultat
         data = response.json()
         print("SUCCESS. Got calculation trace info:")
-        with open('d:/kalk_v3/rv_trace.json', 'w', encoding='utf-8') as f:
+        with open("d:/kalk_v3/rv_trace.json", "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         print("Saved test to d:/kalk_v3/rv_trace.json")
 except Exception as e:
     print("ERROR:")
     print(e)
-
