@@ -91,6 +91,7 @@ interface VehicleRowCardProps {
   isHighlighted?: boolean;
   bodyTypes?: { id: number; name: string; vehicle_class: string }[];
   paintTypes?: { id: number; name: string; [key: string]: unknown }[];
+  driveTypes?: string[];
 
 }
 
@@ -105,6 +106,7 @@ export function VehicleRowCard({
   isHighlighted = false,
   bodyTypes,
   paintTypes,
+  driveTypes,
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const scrolledToMatrixRef = useRef(false);
@@ -191,7 +193,10 @@ export function VehicleRowCard({
     "Napęd FWD": "FWD", "Napęd RWD": "RWD", "Napęd AWD": "AWD",
     "FWD": "FWD", "RWD": "RWD", "AWD": "AWD",
     "4X4": "AWD", "4x4": "AWD", "4WD": "AWD", "ALL": "AWD",
-    "4X2": "FWD", "4x2": "FWD", "2WD": "FWD"
+    "4x4 (AWD)": "AWD", "4X4 (AWD)": "AWD",
+    "4X2": "FWD", "4x2": "FWD", "2WD": "FWD",
+    "4x2 (FWD)": "FWD", "4X2 (FWD)": "FWD",
+    "4x2 (RWD)": "RWD", "4X2 (RWD)": "RWD"
   };
   
   const normalizeDriveType = (val: string | undefined | null) => {
@@ -784,6 +789,7 @@ export function VehicleRowCard({
                   allEngineTypes={ALL_ENGINE_TYPES}
                   onEngineCategoryChange={handleEngineCategoryChange}
                   driveType={driveType}
+                  driveTypes={driveTypes}
                   onDriveTypeChange={handleDriveTypeChange}
                   transmission={transmission}
                   onTransmissionChange={handleTransmissionChange}

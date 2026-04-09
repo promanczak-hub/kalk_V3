@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../lib/apiClient';
+import type { SelectedFeature } from '../types';
 
 export interface PriceForParams {
   duration_months: number | null;
@@ -110,8 +111,8 @@ export function useBatchSimilarVehicles(
   durationMonths: number,
   annualMileage: number,
   enabled: boolean,
-  mode: 'rule-based' | 'semantic' = 'rule-based',
-  requirements: Record<string, unknown>[] = []
+  similarityMode: 'semantic' | 'exact' = 'semantic',
+  requirements: SelectedFeature[] = []
 ): { similarVehicles: Record<string, SimilarVehicle[]>; loading: boolean } {
   const [similarVehicles, setSimilarVehicles] = useState<Record<string, SimilarVehicle[]>>({});
   const [loading, setLoading] = useState(false);
@@ -136,7 +137,7 @@ export function useBatchSimilarVehicles(
             duration_months: durationMonths, 
             annual_mileage: annualMileage,
             limit: 5,
-            mode: mode,
+            mode: similarityMode,
             requirements: requirements
           }),
         });
@@ -160,7 +161,7 @@ export function useBatchSimilarVehicles(
       window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, mode, requirementsHash]);
+  }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, similarityMode, requirementsHash]);
 
   return { similarVehicles, loading };
 }
@@ -170,10 +171,13 @@ export function useVehicleAlternatives(
   durationMonths: number,
   annualMileage: number,
   category: string,
-  enabled: boolean
+  enabled: boolean,
+  requirements: SelectedFeature[] = []
 ): { alternatives: SimilarVehicle[]; loading: boolean } {
   const [alternatives, setAlternatives] = useState<SimilarVehicle[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const requirementsHash = JSON.stringify(requirements);
 
   useEffect(() => {
     if (!enabled || !vehicleId || !category) {
@@ -184,13 +188,17 @@ export function useVehicleAlternatives(
     const doFetch = async () => {
       setLoading(true);
       try {
-        const queryParams = new URLSearchParams({
-          category,
-          duration_months: durationMonths.toString(),
-          annual_mileage: annualMileage.toString(),
-          limit: '5'
+        const r = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/alternatives`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category,
+            duration_months: durationMonths,
+            annual_mileage: annualMileage,
+            limit: 5,
+            requirements
+          })
         });
-        const r = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/alternatives?${queryParams}`);
         const data = await r.json();
         if (!cancelled) setAlternatives(Array.isArray(data) ? data : (data.results || []));
       } catch {
@@ -204,7 +212,8 @@ export function useVehicleAlternatives(
     return () => { 
       cancelled = true; 
     };
-  }, [vehicleId, durationMonths, annualMileage, category, enabled]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId, durationMonths, annualMileage, category, enabled, requirementsHash]);
 
   return { alternatives, loading };
 }

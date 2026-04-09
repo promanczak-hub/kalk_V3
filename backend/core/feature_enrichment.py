@@ -298,6 +298,58 @@ def _build_feature_catalog_text(features: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+async def _get_aliases(raw_names: list[str]) -> dict[str, dict[str, Any]]:
+    if not raw_names:
+        return {}
+
+    def _fetch():
+        results = []
+        chunk_size = 100
+        # Wymagane jest filtrowanie przez usuniecie duplikatów
+        unique_names = list(set(raw_names))
+        for i in range(0, len(unique_names), chunk_size):
+            chunk = unique_names[i : i + chunk_size]
+            resp = (
+                sb_client.table("feature_aliases")
+                .select("raw_name, matched_feature_key, confidence")
+                .in_("raw_name", chunk)
+                .execute()
+            )
+            if resp.data:
+                results.extend(resp.data)
+        return results
+
+    try:
+        data = await asyncio.to_thread(_fetch)
+        return {r["raw_name"]: r for r in data}
+    except Exception as exc:
+        logger.warning(f"Nie powiodło się odczytanie cache aliasów: {exc}")
+        return {}
+
+
+async def _save_aliases(aliases: list[dict[str, Any]]):
+    if not aliases:
+        return
+
+    # Deduplicate before sending by raw_name to avoid unique constraint collisions in same batch
+    deduped = {a["raw_name"]: a for a in aliases}
+    payload = list(deduped.values())
+
+    def _save():
+        chunk_size = 100
+        for i in range(0, len(payload), chunk_size):
+            chunk = payload[i : i + chunk_size]
+            sb_client.table("feature_aliases").upsert(
+                chunk, on_conflict="raw_name"
+            ).execute()
+
+    try:
+        await asyncio.to_thread(_save)
+        logger.info(f"Zapisano {len(payload)} aliasów do cache.")
+    except Exception as exc:
+        logger.error(f"Nie udało się zapisać cache aliasów: {exc}")
+
+
 async def _llm_match_equipment(
     equipment_items: list[str],
     features: list[dict[str, Any]],
@@ -327,8 +379,38 @@ async def _llm_match_equipment(
     if not equipment_items or not features:
         return []
 
+    unique_items = list({item.strip() for item in equipment_items if item.strip()})
+
+    # 1. Check cache first
+    cached_aliases = await _get_aliases(unique_items)
+
+    matches: list[dict[str, Any]] = []
+    items_for_llm: list[str] = []
+
+    for item in unique_items:
+        if item in cached_aliases:
+            cached = cached_aliases[item]
+            if cached.get("matched_feature_key"):
+                matches.append(
+                    {
+                        "item": item,
+                        "feature_key": cached["matched_feature_key"],
+                        "confidence": cached["confidence"],
+                    }
+                )
+        else:
+            items_for_llm.append(item)
+
+    if not items_for_llm:
+        logger.info(f"LLM equipment match: 100% z cache ({len(unique_items)} items)")
+        return [
+            m
+            for m in matches
+            if m.get("feature_key") and m.get("confidence", 0) >= _CONFIDENCE_THRESHOLD
+        ]
+
     catalog_text = _build_feature_catalog_text(features)
-    items_text = "\n".join(f"- {item}" for item in equipment_items)
+    items_text = "\n".join(f"- {item}" for item in items_for_llm)
 
     prompt = f"""Jesteś ekspertem klasyfikacji wyposażenia pojazdów.
 
@@ -362,9 +444,43 @@ Pozycje wyposażenia do dopasowania:
             ),
         )
         if not response.parsed:
-            return []
+            return matches
 
-        matches = [m.model_dump() for m in response.parsed.matches]
+        new_aliases: list[dict[str, Any]] = []
+        llm_matches = [m.model_dump() for m in response.parsed.matches]
+
+        for m in llm_matches:
+            feature_key = m.get("feature_key", "").strip()
+            confidence = m.get("confidence", 0.0)
+
+            if feature_key and confidence >= _CONFIDENCE_THRESHOLD:
+                matches.append(m)
+
+            if feature_key and confidence >= 0.85:
+                new_aliases.append(
+                    {
+                        "raw_name": m["item"],
+                        "matched_feature_key": feature_key,
+                        "confidence": confidence,
+                        "source": "equipment",
+                    }
+                )
+            elif not feature_key or confidence < _CONFIDENCE_THRESHOLD:
+                new_aliases.append(
+                    {
+                        "raw_name": m["item"],
+                        "matched_feature_key": "",
+                        "confidence": confidence,
+                        "source": "equipment",
+                    }
+                )
+
+        if new_aliases:
+            await _save_aliases(new_aliases)
+
+        logger.info(
+            f"LLM equipment match: {len(items_for_llm)} items processed via API. Zapisano do cache {len(new_aliases)}."
+        )
 
         return [
             m
@@ -374,7 +490,7 @@ Pozycje wyposażenia do dopasowania:
 
     except Exception as exc:
         logger.error(
-            f"FATAL: LLM feature matching failed for batch of {len(equipment_items)} items: {exc}"
+            f"FATAL: LLM feature matching failed for batch of {len(items_for_llm)} items: {exc}"
         )
         raise RuntimeError(
             "Zatrzymano proces enrichment - błąd komunikacji z LLM."
@@ -388,9 +504,58 @@ async def _llm_match_utility_features(
     if not utility_items or not features:
         return []
 
+    unique_names = list(
+        {
+            item.get("name", "").strip()
+            for item in utility_items
+            if item.get("name", "").strip()
+        }
+    )
+
+    cached_aliases = await _get_aliases(unique_names)
+
+    matches: list[dict[str, Any]] = []
+    items_for_llm: list[dict[str, Any]] = []
+
+    for item in utility_items:
+        name = item.get("name", "").strip()
+        if not name:
+            continue
+
+        if name in cached_aliases:
+            cached = cached_aliases[name]
+            if cached.get("matched_feature_key"):
+                raw_value = str(item.get("value", ""))
+                parsed_num = _safe_parse_num(raw_value)
+
+                unit = ""
+                m = re.search(r"[a-zA-Z%³²]+$", raw_value.strip())
+                if m:
+                    unit = m.group(0)
+
+                matches.append(
+                    {
+                        "item_name": name,
+                        "feature_key": cached["matched_feature_key"],
+                        "confidence": cached["confidence"],
+                        "value_num": parsed_num,
+                        "unit": unit,
+                    }
+                )
+        else:
+            items_for_llm.append(item)
+
+    if not items_for_llm:
+        logger.info(f"LLM utility match: 100% z cache ({len(unique_names)} items)")
+        return [
+            m
+            for m in matches
+            if m.get("feature_key") and m.get("confidence", 0) >= _CONFIDENCE_THRESHOLD
+        ]
+
     catalog_text = _build_feature_catalog_text(features)
     items_text = "\n".join(
-        f"- {item.get('name')}: {item.get('value')}" for item in utility_items
+        f"- {item.get('name')}: {item.get('value')}" for item in items_for_llm
     )
 
     prompt = f"""Jesteś wnikliwym ekspertem klasyfikacji wymiarów i cech użytkowych.
@@ -422,9 +587,41 @@ Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
             ),
         )
         if not response.parsed:
-            return []
+            return matches
 
-        matches = [m.model_dump() for m in response.parsed.matches]
+        new_aliases = []
+        llm_raw_matches = [m.model_dump() for m in response.parsed.matches]
+
+        for m in llm_raw_matches:
+            feature_key = m.get("feature_key", "").strip()
+            confidence = m.get("confidence", 0.0)
+            name_val = m.get("item_name", "").strip()
+
+            if feature_key and confidence >= _CONFIDENCE_THRESHOLD:
+                matches.append(m)
+
+            if name_val:
+                if feature_key and confidence >= 0.85:
+                    new_aliases.append(
+                        {
+                            "raw_name": name_val,
+                            "matched_feature_key": feature_key,
+                            "confidence": confidence,
+                            "source": "utility",
+                        }
+                    )
+                elif not feature_key or confidence < _CONFIDENCE_THRESHOLD:
+                    new_aliases.append(
+                        {
+                            "raw_name": name_val,
+                            "matched_feature_key": "",
+                            "confidence": confidence,
+                            "source": "utility",
+                        }
+                    )
+
+        if new_aliases:
+            await _save_aliases(new_aliases)
 
         return [
             m
@@ -434,7 +631,7 @@ Pozycje do dopasowania podane w formacie 'Nazwa Cechy: Wartość':
 
     except Exception as exc:
         logger.error(
-            f"FATAL: LLM utility matching failed for {len(utility_items)} items: {exc}"
+            f"FATAL: LLM utility matching failed for {len(items_for_llm)} items: {exc}"
         )
         raise RuntimeError(
             "Zatrzymano proces enrichment - błąd komunikacji z LLM."

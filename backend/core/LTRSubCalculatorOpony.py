@@ -15,7 +15,7 @@ import logging
 import math
 from typing import Dict, Any, Optional, cast
 
-from core.database import supabase
+from core.database import get_fresh_client
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,9 @@ class LTRSubCalculatorOpony:
     def _fetch_global_param(self, param_name: str) -> float:
         """Pobiera parametry globalne (np. koszt przekładki/przechowywania) z bazy."""
         try:
+            client = get_fresh_client()
             response = (
-                supabase.table("LTRAdminParametry_czak")
+                client.table("LTRAdminParametry_czak")
                 .select("col_2")
                 .ilike("col_1", param_name)  # ilike for case insensitivity (VAT vs vat)
                 .limit(1)
@@ -98,8 +99,9 @@ class LTRSubCalculatorOpony:
                     # In DB these seem to be strings like '120' or '216'
                     return float(str(val).replace(",", "."))
         except Exception as e:
-            raise ValueError(
-                f"Błąd bazy danych przy pobieraniu parametru globalnego {param_name}: {e}"
+            # Nie połykamy tu błędu. Jeżeli leci błąd z sieci, zwracamy go jasno
+            raise RuntimeError(
+                f"Błąd sieci/infrastruktury (Server disconnected) przy pobieraniu param globalnego {param_name}: {e}"
             ) from e
 
         raise ValueError(
@@ -121,8 +123,9 @@ class LTRSubCalculatorOpony:
             "season_threshold_4": 300000.0,
         }
         try:
+            client = get_fresh_client()
             res = (
-                supabase.table("tyre_configurations")
+                client.table("tyre_configurations")
                 .select("config_key, config_value")
                 .execute()
             )
@@ -171,8 +174,9 @@ class LTRSubCalculatorOpony:
 
         column_name = self._get_tire_column_name()
         try:
+            client = get_fresh_client()
             response = (
-                supabase.table("koszty_opon")
+                client.table("koszty_opon")
                 .select(column_name)
                 .eq("srednica", self.srednica_felgi)
                 .limit(1)
@@ -184,8 +188,10 @@ class LTRSubCalculatorOpony:
                 if val:
                     return float(val)
         except Exception as e:
-            logger.error(
-                f"Error fetching tire cost for size {self.srednica_felgi} {column_name}: {e}"
+            logger.error(f"Error fetching tire cost for size {self.srednica_felgi} {column_name}: {e}")
+            raise RuntimeError(
+                f"Błąd infrastruktury API (Supabase) podczas pobierania kosztu opony. "
+                f"Brak połączenia lub odrzucenie zapytania. Szczegóły: {str(e)}"
             )
 
         raise ValueError(
@@ -201,8 +207,9 @@ class LTRSubCalculatorOpony:
 
         budget_col = "wielosezon_budget" if self.all_season else "budget"
         try:
+            client = get_fresh_client()
             response = (
-                supabase.table("koszty_opon")
+                client.table("koszty_opon")
                 .select(budget_col)
                 .eq("srednica", self.srednica_felgi)
                 .limit(1)
@@ -214,8 +221,8 @@ class LTRSubCalculatorOpony:
                 if val is not None:
                     return float(val)
         except Exception as e:
-            raise ValueError(
-                f"Błąd bazy danych przy pobieraniu ceny budżetowej opon dla srednica={self.srednica_felgi}: {str(e)}"
+            raise RuntimeError(
+                f"Błąd sieci/infrastruktury (Supabase) przy pobieraniu ceny budżetowej dla srednica={self.srednica_felgi}: {str(e)}"
             ) from e
 
         raise ValueError(
@@ -229,8 +236,9 @@ class LTRSubCalculatorOpony:
 
         # W V1 odkup by połączony z cennikiem i opierał się na średnicy o rozmiarze
         try:
+            client = get_fresh_client()
             response = (
-                supabase.table("koszty_opon")
+                client.table("koszty_opon")
                 .select("odkup_opon")
                 .eq("srednica", self.srednica_felgi)
                 .limit(1)
@@ -249,8 +257,8 @@ class LTRSubCalculatorOpony:
             logger.error(
                 f"Error fetching Odkup Opon for size {self.srednica_felgi}: {e}"
             )
-            raise ValueError(
-                f"Błąd krytyczny wyciągania kwoty odkupu opon: {str(e)}"
+            raise RuntimeError(
+                f"Błąd krytyczny sieci/API wyciągania kwoty odkupu opon: {str(e)}"
             ) from e
 
         raise ValueError(

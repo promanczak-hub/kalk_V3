@@ -18,6 +18,7 @@ export interface VehicleSummaryCardProps {
   allEngineTypes?: string[];
   onEngineCategoryChange?: (v: string) => Promise<void> | void;
   driveType?: string;
+  driveTypes?: string[];
   onDriveTypeChange?: (v: string) => Promise<void> | void;
   transmission?: string;
   onTransmissionChange?: (v: string) => Promise<void> | void;
@@ -116,6 +117,7 @@ export function VehicleSummaryCard({
   allEngineTypes,
   onEngineCategoryChange,
   driveType,
+  driveTypes,
   onDriveTypeChange,
   transmission,
   onTransmissionChange,
@@ -329,7 +331,7 @@ export function VehicleSummaryCard({
   const techConfigRows: typeof identityRows = [
     { 
       label: "Oś napędowa", 
-      value: <DriveTypeTag current={driveType || ""} onChange={onDriveTypeChange} connected={false} />,
+      value: <DriveTypeTag current={driveType || ""} onChange={onDriveTypeChange} connected={false} driveTypeOptions={driveTypes} />,
       type: "custom"
     },
     { 

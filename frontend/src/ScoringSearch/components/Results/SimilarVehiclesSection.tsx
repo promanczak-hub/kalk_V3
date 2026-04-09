@@ -10,6 +10,7 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import { useVehicleAlternatives } from '../../hooks/useBatchData';
 import type { SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesPanel } from '../SimilarVehiclesPanel';
+import type { SelectedFeature } from '../../types';
 
 interface SimilarVehiclesSectionProps {
   vehicleId: string;
@@ -17,6 +18,7 @@ interface SimilarVehiclesSectionProps {
   targetDuration: number;
   targetAnnualMileage: number;
   similarData?: SimilarVehicle[];
+  requirements?: SelectedFeature[];
 }
 
 type CategoryKey = 'similar' | 'cheaper' | 'stronger' | 'safer' | 'more_comfortable' | 'greener';
@@ -27,6 +29,7 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
   targetDuration,
   targetAnnualMileage,
   similarData,
+  requirements = [],
 }) => {
   const [category, setCategory] = useState<CategoryKey>('similar');
 
@@ -37,7 +40,8 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
     targetDuration,
     targetAnnualMileage,
     category,
-    isDeepAI
+    isDeepAI,
+    requirements
   );
 
   const handleCategoryChange = (

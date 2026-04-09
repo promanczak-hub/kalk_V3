@@ -14,6 +14,7 @@ import { fuelColor, fuelIcon } from '../../utils/vehicleFormatters';
 import { LtrPriceBlock } from './LtrPriceBlock';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
+import type { SelectedFeature } from '../../types';
 
 interface VehicleResultCardProps {
   car: Record<string, unknown>;
@@ -23,6 +24,7 @@ interface VehicleResultCardProps {
   priceData?: { price_for_params?: PriceForParams, variants?: PriceForParams[] };
   pricesLoading: boolean;
   similarData?: SimilarVehicle[];
+  requirements?: SelectedFeature[];
 }
 
 export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
@@ -33,6 +35,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
   priceData,
   pricesLoading,
   similarData,
+  requirements = [],
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const vehicleId = car.vehicle_id as string;
@@ -271,6 +274,7 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
           targetDuration={targetDuration}
           targetAnnualMileage={targetAnnualMileage}
           similarData={similarData}
+          requirements={requirements}
         />
       </CardContent>
     </Card>

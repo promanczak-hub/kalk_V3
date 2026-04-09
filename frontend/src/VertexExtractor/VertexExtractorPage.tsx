@@ -31,6 +31,10 @@ interface PaintTypeOption {
   [key: string]: unknown;
 }
 
+interface DriveTypeOption {
+  drive_normalized: string;
+}
+
 export default function VertexExtractorPage() {
   const theme = useTheme();
   const highlightVehicleId = useMemo(() => {
@@ -62,6 +66,7 @@ export default function VertexExtractorPage() {
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
   const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
   const [paintTypes, setPaintTypes] = useState<PaintTypeOption[]>([]);
+  const [driveTypes, setDriveTypes] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -98,9 +103,10 @@ export default function VertexExtractorPage() {
 
     const fetchLookupData = async () => {
       try {
-        const [{ data: bodies }, { data: paints }] = await Promise.all([
+        const [{ data: bodies }, { data: paints }, { data: drives }] = await Promise.all([
           supabase.from("body_types").select("*").order("nazwa_nadwozia"),
-          supabase.from("paint_types").select("*").order("id")
+          supabase.from("paint_types").select("*").order("id"),
+          supabase.from("samar_service_drive_multipliers").select("drive_normalized")
         ]);
         if (bodies) {
           // Normalizacja pól bazy (nazwa_nadwozia, typ_pojazdu) → kształt oczekiwany przez BodyTypeTag (name, vehicle_class)
@@ -111,6 +117,11 @@ export default function VertexExtractorPage() {
           })));
         }
         if (paints) setPaintTypes(paints);
+        
+        if (drives) {
+          const validDrives = Array.from(new Set(drives.map(d => d.drive_normalized).filter(Boolean)));
+          setDriveTypes(validDrives);
+        }
       } catch (e) {
         console.error("Failed to fetch lookup data", e);
       }
@@ -156,6 +167,7 @@ export default function VertexExtractorPage() {
               globalSettings={globalSettings}
               bodyTypes={bodyTypes}
               paintTypes={paintTypes}
+              driveTypes={driveTypes}
               page={page}
               setPage={setPage}
               pageSize={pageSize}

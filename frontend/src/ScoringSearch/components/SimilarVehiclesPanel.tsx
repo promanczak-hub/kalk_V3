@@ -29,8 +29,8 @@ function getSimilarityCategory(v: SimilarVehicle): SimilarityCategory {
   const targetFuel = (v.fuel || '').toLowerCase();
   const isEV = reasons.fuel_match === false && (
     targetFuel.includes('elektr') || 
-    targetFuel.includes('ev') || 
     targetFuel.includes('bev') ||
+    (targetFuel.includes('ev') && !targetFuel.includes('mhev') && !targetFuel.includes('phev')) ||
     targetFuel.includes('plug-in')
   );
 

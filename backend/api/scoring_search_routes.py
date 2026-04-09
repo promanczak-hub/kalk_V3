@@ -375,16 +375,20 @@ def get_similar_vehicles(
         )
 
 
-@router.get(
+class AlternativesRequest(BaseModel):
+    category: str
+    limit: int = 5
+    duration_months: int | None = None
+    annual_mileage: int | None = None
+    requirements: List[Any] = []
+
+@router.post(
     "/scoring-search/vehicle/{vehicle_id}/alternatives",
     response_model=list[SimilarVehicleMatch],
 )
 def get_vehicle_alternatives(
     vehicle_id: str,
-    category: str,
-    limit: int = 5,
-    duration_months: int | None = None,
-    annual_mileage: int | None = None,
+    request: AlternativesRequest
 ) -> list[SimilarVehicleMatch]:
     """Get alternative vehicles based on synthetic semantic queries."""
     sb = supabase
@@ -397,39 +401,131 @@ def get_vehicle_alternatives(
             "more_comfortable": "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom.",
         }
 
-        if category not in synthetic_queries:
-            raise HTTPException(status_code=400, detail=f"Unknown category: {category}")
+        if request.category not in synthetic_queries:
+            raise HTTPException(status_code=400, detail=f"Unknown category: {request.category}")
 
-        synthetic_query = synthetic_queries[category]
+        synthetic_query = synthetic_queries[request.category]
         logger.info(
             "Generating embedding for synthetic query: '%s' (category: %s)",
             synthetic_query,
-            category,
+            request.category,
         )
         synthetic_vector = generate_embedding(synthetic_query)
 
         if not synthetic_vector:
             raise ValueError("Failed to generate embedding for synthetic concept.")
 
+        # Fetch more to allow filtering
+        limit_to_fetch = request.limit * 5 if request.requirements else request.limit
+        
         resp = _supabase_execute_with_retry(
             sb.rpc(
                 "rpc_get_alternatives_semantic",
                 {
                     "p_vehicle_id": vehicle_id,
                     "p_synthetic_vector": synthetic_vector,
-                    "p_limit": limit,
-                    "p_duration_months": duration_months,
-                    "p_annual_mileage": annual_mileage,
+                    "p_limit": limit_to_fetch,
+                    "p_duration_months": request.duration_months,
+                    "p_annual_mileage": request.annual_mileage,
                 },
             )
         )
-        return [
-            _build_similar_vehicle_match(row["similarity_json"])
-            for row in (resp.data or [])
-        ]
+        candidates = resp.data or []
+        
+        must_haves = [req for req in request.requirements if isinstance(req, dict) and req.get("requirement") == "MUST_HAVE"]
+        
+        if not must_haves:
+            return [
+                _build_similar_vehicle_match(row["similarity_json"])
+                for row in candidates[:request.limit]
+            ]
+            
+        candidate_ids = [row["similarity_json"]["vehicle_id"] for row in candidates if "similarity_json" in row]
+        if not candidate_ids:
+            return []
+            
+        # 1. Fetch synthesis data for options check
+        synthesis_resp = _supabase_execute_with_retry(
+            sb.table("vehicle_synthesis").select("id, synthesis_data").in_("id", candidate_ids)
+        )
+        synthesis_map = {row["id"]: row["synthesis_data"] for row in (synthesis_resp.data or [])}
+        
+        # 2. Fetch features directly using REST URL override to hit reverse_search schema
+        features_resp = _supabase_execute_with_retry(
+            sb.schema("reverse_search").table("vehicle_features_summary_view").select(
+                "source_vehicle_id, feature_key, resolved_value_bool, resolved_value_text, resolved_value_num"
+            ).in_("source_vehicle_id", candidate_ids)
+        )
+            
+        features_map = {}
+        for row in (features_resp.data or []):
+            vid = row["source_vehicle_id"]
+            if vid not in features_map:
+                features_map[vid] = {}
+            features_map[vid][row["feature_key"]] = row
+            
+        # Filter logic
+        filtered_results = []
+        for row in candidates:
+            sim_json = row["similarity_json"]
+            vid = sim_json["vehicle_id"]
+            ok = True
+            
+            for req in must_haves:
+                fkey = req.get("feature_key")
+                op = req.get("operator")
+                val = req.get("value")
+                
+                if fkey in ('dummy', 'duration_months', 'annual_mileage', 'margin_pct', 'monthly_price_net'):
+                    continue
+                    
+                match = False
+                if str(fkey).startswith("opt_std:"):
+                    opt_name = fkey[8:]
+                    std_opts = synthesis_map.get(vid, {}).get("card_summary", {}).get("standard_equipment", [])
+                    if opt_name in std_opts:
+                        match = True
+                elif str(fkey).startswith("opt_paid:"):
+                    opt_name = fkey[9:]
+                    paid_opts = synthesis_map.get(vid, {}).get("card_summary", {}).get("paid_options", [])
+                    if any(po.get("name") == opt_name for po in paid_opts):
+                        match = True
+                else:
+                    feat = features_map.get(vid, {}).get(fkey, {})
+                    if op == "eq":
+                        if str(val).lower() == "true":
+                            match = feat.get("resolved_value_bool") is True
+                        elif str(val).lower() == "false":
+                            match = not feat.get("resolved_value_bool")
+                        else:
+                            match = str(feat.get("resolved_value_text")) == str(val)
+                    elif op in ("gte", "lte"):
+                        v_num = feat.get("resolved_value_num")
+                        if v_num is not None:
+                            try:
+                                num = float(val)
+                                if op == "gte":
+                                    match = v_num >= num
+                                else:
+                                    match = v_num <= num
+                            except (ValueError, TypeError):
+                                pass
+                    elif op == "in" and isinstance(val, list):
+                        match = feat.get("resolved_value_text") in val
+                
+                if not match:
+                    ok = False
+                    break
+                    
+            if ok:
+                filtered_results.append(_build_similar_vehicle_match(sim_json))
+                if len(filtered_results) >= request.limit:
+                    break
+                    
+        return filtered_results
 
     except Exception as e:
-        logger.exception("Error calling alternatives for category %s: %s", category, e)
+        logger.exception("Error calling alternatives for category %s: %s", request.category, e)
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch alternatives: {e}"
         )

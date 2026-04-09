@@ -1,0 +1,48 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  # Można też wyzwolić to ręcznie z zakładki Actions
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Wykonaj wdrożenie na żywo przez SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Zdefiniuj katalog produkcyjny (Oczekujemy że masz sklonowane repozytorium w tym miejscu na serwerze)
+            # Jeśli sklonowałeś je np. do /opt/kalk_V3, to zmień tutaj ścieżkę.
+            PROJECT_DIR="kalk_V3"
+            
+            echo "🚀 Rozpoczęcie wdrożenia projektu..."
+            
+            cd $PROJECT_DIR || { 
+              echo "Folder z projektem ($PROJECT_DIR) nie istnieje na serwerze!"
+              echo "Zaloguj się na serwer i najpierw sklonuj repozytorium:"
+              echo "git clone <TWOJ_URL_REPO_GITHUB> kalk_V3"
+              exit 1
+            }
+            
+            # Pobranie najnowszych nowości z gałęzi main
+            echo "📥 Pobieranie najnowszego kodu..."
+            git fetch --all
+            git reset --hard origin/main
+            
+            # Właściwy restart środowiska przez docker-compose
+            echo "📦 Uruchamianie kontenerów (Docker Compose)..."
+            docker compose -f docker-compose.prod.yml up -d --build
+            
+            # Czyszczenie zbednych starych obrazków na dysku
+            echo "🧹 Czyszczenie śmieci posezonowych dockera..."
+            docker image prune -af
+            
+            echo "✅ Wdrożenie zakończone pomyślnie!"

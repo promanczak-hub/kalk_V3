@@ -42,6 +42,7 @@ class ScoringSearchMatch(BaseModel):
     transmission: Optional[str] = None
     body_style: Optional[str] = None
     drive_type: Optional[str] = None
+    semantic_hit_reason: Optional[str] = None
     # Business / pricing badges
     base_price_gross: Optional[str] = None
     options_price_gross: Optional[str] = None

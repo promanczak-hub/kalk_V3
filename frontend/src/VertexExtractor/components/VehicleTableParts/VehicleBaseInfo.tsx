@@ -68,13 +68,11 @@ return (
 
 
 
-const DRIVE_TYPE_OPTIONS = [
-{ value: "4x2 (FWD)", label: "4x2 (FWD)" },
-{ value: "4x2 (RWD)", label: "4x2 (RWD)" },
-{ value: "4x4 (AWD)", label: "4x4 (AWD)" },
+const DRIVE_TYPE_FALLBACK = [
+  "FWD", "RWD", "AWD", "POZOSTAŁE"
 ];
 
-export function DriveTypeTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
+export function DriveTypeTag({ current, onChange, connected, driveTypeOptions }: { current: string; onChange?: (v: string) => void; connected?: boolean; driveTypeOptions?: string[] }) {
 if (!onChange) {
     return current ? <Tag connected={connected}>{current}</Tag> : null;
 }
@@ -88,8 +86,8 @@ return (
         onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
       >
         <option value="" disabled>Oś napędowa...</option>
-        {DRIVE_TYPE_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+        {(driveTypeOptions || DRIVE_TYPE_FALLBACK).map((o) => (
+          <option key={o} value={o}>{o}</option>
         ))}
       </select>
     </span>

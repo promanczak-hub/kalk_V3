@@ -20,6 +20,12 @@ class SemanticSearchRequest(BaseModel):
         None, description="Opcjonalny filtr okresu finansowania"
     )
     annual_mileage: int | None = Field(None, description="Opcjonalny filtr przebiegu")
+    fuel_type: str | None = Field(None, description="Twardy filtr: Rodzaj paliwa")
+    body_style: str | None = Field(None, description="Twardy filtr: Typ nadwozia")
+    transmission: str | None = Field(None, description="Twardy filtr: Skrzynia biegów")
+    samar_category: str | None = Field(
+        None, description="Twardy filtr: Segment z systemu SAMAR"
+    )
 
 
 class SemanticSyncRequest(BaseModel):
@@ -52,6 +58,10 @@ async def search_vehicles_semantic(request: SemanticSearchRequest) -> dict[str, 
                     "p_limit": request.limit,
                     "p_duration_months": request.duration_months,
                     "p_annual_mileage": request.annual_mileage,
+                    "p_fuel": request.fuel_type,
+                    "p_body_style": request.body_style,
+                    "p_transmission": request.transmission,
+                    "p_samar_category": request.samar_category,
                 },
             )
             .execute()

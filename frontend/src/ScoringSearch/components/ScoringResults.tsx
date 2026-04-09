@@ -159,6 +159,7 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
             priceData={batchPrices[vehicleId]}
             pricesLoading={batchPricesLoading}
             similarData={batchSimilar[vehicleId]}
+            requirements={requirements}
           />
         );
       })}
