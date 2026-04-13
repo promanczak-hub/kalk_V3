@@ -3,7 +3,11 @@ import logging
 from typing import Union
 from google.genai import types
 
-from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+from core.gemini_client import (
+    get_gemini_client,
+    SAFETY_SETTINGS_PERMISSIVE,
+    generate_content_with_retry,
+)
 from core.json_utils import clean_json_response
 from core.prompts import (
     MASTER_PROMPT_V2,
@@ -132,11 +136,12 @@ def _call_gemini_pro(client, contents) -> dict:
             thinking_budget=16384,
         ),
     )
-    print(
+    logger.info(
         "Attempting primary standard JSON extraction with Pro (Thinking + Structured Outputs)..."
     )
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model=model_id,
             contents=contents,
             config=config,
@@ -153,10 +158,11 @@ def _call_gemini_pro(client, contents) -> dict:
                 "model": model_id,
                 "stage": "digital_twin_pro_structured",
             }
-            print(
-                f"[GEMINI USAGE] prompt={usage_info['prompt_tokens']}, "
-                f"output={usage_info['output_tokens']}, "
-                f"thinking={usage_info['thinking_tokens']}"
+            logger.info(
+                "[GEMINI USAGE] prompt=%s, output=%s, thinking=%s",
+                usage_info['prompt_tokens'],
+                usage_info['output_tokens'],
+                usage_info['thinking_tokens'],
             )
 
         pro_data_raw = json.loads(clean_json_response(pro_response_text))
@@ -164,7 +170,7 @@ def _call_gemini_pro(client, contents) -> dict:
 
         if usage_info:
             unified_data["_extraction_metadata"] = usage_info
-        print("Pro standard JSON extraction succeeded.")
+        logger.info("Pro standard JSON extraction succeeded.")
         return unified_data
     except Exception as e:
         logger.exception(
@@ -183,9 +189,10 @@ def _call_gemini_flash(client, contents) -> dict:
         system_instruction=FALLBACK_STRUCTURED_PROMPT_FLASH,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )
-    print("Attempting parallel structured extraction with Flash...")
+    logger.info("Attempting parallel structured extraction with Flash...")
     try:
-        fallback_response = client.models.generate_content(
+        fallback_response = generate_content_with_retry(
+            client=client,
             model=fallback_model_id,
             contents=contents,
             config=fallback_config,
@@ -204,7 +211,7 @@ def _call_gemini_flash(client, contents) -> dict:
                 "model": fallback_model_id,
                 "stage": "digital_twin_flash",
             }
-        print("Flash Structured Output extraction succeeded.")
+        logger.info("Flash Structured Output extraction succeeded.")
         return unified_data
     except Exception as fallback_e:
         logger.exception(f"Flash extraction completely failed: {fallback_e}")
@@ -241,11 +248,11 @@ def extract_digital_twin_from_pdf(
     if twin_pro:
         return twin_pro
 
-    print("[DIGITAL TWIN] Pro failed — falling back to Flash.")
+    logger.warning("[DIGITAL TWIN] Pro failed — falling back to Flash.")
     twin_flash = _call_gemini_flash(client, contents)
 
     if twin_flash:
         return twin_flash
 
-    print("[DIGITAL TWIN] Both Pro and Flash failed entirely.")
+    logger.error("[DIGITAL TWIN] Both Pro and Flash failed entirely.")
     return {}

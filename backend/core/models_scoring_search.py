@@ -47,6 +47,10 @@ class ScoringSearchMatch(BaseModel):
     base_price_gross: Optional[str] = None
     options_price_gross: Optional[str] = None
     total_price_gross: Optional[str] = None
+    base_price_net: Optional[float] = None
+    options_price_net: Optional[float] = None
+    total_price_net: Optional[float] = None
+    price_domain: Optional[str] = "brutto"
     suggested_discount_pct: Optional[float] = None
     trim_level: Optional[str] = None
     vehicle_class: Optional[str] = None
@@ -113,10 +117,12 @@ class SimilarityReasons(BaseModel):
     is_same_brand: bool = False
     equipment_similarity_pct: Optional[float] = None
     price_pct_diff: Optional[float] = None  # e.g. 4.2 — catalog price % difference
+    is_cheaper: Optional[bool] = None  # True if this vehicle is cheaper than source
     samar_category: Optional[str] = None  # e.g. "C Niższa Średnia"
     body_style: Optional[str] = None  # e.g. "Sedan"
     base_price: Optional[float] = None
     paid_options: Optional[Any] = None
+    is_fallback_match: bool = False
 
 
 class SimilarVehicleMatch(BaseModel):
@@ -135,6 +141,7 @@ class SimilarVehicleMatch(BaseModel):
     body_style: Optional[str] = None
     vehicle_class: Optional[str] = None
     drive_type: Optional[str] = None
+    price_domain: Optional[str] = "brutto"
     # Similarity breakdown — why this vehicle is similar
     similarity_reasons: Optional[SimilarityReasons] = None
 

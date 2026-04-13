@@ -12,7 +12,11 @@ from typing import Union
 
 from google.genai import types
 
-from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+from core.gemini_client import (
+    get_gemini_client,
+    SAFETY_SETTINGS_PERMISSIVE,
+    generate_content_with_retry,
+)
 from core.json_utils import clean_json_response
 from core.prompts import MULTI_VEHICLE_DETECTION_PROMPT
 
@@ -99,7 +103,8 @@ def detect_vehicle_count(
     )
 
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model="gemini-2.5-flash",
             contents=contents,
             config=config,
@@ -171,7 +176,8 @@ def extract_multi_vehicle_twins(
     )
 
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model="gemini-2.5-pro",
             contents=contents,
             config=config,

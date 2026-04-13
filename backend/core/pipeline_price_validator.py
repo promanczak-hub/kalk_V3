@@ -245,42 +245,27 @@ def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) 
             and report.parsed_options is not None
         ):
             # AI extracted the discounted final price as total_price
-            corrected_total_val = report.parsed_base + report.parsed_options
-
-            original_total = str(card_summary.get("total_price", ""))
-
-            # Determine currency and suffix from base_price
-            base_str = str(card_summary.get("base_price", ""))
-            domain_suffix = ""
-            if "netto" in base_str.lower():
-                domain_suffix = " netto"
-            elif "brutto" in base_str.lower():
-                domain_suffix = " brutto"
-
-            currency = " PLN" if "PLN" in base_str.upper() else ""
-
-            # Update card_summary
-            card_summary["total_price"] = (
-                f"{int(corrected_total_val)}{currency}{domain_suffix}".strip()
-            )
+            discount = (
+                report.parsed_base + report.parsed_options
+            ) - report.parsed_total
 
             logger.info(
-                "[PRICE VALIDATOR] Auto-fix: Nadpisano total_price z '%s' na '%s' "
-                "poniewaz oryginalny total_price zawieral kwote zrabatowana.",
-                original_total,
-                card_summary["total_price"],
+                "[PRICE VALIDATOR] Auto-fix: Wykryto zrabatowaną cenę całkowitą (discount). "
+                "Base+Options=%.0f, Total=%.0f, Rabat=%.0f",
+                report.parsed_base + report.parsed_options,
+                report.parsed_total,
+                discount,
             )
 
             # Update report so the summary reflects the fix
             report.warnings.remove(sum_warning)
             report.is_valid = not any(w.severity == "ERROR" for w in report.warnings)
-            report.parsed_total = corrected_total_val
 
             # Add an INFO note about the fix
             report.add(
                 ValidationWarning(
-                    rule="AUTO_FIX_APPLIED",
-                    message=f"Automatycznie nadpisano total_price (zrabatowana kwota) na sume bazy i opcji: {int(corrected_total_val)}.",
+                    rule="DISCOUNT_DETECTED",
+                    message=f"Cena całkowita uwzględnia rabat w wysokości ok. {int(discount)} PLN.",
                     severity="INFO",
                 )
             )
@@ -677,19 +662,8 @@ def _check_base_total_swap(
             )
             return
 
-    # Even without sum match, base > total is suspicious
-    report.add(
-        ValidationWarning(
-            rule="BASE_TOTAL_SWAPPED",
-            message=(
-                f"base({base.value:.0f}) > total({total.value:.0f}) — "
-                f"kolejność cen może być odwrócona"
-            ),
-            severity="WARNING",
-            expected=total.value,
-            actual=base.value,
-        )
-    )
+    # If swapping them doesn't fix the sum, base > total is likely just a result of a discount.
+    # We shouldn't flag it as a swapped field unless swapping actually works mathematically.
 
 
 def _check_unparseable_options(

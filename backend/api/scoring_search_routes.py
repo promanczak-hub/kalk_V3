@@ -105,6 +105,36 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
     raise last_exc
 
 
+def _parse_price_to_net(
+    price_str: str | None, domain: str | None
+) -> float | None:
+    """Helper to convert raw price string to a netto float.
+    Default VAT is 23%. If domain is 'netto', returns as-is.
+    If 'brutto' or unknown, divides by 1.23.
+    """
+    if not price_str:
+        return None
+    try:
+        # Remove non-numeric characters except dot/comma
+        cleaned = "".join(c for c in price_str if c.isdigit() or c in ",.")
+        if not cleaned:
+            return None
+        # Standardize decimal separator
+        cleaned = cleaned.replace(",", ".")
+        # Handle multiple dots (keep only last one)
+        if cleaned.count(".") > 1:
+            parts = cleaned.split(".")
+            cleaned = "".join(parts[:-1]) + "." + parts[-1]
+
+        val = float(cleaned)
+        if domain == "netto":
+            return round(val, 2)
+        # Default to brutto -> netto conversion (1.23)
+        return round(val / 1.23, 2)
+    except (ValueError, TypeError):
+        return None
+
+
 def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
     """Build a SimilarVehicleMatch from a raw RPC row dict.
 
@@ -113,7 +143,16 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
     """
     raw_reasons = row.get("similarity_reasons")
     similarity_reasons: SimilarityReasons | None = None
+    price_domain = row.get("price_domain", "brutto")
+
     if isinstance(raw_reasons, dict):
+        base_price_raw = raw_reasons.get("base_price")
+        base_price_val = float(base_price_raw) if base_price_raw is not None else None
+        
+        # Convert base_price to net if needed
+        if base_price_val is not None and price_domain == "brutto":
+            base_price_val = round(base_price_val / 1.23, 2)
+
         similarity_reasons = SimilarityReasons(
             samar_match=bool(raw_reasons.get("samar_match", False)),
             body_match=bool(raw_reasons.get("body_match", False)),
@@ -127,12 +166,12 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
             price_pct_diff=float(raw_reasons["price_pct_diff"])
             if raw_reasons.get("price_pct_diff") is not None
             else None,
+            is_cheaper=raw_reasons.get("is_cheaper"),
             samar_category=raw_reasons.get("samar_category"),
             body_style=raw_reasons.get("body_style"),
-            base_price=float(raw_reasons["base_price"])
-            if raw_reasons.get("base_price") is not None
-            else None,
+            base_price=base_price_val,
             paid_options=raw_reasons.get("paid_options"),
+            is_fallback_match=bool(raw_reasons.get("is_fallback_match", False)),
         )
 
     return SimilarVehicleMatch(
@@ -152,6 +191,7 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         body_style=str(row.get("body_style") or "N/A"),
         vehicle_class=str(row.get("vehicle_class") or "N/A"),
         drive_type=str(row.get("drive_type") or "N/A"),
+        price_domain=price_domain,
         similarity_reasons=similarity_reasons,
     )
 
@@ -235,7 +275,19 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             },
         ).execute()
 
-        all_matches = [ScoringSearchMatch(**row) for row in resp.data]
+        rows = resp.data or []
+        all_matches = []
+        for row in rows:
+            domain = row.get("price_domain")
+            row["base_price_net"] = _parse_price_to_net(row.get("base_price_raw"), domain)
+            row["options_price_net"] = _parse_price_to_net(row.get("options_price_raw"), domain)
+            row["total_price_net"] = _parse_price_to_net(row.get("total_price_raw"), domain)
+            
+            # Ensure total_price_net is calculated from components if missing but components exist
+            if row["total_price_net"] is None and (row["base_price_net"] is not None or row["options_price_net"] is not None):
+                row["total_price_net"] = (row["base_price_net"] or 0) + (row["options_price_net"] or 0)
+
+            all_matches.append(ScoringSearchMatch(**row))
 
         # Cache all raw results (pagination applied after cache read)
         _redis_set(
@@ -382,13 +434,13 @@ class AlternativesRequest(BaseModel):
     annual_mileage: int | None = None
     requirements: List[Any] = []
 
+
 @router.post(
     "/scoring-search/vehicle/{vehicle_id}/alternatives",
     response_model=list[SimilarVehicleMatch],
 )
 def get_vehicle_alternatives(
-    vehicle_id: str,
-    request: AlternativesRequest
+    vehicle_id: str, request: AlternativesRequest
 ) -> list[SimilarVehicleMatch]:
     """Get alternative vehicles based on synthetic semantic queries."""
     sb = supabase
@@ -402,7 +454,9 @@ def get_vehicle_alternatives(
         }
 
         if request.category not in synthetic_queries:
-            raise HTTPException(status_code=400, detail=f"Unknown category: {request.category}")
+            raise HTTPException(
+                status_code=400, detail=f"Unknown category: {request.category}"
+            )
 
         synthetic_query = synthetic_queries[request.category]
         logger.info(
@@ -417,7 +471,7 @@ def get_vehicle_alternatives(
 
         # Fetch more to allow filtering
         limit_to_fetch = request.limit * 5 if request.requirements else request.limit
-        
+
         resp = _supabase_execute_with_retry(
             sb.rpc(
                 "rpc_get_alternatives_semantic",
@@ -431,63 +485,92 @@ def get_vehicle_alternatives(
             )
         )
         candidates = resp.data or []
-        
-        must_haves = [req for req in request.requirements if isinstance(req, dict) and req.get("requirement") == "MUST_HAVE"]
-        
+
+        must_haves = [
+            req
+            for req in request.requirements
+            if isinstance(req, dict) and req.get("requirement") == "MUST_HAVE"
+        ]
+
         if not must_haves:
             return [
                 _build_similar_vehicle_match(row["similarity_json"])
-                for row in candidates[:request.limit]
+                for row in candidates[: request.limit]
             ]
-            
-        candidate_ids = [row["similarity_json"]["vehicle_id"] for row in candidates if "similarity_json" in row]
+
+        candidate_ids = [
+            row["similarity_json"]["vehicle_id"]
+            for row in candidates
+            if "similarity_json" in row
+        ]
         if not candidate_ids:
             return []
-            
+
         # 1. Fetch synthesis data for options check
         synthesis_resp = _supabase_execute_with_retry(
-            sb.table("vehicle_synthesis").select("id, synthesis_data").in_("id", candidate_ids)
+            sb.table("vehicle_synthesis")
+            .select("id, synthesis_data")
+            .in_("id", candidate_ids)
         )
-        synthesis_map = {row["id"]: row["synthesis_data"] for row in (synthesis_resp.data or [])}
-        
+        synthesis_map = {
+            row["id"]: row["synthesis_data"] for row in (synthesis_resp.data or [])
+        }
+
         # 2. Fetch features directly using REST URL override to hit reverse_search schema
         features_resp = _supabase_execute_with_retry(
-            sb.schema("reverse_search").table("vehicle_features_summary_view").select(
+            sb.schema("reverse_search")
+            .table("vehicle_features_summary_view")
+            .select(
                 "source_vehicle_id, feature_key, resolved_value_bool, resolved_value_text, resolved_value_num"
-            ).in_("source_vehicle_id", candidate_ids)
+            )
+            .in_("source_vehicle_id", candidate_ids)
         )
-            
+
         features_map = {}
-        for row in (features_resp.data or []):
+        for row in features_resp.data or []:
             vid = row["source_vehicle_id"]
             if vid not in features_map:
                 features_map[vid] = {}
             features_map[vid][row["feature_key"]] = row
-            
+
         # Filter logic
         filtered_results = []
         for row in candidates:
             sim_json = row["similarity_json"]
             vid = sim_json["vehicle_id"]
             ok = True
-            
+
             for req in must_haves:
                 fkey = req.get("feature_key")
                 op = req.get("operator")
                 val = req.get("value")
-                
-                if fkey in ('dummy', 'duration_months', 'annual_mileage', 'margin_pct', 'monthly_price_net'):
+
+                if fkey in (
+                    "dummy",
+                    "duration_months",
+                    "annual_mileage",
+                    "margin_pct",
+                    "monthly_price_net",
+                ):
                     continue
-                    
+
                 match = False
                 if str(fkey).startswith("opt_std:"):
                     opt_name = fkey[8:]
-                    std_opts = synthesis_map.get(vid, {}).get("card_summary", {}).get("standard_equipment", [])
+                    std_opts = (
+                        synthesis_map.get(vid, {})
+                        .get("card_summary", {})
+                        .get("standard_equipment", [])
+                    )
                     if opt_name in std_opts:
                         match = True
                 elif str(fkey).startswith("opt_paid:"):
                     opt_name = fkey[9:]
-                    paid_opts = synthesis_map.get(vid, {}).get("card_summary", {}).get("paid_options", [])
+                    paid_opts = (
+                        synthesis_map.get(vid, {})
+                        .get("card_summary", {})
+                        .get("paid_options", [])
+                    )
                     if any(po.get("name") == opt_name for po in paid_opts):
                         match = True
                 else:
@@ -512,20 +595,22 @@ def get_vehicle_alternatives(
                                 pass
                     elif op == "in" and isinstance(val, list):
                         match = feat.get("resolved_value_text") in val
-                
+
                 if not match:
                     ok = False
                     break
-                    
+
             if ok:
                 filtered_results.append(_build_similar_vehicle_match(sim_json))
                 if len(filtered_results) >= request.limit:
                     break
-                    
+
         return filtered_results
 
     except Exception as e:
-        logger.exception("Error calling alternatives for category %s: %s", request.category, e)
+        logger.exception(
+            "Error calling alternatives for category %s: %s", request.category, e
+        )
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch alternatives: {e}"
         )

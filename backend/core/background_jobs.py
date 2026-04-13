@@ -36,7 +36,6 @@ def process_and_save_document_bg(
     file_name: str,
     mime_type: str,
     md5_hash: str,
-    force_doc_type: str | None = None,
 ) -> None:
     """
     Background task fired by FastAPI / Celery.
@@ -149,15 +148,7 @@ def process_and_save_document_bg(
         # ── Phase -1: Document Router (Gemini Pro z pymupdf4llm/Markdown) ──
         update_progress(supabase, file_id, "classifying_document")
         logger.info(f"[BG TASK] Faza -1: Klasyfikacja dokumentu {file_name}...")
-
-        if force_doc_type:
-            logger.info(
-                f"[BG TASK] Klasyfikacja POMINIĘTA. Wymuszono typ: {force_doc_type}"
-            )
-            doc_type = force_doc_type
-            doc_meta = {"brand": None, "model": None, "date": None, "description": None}
-        else:
-            doc_type, doc_meta = classify_document(router_data, router_mime)
+        doc_type, doc_meta = classify_document(router_data, router_mime)
 
         if is_cancelled(file_id, supabase):
             update_progress(supabase, file_id, "cancelled")

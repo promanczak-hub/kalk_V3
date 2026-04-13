@@ -13,6 +13,7 @@ import {
   InputAdornment,
   ListSubheader,
   Box,
+  Alert,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
@@ -56,10 +57,12 @@ export default function VehicleDataSection({
 }: VehicleDataSectionProps) {
   const [engines, setEngines] = useState<EngineOption[]>([]);
   const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoadError(null);
         const [engRes, bodyRes] = await Promise.all([
           axios.get<EngineOption[]>(`${API_BASE_URL}/api/engines`),
           axios.get<BodyTypeOption[]>(`${API_BASE_URL}/api/body-types`),
@@ -68,6 +71,7 @@ export default function VehicleDataSection({
         setBodyTypes(bodyRes.data);
       } catch (err) {
         console.error("Failed to load vehicle metadata:", err);
+        setLoadError("Nie udało się załadować danych pojazdu. Sprawdź połączenie sieciowe.");
       }
     };
     fetchData();
@@ -120,9 +124,12 @@ export default function VehicleDataSection({
         </Box>
       </AccordionSummary>
       <AccordionDetails sx={{ p: 4 }}>
+        {loadError && (
+          <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>
+        )}
         <Grid container spacing={4}>
           {/* IDENTYFIKACJA */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               <Tag size={16} color="#64748b" />
               <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 1, color: "text.secondary" }}>
@@ -131,7 +138,7 @@ export default function VehicleDataSection({
             </Box>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Marka"
@@ -141,7 +148,7 @@ export default function VehicleDataSection({
               placeholder="np. Toyota"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Model"
@@ -153,7 +160,7 @@ export default function VehicleDataSection({
               placeholder="np. Corolla"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Nadwozie</InputLabel>
               <Select
@@ -169,7 +176,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Wersja"
@@ -181,7 +188,7 @@ export default function VehicleDataSection({
           </Grid>
 
           {/* TECHNICZNE */}
-          <Grid item xs={12} sx={{ mt: 1 }}>
+          <Grid size={{ xs: 12 }} sx={{ mt: 1 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               <Activity size={16} color="#64748b" />
               <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 1, color: "text.secondary" }}>
@@ -190,7 +197,7 @@ export default function VehicleDataSection({
             </Box>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Moc (KM)"
@@ -202,7 +209,7 @@ export default function VehicleDataSection({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Rodzaj Napędu / Paliwo</InputLabel>
               <Select
@@ -230,7 +237,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Homologacja</InputLabel>
               <Select
@@ -244,7 +251,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Rocznik"
@@ -255,7 +262,7 @@ export default function VehicleDataSection({
           </Grid>
 
           {/* CENA */}
-          <Grid item xs={12} sx={{ mt: 1 }}>
+          <Grid size={{ xs: 12 }} sx={{ mt: 1 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               <Calendar size={16} color="#64748b" />
               <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 1, color: "text.secondary" }}>
@@ -264,7 +271,7 @@ export default function VehicleDataSection({
             </Box>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Cena Cennikowa Netto"
@@ -276,7 +283,7 @@ export default function VehicleDataSection({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Cena Cennikowa Brutto"
@@ -288,7 +295,7 @@ export default function VehicleDataSection({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth>
               <InputLabel>Typ Rabatu</InputLabel>
               <Select
@@ -301,7 +308,7 @@ export default function VehicleDataSection({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label={data.discount_type === "Procentowo" ? "Rabat %" : "Rabat PLN"}

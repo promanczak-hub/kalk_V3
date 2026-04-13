@@ -151,24 +151,30 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
               </Box>
             )}
 
-            {!!(car.base_price_gross || car.total_price_gross) && (
-              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>Katalog:</Typography>
-                {car.base_price_gross && car.options_price_gross && car.total_price_gross ? (
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                    <strong>{cleanPrice(car.base_price_gross as string)}</strong>
-                    {' + opcje '}
-                    <strong>{cleanPrice(car.options_price_gross as string)}</strong>
-                    {' = '}
-                    <strong style={{ color: '#1565c0' }}>{cleanPrice(car.total_price_gross as string)} PLN brutto</strong>
-                  </Typography>
-                ) : car.total_price_gross ? (
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#1565c0' }}>
-                    {cleanPrice(car.total_price_gross as string)} PLN brutto
-                  </Typography>
-                ) : (
-                  <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#1565c0' }}>
-                    {cleanPrice(car.base_price_gross as string)} PLN brutto
+            {!!(car.base_price_net || car.total_price_net) && (
+              <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                  <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase' }}>Cena Katalogowa:</Typography>
+                  {car.total_price_net ? (
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 800, color: 'primary.main' }}>
+                      {Number(car.total_price_net).toLocaleString('pl-PL')} PLN netto
+                    </Typography>
+                  ) : car.base_price_net ? (
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 800, color: 'primary.main' }}>
+                      {Number(car.base_price_net).toLocaleString('pl-PL')} PLN netto
+                    </Typography>
+                  ) : null}
+                  
+                  {(car.total_price_net || car.base_price_net) && (
+                    <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 500 }}>
+                      ({Number(((car.total_price_net as number) || (car.base_price_net as number)) * 1.23).toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN brutto)
+                    </Typography>
+                  )}
+                </Box>
+                
+                {car.base_price_net && car.options_price_net && (
+                  <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary', fontStyle: 'italic' }}>
+                    Podstawa: {Number(car.base_price_net).toLocaleString('pl-PL')} + Opcje: {Number(car.options_price_net).toLocaleString('pl-PL')}
                   </Typography>
                 )}
               </Box>

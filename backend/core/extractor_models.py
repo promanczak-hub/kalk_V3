@@ -276,9 +276,10 @@ class CardSummary(BaseModel):
     price_domain: str = Field(
         default="unknown",
         description="Globalna domena cenowa całego dokumentu: 'netto' lub 'brutto'. "
-        "Ustal na podstawie etykiet przy cenach głównych, relacji VAT (×1.23) "
-        "między kwotami, lub kontekstu dokumentu (konfigurator B2B → netto). "
-        "Jeśli nie da się ustalić → 'unknown'.",
+        "BARDZO WAŻNE: Zawsze gruntownie skanuj mały druk pod tabelami cenowymi (szukaj np. dopisków 'Oferta w cenach netto' lub 'Oferta w cenach brutto', 'Ceny netto', 'Bez VAT'). "
+        "Jeśli taki dopisek istnieje, BEZWZGLĘDNIE ustaw domenę zgodnie z nim. "
+        "Ustal na podstawie etykiet przy cenach głównych, relacji VAT (×1.23) między kwotami, lub kontekstu. "
+        "Dopiero jeśli nie da się ustalić żadną metodą → 'unknown'.",
     )
     base_price: str = Field(
         description="Cena katalogowa bazowa (bez rabatów i opustów) wraz z walutą i przyrostkiem 'netto' lub 'brutto' wywnioskowanym z relacji kwot lub wprost z dokumentu (np. '100 000 PLN netto'). Zwróć 'Brak' jeśli nie znaleziono."
@@ -288,6 +289,14 @@ class CardSummary(BaseModel):
     )
     total_price: str = Field(
         description="Podsumowanie łączna cena (końcowa / po upuście / oferta dealera) z walutą i przyrostkiem 'netto' lub 'brutto' wywnioskowanym z relacji kwot lub wprost z dokumentu (np. '120 000 PLN netto'). Zwróć 'Brak' jeśli nie znaleziono."
+    )
+    offer_discount_pct: Optional[str] = Field(
+        default=None,
+        description="Rabat w procentach wyliczony matematycznie lub przepisany z dokumentu (np. '23.08'). Jeśli wiesz, że zastosowano rabat kwotowy, wylicz go matematycznie: (kwota rabatu / (cena bazowa + cena opcji przed rabatami)) * 100. Wynik zaokrąglij do 2 miejsc po przecinku. Zwróć tylko jeśli zidentyfikowano jednoznaczny rabat!"
+    )
+    offer_discount_pln: Optional[str] = Field(
+        default=None,
+        description="Rabat kwotowy (np. '15000' lub '15000 PLN') zidentyfikowany bezpośrednio na ofercie. Zwróć go jako tekst z kwotą, jeśli występuje (zamiast lub obok procentowego)."
     )
     powertrain: str = Field(
         description=(

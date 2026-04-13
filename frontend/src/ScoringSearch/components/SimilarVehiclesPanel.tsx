@@ -122,9 +122,15 @@ const PriceOptionsTooltip: React.FC<{ vehicle: SimilarVehicle }> = ({ vehicle })
 
       {basePrice ? (
         <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)', pb: 0.5 }}>
-          Cena bazowa: {basePrice.toLocaleString('pl-PL')} zł
+          Cena bazowa: {basePrice.toLocaleString('pl-PL')} PLN netto
         </Typography>
       ) : null}
+      
+      {reasons?.is_fallback_match && (
+        <Typography variant="caption" sx={{ color: 'warning.light', display: 'block', mb: 1, fontStyle: 'italic', fontSize: '0.6rem' }}>
+          * Dopasowano na podstawie klasy pojazdu (brak ścisłej kategorii)
+        </Typography>
+      )}
       
       {options && options.length > 0 ? (
         <>

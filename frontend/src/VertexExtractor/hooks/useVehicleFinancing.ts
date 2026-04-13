@@ -83,7 +83,9 @@ export function useVehicleFinancing(
       if (match) setRimDiameter(parseInt(match[1], 10));
 
       const aiBase = parsePriceToNumber(vehicle.base_price);
-      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      const pd = (vehicle.synthesis_data as any)?.card_summary?.price_domain;
+      const isDomainNetto = pd === "netto" || (typeof pd === 'string' && pd.toLowerCase().includes("netto"));
+      const isNetto = (typeof vehicle.base_price === 'string' && vehicle.base_price.toLowerCase().includes("netto")) || isDomainNetto;
       setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
       return;
     }
@@ -107,12 +109,16 @@ export function useVehicleFinancing(
         setCatalogBasePriceNet(fp.catalog_base_price_net);
       } else {
         const aiBase = parsePriceToNumber(vehicle.base_price);
-        const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+        const csLocal = (vehicle.synthesis_data as any)?.card_summary;
+        const isDomainNetto = csLocal?.price_domain === "netto" || (typeof csLocal?.price_domain === 'string' && csLocal.price_domain.toLowerCase().includes("netto"));
+        const isNetto = (typeof vehicle.base_price === 'string' && vehicle.base_price.toLowerCase().includes("netto")) || isDomainNetto;
         setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
       }
     } else {
       const aiBase = parsePriceToNumber(vehicle.base_price);
-      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      const csLocal = (vehicle.synthesis_data as any)?.card_summary;
+      const isDomainNetto = csLocal?.price_domain === "netto" || (typeof csLocal?.price_domain === 'string' && csLocal.price_domain.toLowerCase().includes("netto"));
+      const isNetto = (typeof vehicle.base_price === 'string' && vehicle.base_price.toLowerCase().includes("netto")) || isDomainNetto;
       setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
     }
 

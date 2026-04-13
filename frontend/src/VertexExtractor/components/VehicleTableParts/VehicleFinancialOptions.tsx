@@ -196,7 +196,11 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
   };
 
   // Detect if source prices are netto or brutto
-  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
+  // Priority: card_summary._price_domain > card_summary.price_domain > base_price string fallback
+  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
+  const detectedPriceDomain = (cardSummary?._price_domain as string) || (cardSummary?.price_domain as string) || "unknown";
+  const isSourceNetto = detectedPriceDomain === "netto"
+    || (detectedPriceDomain === "unknown" && (vehicle.base_price?.toLowerCase().includes("netto") ?? false));
   const toNetto = (val: number) => isSourceNetto ? val : val / 1.23;
   const toBrutto = (val: number) => isSourceNetto ? val * 1.23 : val;
 
@@ -207,7 +211,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
 
   // AI-extracted base price (converted to netto for comparison)
   const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
-  const aiBasePriceNetto = aiExtractedBasePrice?.toLowerCase().includes("netto")
+  const aiBasePriceNetto = isSourceNetto
     ? aiBasePriceRaw
     : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
   const basePriceWasEdited = Math.abs(catalogBasePriceNet - aiBasePriceNetto) > 10;
@@ -251,7 +255,25 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
 
           {/* Rozkład ceny table */}
           <div>
-            <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Rozkład ceny</h5>
+            <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+              Rozkład ceny
+              {detectedPriceDomain === "netto" && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 uppercase tracking-wider">
+                  źródło: netto
+                </span>
+              )}
+              {detectedPriceDomain === "brutto" && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase tracking-wider">
+                  źródło: brutto
+                </span>
+              )}
+              {detectedPriceDomain === "unknown" && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  domena nieznana (brutto)
+                </span>
+              )}
+            </h5>
             <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "34%" }} />

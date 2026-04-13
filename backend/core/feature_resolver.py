@@ -86,15 +86,16 @@ def _resolve_single_feature(
         if _values_conflict(top, second):
             return {
                 "resolved_status": "contradiction_detected",
-                "resolved_value_bool": top.get("value_bool"),
-                "resolved_value_num": top.get("value_num"),
-                "resolved_value_text": top.get("value_text"),
+                "value_bool": top.get("value_bool"),
+                "value_numeric": top.get("value_num"),
+                "value_text": top.get("value_text"),
                 "resolved_unit": top.get("unit"),
-                "confidence": 0.5,
-                "resolution_source": (
-                    f"conflict: {top['source_type']} vs {second['source_type']}"
+                "confidence_score": 0.5,
+                "source_text": (
+                    f"conflict: {top.get('source_type', 'unknown')} vs {second.get('source_type', 'unknown')}"
                 ),
                 "is_manual_override": False,
+                "source_document_type": "config",
             }
 
     # Use highest priority evidence
@@ -278,7 +279,10 @@ def resolve_vehicle_features(
 
     # Refresh JSONB Materialized View for fast search
     try:
-        sb.rpc("refresh_vehicle_search_index").execute()
+        sb.rpc(
+            "rpc_refresh_vehicle_features",
+            {"p_vehicle_id": vehicle_id, "p_bundle_id": bundle_id},
+        ).execute()
     except Exception as exc:
         logger.warning(
             "Failed to refresh materialized view for vehicle search: %s", exc

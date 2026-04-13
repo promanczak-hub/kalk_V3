@@ -2,7 +2,6 @@
 
 import logging
 from google.genai.errors import APIError
-from core.gemini_client import get_vertex_client
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +18,29 @@ def generate_embedding(text: str) -> list[float] | None:
     if not text or not text.strip():
         return None
 
-    client = get_vertex_client()
+    # Use the standard client which will pick up the Vertex Express API Key
+    from core.gemini_client import get_gemini_client
+
+    client = get_gemini_client()
+    from google.genai import types
+
+    # Zmieniamy model na dostępny w puli API Key
+    model_name = "gemini-embedding-001"
     try:
         logger.debug(
             "Generating embedding using client id=%s, type=%s, model=%s",
             id(client),
             type(client),
-            EMBEDDING_MODEL,
+            model_name,
         )
         logger.debug("Text length: %d", len(text.strip()))
+        
         response = client.models.embed_content(
-            model=EMBEDDING_MODEL, contents=text.strip()
+            model=model_name, 
+            contents=text.strip(),
+            config=types.EmbedContentConfig(output_dimensionality=768)
         )
+        
         if response.embeddings and len(response.embeddings) > 0:
             return response.embeddings[0].values
     except APIError as e:

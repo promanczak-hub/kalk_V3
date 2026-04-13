@@ -197,7 +197,8 @@ export function useVehicles() {
               newData.verification_status &&
               newData.verification_status !== "completed" &&
               newData.verification_status !== "error" &&
-              newData.verification_status !== "moved_to_library"
+              newData.verification_status !== "moved_to_library" &&
+              newData.verification_status !== "needs_review"
             ) {
               setSavedVehicles((prev) =>
                 prev.map((v) =>

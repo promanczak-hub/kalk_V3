@@ -3,7 +3,11 @@ import logging
 from typing import Union, Dict, Any, Tuple
 from google.genai import types
 
-from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+from core.gemini_client import (
+    get_gemini_client,
+    SAFETY_SETTINGS_PERMISSIVE,
+    generate_content_with_retry,
+)
 from core.json_utils import clean_json_response
 
 logger = logging.getLogger(__name__)
@@ -70,7 +74,8 @@ def classify_document(
 
     try:
         logger.info("[ROUTER] Analyzing document with Gemini Pro to determine type...")
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model="gemini-2.5-pro",
             contents=contents,
             config=config,

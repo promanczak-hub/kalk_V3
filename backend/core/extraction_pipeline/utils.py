@@ -1,5 +1,9 @@
 import datetime
+import logging
+
 from supabase import Client
+
+logger = logging.getLogger(__name__)
 
 
 def update_progress(supabase: Client, file_id: str, status: str) -> None:
@@ -11,9 +15,9 @@ def update_progress(supabase: Client, file_id: str, status: str) -> None:
                 "processing_updated_at": datetime.datetime.utcnow().isoformat(),
             }
         ).eq("id", file_id).execute()
-        print(f"[PROGRESS] {file_id} → {status}")
+        logger.info("[PROGRESS] %s -> %s", file_id, status)
     except Exception as e:
-        print(f"[PROGRESS ERROR] Failed to update status to '{status}': {e}")
+        logger.error("[PROGRESS ERROR] Failed to update status to '%s': %s", status, e)
 
 
 def is_cancelled(file_id: str, supabase: Client) -> bool:

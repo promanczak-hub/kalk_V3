@@ -48,6 +48,9 @@ interface VehicleBaseInfoProps {
   suggestedDiscountPct?: number;
 
   technicalDescription?: string;
+
+  setCustomDiscountAmountNet?: (val: number) => void;
+  activeDiscountAmountNet?: number;
 }
 
 function hasValue(v: string | null | undefined): boolean {
@@ -260,7 +263,39 @@ export function VehicleBaseInfo({
   offerDiscountPercentage = 0,
   suggestedDiscountPct = 0,
   technicalDescription,
+  setCustomDiscountAmountNet,
+  activeDiscountAmountNet = 0,
 }: VehicleBaseInfoProps) {
+  const VAT_RATE = 1.23;
+  const [customInputMode, setCustomInputMode] = useState<"pct" | "pln">("pct");
+  const [localDiscountNetRaw, setLocalDiscountNetRaw] = useState<string>("");
+  const [localDiscountBruttoRaw, setLocalDiscountBruttoRaw] = useState<string>("");
+
+  const handleNettoChange = (val: string) => {
+    setLocalDiscountNetRaw(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      setLocalDiscountBruttoRaw((num * VAT_RATE).toFixed(0));
+      setCustomDiscountAmountNet?.(num);
+    } else if (val === "") {
+      setLocalDiscountBruttoRaw("");
+      setCustomDiscountAmountNet?.(0);
+    }
+  };
+
+  const handleBruttoChange = (val: string) => {
+    setLocalDiscountBruttoRaw(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      const netVal = num / VAT_RATE;
+      setLocalDiscountNetRaw(netVal.toFixed(0));
+      setCustomDiscountAmountNet?.(netVal);
+    } else if (val === "") {
+      setLocalDiscountNetRaw("");
+      setCustomDiscountAmountNet?.(0);
+    }
+  };
+
   return (
     <div
       className="p-3 sm:py-3 sm:px-4 cursor-pointer select-none"
@@ -360,7 +395,7 @@ export function VehicleBaseInfo({
                     title="Sugerowany rabat Express"
                   >
                     <span className="mr-1 hidden sm:inline">Express:</span>
-                    <span>{(suggestedDiscountPct).toFixed(1)}%</span>
+                    <span>{(suggestedDiscountPct || 0).toFixed(1)}%</span>
                   </button>
                   <div
                     className={`flex items-center transition-colors hover:bg-slate-100 cursor-pointer ${
@@ -372,19 +407,61 @@ export function VehicleBaseInfo({
                     }}
                     title="Własny rabat (kliknij aby edytować)"
                   >
-                    <span className={discountMode === "custom" ? "mr-1 hidden sm:inline" : "hidden sm:inline"}>Własny:</span>
+                    <span className={discountMode === "custom" ? "mr-1 hidden sm:inline" : "hidden sm:inline"}>
+                      Własny:
+                    </span>
+
                     {discountMode === "custom" ? (
-                      <div className="flex items-center pl-1 bg-white border-l border-blue-200 h-full">
-                        <input
-                          type="number"
-                          step="0.1"
-                          className="w-14 h-full bg-transparent text-right outline-none px-1 text-blue-900 font-mono text-[11px]"
-                          value={customDiscountPctRaw || ""}
-                          onChange={(e) => setCustomDiscountPctRaw?.(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          autoFocus
-                        />
-                        <span className="pr-1.5 text-blue-900">%</span>
+                      <div className="flex items-center pl-1 bg-white border-l border-blue-200 h-full relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="px-1.5 text-[10px] uppercase font-bold text-blue-500 hover:text-blue-700 transition-colors flex-shrink-0"
+                          onClick={() => {
+                            if (customInputMode === "pct") {
+                              setCustomInputMode("pln");
+                              const netAmount = activeDiscountAmountNet || 0;
+                              setLocalDiscountNetRaw(netAmount ? netAmount.toFixed(0) : "");
+                              setLocalDiscountBruttoRaw(netAmount ? (netAmount * VAT_RATE).toFixed(0) : "");
+                            } else {
+                              setCustomInputMode("pct");
+                            }
+                          }}
+                          title={`Zmień na ${customInputMode === "pct" ? "kwotę (PLN)" : "procent (%)"}`}
+                        >
+                          {customInputMode === "pct" ? "%" : "PLN"}
+                        </button>
+                        
+                        {customInputMode === "pct" ? (
+                           <input
+                             type="number"
+                             step="0.1"
+                             className="w-14 h-full bg-transparent text-right outline-none px-1 text-blue-900 font-mono text-[11px]"
+                             value={customDiscountPctRaw || ""}
+                             onChange={(e) => setCustomDiscountPctRaw?.(e.target.value)}
+                           />
+                        ) : (
+                          <div className="flex items-center gap-0.5 h-full">
+                            <input
+                              type="number"
+                              step="1"
+                              className="w-[76px] h-full bg-transparent text-right outline-none px-0.5 text-blue-900 font-mono text-[11px]"
+                              value={localDiscountNetRaw}
+                              onChange={(e) => handleNettoChange(e.target.value)}
+                              placeholder="netto"
+                            />
+                            <span className="text-[9px] text-slate-400 font-semibold flex-shrink-0">N</span>
+                            <span className="text-slate-300 flex-shrink-0 text-[10px]">│</span>
+                            <input
+                              type="number"
+                              step="1"
+                              className="w-[76px] h-full bg-transparent text-right outline-none px-0.5 text-blue-900 font-mono text-[11px]"
+                              value={localDiscountBruttoRaw}
+                              onChange={(e) => handleBruttoChange(e.target.value)}
+                              placeholder="brutto"
+                            />
+                            <span className="text-[9px] text-slate-400 font-semibold flex-shrink-0">B</span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span>{customDiscountPctRaw || "0"}%</span>

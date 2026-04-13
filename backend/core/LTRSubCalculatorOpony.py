@@ -55,12 +55,12 @@ class LTRSubCalculatorOpony:
             self.swap_cost = self._read_required_config("cost_tyre_swap")
             self.vat_rate = 1.23
 
-            # Use 1.23 as fallback multiplier if DB returns flat percent like 23
-            if self.vat_rate > 1.0 and self.vat_rate < 2.0:
-                pass  # Example: 1.23
-            elif self.vat_rate >= 20.0:
+            # Normalizacja VAT: jeśli wartość to procent (np. 23), konwertuj na mnożnik (1.23).
+            # Jeśli już jest mnożnikiem (1.0 < x < 2.0), zostaw bez zmian.
+            # Wartości poza zakresem → fallback 1.23.
+            if self.vat_rate >= 2.0:
                 self.vat_rate = 1.0 + (self.vat_rate / 100.0)
-            else:
+            elif self.vat_rate <= 1.0:
                 self.vat_rate = 1.23
 
             # Hardware cost base from DB (price per set / komplet) — zawsze cena bez korekty
@@ -188,7 +188,9 @@ class LTRSubCalculatorOpony:
                 if val:
                     return float(val)
         except Exception as e:
-            logger.error(f"Error fetching tire cost for size {self.srednica_felgi} {column_name}: {e}")
+            logger.error(
+                f"Error fetching tire cost for size {self.srednica_felgi} {column_name}: {e}"
+            )
             raise RuntimeError(
                 f"Błąd infrastruktury API (Supabase) podczas pobierania kosztu opony. "
                 f"Brak połączenia lub odrzucenie zapytania. Szczegóły: {str(e)}"

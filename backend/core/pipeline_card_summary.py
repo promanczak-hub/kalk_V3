@@ -6,7 +6,11 @@ from typing import Any
 from google import genai
 from google.genai import types
 
-from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+from core.gemini_client import (
+    get_gemini_client,
+    SAFETY_SETTINGS_PERMISSIVE,
+    generate_content_with_retry,
+)
 
 from core.json_utils import clean_json_response
 from core.extractor_models import (
@@ -380,7 +384,8 @@ def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) 
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )
 
-    doc_type_response = client.models.generate_content(
+    doc_type_response = generate_content_with_retry(
+        client=client,
         model=model_id,
         contents=[types.Part.from_text(text=pro_response_text)],
         config=doc_type_config,
@@ -485,7 +490,8 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
             types.Part.from_text(text=pro_response_text)
         ]
 
-        summary_response = client.models.generate_content(
+        summary_response = generate_content_with_retry(
+            client=client,
             model=pro_model_id,
             contents=summary_contents,
             config=summary_config,

@@ -128,7 +128,9 @@ export function VehicleRowCard({
 
   const [catalogBasePriceNet, setCatalogBasePriceNet] = useState<number>(() => {
     const aiBase = parsePriceToNumber(vehicle.base_price);
-    const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+    const pd = (vehicle.synthesis_data as any)?.card_summary?.price_domain;
+    const isDomainNetto = pd === "netto" || pd?.toLowerCase().includes("netto");
+    const isNetto = vehicle.base_price?.toLowerCase().includes("netto") || isDomainNetto;
     const val = isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100;
     return isNaN(val) ? 0 : val;
   });
@@ -245,7 +247,8 @@ export function VehicleRowCard({
       if (match) setRimDiameter(parseInt(match[1], 10));
 
       const aiBase = parsePriceToNumber(vehicle.base_price);
-      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      const isDomainNetto = cs?.price_domain === "netto" || cs?.price_domain?.toLowerCase().includes("netto");
+      const isNetto = vehicle.base_price?.toLowerCase().includes("netto") || isDomainNetto;
       setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
       return;
     }
@@ -264,12 +267,16 @@ export function VehicleRowCard({
         setCatalogBasePriceNet(fp.catalog_base_price_net);
       } else {
         const aiBase = parsePriceToNumber(vehicle.base_price);
-        const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+        const csLocal = (vehicle.synthesis_data as any)?.card_summary;
+        const isDomainNetto = csLocal?.price_domain === "netto" || csLocal?.price_domain?.toLowerCase().includes("netto");
+        const isNetto = vehicle.base_price?.toLowerCase().includes("netto") || isDomainNetto;
         setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
       }
     } else {
       const aiBase = parsePriceToNumber(vehicle.base_price);
-      const isNetto = vehicle.base_price?.toLowerCase().includes("netto");
+      const csLocal = (vehicle.synthesis_data as any)?.card_summary;
+      const isDomainNetto = csLocal?.price_domain === "netto" || csLocal?.price_domain?.toLowerCase().includes("netto");
+      const isNetto = vehicle.base_price?.toLowerCase().includes("netto") || isDomainNetto;
       setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
     }
     // Toggles
@@ -491,6 +498,8 @@ export function VehicleRowCard({
     activeDiscountPct,
     activeFinalPriceNet,
     formatCalculatedPrice,
+    setCustomDiscountAmountNet,
+    activeDiscountAmountNet,
   } = useVehiclePricingManager({
     vehicle,
     catalogBasePriceNet,
@@ -717,7 +726,8 @@ export function VehicleRowCard({
       className={cn(
         "bg-white rounded-xl border transition-all duration-300 shadow-sm overflow-hidden group hover:shadow-lg",
         isExpanded ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200 hover:border-blue-400",
-        isHighlighted && !isExpanded && "ring-4 ring-amber-300 border-amber-400 animate-highlight-fade"
+        isHighlighted && !isExpanded && "ring-4 ring-amber-300 border-amber-400 animate-highlight-fade",
+        vehicle.verification_status === "needs_review" && "border-amber-400 ring-2 ring-amber-100"
       )}
     >
       <VehicleBaseInfo 
@@ -738,12 +748,30 @@ export function VehicleRowCard({
         offerDiscountPercentage={offerDiscountPercentage}
         suggestedDiscountPct={suggestedDiscountPct}
         technicalDescription={technicalDescription}
+        setCustomDiscountAmountNet={setCustomDiscountAmountNet}
+        activeDiscountAmountNet={activeDiscountAmountNet}
       />
 
 
       {isExpanded && (
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out relative">
           <div className="flex flex-col gap-6 items-start w-full">
+
+            {/* P0-B: Warning banner for missing base price */}
+            {vehicle.verification_status === "needs_review" && (
+              <div className="w-full flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-semibold text-amber-800">
+                    Wymaga uzupełnienia — brak ceny bazowej
+                  </h4>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Pipeline nie wyekstrahował ceny katalogowej. Dane pojazdu (marka, model, silnik, wyposażenie) zostały zachowane.
+                    Uzupełnij cenę ręcznie w sekcji finansowej poniżej, aby odblokować kalkulator.
+                  </p>
+                </div>
+              </div>
+            )}
             
             {/* Section 2 (moved to top): Summary and Details */}
             <div className="w-full flex flex-col gap-6">

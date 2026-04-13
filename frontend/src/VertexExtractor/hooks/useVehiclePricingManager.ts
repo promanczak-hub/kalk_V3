@@ -28,11 +28,15 @@ export function useVehiclePricingManager({
 
   const customDiscountPct = Number(customDiscountPctRaw) || 0;
 
+  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
+  const isDomainNetto = cardSummary?.price_domain === "netto" || (typeof cardSummary?.price_domain === 'string' && cardSummary.price_domain.toLowerCase().includes("netto"));
+  const isGlobalNetto = vehicle.base_price?.toLowerCase().includes("netto") || isDomainNetto;
+
   // AI-extracted raw string for comparison display
   const aiExtractedBasePrice = vehicle.base_price || null;
   const AI_PRICE_ALERT_THRESHOLD_PLN = 10;
   const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
-  const aiBasePriceNet = aiExtractedBasePrice?.toLowerCase().includes("netto")
+  const aiBasePriceNet = isGlobalNetto
     ? aiBasePriceRaw
     : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
   const aiBasePriceDeltaPln = Math.abs(catalogBasePriceNet - aiBasePriceNet);
@@ -60,9 +64,11 @@ export function useVehiclePricingManager({
   // totalCatalogPriceNet = base + ALL factory options
   const totalCatalogPriceNet = catalogBasePriceNet + factoryOptionsPriceTotal;
 
+  // discountableBaseNet = base + discountable factory options
+  const discountableBaseNet = catalogBasePriceNet + discountableOptionsTotal;
+
   const offerFinalPriceRaw = parsePriceToNumber(vehicle.final_price_pln);
-  const isSourceNetto = vehicle.base_price?.toLowerCase().includes("netto") ?? false;
-  const offerFinalPriceNet = isSourceNetto ? offerFinalPriceRaw : offerFinalPriceRaw / 1.23;
+  const offerFinalPriceNet = isGlobalNetto ? offerFinalPriceRaw : offerFinalPriceRaw / 1.23;
 
   const hasOfferFinalPrice = Boolean(
     vehicle.final_price_pln &&
@@ -74,23 +80,30 @@ export function useVehiclePricingManager({
     hasOfferFinalPrice && offerFinalPriceNet > 0 && offerFinalPriceNet < totalCatalogPriceNet - 1.0
   );
   
-  const cardSummary = vehicle.synthesis_data?.card_summary as Record<string, unknown> | undefined;
-  const parsedOfferDiscountPct = cardSummary?.offer_discount_pct;
+  const parsedOfferDiscountPctStr = cardSummary?.offer_discount_pct;
+  const parsedOfferDiscountPlnStr = cardSummary?.offer_discount_pln;
+  
+  const parsedOfferDiscountPct = parsedOfferDiscountPctStr ? Number(parsedOfferDiscountPctStr) : 0;
+  const parsedOfferDiscountPln = parsedOfferDiscountPlnStr
+    ? Number(String(parsedOfferDiscountPlnStr).replace(/[^0-9.,]/g, "").replace(",", "."))
+    : 0;
 
-  const hasValidOfferDiscount = Boolean(parsedOfferDiscountPct && Number(parsedOfferDiscountPct) > 0);
+  const hasValidOfferDiscountPct = Boolean(parsedOfferDiscountPct > 0);
+  const hasValidOfferDiscountPln = Boolean(parsedOfferDiscountPln > 0 && discountableBaseNet > 0);
+  
+  const hasValidOfferDiscount = hasValidOfferDiscountPct || hasValidOfferDiscountPln;
   const isDealerOfferExtended = isDealerOffer || hasValidOfferDiscount;
 
-  const offerDiscountPercentage = parsedOfferDiscountPct
-    ? Number(parsedOfferDiscountPct)
-    : isDealerOffer && totalCatalogPriceNet > 0
-      ? Number((((totalCatalogPriceNet - offerFinalPriceNet) / totalCatalogPriceNet) * 100).toFixed(1))
-      : 0;
+  const offerDiscountPercentage = hasValidOfferDiscountPct
+    ? parsedOfferDiscountPct
+    : hasValidOfferDiscountPln
+      ? Number(((parsedOfferDiscountPln / discountableBaseNet) * 100).toFixed(2))
+      : isDealerOffer && totalCatalogPriceNet > 0
+        ? Number((((totalCatalogPriceNet - offerFinalPriceNet) / totalCatalogPriceNet) * 100).toFixed(1))
+        : 0;
 
   const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
   const suggestedDiscountConfidence = vehicle.suggested_discount_confidence || 0;
-
-  // discountableBaseNet = base + discountable factory options
-  const discountableBaseNet = catalogBasePriceNet + discountableOptionsTotal;
 
   let activeDiscountPct = 0;
   let activeFinalPriceNet = totalCatalogPriceNet + customServiceOptionsPriceTotal;
@@ -123,11 +136,24 @@ export function useVehiclePricingManager({
       return new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
   };
 
+  const setCustomDiscountAmountNet = (amountNet: number) => {
+    if (discountableBaseNet > 0) {
+      const pct = (amountNet / discountableBaseNet) * 100;
+      setCustomDiscountPctRaw(pct.toFixed(2));
+    } else {
+      setCustomDiscountPctRaw("0");
+    }
+  };
+
+  const activeDiscountAmountNet = discountableBaseNet * (activeDiscountPct / 100);
+
   return {
     discountMode,
     setDiscountMode,
     customDiscountPctRaw,
     setCustomDiscountPctRaw,
+    setCustomDiscountAmountNet,
+    activeDiscountAmountNet,
     aiExtractedBasePrice,
     aiBasePriceDeltaPln,
     requireManualPriceReview,

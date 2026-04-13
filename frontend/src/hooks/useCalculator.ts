@@ -79,7 +79,7 @@ export function useCalculator() {
   const [data, setData] = useState<CalculatorInput>(INITIAL_DATA);
   const [isParserOpen, setIsParserOpen] = useState(false);
   const [parserText, setParserText] = useState("");
-  const [isParsing, setIsParsing] = useState(false);
+  const [isParsing, _setIsParsing] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
   const [steps, setSteps] = useState<CalculationStep[]>([]);

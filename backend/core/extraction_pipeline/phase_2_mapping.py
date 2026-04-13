@@ -24,8 +24,15 @@ def finalize_vehicle_pipeline(
     parent_file_id: str,
     document_markdown: str | None = None,
 ) -> None:
-    brand = normalize_brand(parsed_data.get("brand"))
+    raw_brand = parsed_data.get("brand")
+    if not raw_brand and "metadata" in parsed_data:
+        raw_brand = parsed_data["metadata"].get("brand")
+    brand = normalize_brand(raw_brand)
+
     model = parsed_data.get("model")
+    if not model and "metadata" in parsed_data:
+        model = parsed_data["metadata"].get("model")
+
     offer_number = parsed_data.get("offer_number")
     if not offer_number and "metadata" in parsed_data:
         offer_number = parsed_data["metadata"].get("offer_number")
@@ -116,7 +123,10 @@ def finalize_vehicle_pipeline(
         # ── READINESS CHECK (Soft-Fail dla ręcznej edycji z UI) ──
         if samar_name == "INNE - WYMAGA RĘCZNEGO MAPOWANIA" or not samar_name:
             logger.warning(
-                f"[BG TASK] Readiness Check (Soft): Brak automatycznie przypisanej klasy SAMAR dla '{brand} {model}'."
+                "[BG TASK] Readiness Check (Soft): Brak automatycznie "
+                "przypisanej klasy SAMAR dla '%s %s'.",
+                brand,
+                model,
             )
 
         if (
@@ -124,44 +134,80 @@ def finalize_vehicle_pipeline(
             or mapped_data.get("engine_class") == "UNKNOWN"
         ):
             logger.warning(
-                f"[BG TASK] Readiness Check (Soft): Brak zidentyfikowanej klasy silnika dla '{brand} {model}'."
+                "[BG TASK] Readiness Check (Soft): Brak zidentyfikowanej "
+                "klasy silnika dla '%s %s'.",
+                brand,
+                model,
             )
 
-        validation_info = card_summary.get("_validation", {})
-        parsed_prices = validation_info.get("parsed_prices", {})
-        if parsed_prices.get("base") is None:
-            raise ValueError(
-                "Readiness Check failed: Brak zidentyfikowanej ceny bazowej (base_price). Dokument jest wysoce niekompletny."
-            )
-
+        # Assign mapped data BEFORE readiness check — ensures data is
+        # always persisted to DB regardless of price availability.
         parsed_data["mapped_ai_data"] = mapped_data
 
     except Exception as map_err:
-        logger.error(f"[BG TASK] Błąd mapowania danych AI: {map_err}")
+        logger.error("[BG TASK] Błąd mapowania danych AI: %s", map_err)
         raise
 
     if is_cancelled(parent_file_id, supabase):
         update_progress(supabase, vehicle_id, "cancelled")
         return
 
+    # ── P0-A: Evaluate price readiness BEFORE DB save ──
+    validation_info = card_summary.get("_validation", {})
+    parsed_prices = validation_info.get("parsed_prices", {})
+    price_is_present = parsed_prices.get("base") is not None
+
+    if price_is_present:
+        initial_status = "enriching_features"
+    else:
+        initial_status = "needs_review"
+        logger.warning(
+            "[BG TASK] Readiness Check (Soft): Brak ceny bazowej "
+            "(base_price) dla '%s %s' (vehicle_id=%s). "
+            "Dane zostaną zapisane ze statusem 'needs_review'.",
+            brand,
+            model,
+            vehicle_id,
+        )
+
+    # ── P0-A: Partial save — always persist extracted data ──
     update_payload = {
         "brand": brand,
         "model": model,
         "offer_number": offer_number,
         "synthesis_data": parsed_data,
-        "verification_status": "enriching_features",
+        "verification_status": initial_status,
         "raw_pdf_url": raw_pdf_url,
-        "document_category": parsed_data.get("card_summary", {}).get("vehicle_class"),
+        "document_category": parsed_data.get("card_summary", {}).get(
+            "vehicle_class"
+        ),
     }
     if document_markdown is not None:
         update_payload["document_markdown"] = document_markdown
 
     logger.info(
-        f"[BG TASK] Zapisuję wyniki do DB dla {vehicle_id} (stan: enriching_features)"
+        "[BG TASK] Zapisuję wyniki do DB dla %s (stan: %s)",
+        vehicle_id,
+        initial_status,
     )
     supabase.table("vehicle_synthesis").update(update_payload).eq(
         "id", vehicle_id
     ).execute()
+
+    # ── P0-B: If price missing, stop here — data is safe in DB ──
+    if not price_is_present:
+        logger.warning(
+            "[BG TASK] Pipeline zatrzymany na etapie 'needs_review' — "
+            "brak ceny bazowej. Dane częściowe (%s %s) zapisano. "
+            "Vehicle: %s",
+            brand,
+            model,
+            vehicle_id,
+        )
+        # Still invalidate caches so the new row appears on frontend
+        cache_invalidate_pattern("initial_data")
+        cache_invalidate_pattern("filters:*")
+        return
 
     # ── 3. Wzbogacanie cech i ranga katalogu ──
     logger.info("[BG TASK] Szukam dopasowanego katalogu dla auto-enrichmentu...")
