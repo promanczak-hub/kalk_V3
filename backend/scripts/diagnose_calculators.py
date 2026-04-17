@@ -331,8 +331,7 @@ def diagnose_vehicle(
         )
 
         amort_input = AmortyzacjaInput(
-            wp_finansowanie=capex_for_financing,
-            wp_amortyzacja=capex,
+            wp=capex,
             wr=vr_samar,
             okres=MONTHS,
         )
