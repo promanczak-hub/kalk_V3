@@ -15,7 +15,7 @@ Kluczowe tabele: samar_class_depreciation_rates,
 
 Moduly pomocnicze:
   - core.samar_rv_fetchers  -- cached DB fetchers + _normalize_fuel_name
-  - core.samar_rv_readiness -- ReadinessItem + check_rv_readiness
+
 """
 
 from __future__ import annotations

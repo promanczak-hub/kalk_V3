@@ -18,7 +18,7 @@ import type { ControlCenterSettings } from "../../../types";
 // Custom Hooks
 import { useVehicleFinancing } from "../../hooks/useVehicleFinancing";
 import { useVehicleDataSync } from "../../hooks/useVehicleDataSync";
-import { useVehicleReadiness } from "../../hooks/useVehicleReadiness";
+import { useResolvedVehicleIds } from "../../hooks/useResolvedVehicleIds";
 import { useVehicleParamPreview } from "../../hooks/useVehicleParamPreview";
 import { useVehicleOptionsManager } from "../../hooks/useVehicleOptionsManager";
 import { useVehicleMetaManager } from "../../hooks/useVehicleMetaManager";
@@ -185,10 +185,9 @@ export function VehicleRowCard({
     isSavingSetup, handleSaveSetup
   } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet, globalSettings);
 
-  // Hook 3: Readiness Check API
-  // body_type: priorytet: localMappedData → mappedData → card_summary (przez widok: vehicle.body_style)
+  // Hook 3: Resolve SAMAR/Engine names → numeric IDs (lightweight replacement for readiness check)
   const resolvedBodyType = localMappedData?.body_type || mappedData?.body_type || vehicle.body_style || undefined;
-  const { readinessResult } = useVehicleReadiness(vehicle, mappedData, paintCategoryId === 2 || paintCategoryId === 3, resolvedBodyType);
+  const resolvedIds = useResolvedVehicleIds(mappedData?.samar_category, mappedData?.fuel);
 
   // Extract drive type — priorytet: mapped_ai_data → card_summary (JSONB) → widok SQL
   const DRIVE_TYPE_MAP: Record<string, string> = {
@@ -216,8 +215,8 @@ export function VehicleRowCard({
 
   // Hook 4: Param Preview API
   const { paramPreview, controlCenter } = useVehicleParamPreview(
-    readinessResult?.samar_class_id || null,
-    readinessResult?.fuel_type_id || null,
+    resolvedIds?.samar_class_id || null,
+    resolvedIds?.fuel_type_id || null,
     vehicle.brand || undefined,
     vehicle.fuel || undefined,
     driveType || undefined,

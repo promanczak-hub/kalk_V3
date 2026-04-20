@@ -36,6 +36,7 @@ from api.tender_routes import router as tender_router
 from api.router_tasks import router as router_tasks
 from api.ltr_manual_routes import router as ltr_manual_router
 from api.semantic_routes import router as semantic_router
+from api.resolve_vehicle_ids import router as resolve_vehicle_ids_router
 from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
@@ -98,6 +99,7 @@ app.include_router(tender_router)
 app.include_router(router_tasks)
 app.include_router(ltr_manual_router)
 app.include_router(semantic_router, prefix="/api")
+app.include_router(resolve_vehicle_ids_router, prefix="/api")
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

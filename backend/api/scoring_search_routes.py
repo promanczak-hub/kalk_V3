@@ -71,7 +71,7 @@ def _redis_set(key: str, value: Any, ttl: int) -> None:
     try:
         client.setex(key, ttl, json.dumps(value, default=str))
     except Exception as exc:
-        logger.debug("Redis SET error [%s]: %s", exc)
+        logger.debug("Redis SET error [%s]: %s", key, exc)
 
 
 def _params_hash(payload: str) -> str:
@@ -105,9 +105,7 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
     raise last_exc
 
 
-def _parse_price_to_net(
-    price_str: str | None, domain: str | None
-) -> float | None:
+def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | None:
     """Helper to convert raw price string to a netto float.
     Default VAT is 23%. If domain is 'netto', returns as-is.
     If 'brutto' or unknown, divides by 1.23.
@@ -115,16 +113,20 @@ def _parse_price_to_net(
     if not price_str:
         return None
     try:
-        # Remove non-numeric characters except dot/comma
-        cleaned = "".join(c for c in price_str if c.isdigit() or c in ",.")
-        if not cleaned:
-            return None
-        # Standardize decimal separator
-        cleaned = cleaned.replace(",", ".")
-        # Handle multiple dots (keep only last one)
-        if cleaned.count(".") > 1:
-            parts = cleaned.split(".")
-            cleaned = "".join(parts[:-1]) + "." + parts[-1]
+        cleaned = (
+            price_str.replace(" ", "")
+            .replace("\xa0", "")
+            .replace("PLN", "")
+            .replace("zł", "")
+        )
+        if "," in cleaned and "." in cleaned:
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        elif "," in cleaned:
+            cleaned = cleaned.replace(",", ".")
+        elif cleaned.count(".") > 1:
+            cleaned = cleaned.replace(".", "")
+
+        cleaned = "".join(c for c in cleaned if c.isdigit() or c == ".")
 
         val = float(cleaned)
         if domain == "netto":
@@ -148,7 +150,7 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
     if isinstance(raw_reasons, dict):
         base_price_raw = raw_reasons.get("base_price")
         base_price_val = float(base_price_raw) if base_price_raw is not None else None
-        
+
         # Convert base_price to net if needed
         if base_price_val is not None and price_domain == "brutto":
             base_price_val = round(base_price_val / 1.23, 2)
@@ -279,20 +281,34 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
         all_matches = []
         for row in rows:
             domain = row.get("price_domain")
-            row["base_price_net"] = _parse_price_to_net(row.get("base_price_raw"), domain)
-            row["options_price_net"] = _parse_price_to_net(row.get("options_price_raw"), domain)
-            row["total_price_net"] = _parse_price_to_net(row.get("total_price_raw"), domain)
-            
+            row["base_price_net"] = _parse_price_to_net(
+                row.get("base_price_raw"), domain
+            )
+            row["options_price_net"] = _parse_price_to_net(
+                row.get("options_price_raw"), domain
+            )
+            row["total_price_net"] = _parse_price_to_net(
+                row.get("total_price_raw"), domain
+            )
+
             # Ensure total_price_net is calculated from components if missing but components exist
-            if row["total_price_net"] is None and (row["base_price_net"] is not None or row["options_price_net"] is not None):
-                row["total_price_net"] = (row["base_price_net"] or 0) + (row["options_price_net"] or 0)
+            if row["total_price_net"] is None and (
+                row["base_price_net"] is not None
+                or row["options_price_net"] is not None
+            ):
+                row["total_price_net"] = (row["base_price_net"] or 0) + (
+                    row["options_price_net"] or 0
+                )
 
             all_matches.append(ScoringSearchMatch(**row))
 
-        # Cache all raw results (pagination applied after cache read)
+        # Cache parsed results with evaluated prices
         _redis_set(
             cache_key,
-            {"results_raw": resp.data, "total": len(all_matches)},
+            {
+                "results_raw": [m.model_dump() for m in all_matches],
+                "total": len(all_matches),
+            },
             _TTL_SEARCH,
         )
 
@@ -396,6 +412,16 @@ def get_similar_vehicles(
     mode: str = "rule-based",
 ) -> list[SimilarVehicleMatch]:
     """Get similar vehicles sorted by best monthly price net. Supports 'rule-based' (default) and 'semantic' modes."""
+
+    # Cache key generation
+    cache_payload = f"{vehicle_id}:{limit}:{duration_months}:{annual_mileage}:{mode}"
+    cache_key = f"{_PREFIX}similar:{_params_hash(cache_payload)}"
+
+    cached = _redis_get(cache_key)
+    if cached is not None:
+        logger.debug("Cache HIT: similar [%s]", vehicle_id)
+        return [SimilarVehicleMatch(**row) for row in cached]
+
     sb = supabase
     method = (
         "rpc_get_similar_vehicles_semantic"
@@ -419,7 +445,9 @@ def get_similar_vehicles(
         if not resp.data:
             return []
 
-        return [_build_similar_vehicle_match(row) for row in resp.data]
+        results = [_build_similar_vehicle_match(row) for row in resp.data]
+        _redis_set(cache_key, [r.model_dump() for r in results], 10800)
+        return results
     except Exception as e:
         logger.exception("Error calling %s: %s", method, e)
         raise HTTPException(
@@ -427,64 +455,161 @@ def get_similar_vehicles(
         )
 
 
-class AlternativesRequest(BaseModel):
-    category: str
-    limit: int = 5
+class BlendAlternativesRequest(BaseModel):
     duration_months: int | None = None
     annual_mileage: int | None = None
     requirements: List[Any] = []
 
 
+def _filter_semantic_candidates(
+    sb, candidates, must_haves
+) -> list[SimilarVehicleMatch]:
+    if not must_haves:
+        return [
+            _build_similar_vehicle_match(row["similarity_json"]) for row in candidates
+        ]
+
+    candidate_ids = [
+        row["similarity_json"]["vehicle_id"]
+        for row in candidates
+        if "similarity_json" in row
+    ]
+    if not candidate_ids:
+        return []
+
+    # 1. Fetch synthesis data for options check
+    synthesis_resp = _supabase_execute_with_retry(
+        sb.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .in_("id", candidate_ids)
+    )
+    synthesis_map = {
+        row["id"]: row["synthesis_data"] for row in (synthesis_resp.data or [])
+    }
+
+    # 2. Fetch features directly using REST URL override to hit reverse_search schema
+    features_resp = _supabase_execute_with_retry(
+        sb.schema("reverse_search")
+        .table("vehicle_features_summary_view")
+        .select(
+            "source_vehicle_id, feature_key, resolved_value_bool, resolved_value_text, resolved_value_num"
+        )
+        .in_("source_vehicle_id", candidate_ids)
+    )
+
+    features_map = {}
+    for row in features_resp.data or []:
+        vid = row["source_vehicle_id"]
+        if vid not in features_map:
+            features_map[vid] = {}
+        features_map[vid][row["feature_key"]] = row
+
+    # Filter logic
+    filtered_results = []
+    for row in candidates:
+        sim_json = row["similarity_json"]
+        vid = sim_json["vehicle_id"]
+        ok = True
+
+        for req in must_haves:
+            fkey = req.get("feature_key")
+            op = req.get("operator")
+            val = req.get("value")
+
+            if fkey in (
+                "dummy",
+                "duration_months",
+                "annual_mileage",
+                "margin_pct",
+                "monthly_price_net",
+            ):
+                continue
+
+            match = False
+            if str(fkey).startswith("opt_std:"):
+                opt_name = fkey[8:]
+                std_opts = (
+                    synthesis_map.get(vid, {})
+                    .get("card_summary", {})
+                    .get("standard_equipment", [])
+                )
+                if opt_name in std_opts:
+                    match = True
+            elif str(fkey).startswith("opt_paid:"):
+                opt_name = fkey[9:]
+                paid_opts = (
+                    synthesis_map.get(vid, {})
+                    .get("card_summary", {})
+                    .get("paid_options", [])
+                )
+                if any(po.get("name") == opt_name for po in paid_opts):
+                    match = True
+            else:
+                feat = features_map.get(vid, {}).get(fkey, {})
+                if op == "eq":
+                    if str(val).lower() == "true":
+                        match = feat.get("resolved_value_bool") is True
+                    elif str(val).lower() == "false":
+                        match = not feat.get("resolved_value_bool")
+                    else:
+                        match = str(feat.get("resolved_value_text")) == str(val)
+                elif op in ("gte", "lte"):
+                    v_num = feat.get("resolved_value_num")
+                    if v_num is not None:
+                        try:
+                            num = float(val)
+                            match = v_num >= num if op == "gte" else v_num <= num
+                        except (ValueError, TypeError):
+                            pass
+                elif op == "in" and isinstance(val, list):
+                    match = feat.get("resolved_value_text") in val
+
+            if not match:
+                ok = False
+                break
+
+        if ok:
+            filtered_results.append(_build_similar_vehicle_match(sim_json))
+
+    return filtered_results
+
+
 @router.post(
-    "/scoring-search/vehicle/{vehicle_id}/alternatives",
+    "/scoring-search/vehicle/{vehicle_id}/alternatives-blend",
     response_model=list[SimilarVehicleMatch],
 )
-def get_vehicle_alternatives(
-    vehicle_id: str, request: AlternativesRequest
+def get_vehicle_alternatives_blend(
+    vehicle_id: str, request: BlendAlternativesRequest
 ) -> list[SimilarVehicleMatch]:
-    """Get alternative vehicles based on synthetic semantic queries."""
+    """Get a blend of 5 distinct alternative vehicles based on AI synthetic vectors."""
     sb = supabase
     try:
         synthetic_queries = {
-            "cheaper": "Budget friendly, affordable, economical, low cost of ownership, high value for money, cheap to maintain, basic standard.",
-            "stronger": "High performance, powerful engine, fast acceleration, sporty driving, huge horsepower, high torque, dynamic.",
-            "greener": "Eco-friendly, full electric, plug-in hybrid, low emissions, green energy, sustainable, low fuel consumption.",
-            "safer": "Advanced safety systems, highest NCAP rating, multiple airbags, collision avoidance, blind spot monitoring, lane keep assist, robust structure.",
-            "more_comfortable": "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom.",
+            "cheaper": (
+                "✨ AI: Oszczędniejszy wybór",
+                "Budget friendly, affordable, economical, low cost of ownership, high value for money, cheap to maintain, basic standard.",
+            ),
+            "stronger": (
+                "✨ AI: Większa dynamika",
+                "High performance, powerful engine, fast acceleration, sporty driving, huge horsepower, high torque, dynamic.",
+            ),
+            "more_comfortable": (
+                "✨ AI: Wyższy komfort",
+                "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom.",
+            ),
+            "safer": (
+                "✨ AI: Bezpieczeństwo",
+                "Advanced safety systems, highest NCAP rating, multiple airbags, collision avoidance, blind spot monitoring, lane keep assist, robust structure.",
+            ),
+            "greener": (
+                "✨ AI: Bardziej ekologiczny",
+                "Eco-friendly, full electric, plug-in hybrid, low emissions, green energy, sustainable, low fuel consumption.",
+            ),
         }
 
-        if request.category not in synthetic_queries:
-            raise HTTPException(
-                status_code=400, detail=f"Unknown category: {request.category}"
-            )
-
-        synthetic_query = synthetic_queries[request.category]
-        logger.info(
-            "Generating embedding for synthetic query: '%s' (category: %s)",
-            synthetic_query,
-            request.category,
-        )
-        synthetic_vector = generate_embedding(synthetic_query)
-
-        if not synthetic_vector:
-            raise ValueError("Failed to generate embedding for synthetic concept.")
-
-        # Fetch more to allow filtering
-        limit_to_fetch = request.limit * 5 if request.requirements else request.limit
-
-        resp = _supabase_execute_with_retry(
-            sb.rpc(
-                "rpc_get_alternatives_semantic",
-                {
-                    "p_vehicle_id": vehicle_id,
-                    "p_synthetic_vector": synthetic_vector,
-                    "p_limit": limit_to_fetch,
-                    "p_duration_months": request.duration_months,
-                    "p_annual_mileage": request.annual_mileage,
-                },
-            )
-        )
-        candidates = resp.data or []
+        limit_to_fetch = 10 if request.requirements else 2
+        used_vehicle_ids = {vehicle_id}
+        final_results = []
 
         must_haves = [
             req
@@ -492,127 +617,53 @@ def get_vehicle_alternatives(
             if isinstance(req, dict) and req.get("requirement") == "MUST_HAVE"
         ]
 
-        if not must_haves:
-            return [
-                _build_similar_vehicle_match(row["similarity_json"])
-                for row in candidates[: request.limit]
-            ]
+        for cat_key, (ai_label, query_text) in synthetic_queries.items():
+            cache_key_embed = f"{_PREFIX}embed:{_params_hash(query_text)}"
+            synthetic_vector = _redis_get(cache_key_embed)
 
-        candidate_ids = [
-            row["similarity_json"]["vehicle_id"]
-            for row in candidates
-            if "similarity_json" in row
-        ]
-        if not candidate_ids:
-            return []
+            if synthetic_vector is None:
+                logger.info("Generating embedding for synthetic query: '%s'", cat_key)
+                synthetic_vector = generate_embedding(query_text)
+                if synthetic_vector:
+                    _redis_set(cache_key_embed, synthetic_vector, 2592000)
 
-        # 1. Fetch synthesis data for options check
-        synthesis_resp = _supabase_execute_with_retry(
-            sb.table("vehicle_synthesis")
-            .select("id, synthesis_data")
-            .in_("id", candidate_ids)
-        )
-        synthesis_map = {
-            row["id"]: row["synthesis_data"] for row in (synthesis_resp.data or [])
-        }
+            if not synthetic_vector:
+                continue
 
-        # 2. Fetch features directly using REST URL override to hit reverse_search schema
-        features_resp = _supabase_execute_with_retry(
-            sb.schema("reverse_search")
-            .table("vehicle_features_summary_view")
-            .select(
-                "source_vehicle_id, feature_key, resolved_value_bool, resolved_value_text, resolved_value_num"
+            resp = _supabase_execute_with_retry(
+                sb.rpc(
+                    "rpc_get_alternatives_semantic",
+                    {
+                        "p_vehicle_id": vehicle_id,
+                        "p_synthetic_vector": synthetic_vector,
+                        "p_limit": limit_to_fetch,
+                        "p_duration_months": request.duration_months,
+                        "p_annual_mileage": request.annual_mileage,
+                    },
+                )
             )
-            .in_("source_vehicle_id", candidate_ids)
-        )
 
-        features_map = {}
-        for row in features_resp.data or []:
-            vid = row["source_vehicle_id"]
-            if vid not in features_map:
-                features_map[vid] = {}
-            features_map[vid][row["feature_key"]] = row
+            candidates = resp.data or []
+            filtered_matches = _filter_semantic_candidates(sb, candidates, must_haves)
 
-        # Filter logic
-        filtered_results = []
-        for row in candidates:
-            sim_json = row["similarity_json"]
-            vid = sim_json["vehicle_id"]
-            ok = True
-
-            for req in must_haves:
-                fkey = req.get("feature_key")
-                op = req.get("operator")
-                val = req.get("value")
-
-                if fkey in (
-                    "dummy",
-                    "duration_months",
-                    "annual_mileage",
-                    "margin_pct",
-                    "monthly_price_net",
-                ):
-                    continue
-
-                match = False
-                if str(fkey).startswith("opt_std:"):
-                    opt_name = fkey[8:]
-                    std_opts = (
-                        synthesis_map.get(vid, {})
-                        .get("card_summary", {})
-                        .get("standard_equipment", [])
-                    )
-                    if opt_name in std_opts:
-                        match = True
-                elif str(fkey).startswith("opt_paid:"):
-                    opt_name = fkey[9:]
-                    paid_opts = (
-                        synthesis_map.get(vid, {})
-                        .get("card_summary", {})
-                        .get("paid_options", [])
-                    )
-                    if any(po.get("name") == opt_name for po in paid_opts):
-                        match = True
-                else:
-                    feat = features_map.get(vid, {}).get(fkey, {})
-                    if op == "eq":
-                        if str(val).lower() == "true":
-                            match = feat.get("resolved_value_bool") is True
-                        elif str(val).lower() == "false":
-                            match = not feat.get("resolved_value_bool")
-                        else:
-                            match = str(feat.get("resolved_value_text")) == str(val)
-                    elif op in ("gte", "lte"):
-                        v_num = feat.get("resolved_value_num")
-                        if v_num is not None:
-                            try:
-                                num = float(val)
-                                if op == "gte":
-                                    match = v_num >= num
-                                else:
-                                    match = v_num <= num
-                            except (ValueError, TypeError):
-                                pass
-                    elif op == "in" and isinstance(val, list):
-                        match = feat.get("resolved_value_text") in val
-
-                if not match:
-                    ok = False
+            # Find the best match that hasn't been used yet
+            found_match = None
+            for match in filtered_matches:
+                if match.vehicle_id not in used_vehicle_ids:
+                    match.ai_label = ai_label
+                    found_match = match
+                    used_vehicle_ids.add(match.vehicle_id)
                     break
 
-            if ok:
-                filtered_results.append(_build_similar_vehicle_match(sim_json))
-                if len(filtered_results) >= request.limit:
-                    break
+            if found_match:
+                final_results.append(found_match)
 
-        return filtered_results
+        return final_results
 
     except Exception as e:
-        logger.exception(
-            "Error calling alternatives for category %s: %s", request.category, e
-        )
+        logger.exception("Error calling rpc_get_alternatives_semantic blend: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"Failed to fetch alternatives: {e}"
+            status_code=500, detail=f"Failed to fetch alternatives blend: {e}"
         )
 
 
@@ -622,6 +673,21 @@ def get_vehicle_alternatives(
 )
 def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse:
     """Return similar vehicles for multiple vehicle IDs in one DB query. Supports 'rule-based' and 'semantic'."""
+
+    params_hash = _params_hash(req.model_dump_json())
+    cache_key = f"{_PREFIX}batch_similar:{params_hash}"
+
+    cached = _redis_get(cache_key)
+    if cached is not None:
+        logger.debug("Cache HIT: batch-similar [%s]", params_hash)
+
+        # Odbudowa ze słownika
+        restored_results: dict[str, list[SimilarVehicleMatch]] = {}
+        for vid, cars in cached.get("results", {}).items():
+            restored_results[vid] = [SimilarVehicleMatch(**c) for c in cars]
+
+        return SimilarBatchResponse(results=restored_results)
+
     sb = supabase
     method = (
         "rpc_get_similar_vehicles_batch_semantic"
@@ -662,7 +728,16 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                 if source_id in results:
                     results[source_id].append(match)
 
-        return SimilarBatchResponse(results=results)
+        resp_obj = SimilarBatchResponse(results=results)
+
+        # Serialize fully using model dumps for the cache
+        serialized_results: dict[str, Any] = {}
+        for k, v in results.items():
+            serialized_results[k] = [m.model_dump() for m in v]
+
+        _redis_set(cache_key, {"results": serialized_results}, _TTL_SEARCH)
+
+        return resp_obj
     except Exception as e:
         logger.exception("Error calling %s: %s", method, e)
         raise HTTPException(
@@ -785,6 +860,8 @@ def get_price_for_params(
                 "duration_months, annual_mileage, monthly_price_net, calculated_at, kalkulacja_id, tire_class, service_type"
             )
             .eq("vehicle_id", vehicle_id)
+            .eq("duration_months", duration_months)
+            .eq("annual_mileage", annual_mileage)
             .execute()
         )
         rows_all = resp.data or []
@@ -926,92 +1003,6 @@ def get_search_cache_stats() -> dict[str, Any]:
     """Zwraca statystyki Redis (dostępność, liczba kluczy, pamięć)."""
     return get_cache_stats()
 
-
-@router.get("/scoring-search/readiness-check")
-def readiness_check() -> dict[str, Any]:
-    """Return per-vehicle cache/readiness status with missing field details."""
-    sb = supabase
-    try:
-        v_res = (
-            sb.table("vehicle_synthesis")
-            .select("id, brand, model, verification_status, synthesis_data")
-            .neq("verification_status", "moved_to_library")
-            .execute()
-        )
-        vehicles = v_res.data or []
-
-        c_res = sb.table("vehicle_matrix_cache").select("vehicle_id").execute()
-        cached_ids = set(row["vehicle_id"] for row in (c_res.data or []))
-
-        result_vehicles: list[dict[str, Any]] = []
-        cached_count = 0
-        calculable_count = 0
-        failed_count = 0
-
-        for v in vehicles:
-            vid = v["id"]
-            brand = v.get("brand") or "?"
-            model = v.get("model") or "?"
-            status = v.get("verification_status") or "?"
-            has_cache = vid in cached_ids
-            missing: list[str] = []
-
-            sd = v.get("synthesis_data") or {}
-            cs = sd.get("card_summary") or {}
-            mai = sd.get("mapped_ai_data") or {}
-
-            parsed_prices = cs.get("parsed_prices") or {}
-            base_price = (
-                cs.get("base_price")
-                or parsed_prices.get("base")
-                or sd.get("universal_features", {}).get("cena_pojazdu")
-            )
-            if not base_price:
-                missing.append("base_price")
-
-            power_kw = cs.get("power_kw") or 0
-            powertrain = cs.get("powertrain", "") or ""
-            if not power_kw and not powertrain:
-                missing.append("power_kw")
-
-            samar = cs.get("samar_category") or mai.get("samar_category")
-            if not samar:
-                missing.append("samar_category")
-
-            engine = cs.get("engine_category") or mai.get("fuel")
-            if not engine:
-                missing.append("engine_category")
-
-            can_calculate = len(missing) == 0
-            if has_cache:
-                cached_count += 1
-            if can_calculate:
-                calculable_count += 1
-            else:
-                failed_count += 1
-
-            result_vehicles.append(
-                {
-                    "vehicle_id": vid,
-                    "brand": brand,
-                    "model": model,
-                    "status": status,
-                    "has_cache": has_cache,
-                    "can_calculate": can_calculate,
-                    "missing_fields": missing,
-                }
-            )
-
-        return {
-            "total": len(vehicles),
-            "cached": cached_count,
-            "calculable": calculable_count,
-            "failed": failed_count,
-            "vehicles": result_vehicles,
-        }
-    except Exception as e:
-        logger.exception("Error in readiness_check: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/scoring-search/cache/progress/{job_id}")
