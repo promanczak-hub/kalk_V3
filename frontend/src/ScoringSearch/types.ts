@@ -115,6 +115,26 @@ export interface ScoredVehicle {
   monthly_price_net?: number;
   duration_months?: number;
   annual_mileage?: number;
-  [key: string]: unknown;
+  version?: string;
+  fuel?: string;
+  power_hp?: number;
+  transmission?: string;
+  body_style?: string;
+  drive_type?: string;
+  trim_level?: string;
+  configuration_code?: string;
+  offer_number?: string;
+  base_price_net?: number;
+  total_price_net?: number;
+  options_price_net?: number;
+  match_score_pct?: number;
+  matched_features?: string[];
+  missing_features?: string[];
+  best_monthly_price?: number;
+  has_ltr_cache?: boolean;
+  suggested_discount_pct?: number;
+  service_cost_type?: string;
+  tire_class?: string;
+  vehicle_class?: string;
 }
 

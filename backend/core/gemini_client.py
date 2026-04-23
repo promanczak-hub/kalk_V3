@@ -12,7 +12,7 @@ from tenacity import (
     wait_exponential,
     stop_after_attempt,
     retry_if_exception_type,
-    before_sleep_log
+    before_sleep_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,9 @@ def get_vertex_client() -> genai.Client:
         vertexai=True,
         project=project_id,
         location=location,
-        http_options=types.HttpOptions(timeout=600000.0) # 10 minut Max (w milisekundach)
+        http_options=types.HttpOptions(
+            timeout=600000.0
+        ),  # 10 minut Max (w milisekundach)
     )
 
 
@@ -48,7 +50,9 @@ def get_gemini_client() -> genai.Client:
     if api_key:
         return genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=600000.0) # 10 minut Max (w milisekundach)
+            http_options=types.HttpOptions(
+                timeout=600000.0
+            ),  # 10 minut Max (w milisekundach)
         )
 
     try:
@@ -73,14 +77,14 @@ def get_gemini_client() -> genai.Client:
     stop=stop_after_attempt(5),
     retry=retry_if_exception_type(Exception),
     before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=True
+    reraise=True,
 )
 def generate_content_with_retry(
     client: genai.Client,
     model: str,
     contents: Any,
     config: Optional[types.GenerateContentConfig] = None,
-    **kwargs
+    **kwargs,
 ) -> types.GenerateContentResponse:
     """Wrapper bazujący na tenacity do obsługi 503/429 z API Gemini."""
     return client.models.generate_content(

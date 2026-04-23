@@ -178,9 +178,7 @@ def finalize_vehicle_pipeline(
         "synthesis_data": parsed_data,
         "verification_status": initial_status,
         "raw_pdf_url": raw_pdf_url,
-        "document_category": parsed_data.get("card_summary", {}).get(
-            "vehicle_class"
-        ),
+        "document_category": parsed_data.get("card_summary", {}).get("vehicle_class"),
     }
     if document_markdown is not None:
         update_payload["document_markdown"] = document_markdown

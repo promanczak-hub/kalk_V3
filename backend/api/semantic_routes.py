@@ -5,6 +5,7 @@ import logging
 
 from core.database import get_fresh_client
 from core.embeddings import generate_embedding, build_vehicle_document
+from core.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ async def search_vehicles_semantic(request: SemanticSearchRequest) -> dict[str, 
             )
 
         # 2. Strzał do Supabase RPC by znaleźć podobne auta
-        vector_str = "[" + ",".join(map(str, query_vector)) + "]"
+        vector_str = "[" + ",".join(f"{x:.6f}" for x in query_vector) + "]"
 
         response = (
             get_fresh_client()
@@ -74,8 +75,9 @@ async def search_vehicles_semantic(request: SemanticSearchRequest) -> dict[str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@celery_app.task(name="background_sync_semantic_task")
 def background_sync_task(batch_size: int, force_all: bool):
-    """Zadanie w tle przetwarzające pojazdy i wyznaczające ich wektory semantyczne."""
+    """Zadanie w tle przetwarzające pojazdy i wyznaczające ich wektory semantyczne. Odpalane przez Celery."""
     try:
         client = get_fresh_client()
 
@@ -94,6 +96,8 @@ def background_sync_task(batch_size: int, force_all: bool):
             return
 
         success_count = 0
+        updates_batch = []
+
         for v in vehicles:
             try:
                 # Zbuduj tekst wejściowy
@@ -106,19 +110,19 @@ def background_sync_task(batch_size: int, force_all: bool):
                 # Wygeneruj wektor
                 embedding = generate_embedding(doc_text)
                 if embedding:
-                    # Aktualizuj bazę
-                    client.table("vehicle_synthesis").update(
-                        {
-                            "semantic_embedding": "["
-                            + ",".join(map(str, embedding))
-                            + "]"
-                        }
-                    ).eq("id", v["id"]).execute()
+                    vector_str = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
+                    updates_batch.append(
+                        {"id": v["id"], "semantic_embedding": vector_str}
+                    )
                     success_count += 1
             except Exception as inner_e:
                 logger.error(
                     f"Błąd podczas wektoryzacji pojazdu {v.get('id')}: {inner_e}"
                 )
+
+        if updates_batch:
+            # Bulk upsert for vehicles to update them simultaneously instead of one by one N+1
+            client.table("vehicle_synthesis").upsert(updates_batch).execute()
 
         logger.info(
             f"Zakończono synchronizację semantyczną: {success_count}/{len(vehicles)} udanych wektoryzacji."
@@ -152,10 +156,8 @@ async def sync_all_semantic_embeddings(
                 "message": "Nie ma aut wymagających wektoryzacji.",
             }
 
-        # Zlecamy wykonanie w tle
-        background_tasks.add_task(
-            background_sync_task, request.batch_size, request.force_all
-        )
+        # Zlecamy wykonanie w tle do Kolejki Celery co zabezpiecza przed wyłączeniem poda
+        background_sync_task.delay(request.batch_size, request.force_all)
 
         return {
             "status": "success",

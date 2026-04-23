@@ -17,7 +17,8 @@ export const ScoringSearchPage: React.FC = () => {
     searchResults,
     isSearching,
     snackbarMessage,
-    setSnackbarMessage
+    setSnackbarMessage,
+    computedRequirements
   } = useScoringSearch();
 
   return (
@@ -63,6 +64,7 @@ export const ScoringSearchPage: React.FC = () => {
               loading={isSearching} 
               searchContext={searchContext}
               selectedFeatures={selectedFeatures}
+              requirements={computedRequirements}
             />
           </Box>
         </Paper>

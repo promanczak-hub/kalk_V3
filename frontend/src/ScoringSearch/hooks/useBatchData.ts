@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import type { SelectedFeature } from '../types';
 
@@ -47,6 +47,7 @@ export interface SimilarVehicle {
   drive_type: string | null;
   // Why this vehicle is similar
   similarity_reasons?: SimilarityReasons | null;
+  ai_label?: string | null;
 }
 
 export function useBatchPrices(
@@ -90,15 +91,9 @@ export function useBatchPrices(
       }
     };
 
-    const handleRefreshEvent = () => {
-      if (!cancelled) doFetch();
-    };
-    window.addEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
-    
     doFetch();
     return () => { 
       cancelled = true; 
-      window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleIds.join(','), durationMonthsMin, durationMonthsMax, annualMileageMin, annualMileageMax, enabled]);
@@ -118,7 +113,7 @@ export function useBatchSimilarVehicles(
   const [loading, setLoading] = useState(false);
 
   // Zbudujmy stabilny hash z tablicy requirements do użycia w useEffect dependencies
-  const requirementsHash = JSON.stringify(requirements);
+  const requirementsHash = useMemo(() => JSON.stringify(requirements), [requirements]);
 
   useEffect(() => {
     if (!enabled || !vehicleIds.length) {
@@ -150,15 +145,9 @@ export function useBatchSimilarVehicles(
       }
     };
 
-    const handleRefreshEvent = () => {
-      if (!cancelled) doFetch();
-    };
-    window.addEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
-    
     doFetch();
     return () => { 
       cancelled = true; 
-      window.removeEventListener('SCORING_SEARCH_REFRESH', handleRefreshEvent);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, similarityMode, requirementsHash]);
@@ -166,21 +155,20 @@ export function useBatchSimilarVehicles(
   return { similarVehicles, loading };
 }
 
-export function useVehicleAlternatives(
+export function useVehicleAlternativesBlend(
   vehicleId: string,
   durationMonths: number,
   annualMileage: number,
-  category: string,
   enabled: boolean,
   requirements: SelectedFeature[] = []
 ): { alternatives: SimilarVehicle[]; loading: boolean } {
   const [alternatives, setAlternatives] = useState<SimilarVehicle[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const requirementsHash = JSON.stringify(requirements);
+  const requirementsHash = useMemo(() => JSON.stringify(requirements), [requirements]);
 
   useEffect(() => {
-    if (!enabled || !vehicleId || !category) {
+    if (!enabled || !vehicleId) {
       setAlternatives([]);
       return;
     }
@@ -188,14 +176,12 @@ export function useVehicleAlternatives(
     const doFetch = async () => {
       setLoading(true);
       try {
-        const r = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/alternatives`, {
+        const r = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/alternatives-blend`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            category,
             duration_months: durationMonths,
             annual_mileage: annualMileage,
-            limit: 5,
             requirements
           })
         });
@@ -213,7 +199,7 @@ export function useVehicleAlternatives(
       cancelled = true; 
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId, durationMonths, annualMileage, category, enabled, requirementsHash]);
+  }, [vehicleId, durationMonths, annualMileage, enabled, requirementsHash]);
 
   return { alternatives, loading };
 }

@@ -292,11 +292,11 @@ class CardSummary(BaseModel):
     )
     offer_discount_pct: Optional[str] = Field(
         default=None,
-        description="Rabat w procentach wyliczony matematycznie lub przepisany z dokumentu (np. '23.08'). Jeśli wiesz, że zastosowano rabat kwotowy, wylicz go matematycznie: (kwota rabatu / (cena bazowa + cena opcji przed rabatami)) * 100. Wynik zaokrąglij do 2 miejsc po przecinku. Zwróć tylko jeśli zidentyfikowano jednoznaczny rabat!"
+        description="Rabat w procentach wyliczony matematycznie lub przepisany z dokumentu (np. '23.08'). Jeśli wiesz, że zastosowano rabat kwotowy, wylicz go matematycznie: (kwota rabatu / (cena bazowa + cena opcji przed rabatami)) * 100. Wynik zaokrąglij do 2 miejsc po przecinku. Zwróć tylko jeśli zidentyfikowano jednoznaczny rabat!",
     )
     offer_discount_pln: Optional[str] = Field(
         default=None,
-        description="Rabat kwotowy (np. '15000' lub '15000 PLN') zidentyfikowany bezpośrednio na ofercie. Zwróć go jako tekst z kwotą, jeśli występuje (zamiast lub obok procentowego)."
+        description="Rabat kwotowy (np. '15000' lub '15000 PLN') zidentyfikowany bezpośrednio na ofercie. Zwróć go jako tekst z kwotą, jeśli występuje (zamiast lub obok procentowego).",
     )
     powertrain: str = Field(
         description=(

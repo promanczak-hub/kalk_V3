@@ -274,8 +274,16 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                 }}
               >
               <CardContent sx={{ flexGrow: 1, p: 1.25, '&:last-child': { pb: 1.25 } }}>
-                {/* Category chip */}
-                <Box sx={{ mb: 0.75 }}>
+                {/* Category chip & AI Label */}
+                <Box sx={{ mb: 0.75, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {v.ai_label && (
+                    <Chip
+                      size="small"
+                      label={v.ai_label}
+                      color="secondary"
+                      sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800, borderRadius: '4px', background: 'linear-gradient(45deg, #a855f7, #ec4899)' }}
+                    />
+                  )}
                   <Tooltip
                     title={
                       tags.length > 0

@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import type { SearchContext, SelectedFeature } from '../types';
+import type { SearchContext, SelectedFeature, ScoredVehicle } from '../types';
 import { useBatchPrices, useBatchSimilarVehicles } from '../hooks/useBatchData';
 import { VehicleResultCard } from './Results/VehicleResultCard';
 import { MATRIX_LIMITS } from '../../config/matrixLimits';
 import { buildScoringPayload } from '../utils/buildScoringPayload';
+import { computeSearchRanges } from '../utils/computeSearchRanges';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
@@ -17,38 +18,26 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 interface ScoringResultsProps {
-  results: Record<string, unknown>[];
+  results: ScoredVehicle[];
   loading: boolean;
   searchContext: SearchContext;
   selectedFeatures: SelectedFeature[];
+  requirements: SelectedFeature[];
 }
 
-export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext, selectedFeatures }) => {
+export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext, selectedFeatures, requirements }) => {
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const similarityMode = 'semantic';
 
-  let searchDurationMin = searchContext.duration_months_range[0];
-  let searchDurationMax = searchContext.duration_months_range[1];
-  const targetDurationForAnnualMin = searchDurationMax;
-  const targetDurationForAnnualMax = searchDurationMin;
-  let searchAnnualMin = Math.max(10000, Math.round((searchContext.total_mileage_range[0] * 12) / targetDurationForAnnualMin));
-  let searchAnnualMax = Math.min(MATRIX_LIMITS.KM_MAX_ANNUAL, Math.round((searchContext.total_mileage_range[1] * 12) / targetDurationForAnnualMax));
+  const {
+    searchDurationMin,
+    searchDurationMax,
+    searchAnnualMin,
+    searchAnnualMax,
+    targetDuration,
+    targetAnnualMileage
+  } = computeSearchRanges(searchContext);
 
-  if (searchContext.exact_mode) {
-    const d = searchContext.exact_duration_months;
-    searchDurationMin = d;
-    searchDurationMax = d;
-    
-    const annual = Math.round((searchContext.exact_total_mileage * 12) / d);
-    const bucket = Math.round(annual / 2500) * 2500;
-    searchAnnualMin = Math.max(MATRIX_LIMITS.KM_MIN_ANNUAL, Math.min(MATRIX_LIMITS.KM_MAX_ANNUAL, bucket));
-    searchAnnualMax = searchAnnualMin;
-  }
-
-  // Calculate generic targets for similar vehicles and fallback scenarios
-  const targetDuration = Math.round((searchDurationMin + searchDurationMax) / 2);
-  const selectedMileage = searchContext.exact_mode ? searchContext.exact_total_mileage : Math.round((searchContext.total_mileage_range[0] + searchContext.total_mileage_range[1]) / 2);
-  const targetAnnualMileage = Math.round((selectedMileage * 12) / targetDuration);
 
   // Zoptymalizowane zbieranie cen w locie używając 1 wsadowego żądania HTTP 
   const vehicleIdsToFetchPrices = useMemo(() => {
@@ -64,11 +53,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     results.length > 0 && matrixFiltersActive,
   );
   
-  const requirements = useMemo(() => {
-    const payload = buildScoringPayload(searchContext, selectedFeatures);
-    return payload.requirements || [];
-  }, [searchContext, selectedFeatures]);
-
   const { similarVehicles: batchSimilar } = useBatchSimilarVehicles(
     vehicleIdsToFetchPrices,
     targetDuration,

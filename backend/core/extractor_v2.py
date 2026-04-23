@@ -61,8 +61,15 @@ def extract_vehicle_data_v2(
         # 2.2 Deterministic Netto Override
         if text_data:
             text_lower = text_data.lower()
-            if "w cenach netto" in text_lower or "ceny netto" in text_lower or "kwoty podane są w netto" in text_lower or "bez vat" in text_lower:
-                logger.info("Deterministyczne wykrycie 'w cenach netto' w tekście. Nadpisywanie price_domain...")
+            if (
+                "w cenach netto" in text_lower
+                or "ceny netto" in text_lower
+                or "kwoty podane są w netto" in text_lower
+                or "bez vat" in text_lower
+            ):
+                logger.info(
+                    "Deterministyczne wykrycie 'w cenach netto' w tekście. Nadpisywanie price_domain..."
+                )
                 if "card_summary" in pro_data:
                     pro_data["card_summary"]["price_domain"] = "netto"
             elif "w cenach brutto" in text_lower or "ceny brutto" in text_lower:

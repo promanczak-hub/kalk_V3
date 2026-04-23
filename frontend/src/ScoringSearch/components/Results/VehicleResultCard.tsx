@@ -14,10 +14,10 @@ import { fuelColor, fuelIcon } from '../../utils/vehicleFormatters';
 import { LtrPriceBlock } from './LtrPriceBlock';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
-import type { SelectedFeature } from '../../types';
+import type { SelectedFeature, ScoredVehicle } from '../../types';
 
 interface VehicleResultCardProps {
-  car: Record<string, unknown>;
+  car: ScoredVehicle;
   searchContext: SearchContext;
   targetDuration: number;
   targetAnnualMileage: number;
@@ -27,7 +27,7 @@ interface VehicleResultCardProps {
   requirements?: SelectedFeature[];
 }
 
-export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
+const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   car,
   searchContext,
   targetDuration,
@@ -286,3 +286,5 @@ export const VehicleResultCard: React.FC<VehicleResultCardProps> = ({
     </Card>
   );
 };
+
+export const VehicleResultCard = React.memo(VehicleResultCardBase);

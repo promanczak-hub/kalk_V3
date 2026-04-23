@@ -144,6 +144,7 @@ class SimilarVehicleMatch(BaseModel):
     price_domain: Optional[str] = "brutto"
     # Similarity breakdown — why this vehicle is similar
     similarity_reasons: Optional[SimilarityReasons] = None
+    ai_label: Optional[str] = None
 
 
 class PriceForParamsResponse(BaseModel):

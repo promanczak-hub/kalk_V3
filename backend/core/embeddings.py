@@ -34,13 +34,13 @@ def generate_embedding(text: str) -> list[float] | None:
             model_name,
         )
         logger.debug("Text length: %d", len(text.strip()))
-        
+
         response = client.models.embed_content(
-            model=model_name, 
+            model=model_name,
             contents=text.strip(),
-            config=types.EmbedContentConfig(output_dimensionality=768)
+            config=types.EmbedContentConfig(output_dimensionality=768),
         )
-        
+
         if response.embeddings and len(response.embeddings) > 0:
             return response.embeddings[0].values
     except APIError as e:

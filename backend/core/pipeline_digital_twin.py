@@ -160,9 +160,9 @@ def _call_gemini_pro(client, contents) -> dict:
             }
             logger.info(
                 "[GEMINI USAGE] prompt=%s, output=%s, thinking=%s",
-                usage_info['prompt_tokens'],
-                usage_info['output_tokens'],
-                usage_info['thinking_tokens'],
+                usage_info["prompt_tokens"],
+                usage_info["output_tokens"],
+                usage_info["thinking_tokens"],
             )
 
         pro_data_raw = json.loads(clean_json_response(pro_response_text))

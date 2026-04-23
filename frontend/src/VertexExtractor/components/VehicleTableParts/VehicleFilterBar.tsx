@@ -64,9 +64,7 @@ interface VehicleFilterBarProps {
   powerBounds: { powerMin: number; powerMax: number };
   onPowerRangeChange: (range: [number, number]) => void;
 
-  // Unmapped SAMAR
-  showUnmappedSamarOnly: boolean;
-  onShowUnmappedSamarChange: (val: boolean) => void;
+
   
   // Reset
   onResetFilters: () => void;
@@ -241,8 +239,7 @@ export function VehicleFilterBar({
   powerRange,
   powerBounds,
   onPowerRangeChange,
-  showUnmappedSamarOnly,
-  onShowUnmappedSamarChange,
+
   onResetFilters,
   selectedCount,
   totalVisible,
@@ -275,7 +272,7 @@ export function VehicleFilterBar({
 
   const hasActiveFilters =
     liveSearchText.length > 0 ||
-    showUnmappedSamarOnly ||
+
     selectedBrands.length > 0 ||
     selectedFuels.length > 0 ||
     selectedSamarClasses.length > 0 ||
@@ -344,21 +341,7 @@ export function VehicleFilterBar({
 
         {/* Right: Unmapped, Reset */}
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 cursor-pointer outline-none group select-none bg-orange-50 hover:bg-orange-100 border border-orange-200 hover:border-orange-300 transition-colors px-3 py-2 rounded-lg shadow-sm">
-            <div
-               className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                 showUnmappedSamarOnly
-                   ? "bg-orange-500 border-orange-500"
-                   : "bg-white border-orange-300 group-hover:border-orange-400"
-               }`}
-            >
-               {showUnmappedSamarOnly && <Check className="w-3 h-3 text-white" />}
-            </div>
-            <span className="text-xs font-semibold text-orange-700 whitespace-nowrap">
-              Brak Klasy SAMAR
-            </span>
-            <input type="checkbox" className="hidden" checked={showUnmappedSamarOnly} onChange={(e) => onShowUnmappedSamarChange(e.target.checked)} />
-          </label>
+
 
           {hasActiveFilters && (
             <button

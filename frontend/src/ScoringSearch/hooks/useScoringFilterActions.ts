@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import type { SearchContext, SelectedFeature } from '../types';
 
 export const useScoringFilterActions = (
@@ -6,34 +7,35 @@ export const useScoringFilterActions = (
   selectedFeatures: SelectedFeature[],
   onFeaturesChange: (features: SelectedFeature[]) => void
 ) => {
-  const toggleBrand = (brand: string) => {
+  const toggleBrand = useCallback((brand: string) => {
     const current = searchContext.brands;
     const next = current.includes(brand)
       ? current.filter((b: string) => b !== brand)
       : [...current, brand];
     onContextChange({ ...searchContext, brands: next, models: [], trims: [] });
-  };
+  }, [searchContext, onContextChange]);
 
-  const toggleTrim = (trim: string) => {
+  const toggleTrim = useCallback((trim: string) => {
     const current = searchContext.trims || [];
     const next = current.includes(trim)
       ? current.filter((t: string) => t !== trim)
       : [...current, trim];
     onContextChange({ ...searchContext, trims: next });
-  };
+  }, [searchContext, onContextChange]);
 
-  const toggleBodyType = (name: string) => {
+  const toggleBodyType = useCallback((name: string) => {
     const current = searchContext.bodyTypes || [];
     const next = current.includes(name)
       ? current.filter((b: string) => b !== name)
       : [...current, name];
     onContextChange({ ...searchContext, bodyTypes: next });
-  };
+  }, [searchContext, onContextChange]);
 
-  const isFeatureSelected = (key: string, value: string) =>
-    selectedFeatures.some(f => f.feature_key === key && f.value === value);
+  const isFeatureSelected = useCallback((key: string, value: string) =>
+    selectedFeatures.some(f => f.feature_key === key && f.value === value),
+  [selectedFeatures]);
 
-  const toggleFeature = (key: string, value: string, weight = 1, isMustHave = false) => {
+  const toggleFeature = useCallback((key: string, value: string, weight = 1, isMustHave = false) => {
     const existing = selectedFeatures.findIndex(f => f.feature_key === key && f.value === value);
     if (existing >= 0) {
       const clone = [...selectedFeatures];
@@ -48,9 +50,9 @@ export const useScoringFilterActions = (
         weight,
       }]);
     }
-  };
+  }, [selectedFeatures, onFeaturesChange]);
 
-  const updateRangeFeature = (key: string, val: [number, number], minLimit: number, maxLimit: number) => {
+  const updateRangeFeature = useCallback((key: string, val: [number, number], minLimit: number, maxLimit: number) => {
     const clone = [...selectedFeatures].filter(f => !(f.feature_key === key && (f.operator === 'gte' || f.operator === 'lte')));
     
     if (val[0] > minLimit) {
@@ -61,12 +63,13 @@ export const useScoringFilterActions = (
     }
     
     onFeaturesChange(clone);
-  };
+  }, [selectedFeatures, onFeaturesChange]);
 
-  const isOptionSelected = (prefix: string, name: string) =>
-    selectedFeatures.some(f => f.feature_key === `${prefix}${name}`);
+  const isOptionSelected = useCallback((prefix: string, name: string) =>
+    selectedFeatures.some(f => f.feature_key === `${prefix}${name}`),
+  [selectedFeatures]);
 
-  const toggleOption = (prefix: string, name: string) => {
+  const toggleOption = useCallback((prefix: string, name: string) => {
     const key = `${prefix}${name}`;
     const existing = selectedFeatures.findIndex(f => f.feature_key === key);
     if (existing >= 0) {
@@ -82,7 +85,7 @@ export const useScoringFilterActions = (
         weight: 1,
       }]);
     }
-  };
+  }, [selectedFeatures, onFeaturesChange]);
 
   return {
     toggleBrand,

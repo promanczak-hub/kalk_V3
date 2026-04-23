@@ -100,6 +100,11 @@ export const useScoringSearch = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKey]);
 
+  const computedRequirements = useMemo(() => {
+    const payload = buildScoringPayload(searchContext, selectedFeatures);
+    return payload.requirements || [];
+  }, [searchContext, selectedFeatures]);
+
   return {
     searchContext,
     setSearchContext,
@@ -109,6 +114,7 @@ export const useScoringSearch = () => {
     isSearching,
     snackbarMessage,
     setSnackbarMessage,
-    handleSearch
+    handleSearch,
+    computedRequirements
   };
 };
