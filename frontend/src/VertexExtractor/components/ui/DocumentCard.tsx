@@ -62,6 +62,7 @@ export function DocumentCard({
       {onRemove && (
         <IconButton
           size="small"
+          aria-label="Usuń dokument"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();

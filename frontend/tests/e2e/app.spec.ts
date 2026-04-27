@@ -9,7 +9,7 @@ test.describe('App Routing & Loading', () => {
 
     // Check if the main navigation tabs are visible
     await expect(page.getByRole('tablist')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Ekstrakcja Danych' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Kalkulacje Manualne' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Ekstrakcja i Analiza AI' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Historia Kalkulacji' })).toBeVisible();
   });
 });

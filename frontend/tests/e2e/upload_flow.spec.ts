@@ -6,7 +6,7 @@ test.describe('Upload Flow & Cancel', () => {
     await page.goto('/');
 
     const fileChooserPromise = page.waitForEvent('filechooser');
-    await page.locator('label[for="file-upload"]').click();
+    await page.getByLabel('prześlij dokumenty').click();
     
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles({
@@ -20,7 +20,7 @@ test.describe('Upload Flow & Cancel', () => {
     await expect(cardTitle).toBeVisible();
 
     // Szybko próbujemy kliknąć X, aby anulować (zakładając że backend nie odpowie w 1ms)
-    const cancelButton = page.locator('button[title="Zatrzymaj wgrywanie"], button[title="Przerwij analizę"]');
+    const cancelButton = page.getByLabel('Usuń dokument');
     
     // Upewniamy się, że przycisk się pojawi i go klikamy
     await expect(cancelButton).toBeVisible();
