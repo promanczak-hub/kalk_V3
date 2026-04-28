@@ -245,6 +245,28 @@ class FeatureSearchResultItem(BaseModel):
     price_netto: float | None = Field(
         default=None, description="Calculated monthly lease rate (netto)"
     )
+    matched_feature_keys: list[str] = Field(
+        default_factory=list,
+        description="Keys of feature requirements this vehicle matched (✓ in UI).",
+    )
+    missing_feature_keys: list[str] = Field(
+        default_factory=list,
+        description="Keys of feature requirements this vehicle did NOT match (✗ in UI).",
+    )
+    score_features_pct: float | None = Field(
+        default=None,
+        description=(
+            "Score component: percent of feature weight matched (0-100). "
+            "Present only when the RPC migration 20260428200000 has been applied."
+        ),
+    )
+    score_semantic: float | None = Field(
+        default=None,
+        description=(
+            "Score component: semantic similarity contribution in absolute points (0-30). "
+            "Present only when a semantic query was provided and the RPC migration was applied."
+        ),
+    )
 
 
 class FeatureSearchResponse(BaseModel):
