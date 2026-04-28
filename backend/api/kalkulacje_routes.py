@@ -84,6 +84,11 @@ class KalkulacjaListItem(BaseModel):
     toggles_summary: Optional[Dict[str, Any]] = None
     rata_netto: Optional[float] = None
     matrix_count: int = 0
+    is_selected: bool = False
+
+
+class SelectCalculationRequest(BaseModel):
+    kalkulacja_id: Optional[str] = None
 
 
 @router.post("", response_model=KalkulacjaResponse)
@@ -195,7 +200,10 @@ def create_manual_kalkulacja(req: CreateManualRequest):
 
 
 def _extract_list_fields(
-    row: Dict[str, Any], rata_netto: Optional[float] = None, matrix_count: int = 0
+    row: Dict[str, Any],
+    rata_netto: Optional[float] = None,
+    matrix_count: int = 0,
+    is_selected: bool = False,
 ) -> KalkulacjaListItem:
     """Extract enriched fields from stan_json for list view."""
     sj = cast(Dict[str, Any], row.get("stan_json") or {})
@@ -233,6 +241,7 @@ def _extract_list_fields(
         },
         rata_netto=rata_netto,
         matrix_count=matrix_count,
+        is_selected=is_selected,
     )
 
 
@@ -378,16 +387,72 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
                     if k_id not in best_rates or val < best_rates[k_id]:
                         best_rates[k_id] = val
 
+        try:
+            synth_res = (
+                supabase.table("vehicle_synthesis")
+                .select("selected_kalkulacja_id")
+                .eq("id", vehicle_id)
+                .limit(1)
+                .execute()
+            )
+            synth_rows = cast(List[Dict[str, Any]], synth_res.data or [])
+            selected_id = (
+                synth_rows[0].get("selected_kalkulacja_id") if synth_rows else None
+            )
+        except Exception:
+            # Column may not exist yet (migration pending) — degrade gracefully.
+            logger.warning(
+                "vehicle_synthesis.selected_kalkulacja_id unavailable; falling back to no-selection"
+            )
+            selected_id = None
+
         return [
             _extract_list_fields(
                 r,
                 rata_netto=best_rates.get(r["id"]),
                 matrix_count=matrix_counts.get(r["id"], 0),
+                is_selected=(selected_id is not None and r["id"] == selected_id),
             )
             for r in res.data
         ]
     except Exception as e:
         logger.exception("GET /kalkulacje/vehicle/%s failed", vehicle_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/vehicle/{vehicle_id}/selected-calculation")
+def set_selected_calculation(vehicle_id: str, body: SelectCalculationRequest) -> Dict[str, Any]:
+    """Persist the user's preferred default calculation for a vehicle.
+
+    Pass `kalkulacja_id=null` to clear the selection and fall back to "newest".
+    """
+    try:
+        if body.kalkulacja_id is not None:
+            owner = (
+                supabase.table("ltr_kalkulacje")
+                .select("id, stan_json")
+                .eq("id", body.kalkulacja_id)
+                .limit(1)
+                .execute()
+            )
+            owner_rows = cast(List[Dict[str, Any]], owner.data or [])
+            if not owner_rows:
+                raise HTTPException(status_code=404, detail="Kalkulacja nie istnieje")
+            stan = cast(Dict[str, Any], owner_rows[0].get("stan_json") or {})
+            if stan.get("vehicle_id") and stan["vehicle_id"] != vehicle_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Kalkulacja nie należy do podanego pojazdu",
+                )
+
+        supabase.table("vehicle_synthesis").update(
+            {"selected_kalkulacja_id": body.kalkulacja_id}
+        ).eq("id", vehicle_id).execute()
+        return {"ok": True, "vehicle_id": vehicle_id, "selected_kalkulacja_id": body.kalkulacja_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("PATCH /kalkulacje/vehicle/%s/selected-calculation failed", vehicle_id)
         raise HTTPException(status_code=500, detail=str(e))
 
 
