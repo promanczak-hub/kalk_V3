@@ -1,17 +1,8 @@
 import React from 'react';
-import { Box, Typography, Card, CardContent, Chip, Tooltip, IconButton, Button } from '@mui/material';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import SpeedIcon from '@mui/icons-material/Speed';
-import SettingsIcon from '@mui/icons-material/Settings';
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import BuildIcon from '@mui/icons-material/Build';
+import { ExternalLink, ShoppingCart, Check } from 'lucide-react';
 
 import type { SearchContext } from '../../types';
 import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
-import { fuelColor, fuelIcon } from '../../utils/vehicleFormatters';
-import { LtrPriceBlock } from './LtrPriceBlock';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
 import type { SelectedFeature, ScoredVehicle } from '../../types';
@@ -21,11 +12,22 @@ interface VehicleResultCardProps {
   searchContext: SearchContext;
   targetDuration: number;
   targetAnnualMileage: number;
-  priceData?: { price_for_params?: PriceForParams, variants?: PriceForParams[] };
+  priceData?: { price_for_params?: PriceForParams; variants?: PriceForParams[] };
   pricesLoading: boolean;
   similarData?: SimilarVehicle[];
   requirements?: SelectedFeature[];
 }
+
+const fmtPLN = (n?: number | null, maxFrac = 0): string =>
+  n != null ? Number(n).toLocaleString('pl-PL', { maximumFractionDigits: maxFrac }) : '—';
+
+const scoreColorClass = (pct?: number): string => {
+  const v = pct ?? 0;
+  if (v >= 90) return 'text-emerald-600';
+  if (v >= 70) return 'text-blue-600';
+  if (v >= 50) return 'text-amber-600';
+  return 'text-slate-400';
+};
 
 const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   car,
@@ -37,253 +39,253 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   similarData,
   requirements = [],
 }) => {
-  const addToCart = useOfferCartStore(state => state.addItem);
-  const vehicleId = car.vehicle_id as string;
-  const hasSpecs = car.fuel || car.power_hp || car.transmission || car.body_style || car.drive_type;
-  const matchedFeatures = (car.matched_features || []) as string[];
-  const missingFeatures = (car.missing_features || []) as string[];
+  const addToCart = useOfferCartStore((s) => s.addItem);
+  const vehicleId = car.vehicle_id;
+  const isInCart = useOfferCartStore((s) => s.items.some((i) => i.id.startsWith(vehicleId)));
+
+  const matchedFeatures = car.matched_features || [];
+  const missingFeatures = car.missing_features || [];
+  const score = car.match_score_pct;
+
+  const price = priceData?.price_for_params;
+  const variantsCount = price?.variants_count;
+  const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
+  const rawMonthly = hasPriceFromAPI ? price!.monthly_price_net : car.best_monthly_price;
+  const marginFrac = Math.min(searchContext.margin_pct ?? 0, 99) / 100;
+  const monthlyDisplay = rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
+  const calcDate = price?.calculated_at
+    ? new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const basePrice = (car.best_monthly_price as number) || 0;
-    const marginVal = (searchContext.margin_pct || 0) / 100.0;
-    const finalPrice = marginVal < 1.0 ? basePrice / (1.0 - marginVal) : basePrice;
+    const basePrice = car.best_monthly_price ?? 0;
+    const finalPrice = marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice;
     const variantPriceData = priceData?.price_for_params;
+    const uniqueId = `${vehicleId}_${variantPriceData?.duration_months ?? targetDuration}_${variantPriceData?.annual_mileage ?? targetAnnualMileage}`;
 
-    // Build unique ID based on vehicle and params to prevent duplicates of exact same config
-    const uniqueId = `${vehicleId}_${variantPriceData?.duration_months || targetDuration}_${variantPriceData?.annual_mileage || targetAnnualMileage}`;
-    
     addToCart({
       id: uniqueId,
-      brand: (car.brand as string) || '',
-      model: (car.model as string) || '',
-      powertrain: (car.fuel as string) || '',
-      vin_or_config: (car.configuration_code as string) || (car.offer_number as string) || 'Brak',
+      brand: car.brand || '',
+      model: car.model || '',
+      powertrain: car.fuel || '',
+      vin_or_config: car.configuration_code || car.offer_number || 'Brak',
       term: variantPriceData?.duration_months || targetDuration,
       mileage: variantPriceData?.annual_mileage || targetAnnualMileage,
       net_installment: finalPrice,
       contribution: 0,
       margin_pct: searchContext.margin_pct || 0,
       variants: priceData?.variants || [],
-      system_recommendation: typeof car.match_score_pct === 'number' && car.match_score_pct >= 90
-        ? 'Najlepsze dopasowanie'
-        : undefined,
+      system_recommendation: typeof score === 'number' && score >= 90 ? 'Najlepsze dopasowanie' : undefined,
       standard_equipment: [],
       factory_options: [],
       dealer_options: [],
-      calculation_data: {
-        ...car,
-        vehicle_id: vehicleId,
-        kalkulacja_id: variantPriceData?.kalkulacja_id
-      },
+      calculation_data: { ...car, vehicle_id: vehicleId, kalkulacja_id: variantPriceData?.kalkulacja_id },
     });
   };
 
-  const isInCart = useOfferCartStore(state => 
-    state.items.some(i => i.id.startsWith(vehicleId))
-  );
-
-  const cleanPrice = (val?: string | null) => val ? val.replace(/netto|brutto|pln/gi, '').trim() : '';
+  const versionMentionsPower = !!car.version && /\b\d+\s*(KM|kW)\b/i.test(car.version);
+  const specsLine = [
+    car.version,
+    car.power_hp && !versionMentionsPower ? `${car.power_hp} KM` : null,
+    car.transmission,
+    car.drive_type ? car.drive_type.replace(/^Napęd\s*/i, '') : null,
+    car.body_style,
+    car.fuel,
+    car.vehicle_class && car.vehicle_class !== 'Osobowy' ? car.vehicle_class : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <Card elevation={1} sx={{ 
-      borderRadius: 2, 
-      transition: 'all 0.3s ease', 
-      border: '1px solid transparent', 
-      borderColor: isInCart ? 'success.light' : 'transparent',
-      '&:hover': { boxShadow: 6, borderColor: isInCart ? 'success.main' : 'primary.light' } 
-    }}>
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
-          {/* Left Side: Vehicle Info & Specs */}
-          <Box sx={{ flex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              {isInCart && (
-                <Chip label="W OFERCIE" size="small" color="success" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800 }} />
-              )}
-              <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{car.brand as string} {car.model as string}</Typography>
-              {!!car.trim_level && car.trim_level !== 'Brak' && (
-                <Chip label={car.trim_level as string} size="small" variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '4px' }} />
-              )}
-              {(!!car.configuration_code || !!car.offer_number) && (
-                <Chip label={(car.configuration_code as string) || (car.offer_number as string)} size="small" variant="outlined"
-                  sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '4px', fontFamily: '"Geist Mono", monospace', color: 'slate.600', borderColor: 'slate.300', bgcolor: 'slate.50' }} />
-              )}
-              <Tooltip title="Sprawdź rekord w Ekstrakcji Danych">
-                <IconButton size="small" href={`/?highlight=${vehicleId}`} target="_blank" sx={{ color: 'text.secondary', ml: 'auto' }}>
-                  <OpenInNewIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 0.25 }}>{car.version as string}</Typography>
-
-            {!!hasSpecs && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                {!!car.fuel && (
-                  <Chip icon={fuelIcon(car.fuel as string)} label={car.fuel as string} size="small"
-                    color={fuelColor(car.fuel as string)}
-                    variant={fuelColor(car.fuel as string) !== 'default' ? 'filled' : 'outlined'}
-                    sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
-                )}
-                {!!car.power_hp && (
-                  <Chip icon={<SpeedIcon />} label={`${car.power_hp} KM`} size="small" variant="outlined" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
-                )}
-                {!!car.transmission && (
-                  <Chip icon={<SettingsIcon />}
-                    label={(car.transmission as string) === 'Automatyczna' ? 'Automat' : car.transmission as string}
-                    size="small"
-                    color={(car.transmission as string) === 'Automatyczna' ? 'info' : 'default'}
-                    variant={(car.transmission as string) === 'Automatyczna' ? 'filled' : 'outlined'}
-                    sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
-                )}
-                {!!car.body_style && (
-                  <Chip icon={<DirectionsCarIcon />} label={car.body_style as string} size="small" variant="outlined" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
-                )}
-                {!!car.drive_type && (
-                  <Chip label={(car.drive_type as string).replace(/^Napęd\s*/i, '')} size="small"
-                    color={(car.drive_type as string).toLowerCase().includes('awd') || (car.drive_type as string).toLowerCase().includes('4x4') ? 'warning' : 'default'}
-                    variant={(car.drive_type as string).toLowerCase().includes('awd') || (car.drive_type as string).toLowerCase().includes('4x4') ? 'filled' : 'outlined'}
-                    sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
-                )}
-                {!!car.vehicle_class && (car.vehicle_class as string) !== 'Osobowy' && (
-                  <Chip label={car.vehicle_class as string} size="small" variant="outlined" color="secondary" sx={{ '& .MuiChip-icon': { fontSize: 14 } }} />
-                )}
-              </Box>
+    <div
+      className={`flex flex-col bg-white rounded-xl border transition-colors ${
+        isInCart ? 'border-emerald-300' : 'border-slate-200 hover:border-slate-300'
+      }`}
+    >
+      {/* Header: identification + score */}
+      <div className="flex items-start justify-between gap-4 p-4">
+        <div className="flex-grow min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-sm font-semibold text-slate-900 leading-tight">
+              {car.brand} {car.model}
+            </h3>
+            {isInCart && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                <Check className="w-3 h-3" /> w ofercie
+              </span>
             )}
-
-            {!!(car.base_price_net || car.total_price_net) && (
-              <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                  <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase' }}>Cena Katalogowa:</Typography>
-                  {car.total_price_net ? (
-                    <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 800, color: 'primary.main' }}>
-                      {Number(car.total_price_net).toLocaleString('pl-PL')} PLN netto
-                    </Typography>
-                  ) : car.base_price_net ? (
-                    <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 800, color: 'primary.main' }}>
-                      {Number(car.base_price_net).toLocaleString('pl-PL')} PLN netto
-                    </Typography>
-                  ) : null}
-                  
-                  {(car.total_price_net || car.base_price_net) && (
-                    <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 500 }}>
-                      ({Number(((car.total_price_net as number) || (car.base_price_net as number)) * 1.23).toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN brutto)
-                    </Typography>
-                  )}
-                </Box>
-                
-                {car.base_price_net && car.options_price_net && (
-                  <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary', fontStyle: 'italic' }}>
-                    Podstawa: {Number(car.base_price_net).toLocaleString('pl-PL')} + Opcje: {Number(car.options_price_net).toLocaleString('pl-PL')}
-                  </Typography>
-                )}
-              </Box>
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {car.trim_level && car.trim_level !== 'Brak' && (
+              <span className="text-xs text-slate-500 font-medium">{car.trim_level}</span>
             )}
-          </Box>
+            {(car.configuration_code || car.offer_number) && (
+              <span className="text-[11px] font-mono text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                {car.configuration_code || car.offer_number}
+              </span>
+            )}
+          </div>
+          {!!specsLine && (
+            <p className="text-xs text-slate-500 font-mono mt-1.5 truncate">{specsLine}</p>
+          )}
+        </div>
 
-          {/* Right Side: Score, Price, Cart Action */}
-          <Box sx={{ ml: 2, flexShrink: 0, minWidth: 260, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', mb: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography
-                  variant="h4"
-                  sx={{
-                    fontWeight: 'bold',
-                    lineHeight: 1,
-                    mb: 0.5,
-                    color: (car.match_score_pct as number) === 100 ? 'success.main' :
-                      (car.match_score_pct as number) >= 80 ? 'info.main' :
-                        (car.match_score_pct as number) >= 50 ? 'warning.main' : '#94a3b8'
-                  }}
-                >
-                  {car.match_score_pct as number}%
-                </Typography>
-                <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Dopasowanie</Typography>
-              </Box>
+        <div className="flex-shrink-0 flex items-start gap-3">
+          <div className="text-right">
+            <div className={`text-lg font-semibold tabular-nums ${scoreColorClass(score)}`}>{score ?? 0}%</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">dopasowanie</div>
+          </div>
+          <a
+            href={`/?highlight=${vehicleId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-400 hover:text-slate-600 mt-0.5"
+            title="Otwórz w Ekstrakcji"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        </div>
+      </div>
 
-              <Box sx={{ textAlign: 'right' }}>
-                <LtrPriceBlock
-                  hasCache={!!(car.has_ltr_cache)}
-                  bestMonthlyPrice={(car.best_monthly_price as number) || 0}
-                  marginPct={searchContext.margin_pct || 0}
-                  suggestedDiscountPct={car.suggested_discount_pct as number | undefined}
-                  targetDuration={targetDuration}
-                  targetAnnualMileage={targetAnnualMileage}
-                  priceData={priceData}
-                  loading={pricesLoading}
-                />
-              </Box>
-            </Box>
+      {/* Catalog price strip */}
+      {(car.base_price_net || car.total_price_net) && (
+        <div className="flex items-baseline justify-between px-4 py-2.5 border-t border-slate-100">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Cena katalogowa</span>
+          <div className="text-right">
+            <div className="text-sm font-semibold text-slate-900 font-mono tabular-nums">
+              {fmtPLN(car.total_price_net ?? car.base_price_net)}{' '}
+              <span className="text-slate-500 font-normal">PLN netto</span>
+              <span className="text-[11px] text-slate-400 font-normal ml-2">
+                ({fmtPLN(((car.total_price_net ?? car.base_price_net ?? 0) as number) * 1.23)} brutto)
+              </span>
+            </div>
+            {car.base_price_net && car.options_price_net != null && (
+              <div className="text-[11px] text-slate-400 font-mono">
+                Podstawa {fmtPLN(car.base_price_net)} + Opcje {fmtPLN(car.options_price_net)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
-              {!!car.has_ltr_cache && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="secondary"
-                  startIcon={<ShoppingCartIcon sx={{ fontSize: '14px !important' }} />}
-                  sx={{ fontSize: '0.65rem', height: 24, textTransform: 'none', px: 1, minWidth: 0, boxShadow: 'none' }}
-                  onClick={handleAddToCart}
-                >
-                  Dodaj do oferty
-                </Button>
-              )}
-              {!!car.suggested_discount_pct && (car.suggested_discount_pct as number) > 0 && (
-                <Tooltip title="Sugerowany rabat z bazy dealera">
-                  <Chip icon={<LocalOfferIcon />}
-                    label={`BD ${car.suggested_discount_pct}%`} size="small"
-                    color="success" variant="filled"
-                    sx={{ fontWeight: 700, '& .MuiChip-icon': { fontSize: 14 }, height: 24 }} />
-                </Tooltip>
-              )}
-              {(!!car.service_cost_type || !!car.tire_class) && (
-                <Tooltip title="Parametry użyte w kalkulacji">
-                  <Chip icon={<BuildIcon />}
-                    label={[
-                      car.service_cost_type ? `Serwis: ${car.service_cost_type}` : null,
-                      car.tire_class ? `Opony: ${car.tire_class}` : null
-                    ].filter(Boolean).join(' | ')}
-                    size="small" variant="outlined"
-                    sx={{ fontSize: '0.65rem', '& .MuiChip-icon': { fontSize: 14 }, height: 24 }} />
-                </Tooltip>
-              )}
-            </Box>
-          </Box>
-        </Box>
+      {/* Calculation snapshot */}
+      <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/40">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+            Kalkulacja{calcDate ? ` · ${calcDate}` : ''}
+            {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
+          </span>
+          {!!car.suggested_discount_pct && car.suggested_discount_pct > 0 && (
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Sugerowany rabat dealerski">
+              BD <span className="font-semibold text-slate-700">{car.suggested_discount_pct}%</span>
+            </span>
+          )}
+        </div>
 
-        {/* Feature Tags & Similars */}
-        {matchedFeatures.length > 0 && (
-          <Box sx={{ mt: 1.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 'bold' }}>Spełnione wymagania ({matchedFeatures.length}):</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {matchedFeatures.map((f: string) => (
-                <Chip key={f} label={f.replace(/_/g, ' ')} size="small" color="success" variant="outlined" />
-              ))}
-            </Box>
-          </Box>
+        {pricesLoading ? (
+          <div className="text-xs text-slate-400">Ładowanie kalkulacji…</div>
+        ) : monthlyDisplay != null ? (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Czynsz miesięczny</div>
+              <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
+                {fmtPLN(monthlyDisplay)}{' '}
+                <span className="text-xs font-normal text-slate-500">zł / mc netto</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Marża</div>
+              <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
+                {searchContext.margin_pct ?? 0}%
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Okres × Przebieg</div>
+              <div className="text-xs text-slate-700 font-mono tabular-nums">
+                {targetDuration} mc · {fmtPLN(targetAnnualMileage)} km/rok
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Opony · Serwis</div>
+              <div className="text-xs text-slate-700 font-mono">
+                {[car.tire_class, car.service_cost_type].filter(Boolean).join(' · ') || '—'}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400 italic">Brak kalkulacji dla tych parametrów</div>
         )}
 
-        {missingFeatures.length > 0 && (
-          <Box sx={{ mt: 1.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 'bold' }}>Brakujące cechy ({missingFeatures.length}):</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {missingFeatures.map((f: string) => (
-                <Chip key={f} label={f.replace(/_/g, ' ')} size="small" color="error" variant="outlined" />
-              ))}
-            </Box>
-          </Box>
+        {!!car.has_ltr_cache && monthlyDisplay != null && (
+          <div className="flex justify-end mt-3">
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={isInCart}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded border transition-colors ${
+                isInCart
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:border-slate-400'
+              }`}
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              {isInCart ? 'W ofercie' : 'Dodaj do oferty'}
+            </button>
+          </div>
         )}
+      </div>
 
-        <SimilarVehiclesSection
-          vehicleId={vehicleId}
-          sourceVehicle={car}
-          targetDuration={targetDuration}
-          targetAnnualMileage={targetAnnualMileage}
-          similarData={similarData}
-          requirements={requirements}
-        />
-      </CardContent>
-    </Card>
+      {/* Requirement match summary */}
+      {(matchedFeatures.length > 0 || missingFeatures.length > 0) && (
+        <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
+          {matchedFeatures.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                Spełnione wymagania ({matchedFeatures.length})
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {matchedFeatures.map((f) => (
+                  <span
+                    key={f}
+                    className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded"
+                  >
+                    {f.replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {missingFeatures.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                Brakujące cechy ({missingFeatures.length})
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {missingFeatures.map((f) => (
+                  <span
+                    key={f}
+                    className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded"
+                  >
+                    {f.replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <SimilarVehiclesSection
+        vehicleId={vehicleId}
+        sourceVehicle={car as unknown as Record<string, unknown>}
+        targetDuration={targetDuration}
+        targetAnnualMileage={targetAnnualMileage}
+        similarData={similarData}
+        requirements={requirements}
+      />
+    </div>
   );
 };
 
