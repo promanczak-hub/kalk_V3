@@ -100,6 +100,15 @@ export interface SearchResult {
   brand: string;
   model: string;
   score: number;
+  matched_feature_keys?: string[];
+  missing_feature_keys?: string[];
+  matched_features?: number;
+  total_filters?: number;
+  match_score?: number;
+  source_vehicle_id?: string;
+  price_netto?: number | null;
+  score_features_pct?: number | null;
+  score_semantic?: number | null;
   [key: string]: any;
 }
 

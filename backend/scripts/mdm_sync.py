@@ -352,6 +352,43 @@ def import_from_sheet() -> dict[str, int]:
             stats["errors"] += 1
 
     logger.info("Import complete: %s", stats)
+
+    # Hygiene check: detect "both filterable" duplicate pairs (naked + eq_/spec_/dim_).
+    # These leak into the LLM prompt and double-score the same concept.
+    try:
+        all_resp = (
+            supabase.schema("reverse_search")
+            .table("universal_features")
+            .select("feature_key, display_name, is_filterable")
+            .eq("is_active", True)
+            .eq("is_filterable", True)
+            .execute()
+        )
+        keys = {r["feature_key"] for r in all_resp.data or []}
+        leaks: list[tuple[str, str]] = []
+        for k in keys:
+            for prefix in ("eq_", "spec_", "dim_"):
+                if not k.startswith(prefix):
+                    if (prefix + k) in keys:
+                        leaks.append((k, prefix + k))
+        if leaks:
+            logger.warning(
+                "MDM HYGIENE: %d duplicate filterable pair(s) detected. Mark naked variant as Is_Filterable=FALSE in gsheet. Pairs: %s",
+                len(leaks),
+                leaks[:10],
+            )
+    except Exception as exc:
+        logger.debug("Hygiene check failed: %s", exc)
+
+    if stats.get("added") or stats.get("updated"):
+        try:
+            from core.feature_catalog_loader import invalidate_catalog_cache
+
+            n = invalidate_catalog_cache()
+            logger.info("Reverse Search catalog cache invalidated (%d keys)", n)
+        except Exception as exc:
+            logger.warning("Failed to invalidate catalog cache: %s", exc)
+
     return stats
 
 

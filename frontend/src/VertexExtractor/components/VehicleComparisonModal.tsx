@@ -1,11 +1,16 @@
 ﻿import { useState, useEffect } from "react";
 import { X, Loader2, GitCompareArrows } from "lucide-react";
-import type { FleetVehicleView } from "../types";
 import { API_BASE_URL } from "../../config/env";
 import { apiClient } from "../../lib/apiClient";
 
+export type ComparableVehicle = {
+  id: string;
+  brand: string | null;
+  model: string | null;
+};
+
 interface VehicleComparisonModalProps {
-  vehicles: FleetVehicleView[];
+  vehicles: ComparableVehicle[];
   onClose: () => void;
 }
 

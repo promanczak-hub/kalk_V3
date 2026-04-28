@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from pydantic import BaseModel
 
@@ -343,6 +343,182 @@ def add_selected_catalog_features(
 # ── Reverse Search AI Extraction ───────────────────────────────
 
 
+_ALLOWED_AUDIO_MIME_TYPES = frozenset({
+    "audio/webm",
+    "audio/ogg",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/aac",
+    "audio/flac",
+    "audio/x-m4a",
+})
+_MAX_AUDIO_BYTES = 25 * 1024 * 1024
+
+
+_ALLOWED_NUMERIC_OPS = frozenset({"eq", "gte", "lte", "in"})
+
+
+def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
+    """Validate LLM output against the live catalog and build the API response.
+
+    Drops feature_keys absent from the catalog, drops type mismatches, and
+    produces both the new multi-type `extracted_features` and a legacy
+    boolean-only `extracted_filters` list (for unchanged frontend consumers).
+    """
+    from core.feature_catalog_loader import get_feature_lookup
+
+    catalog = get_feature_lookup()
+
+    raw_features: Any = json_resp.get("features", [])
+    # Backwards-compat: some old responses may still use 'matched_features' (list[str]).
+    if not raw_features:
+        legacy = json_resp.get("matched_features", [])
+        if isinstance(legacy, list):
+            raw_features = [
+                {"feature_key": k, "op": "eq", "value_bool": True}
+                for k in legacy
+                if isinstance(k, str) and k.strip()
+            ]
+    if not isinstance(raw_features, list):
+        raw_features = []
+
+    extracted_features: list[dict[str, Any]] = []
+    legacy_filters: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+
+    for raw in raw_features:
+        if not isinstance(raw, dict):
+            continue
+        key = raw.get("feature_key")
+        if not isinstance(key, str) or not key.strip():
+            continue
+        key = key.strip()
+
+        cat_entry = catalog.get(key)
+        if cat_entry is None:
+            rejected.append({"feature_key": key, "reason": "not_in_catalog"})
+            continue
+
+        ftype = cat_entry.feature_type
+        op_raw = raw.get("op", "eq")
+        op = op_raw if op_raw in _ALLOWED_NUMERIC_OPS else "eq"
+        value_bool = raw.get("value_bool")
+        value_num = raw.get("value_num")
+        value_text = raw.get("value_text")
+
+        if ftype == "boolean":
+            if value_bool is not True:
+                rejected.append({"feature_key": key, "reason": "boolean_not_true"})
+                continue
+            entry = {
+                "feature_key": key,
+                "feature_type": "boolean",
+                "op": "eq",
+                "value_bool": True,
+                "display_name": cat_entry.display_name,
+            }
+            extracted_features.append(entry)
+            legacy_filters.append({"feature_key": key, "value_bool": True})
+
+        elif ftype == "numeric":
+            if value_num is None:
+                rejected.append({"feature_key": key, "reason": "numeric_value_missing"})
+                continue
+            try:
+                num = float(value_num)
+            except (TypeError, ValueError):
+                rejected.append({"feature_key": key, "reason": "numeric_not_a_number"})
+                continue
+            extracted_features.append({
+                "feature_key": key,
+                "feature_type": "numeric",
+                "op": op,
+                "value_num": num,
+                "display_name": cat_entry.display_name,
+                "canonical_unit": cat_entry.canonical_unit,
+            })
+
+        elif ftype in ("text", "enum"):
+            if not isinstance(value_text, str) or not value_text.strip():
+                rejected.append({"feature_key": key, "reason": "text_value_missing"})
+                continue
+            text_val = value_text.strip()
+            if (
+                ftype == "enum"
+                and cat_entry.allowed_values
+                and text_val not in cat_entry.allowed_values
+            ):
+                rejected.append({"feature_key": key, "reason": "enum_value_not_allowed"})
+                continue
+            extracted_features.append({
+                "feature_key": key,
+                "feature_type": ftype,
+                "op": "eq",
+                "value_text": text_val,
+                "display_name": cat_entry.display_name,
+            })
+
+        else:
+            rejected.append({"feature_key": key, "reason": f"unknown_type_{ftype}"})
+
+    if rejected:
+        logger.info(
+            "Reverse Search extraction rejected %d entries: %s",
+            len(rejected),
+            rejected[:10],
+        )
+
+    # Defense in depth: dedupe by display_name (case-insensitive). The DB has
+    # historic duplicates (e.g. abs + eq_abs same display_name) and prefer prefixed
+    # keys; if the LLM still returns both, keep the prefixed variant once.
+    seen_names: set[str] = set()
+    deduped_features: list[dict[str, Any]] = []
+    deduped_legacy: list[dict[str, Any]] = []
+    legacy_keys = {f["feature_key"] for f in legacy_filters}
+    duplicate_count = 0
+
+    def _is_prefixed_key(k: str) -> bool:
+        return any(k.startswith(p) for p in ("eq_", "spec_", "dim_", "opt_"))
+
+    for feat in sorted(
+        extracted_features,
+        key=lambda f: (0 if _is_prefixed_key(f["feature_key"]) else 1),
+    ):
+        name_norm = (feat.get("display_name") or feat["feature_key"]).strip().lower()
+        if name_norm in seen_names:
+            duplicate_count += 1
+            continue
+        seen_names.add(name_norm)
+        deduped_features.append(feat)
+        if feat["feature_key"] in legacy_keys:
+            deduped_legacy.append(
+                {"feature_key": feat["feature_key"], "value_bool": True}
+            )
+
+    if duplicate_count > 0:
+        logger.info(
+            "Reverse Search extraction de-duplicated %d entries by display_name",
+            duplicate_count,
+        )
+
+    return {
+        "status": "success",
+        "extracted_features": deduped_features,
+        "extracted_filters": deduped_legacy,
+        "extracted_financials": {
+            "price_max": json_resp.get("price_max"),
+            "duration_months": json_resp.get("duration_months"),
+            "annual_mileage": json_resp.get("annual_mileage"),
+        },
+        "total_extracted": len(deduped_features),
+        "transcript": json_resp.get("transcript"),
+        "rejected_count": len(rejected),
+        "deduplicated_count": duplicate_count,
+    }
+
+
 @router.post("/features/extract-text")
 def extract_features_from_text(
     request: FeatureExtractionRequest,
@@ -351,11 +527,8 @@ def extract_features_from_text(
     import json
     from google.genai import types
     from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
-    from core.reverse_search_llm import (
-        REVERSE_SEARCH_SYSTEM_PROMPT,
-        ExtractedReverseSearchFeatures,
-    )
-    from core.models_features import FeatureFilterItem
+    from core.reverse_search_llm import ExtractedReverseSearchFeatures
+    from core.reverse_search_prompt import build_reverse_search_prompt
 
     if not request.query_text or not request.query_text.strip():
         raise HTTPException(
@@ -370,7 +543,7 @@ def extract_features_from_text(
             model="gemini-2.5-flash",
             contents=request.query_text,
             config=types.GenerateContentConfig(
-                system_instruction=REVERSE_SEARCH_SYSTEM_PROMPT,
+                system_instruction=build_reverse_search_prompt(),
                 temperature=0.0,
                 response_mime_type="application/json",
                 response_schema=ExtractedReverseSearchFeatures,
@@ -380,32 +553,10 @@ def extract_features_from_text(
         if not response.text:
             raise ValueError("Pusta odpowiedź od modelu językowego.")
 
-        json_resp = json.loads(response.text)
+        return _build_extraction_response(json.loads(response.text))
 
-        # Convert the matched features list into a list of FeatureFilterItem
-        filters: list[FeatureFilterItem] = []
-
-        matched_keys = json_resp.get("matched_features", [])
-        if not isinstance(matched_keys, list):
-            matched_keys = []
-
-        for feature_key in matched_keys:
-            if isinstance(feature_key, str) and feature_key.strip():
-                filters.append(
-                    FeatureFilterItem(feature_key=feature_key.strip(), value_bool=True)
-                )
-
-        return {
-            "status": "success",
-            "extracted_filters": [f.model_dump() for f in filters],
-            "extracted_financials": {
-                "price_max": json_resp.get("price_max"),
-                "duration_months": json_resp.get("duration_months"),
-                "annual_mileage": json_resp.get("annual_mileage"),
-            },
-            "total_extracted": len(filters),
-        }
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(
             "Błąd podczas analizy tekstu przez LLM: %s", getattr(e, "message", str(e))
@@ -413,6 +564,71 @@ def extract_features_from_text(
         raise HTTPException(
             status_code=500,
             detail=f"Analiza tekstu AI nie powiodła się: {e}",
+        )
+
+
+@router.post("/features/extract-audio")
+async def extract_features_from_audio(
+    audio: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Extract structured feature filters from a Polish voice recording.
+
+    Audio is processed in-memory only and forwarded directly to Gemini 2.5 Flash,
+    which natively transcribes + extracts features in a single inference. Nothing
+    is persisted to disk or database.
+    """
+    import json
+    from google.genai import types
+    from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+    from core.reverse_search_llm import ExtractedReverseSearchFeatures
+    from core.reverse_search_prompt import build_reverse_search_prompt
+
+    mime_type = (audio.content_type or "").split(";")[0].strip().lower()
+    if mime_type not in _ALLOWED_AUDIO_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Nieobsługiwany format audio: {audio.content_type or 'brak'}",
+        )
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Nagranie audio jest puste.")
+    if len(audio_bytes) > _MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Nagranie zbyt duże (max {_MAX_AUDIO_BYTES // (1024 * 1024)} MB).",
+        )
+
+    client = get_gemini_client()
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=build_reverse_search_prompt(),
+                temperature=0.0,
+                response_mime_type="application/json",
+                response_schema=ExtractedReverseSearchFeatures,
+                safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+            ),
+        )
+        if not response.text:
+            raise ValueError("Pusta odpowiedź od modelu językowego.")
+
+        return _build_extraction_response(json.loads(response.text))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Błąd podczas analizy audio przez LLM: %s", getattr(e, "message", str(e))
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analiza audio AI nie powiodła się: {e}",
         )
 
 
@@ -674,20 +890,31 @@ def reverse_search_vehicles(
     paginated_data = rpc_data[request.offset : request.offset + request.limit]
 
     for row in paginated_data:
-        matched_features = row.get("matched_features", [])
+        matched_raw = row.get("matched_features") or []
+        missing_raw = row.get("missing_features") or []
+        matched_keys = [k for k in matched_raw if isinstance(k, str)] if isinstance(matched_raw, list) else []
+        missing_keys = [k for k in missing_raw if isinstance(k, str)] if isinstance(missing_raw, list) else []
+
         score = (
             row.get("match_score_pct", 0) / 100.0 if row.get("match_score_pct") else 0
         )
+
+        score_features_pct = row.get("score_features_pct")
+        score_semantic = row.get("score_semantic")
 
         results.append(
             FeatureSearchResultItem(
                 source_vehicle_id=row["vehicle_id"],
                 brand=row["brand"],
                 model=row["model"],
-                matched_features=len(matched_features),
+                matched_features=len(matched_keys),
                 total_filters=total_requested_features,
                 match_score=score,
                 price_netto=row.get("best_monthly_price"),
+                matched_feature_keys=matched_keys,
+                missing_feature_keys=missing_keys,
+                score_features_pct=float(score_features_pct) if score_features_pct is not None else None,
+                score_semantic=float(score_semantic) if score_semantic is not None else None,
             )
         )
 
@@ -726,6 +953,111 @@ def reverse_search_vehicles(
         total_count=len(rpc_data),
         facets=facets,
     )
+
+
+# ── Saved Filter Sets ─────────────────────────────────────────
+
+
+class SavedFilterUpsert(BaseModel):
+    name: str
+    description: str | None = None
+    filter_state: dict[str, Any]
+    user_email: str | None = None
+
+
+class SavedFilterItem(BaseModel):
+    id: str
+    user_email: str | None = None
+    name: str
+    description: str | None = None
+    filter_state: dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+@router.get("/reverse-search/saved-filters")
+def list_saved_filters(user_email: str | None = None) -> list[SavedFilterItem]:
+    """List saved filter sets, optionally scoped to a user."""
+    query = (
+        supabase
+        .table("reverse_search_saved_filters")
+        .select("*")
+        .order("updated_at", desc=True)
+    )
+    if user_email:
+        query = query.eq("user_email", user_email)
+    resp = query.execute()
+    return [SavedFilterItem(**row) for row in (resp.data or [])]
+
+
+@router.post("/reverse-search/saved-filters")
+def upsert_saved_filter(payload: SavedFilterUpsert) -> SavedFilterItem:
+    """Create or update a saved filter set keyed by (user_email, name)."""
+    if not payload.name or not payload.name.strip():
+        raise HTTPException(status_code=400, detail="Nazwa nie może być pusta.")
+    if not isinstance(payload.filter_state, dict):
+        raise HTTPException(status_code=400, detail="filter_state musi być obiektem.")
+
+    name = payload.name.strip()
+    user_email = payload.user_email.strip() if payload.user_email else None
+
+    existing_q = (
+        supabase
+        .table("reverse_search_saved_filters")
+        .select("id")
+        .eq("name", name)
+    )
+    if user_email:
+        existing_q = existing_q.eq("user_email", user_email)
+    else:
+        existing_q = existing_q.is_("user_email", "null")
+    existing = existing_q.execute()
+
+    row_payload = {
+        "name": name,
+        "description": payload.description,
+        "filter_state": payload.filter_state,
+        "user_email": user_email,
+    }
+
+    if existing.data:
+        existing_id = existing.data[0]["id"]
+        upd = (
+            supabase
+            .table("reverse_search_saved_filters")
+            .update(row_payload)
+            .eq("id", existing_id)
+            .execute()
+        )
+        if not upd.data:
+            raise HTTPException(status_code=500, detail="Nie udało się zapisać filtra.")
+        return SavedFilterItem(**upd.data[0])
+
+    ins = (
+        supabase
+        .table("reverse_search_saved_filters")
+        .insert(row_payload)
+        .execute()
+    )
+    if not ins.data:
+        raise HTTPException(status_code=500, detail="Nie udało się utworzyć filtra.")
+    return SavedFilterItem(**ins.data[0])
+
+
+@router.delete("/reverse-search/saved-filters/{filter_id}")
+def delete_saved_filter(filter_id: str) -> dict[str, Any]:
+    """Delete a saved filter set by id."""
+    resp = (
+        supabase
+        .table("reverse_search_saved_filters")
+        .delete()
+        .eq("id", filter_id)
+        .execute()
+    )
+    deleted = len(resp.data or [])
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="Nie znaleziono zapisanego filtra.")
+    return {"status": "deleted", "id": filter_id}
 
 
 # ── Brochure Features ─────────────────────────────────────────
