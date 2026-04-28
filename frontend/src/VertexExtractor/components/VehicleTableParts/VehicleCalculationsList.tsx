@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings } from "lucide-react";
+import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings, Star } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { apiClient } from "../../../lib/apiClient";
 import { fmtPLN } from "./calculations/calculations.utils";
@@ -33,6 +33,7 @@ export interface HistoricalCalculation {
   toggles_summary?: TogglesSummary | null;
   rata_netto?: number | null;
   matrix_count?: number;
+  is_selected?: boolean;
 }
 
 interface VehicleCalculationsListProps {
@@ -171,6 +172,48 @@ function ConfigCellRenderer(params: ICellRendererParams<HistoricalCalculation>) 
   );
 }
 
+function SelectedCellRenderer(
+  params: ICellRendererParams<HistoricalCalculation> & {
+    onToggleSelected?: (kalkulacjaId: string, makeSelected: boolean) => void;
+    pendingId?: string | null;
+  }
+) {
+  const item = params.data;
+  if (!item) return null;
+  const isSelected = !!item.is_selected;
+  const isPending = params.pendingId === item.id;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isPending) return;
+    params.onToggleSelected?.(item.id, !isSelected);
+  };
+
+  return (
+    <div className="flex items-center justify-center h-full">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isPending}
+        title={
+          isSelected
+            ? "Domyślna w wyszukiwarce — kliknij, by wyczyścić"
+            : "Ustaw jako domyślną w wyszukiwarce"
+        }
+        className={cn(
+          "p-1.5 rounded transition-colors",
+          isSelected
+            ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+            : "text-slate-300 hover:text-amber-400 hover:bg-slate-50",
+          isPending && "opacity-40 cursor-wait"
+        )}
+      >
+        <Star className={cn("w-4 h-4", isSelected && "fill-current")} />
+      </button>
+    </div>
+  );
+}
+
 function ActionsCellRenderer(params: ICellRendererParams<HistoricalCalculation> & { activeKalkulacjaId?: string | null, onClone?: (id: string) => void }) {
   const item = params.data;
   if (!item) return null;
@@ -224,6 +267,7 @@ export function VehicleCalculationsList({
   const [items, setItems] = useState<HistoricalCalculation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -256,9 +300,50 @@ export function VehicleCalculationsList({
     return () => window.removeEventListener('kalkulacjaCreated', handleNewCalc);
   }, [vehicleId, activeKalkulacjaId]);
 
+  const handleToggleSelected = async (kalkulacjaId: string, makeSelected: boolean) => {
+    setPendingSelectId(kalkulacjaId);
+    setItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        is_selected: makeSelected ? it.id === kalkulacjaId : it.id === kalkulacjaId ? false : it.is_selected,
+      }))
+    );
+    try {
+      const res = await apiClient.fetch(
+        `${API_BASE_URL}/api/kalkulacje/vehicle/${vehicleId}/selected-calculation`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kalkulacja_id: makeSelected ? kalkulacjaId : null }),
+        }
+      );
+      if (!res.ok) throw new Error("Nie udało się zapisać domyślnej kalkulacji");
+      window.dispatchEvent(
+        new CustomEvent("selectedKalkulacjaChanged", {
+          detail: { vehicleId, kalkulacjaId: makeSelected ? kalkulacjaId : null },
+        })
+      );
+    } catch (err) {
+      setError((err as Error).message || "Błąd zapisu");
+      fetchHistory();
+    } finally {
+      setPendingSelectId(null);
+    }
+  };
+
   /* --- AG Grid Setup --- */
 
   const columnDefs = useMemo<ColDef<HistoricalCalculation>[]>(() => [
+    {
+      headerName: "★",
+      field: "is_selected",
+      width: 56,
+      cellRenderer: SelectedCellRenderer,
+      cellRendererParams: { onToggleSelected: handleToggleSelected, pendingId: pendingSelectId },
+      sortable: false,
+      filter: false,
+      headerTooltip: "Domyślna kalkulacja w wyszukiwarce",
+    },
     {
       headerName: "Numer / Data",
       field: "numer_kalkulacji",
@@ -298,7 +383,7 @@ export function VehicleCalculationsList({
       sortable: false,
       filter: false,
     }
-  ], [activeKalkulacjaId, onClone]);
+  ], [activeKalkulacjaId, onClone, pendingSelectId]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true,

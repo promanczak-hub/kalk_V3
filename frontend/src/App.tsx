@@ -1,6 +1,5 @@
 import { useMemo, useEffect } from "react";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
-import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import {
@@ -21,7 +20,6 @@ import {
   Navigate,
   Link,
 } from "react-router-dom";
-import ControlCenter from "./ControlCenter";
 import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
 import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
@@ -38,7 +36,6 @@ import OfferCartFab from "./components/OfferCart/OfferCartFab";
  */
 const ROUTES = [
   { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" /> },
-  { path: "/control-center", label: "Control Center (Admin)", icon: <TuneOutlinedIcon fontSize="small" /> },
   { path: "/search", label: "Wyszukiwarka / Scoring", icon: <SearchOutlinedIcon fontSize="small" /> },
   { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" /> },
 ] as const;
@@ -204,7 +201,6 @@ function AppContent({ mode }: AppContentProps) {
         <ErrorBoundary fallbackTitle="Błąd ładowania sekcji">
           <Routes>
             <Route path="/" element={<VertexExtractorPage />} />
-            <Route path="/control-center" element={<ControlCenter />} />
             <Route path="/calculations" element={<CalculationsHistoryPage />} />
             <Route path="/search" element={<ScoringSearchPage />} />
 

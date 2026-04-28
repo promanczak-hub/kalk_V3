@@ -56,11 +56,6 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
         />
       )}
 
-      {!loading && (!alternatives || alternatives.length === 0) && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-          Brak odpowiednich alternatyw polecanych przez AI.
-        </Typography>
-      )}
     </Box>
   );
 };
