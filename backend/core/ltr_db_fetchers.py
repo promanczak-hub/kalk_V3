@@ -73,18 +73,34 @@ def get_damage_coefficients_from_db(samar_class_id: str) -> Dict[str, Any]:
     """Pobiera współczynniki szkodowe dla klasy pojazdu."""
     from core.database import supabase
 
+    if not samar_class_id or str(samar_class_id) in ("0", "None", ""):
+        logger.warning(
+            "get_damage_coefficients_from_db: pusty/zerowy samar_class_id=%r — "
+            "resolver klasy SAMAR prawdopodobnie zawiódł.",
+            samar_class_id,
+        )
+        return {}
+
     try:
-        if samar_class_id:
-            res = (
-                supabase.table("ltr_admin_wspolczynniki_szkodowe")
-                .select("*")
-                .eq("samar_class_id", samar_class_id)
-                .execute()
-            )
-            if res.data and len(res.data) > 0:
-                return cast(Dict[str, Any], res.data[0])
+        res = (
+            supabase.table("ltr_admin_wspolczynniki_szkodowe")
+            .select("*")
+            .eq("samar_class_id", samar_class_id)
+            .execute()
+        )
+        if res.data and len(res.data) > 0:
+            return cast(Dict[str, Any], res.data[0])
+        logger.warning(
+            "get_damage_coefficients_from_db: brak wpisu w ltr_admin_wspolczynniki_szkodowe "
+            "dla samar_class_id=%s. Sprawdź seed tabeli.",
+            samar_class_id,
+        )
     except Exception as e:
-        logger.warning("Error fetching damage coefficients: %s", e)
+        logger.warning(
+            "Error fetching damage coefficients (samar_class_id=%s): %s",
+            samar_class_id,
+            e,
+        )
     return {}
 
 

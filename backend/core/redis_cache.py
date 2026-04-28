@@ -110,6 +110,15 @@ def get_cache_stats() -> dict[str, Any]:
         return {"available": False, "key_count": 0, "memory_mb": 0.0}
 
 
+def _is_empty_result(value: Any) -> bool:
+    """True when a fetcher returned a value that should NOT be cached."""
+    if value is None:
+        return True
+    if isinstance(value, (dict, list, tuple, set, str, bytes)) and len(value) == 0:
+        return True
+    return False
+
+
 def redis_cache(
     ttl_seconds: int = 3600,
     prefix: str = "",
@@ -140,8 +149,10 @@ def redis_cache(
             # Cache miss — call original function
             result = func(*args, **kwargs)
 
-            # Try write to cache
-            if client is not None:
+            # Skip caching empty results to prevent cache poisoning when
+            # Supabase is transiently unavailable, seeds are incomplete, or
+            # an upstream resolver returns 0/"". Forces a re-query next call.
+            if client is not None and not _is_empty_result(result):
                 try:
                     client.setex(
                         cache_key,

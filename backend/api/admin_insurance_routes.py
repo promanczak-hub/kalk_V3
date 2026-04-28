@@ -2,8 +2,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Any, cast
 from core.database import supabase
+from core.redis_cache import cache_invalidate_pattern
 
 router = APIRouter(tags=["Admin Insurance"])
+
+_INSURANCE_RATES_CACHE = "ltr_fetchers:get_insurance_rates_from_db:*"
+_DAMAGE_COEFFS_CACHE = "ltr_fetchers:get_damage_coefficients_from_db:*"
 
 # --- Models: ltr_admin_ubezpieczenia ---
 
@@ -55,6 +59,7 @@ def upsert_insurance_rate(rate: InsuranceRate):
             raise HTTPException(
                 status_code=500, detail="Failed to upsert insurance rate"
             )
+        cache_invalidate_pattern(_INSURANCE_RATES_CACHE)
         response_data = cast(Any, response.data[0])
         return InsuranceRate(**response_data)
     except Exception as e:
@@ -71,6 +76,7 @@ def bulk_upsert_insurance_rates(rates: List[InsuranceRate]):
                 d.pop("id", None)
             data_list.append(d)
         response = supabase.table("ltr_admin_ubezpieczenia").upsert(data_list).execute()
+        cache_invalidate_pattern(_INSURANCE_RATES_CACHE)
         return {"status": "success", "count": len(response.data)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -80,6 +86,7 @@ def bulk_upsert_insurance_rates(rates: List[InsuranceRate]):
 def delete_insurance_rate(rate_id: str):
     try:
         supabase.table("ltr_admin_ubezpieczenia").delete().eq("id", rate_id).execute()
+        cache_invalidate_pattern(_INSURANCE_RATES_CACHE)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -114,6 +121,7 @@ def upsert_damage_coefficient(coeff: DamageCoefficient):
             raise HTTPException(
                 status_code=500, detail="Failed to upsert damage coefficient"
             )
+        cache_invalidate_pattern(_DAMAGE_COEFFS_CACHE)
         response_data = cast(Any, response.data[0])
         return DamageCoefficient(**response_data)
     except Exception as e:
@@ -126,6 +134,7 @@ def delete_damage_coefficient(coeff_id: int):
         supabase.table("ltr_admin_wspolczynniki_szkodowe").delete().eq(
             "id", coeff_id
         ).execute()
+        cache_invalidate_pattern(_DAMAGE_COEFFS_CACHE)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
