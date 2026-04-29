@@ -187,6 +187,11 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
                     Modele: <span className="font-mono">{lastSummary.models.join(', ')}</span>
                   </li>
                 )}
+                {lastSummary.trims.length > 0 && (
+                  <li>
+                    Wersje: <span className="font-mono">{lastSummary.trims.join(', ')}</span>
+                  </li>
+                )}
                 {lastSummary.budget && (
                   <li>
                     Budżet: <span className="font-mono">{formatPLN(lastSummary.budget)} PLN/mc</span>
@@ -203,7 +208,21 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
                   </li>
                 )}
                 {lastSummary.featuresCount > 0 && (
-                  <li>Wymagania: <span className="font-mono">{lastSummary.featuresCount}</span></li>
+                  <li>
+                    Wymagania:{' '}
+                    <span className="font-mono">{lastSummary.mustHaveCount} musi</span>
+                    {lastSummary.niceToHaveCount > 0 && (
+                      <>
+                        {' · '}
+                        <span className="font-mono">{lastSummary.niceToHaveCount} mile widziane</span>
+                      </>
+                    )}
+                  </li>
+                )}
+                {lastSummary.semanticHint && (
+                  <li className="italic text-emerald-800">
+                    Semantyczne: "{lastSummary.semanticHint}"
+                  </li>
                 )}
               </ul>
               {(lastSummary.unmatchedBrands.length > 0 || lastSummary.unmatchedModels.length > 0) && (

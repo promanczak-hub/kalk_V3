@@ -10,6 +10,7 @@ interface ExtractedFeatureItem {
   value_num?: number | null;
   value_text?: string | null;
   display_name?: string;
+  requirement?: 'MUST_HAVE' | 'NICE_TO_HAVE';
 }
 
 interface ExtractionResponse {
@@ -22,27 +23,34 @@ interface ExtractionResponse {
   };
   extracted_brands?: string[];
   extracted_models?: string[];
+  extracted_trims?: string[];
+  semantic_hint?: string | null;
   rejected_count?: number;
 }
 
 export interface ExtractionSummary {
   brands: string[];
   models: string[];
+  trims: string[];
   budget?: number;
   durationMonths?: number;
   annualMileage?: number;
   featuresCount: number;
+  mustHaveCount: number;
+  niceToHaveCount: number;
+  semanticHint?: string;
   unmatchedBrands: string[];
   unmatchedModels: string[];
 }
 
 const featureToRequirement = (f: ExtractedFeatureItem): SelectedFeature | null => {
+  const req = f.requirement === 'NICE_TO_HAVE' ? 'NICE_TO_HAVE' : 'MUST_HAVE';
   if (f.feature_type === 'boolean' && f.value_bool === true) {
     return {
       feature_key: f.feature_key,
       operator: 'eq',
       value: true,
-      requirement: 'MUST_HAVE',
+      requirement: req,
       weight: 1,
     };
   }
@@ -51,7 +59,7 @@ const featureToRequirement = (f: ExtractedFeatureItem): SelectedFeature | null =
       feature_key: f.feature_key,
       operator: f.op === 'gte' || f.op === 'lte' ? f.op : 'eq',
       value: f.value_num,
-      requirement: 'MUST_HAVE',
+      requirement: req,
       weight: 1,
     };
   }
@@ -60,7 +68,7 @@ const featureToRequirement = (f: ExtractedFeatureItem): SelectedFeature | null =
       feature_key: f.feature_key,
       operator: 'eq',
       value: f.value_text,
-      requirement: 'MUST_HAVE',
+      requirement: req,
       weight: 1,
     };
   }
@@ -122,6 +130,7 @@ export function useEmailExtraction({
 
       const extractedBrands = data.extracted_brands || [];
       const extractedModels = data.extracted_models || [];
+      const extractedTrims = data.extracted_trims || [];
       const { matched: matchedBrands, unmatched: unmatchedBrands } = matchCaseInsensitive(
         extractedBrands,
         knownBrands,
@@ -137,6 +146,7 @@ export function useEmailExtraction({
       const fin = data.extracted_financials || {};
       const annualMileage = fin.annual_mileage || undefined;
       const durationMonths = fin.duration_months || undefined;
+      const semanticHint = data.semantic_hint || undefined;
 
       const newCtx: SearchContext = { ...searchContext };
       if (matchedBrands.length > 0) {
@@ -144,6 +154,12 @@ export function useEmailExtraction({
       }
       if (matchedModels.length > 0) {
         newCtx.models = Array.from(new Set([...newCtx.models, ...matchedModels]));
+      }
+      if (extractedTrims.length > 0) {
+        newCtx.trims = Array.from(new Set([...(newCtx.trims || []), ...extractedTrims]));
+      }
+      if (semanticHint) {
+        newCtx.semanticQuery = semanticHint;
       }
       let matrixTouched = false;
       if (fin.price_max && fin.price_max > 0) {
@@ -170,6 +186,8 @@ export function useEmailExtraction({
       const newFeatures = features
         .map(featureToRequirement)
         .filter((f): f is SelectedFeature => f !== null);
+      const mustHaveCount = newFeatures.filter((f) => f.requirement === 'MUST_HAVE').length;
+      const niceToHaveCount = newFeatures.length - mustHaveCount;
       if (newFeatures.length > 0) {
         setSelectedFeatures(newFeatures);
       }
@@ -179,10 +197,14 @@ export function useEmailExtraction({
       setLastSummary({
         brands: matchedBrands,
         models: matchedModels,
+        trims: extractedTrims,
         budget: fin.price_max ?? undefined,
         durationMonths,
         annualMileage,
         featuresCount: newFeatures.length,
+        mustHaveCount,
+        niceToHaveCount,
+        semanticHint,
         unmatchedBrands,
         unmatchedModels,
       });

@@ -38,6 +38,15 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
    - "minimum X", "co najmniej", "od X" → `op=gte`
    - "max X", "do X", "nie więcej niż" → `op=lte`
    - "dokładnie X" → `op=eq`
+3a. **MUST_HAVE vs NICE_TO_HAVE — KRYTYCZNE:**
+   - Domyślnie `requirement=MUST_HAVE` (klient wymienia cechę bez kwalifikatora).
+   - `requirement=NICE_TO_HAVE` GDY klient użyje:
+     "jeśli dostępne", "jeśli możliwe", "preferowane", "preferowanie",
+     "mile widziane", "byłoby fajnie", "byłoby dobrze", "opcjonalnie",
+     "jeśli się da", "gdyby było", "ewentualnie".
+   - Przykład: "kamera cofania" → MUST. "kamera cofania jeśli dostępna" → NICE.
+   - Przykład: "podgrzewane szyby (jeśli dostępne)" → NICE.
+   - Przykład: "automat" → MUST. "preferowany automat" → NICE.
 4. **Kontekst pojazdu (applies_to):** Jeśli z zapytania wynika typ pojazdu (osobowy / LCV /
    ciężarowy), pomiń cechy nieadekwatne — w katalogu masz tag `pojazdy:[...]`. Pusta lista
    = uniwersalne.
@@ -69,6 +78,16 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
   "VW Tayron"/"Volkswagen Tayron" → "Tayron". "Volvo XC40 lub XC60" → ["XC40", "XC60"].
   Przykład pełny: ["Kodiaq", "Superb", "Tucson", "XC40", "XC60", "Tayron", "Passat"].
   Brak → null.
+- `trims`: wersje wyposażenia (trim levels) wymienione przez klienta.
+  "Skoda Kodiaq **Drive** 2.0 TSI" → "Drive". "Superb **Sportline**" → "Sportline".
+  Typowe trimy: Drive, Sportline, R-Line, M Sport, Style, Selection, Ambition,
+  Elegance, Active, Trendline, Highline, GTI, GTD. Bez marki/modelu/silnika.
+  Brak → null.
+- `semantic_hint`: krótka fraza (5-15 słów po polsku) opisująca segment / typ auta,
+  GDY klient użyje "lub podobna", "lub coś z tego segmentu", "lub inne SUV-y".
+  Pomaga znaleźć podobne auta poza wymienionymi modelami.
+  Przykład: "Skoda Kodiaq lub podobna" → "duży SUV rodzinny segmentu D, 7-osobowy, benzynowy".
+  Bez "lub podobna" / "coś z tego" → null.
 
 ## WEJŚCIE AUDIO
 

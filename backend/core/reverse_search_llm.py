@@ -59,6 +59,17 @@ class ExtractedFeature(BaseModel):
             "wartości jeśli katalog je podaje, inaczej zachowaj sformułowanie klienta."
         ),
     )
+    requirement: Literal["MUST_HAVE", "NICE_TO_HAVE"] = Field(
+        default="MUST_HAVE",
+        description=(
+            "Czy cecha jest wymagana (MUST_HAVE) czy preferowana (NICE_TO_HAVE). "
+            "Domyślnie MUST_HAVE. Ustaw NICE_TO_HAVE gdy klient użyje wyrażeń typu: "
+            "'jeśli dostępne', 'preferowane', 'byłoby fajnie', 'mile widziane', "
+            "'opcjonalnie', 'jeśli się da', 'gdyby było'. "
+            "MUST_HAVE dla: 'musi mieć', 'wymagam', 'konieczne', 'obowiązkowo', "
+            "albo gdy klient po prostu wymienia cechę bez kwalifikatora."
+        ),
+    )
 
 
 class ExtractedReverseSearchFeatures(BaseModel):
@@ -109,5 +120,24 @@ class ExtractedReverseSearchFeatures(BaseModel):
             "Modele wymienione przez klienta (np. ['Kodiaq', 'Tucson', 'Passat', 'XC60']). "
             "Każdy element to sama nazwa modelu — bez marki, bez wersji silnikowej. "
             "Brak → null."
+        ),
+    )
+    trims: list[str] | None = Field(
+        default=None,
+        description=(
+            "Wersje wyposażenia (trim levels) wymienione przez klienta — np. "
+            "'Drive', 'Sportline', 'R-Line', 'M Sport', 'Style', 'Selection', 'Ambition'. "
+            "Bez marki/modelu/silnika. 'Skoda Kodiaq Drive 2.0 TSI' → 'Drive'. "
+            "'Superb Sportline' → 'Sportline'. Brak → null."
+        ),
+    )
+    semantic_hint: str | None = Field(
+        default=None,
+        description=(
+            "Krótka fraza (5-15 słów po polsku) opisująca segment / typ samochodu, GDY klient "
+            "użyje sformułowań typu 'lub podobna', 'lub coś z tego segmentu', 'lub inne SUV-y'. "
+            "Pomaga semantic search znaleźć podobne auta poza wymienionymi modelami. "
+            "Przykład: 'Skoda Kodiaq lub podobna' → 'duży SUV rodzinny segmentu D, 7-osobowy, benzynowy'. "
+            "Jeśli klient nie użył 'lub podobna' / 'coś z tego' / 'inne X' → null."
         ),
     )
