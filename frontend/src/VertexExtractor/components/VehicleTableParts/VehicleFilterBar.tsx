@@ -253,7 +253,7 @@ export function VehicleFilterBar({
   onCompareSelected,
 }: VehicleFilterBarProps) {
   const [localSearch, setLocalSearch] = useState(liveSearchText);
-  const [isRangeExpanded, setIsRangeExpanded] = useState(true);
+  const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchInput = useCallback(
@@ -346,9 +346,18 @@ export function VehicleFilterBar({
           </div>
         </div>
 
-        {/* Right: Unmapped, Reset */}
+        {/* Right: Advanced toggle, Reset */}
         <div className="flex items-center gap-3">
 
+          <button
+            type="button"
+            onClick={() => setIsAdvancedExpanded(prev => !prev)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs uppercase font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+            title={isAdvancedExpanded ? "Zwiń filtry zaawansowane" : "Rozwiń filtry zaawansowane"}
+          >
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isAdvancedExpanded ? "rotate-180" : ""}`} />
+            Filtry
+          </button>
 
           {hasActiveFilters && (
             <button
@@ -363,8 +372,8 @@ export function VehicleFilterBar({
         </div>
       </div>
 
-      {/* Row 2: Advanced Dropdowns */}
-      <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+      {/* Row 2+3: Advanced Dropdowns + Sliders (collapsible) */}
+      {isAdvancedExpanded && <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
         <span className="text-xs font-semibold uppercase text-slate-500 mr-2 tracking-wider">Filtry Zaawansowane</span>
 
         <MultiSelectDropdown
@@ -409,19 +418,10 @@ export function VehicleFilterBar({
           onChange={onSelectedDrivesChange}
         />
 
-        <button
-          type="button"
-          onClick={() => setIsRangeExpanded(prev => !prev)}
-          className="ml-auto flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 hover:border-slate-300 rounded-lg transition-colors whitespace-nowrap"
-          title={isRangeExpanded ? "Zwiń filtry zakresu" : "Rozwiń filtry zakresu"}
-        >
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isRangeExpanded ? "" : "rotate-180"}`} />
-          Zakres
-        </button>
-      </div>
+      </div>}
 
       {/* Row 3: Sliders (Date, Price, Power, Koszt Dzienny) */}
-      {isRangeExpanded && <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
+      {isAdvancedExpanded && <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
         {/* Date range slider */}
         <div className="flex-1">
           <div className="flex justify-between items-center mb-2">
