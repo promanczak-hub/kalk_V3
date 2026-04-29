@@ -185,9 +185,9 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             Kalkulacja{calcDate ? ` · ${calcDate}` : ''}
             {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
           </span>
-          {!!car.suggested_discount_pct && car.suggested_discount_pct > 0 && (
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Sugerowany rabat dealerski">
-              BD <span className="font-semibold text-slate-700">{car.suggested_discount_pct}%</span>
+          {!!car.applied_discount_pct && car.applied_discount_pct > 0 && (
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Rabat dealerski zastosowany w kalkulacji">
+              BD <span className="font-semibold text-slate-700">{car.applied_discount_pct}%</span>
             </span>
           )}
         </div>
