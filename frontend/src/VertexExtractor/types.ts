@@ -55,6 +55,7 @@ export interface FleetVehicleView {
   starting_price?: string | null;
 
   synthesis_data?: Record<string, unknown> | null;
+  koszt_dzienny_min?: number | null;
   suggested_discount_pct?: number | null;
   suggested_discount_confidence?: number | null;
   suggested_discount_source?: string | null;

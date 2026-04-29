@@ -402,6 +402,7 @@ def process_single_kalkulacja_matrix_task(
     discount_val = calc_input.discount_pct
     base_price_net = float(calc_input.base_price_net)
     best_price: float | None = None
+    min_koszt_dzienny: float | None = None
 
     seen_keys: set[tuple[int, int]] = set()
     for cell in all_cells:
@@ -418,6 +419,9 @@ def process_single_kalkulacja_matrix_task(
             # Track cheapest cell for jobs dashboard
             if best_price is None or monthly_price_net < best_price:
                 best_price = monthly_price_net
+            koszt_dzienny_val = float(cell.get("KosztDzienny", 0.0))
+            if koszt_dzienny_val > 0 and (min_koszt_dzienny is None or koszt_dzienny_val < min_koszt_dzienny):
+                min_koszt_dzienny = koszt_dzienny_val
             records_to_upsert.append(
                 {
                     "vehicle_id": str(vehicle_id),
@@ -456,6 +460,15 @@ def process_single_kalkulacja_matrix_task(
                     error_detail=str(e)[:300],
                 )
                 return
+
+        # Persist min koszt_dzienny to vehicle_synthesis for list-level filtering
+        if min_koszt_dzienny is not None:
+            try:
+                supabase.table("vehicle_synthesis").update(
+                    {"koszt_dzienny_min": round(min_koszt_dzienny, 2)}
+                ).eq("id", str(vehicle_id)).execute()
+            except Exception as e:
+                logger.warning("Failed to update koszt_dzienny_min for %s: %s", vehicle_id, e)
 
         # Track: done
         _upsert_job(vehicle_id, "done", monthly_price=best_price)
