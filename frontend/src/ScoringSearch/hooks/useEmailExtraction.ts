@@ -32,6 +32,7 @@ export interface ExtractionSummary {
   brands: string[];
   models: string[];
   trims: string[];
+  bodyTypes: string[];
   budget?: number;
   durationMonths?: number;
   annualMileage?: number;
@@ -96,6 +97,7 @@ interface UseEmailExtractionParams {
   setSelectedFeatures: (features: SelectedFeature[]) => void;
   knownBrands: string[];
   brandModelMap: Record<string, string[]>;
+  knownBodyTypes?: string[];
 }
 
 export function useEmailExtraction({
@@ -104,6 +106,7 @@ export function useEmailExtraction({
   setSelectedFeatures,
   knownBrands,
   brandModelMap,
+  knownBodyTypes = [],
 }: UseEmailExtractionParams) {
   const [emailText, setEmailText] = useState('');
   const [extracting, setExtracting] = useState(false);
@@ -190,7 +193,23 @@ export function useEmailExtraction({
       // filtering — but default is "loose semantic" which always returns results
       // ranked by similarity instead of hard-filtering to zero.
       const features = data.extracted_features || [];
-      const newFeatures = features
+
+      // body_style is routed to the bodyTypes filter (visible chips in UI, MUST_HAVE)
+      // rather than treated as a generic feature — same pattern as brands/models.
+      const bodyStyleFeature = features.find((f) => f.feature_key === 'body_style');
+      const extractedBodyTypes: string[] = [];
+      if (bodyStyleFeature?.value_text) {
+        const { matched } = matchCaseInsensitive([bodyStyleFeature.value_text], knownBodyTypes);
+        if (matched.length > 0) {
+          extractedBodyTypes.push(...matched);
+        }
+      }
+      if (extractedBodyTypes.length > 0) {
+        newCtx.bodyTypes = Array.from(new Set([...newCtx.bodyTypes, ...extractedBodyTypes]));
+      }
+
+      const nonBodyFeatures = features.filter((f) => f.feature_key !== 'body_style');
+      const newFeatures = nonBodyFeatures
         .map((f) => featureToRequirement({ ...f, requirement: 'NICE_TO_HAVE' as const }))
         .filter((f): f is SelectedFeature => f !== null);
       const mustHaveCount = 0; // forced soft
@@ -205,6 +224,7 @@ export function useEmailExtraction({
         brands: matchedBrands,
         models: matchedModels,
         trims: extractedTrims,
+        bodyTypes: extractedBodyTypes,
         budget: fin.price_max ?? undefined,
         durationMonths,
         annualMileage,
@@ -221,7 +241,7 @@ export function useEmailExtraction({
     } finally {
       setExtracting(false);
     }
-  }, [emailText, knownBrands, brandModelMap, searchContext, setSearchContext, setSelectedFeatures]);
+  }, [emailText, knownBrands, brandModelMap, knownBodyTypes, searchContext, setSearchContext, setSelectedFeatures]);
 
   return {
     emailText,
