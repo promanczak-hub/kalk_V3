@@ -196,6 +196,7 @@ export function VehicleRowCard({
     "4X4": "AWD", "4x4": "AWD", "4WD": "AWD", "ALL": "AWD",
     "4x4 (AWD)": "AWD", "4X4 (AWD)": "AWD",
     "4X2": "FWD", "4x2": "FWD", "2WD": "FWD",
+    "2X4": "FWD", "2x4": "FWD",
     "4x2 (FWD)": "FWD", "4X2 (FWD)": "FWD",
     "4x2 (RWD)": "RWD", "4X2 (RWD)": "RWD"
   };
