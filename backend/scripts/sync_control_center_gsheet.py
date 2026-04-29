@@ -40,7 +40,6 @@ CONTROL_CENTER_FIELDS: dict[str, type] = {
     "vat_rate": float,
     "bank_spread": float,
     "resale_time_days": int,
-    "inventory_financing_cost": float,
     "ins_avg_damage_value": float,
     "ins_avg_damage_mileage": int,
     "cost_gsm_subscription_monthly": float,

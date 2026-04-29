@@ -13,7 +13,6 @@ class ControlCenterSettings(BaseModel):
     value_threshold_1: float
     value_threshold_2: float
     resale_time_days: int
-    inventory_financing_cost: float
     samar_rv_apply_color_correction: bool
     samar_rv_apply_body_correction: bool
     samar_rv_apply_options_depreciation: bool

@@ -22,7 +22,6 @@ def mock_settings() -> ControlCenterSettings:
         value_threshold_1=100000,
         value_threshold_2=200000,
         resale_time_days=60,
-        inventory_financing_cost=0.05,
         samar_rv_apply_color_correction=False,
         samar_rv_apply_body_correction=False,
         samar_rv_apply_options_depreciation=False,
