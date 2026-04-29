@@ -503,6 +503,19 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
             duplicate_count,
         )
 
+    raw_brands = json_resp.get("brands") or []
+    raw_models = json_resp.get("models") or []
+    extracted_brands = (
+        [b.strip() for b in raw_brands if isinstance(b, str) and b.strip()]
+        if isinstance(raw_brands, list)
+        else []
+    )
+    extracted_models = (
+        [m.strip() for m in raw_models if isinstance(m, str) and m.strip()]
+        if isinstance(raw_models, list)
+        else []
+    )
+
     return {
         "status": "success",
         "extracted_features": deduped_features,
@@ -512,6 +525,8 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
             "duration_months": json_resp.get("duration_months"),
             "annual_mileage": json_resp.get("annual_mileage"),
         },
+        "extracted_brands": extracted_brands,
+        "extracted_models": extracted_models,
         "total_extracted": len(deduped_features),
         "transcript": json_resp.get("transcript"),
         "rejected_count": len(rejected),

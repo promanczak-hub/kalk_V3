@@ -58,6 +58,18 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
 - `annual_mileage`: roczny limit kilometrów. "30 tys" → 30000. Jeśli klient podaje na
   cały okres ("160 tys przez 4 lata"), oblicz roczny limit (160000/4 = 40000). Brak → null.
 
+## POLA POJAZDÓW (poza katalogiem cech)
+
+- `brands`: lista marek wymienionych przez klienta. **Zwracaj kanoniczne nazwy:**
+  "WV"/"VW"/"Volkswagen" → "Volkswagen". "Mercedes"/"MB" → "Mercedes-Benz".
+  Przykład: "Skoda Kodiaq lub VW Tayron, ewentualnie Volvo XC60" → ["Skoda", "Volkswagen", "Volvo"].
+  Brak marek → null.
+- `models`: lista modeli (sama nazwa, bez marki i bez wersji silnikowej).
+  "Skoda Kodiaq Drive 2.0 TSI 204KM" → "Kodiaq". "Hyundai Tucson 2025/2026" → "Tucson".
+  "VW Tayron"/"Volkswagen Tayron" → "Tayron". "Volvo XC40 lub XC60" → ["XC40", "XC60"].
+  Przykład pełny: ["Kodiaq", "Superb", "Tucson", "XC40", "XC60", "Tayron", "Passat"].
+  Brak → null.
+
 ## WEJŚCIE AUDIO
 
 Jeśli wejściem jest plik audio, w polu `transcript` zwróć dosłowną transkrypcję wypowiedzi

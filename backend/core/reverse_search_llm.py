@@ -95,3 +95,19 @@ class ExtractedReverseSearchFeatures(BaseModel):
             "Dla wejścia tekstowego pozostaw null."
         ),
     )
+    brands: list[str] | None = Field(
+        default=None,
+        description=(
+            "Marki samochodów wymienione przez klienta. Zwracaj kanoniczne nazwy "
+            "(np. 'Skoda', 'Volkswagen', 'BMW'). 'WV', 'VW', 'Volkswagen' → 'Volkswagen'. "
+            "Brak marek → null."
+        ),
+    )
+    models: list[str] | None = Field(
+        default=None,
+        description=(
+            "Modele wymienione przez klienta (np. ['Kodiaq', 'Tucson', 'Passat', 'XC60']). "
+            "Każdy element to sama nazwa modelu — bez marki, bez wersji silnikowej. "
+            "Brak → null."
+        ),
+    )
