@@ -51,23 +51,24 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const variantsCount = price?.variants_count;
   const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
   const rawMonthly = hasPriceFromAPI ? price!.monthly_price_net : car.best_monthly_price;
-  const marginFrac = Math.min(searchContext.margin_pct ?? 0, 99) / 100;
-  const monthlyDisplay = rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
+  // When applied_margin_pct is available and we're using best_monthly_price (not per-params batch),
+  // best_monthly_price is already priced at applied_margin_pct by the RPC — display it directly.
+  const usingAppliedMargin = !hasPriceFromAPI && car.applied_margin_pct != null;
+  const displayMarginPct = usingAppliedMargin
+    ? car.applied_margin_pct!
+    : (searchContext.margin_pct ?? 0);
+  const marginFrac = Math.min(displayMarginPct, 99) / 100;
+  const monthlyDisplay = usingAppliedMargin
+    ? (car.best_monthly_price ?? null)
+    : rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
   const calcDate = price?.calculated_at
     ? new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : null;
 
-  const catalogNet = car.total_price_net ?? car.base_price_net;
-  const discountedNet =
-    catalogNet != null && car.suggested_discount_pct
-      ? catalogNet * (1 - car.suggested_discount_pct / 100)
-      : null;
-  const discountedGross = discountedNet != null ? discountedNet * 1.23 : null;
-
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     const basePrice = car.best_monthly_price ?? 0;
-    const finalPrice = marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice;
+    const finalPrice = usingAppliedMargin ? basePrice : (marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice);
     const variantPriceData = priceData?.price_for_params;
     const uniqueId = `${vehicleId}_${variantPriceData?.duration_months ?? targetDuration}_${variantPriceData?.annual_mileage ?? targetAnnualMileage}`;
 
@@ -81,7 +82,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       mileage: variantPriceData?.annual_mileage || targetAnnualMileage,
       net_installment: finalPrice,
       contribution: 0,
-      margin_pct: searchContext.margin_pct || 0,
+      margin_pct: displayMarginPct,
       variants: priceData?.variants || [],
       system_recommendation: typeof score === 'number' && score >= 90 ? 'Najlepsze dopasowanie' : undefined,
       standard_equipment: [],
@@ -184,51 +185,53 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             Kalkulacja{calcDate ? ` · ${calcDate}` : ''}
             {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
           </span>
-          <div className="flex items-center gap-3">
-            {discountedNet != null && (
-              <span className="text-[10px] text-slate-500 font-mono tabular-nums text-right">
-                <span className="text-slate-700 font-semibold">{fmtPLN(discountedNet)}</span> netto
-                <span className="text-slate-400 ml-1">({fmtPLN(discountedGross!)} brutto)</span>
-              </span>
-            )}
-            {!!car.suggested_discount_pct && car.suggested_discount_pct > 0 && (
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Sugerowany rabat dealerski">
-                BD <span className="font-semibold text-slate-700">{car.suggested_discount_pct}%</span>
-              </span>
-            )}
-          </div>
+          {!!car.suggested_discount_pct && car.suggested_discount_pct > 0 && (
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Sugerowany rabat dealerski">
+              BD <span className="font-semibold text-slate-700">{car.suggested_discount_pct}%</span>
+            </span>
+          )}
         </div>
 
         {pricesLoading ? (
           <div className="text-xs text-slate-400">Ładowanie kalkulacji…</div>
         ) : monthlyDisplay != null ? (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Czynsz miesięczny</div>
-              <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
-                {fmtPLN(monthlyDisplay)}{' '}
-                <span className="text-xs font-normal text-slate-500">zł / mc netto</span>
+          <>
+            {/* Budget-first banner: shown when matrix mode + budget set + we have a per-car margin */}
+            <BudgetMatchBanner
+              monthlyBudget={searchContext.monthly_budget}
+              matrixActive={!!searchContext.useMatrixFilters}
+              appliedMarginPct={car.applied_margin_pct}
+              monthlyDisplay={monthlyDisplay}
+            />
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Czynsz miesięczny</div>
+                <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
+                  {fmtPLN(monthlyDisplay)}{' '}
+                  <span className="text-xs font-normal text-slate-500">zł / mc netto</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Marża</div>
+                <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
+                  {displayMarginPct}%
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Okres × Przebieg</div>
+                <div className="text-xs text-slate-700 font-mono tabular-nums">
+                  {targetDuration} mc · {fmtPLN(Math.round(targetAnnualMileage * targetDuration / 12))} km
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Opony · Serwis</div>
+                <div className="text-xs text-slate-700 font-mono">
+                  {[car.tire_class, car.service_cost_type].filter(Boolean).join(' · ') || '—'}
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Marża</div>
-              <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
-                {searchContext.margin_pct ?? 0}%
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Okres × Przebieg</div>
-              <div className="text-xs text-slate-700 font-mono tabular-nums">
-                {targetDuration} mc · {fmtPLN(Math.round(targetAnnualMileage * targetDuration / 12))} km
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Opony · Serwis</div>
-              <div className="text-xs text-slate-700 font-mono">
-                {[car.tire_class, car.service_cost_type].filter(Boolean).join(' · ') || '—'}
-              </div>
-            </div>
-          </div>
+          </>
         ) : (
           <div className="text-xs text-slate-400 italic">Brak kalkulacji dla tych parametrów</div>
         )}
@@ -305,3 +308,88 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
 };
 
 export const VehicleResultCard = React.memo(VehicleResultCardBase);
+
+// ── Budget Match Banner ─────────────────────────────────────────────────────
+// Highlights the per-vehicle margin computed by the backend to fit the
+// customer's monthly_budget. Color tier:
+//   ≥ 12% → emerald ("świetna marża, mocny biznes")
+//   5-12% → amber  ("graniczna, do negocjacji")
+//   < 5%  → orange ("niska marża, ostrożnie")
+//   null  → not shown (backend filtered out / no matrix mode)
+
+interface BudgetMatchBannerProps {
+  monthlyBudget: number | null | undefined;
+  matrixActive: boolean;
+  appliedMarginPct: number | null | undefined;
+  monthlyDisplay: number | null | undefined;
+}
+
+const BudgetMatchBanner: React.FC<BudgetMatchBannerProps> = ({
+  monthlyBudget,
+  matrixActive,
+  appliedMarginPct,
+  monthlyDisplay,
+}) => {
+  // Only show when in budget-match mode AND backend gave us a per-car margin
+  if (!matrixActive || !monthlyBudget || monthlyBudget <= 0) return null;
+  if (appliedMarginPct == null) return null;
+
+  const tier: 'good' | 'warning' | 'loss' =
+    appliedMarginPct >= 12 ? 'good' : appliedMarginPct >= 5 ? 'warning' : 'loss';
+
+  const tierStyle = {
+    good: 'bg-emerald-50 border-emerald-300',
+    warning: 'bg-amber-50 border-amber-300',
+    loss: 'bg-orange-50 border-orange-300',
+  }[tier];
+
+  const textStyle = {
+    good: 'text-emerald-800',
+    warning: 'text-amber-800',
+    loss: 'text-orange-800',
+  }[tier];
+
+  const badgeStyle = {
+    good: 'bg-emerald-600 text-white',
+    warning: 'bg-amber-600 text-white',
+    loss: 'bg-orange-600 text-white',
+  }[tier];
+
+  const tierLabel = {
+    good: '✓ Świetna marża',
+    warning: '⚠ Marża graniczna',
+    loss: '⚠ Niska marża',
+  }[tier];
+
+  return (
+    <div className={`mb-3 p-3 rounded-md border ${tierStyle}`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            💰 Dopasowane do budżetu
+          </span>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeStyle}`}>
+            {tierLabel}
+          </span>
+        </div>
+        <div className={`flex items-baseline gap-3 font-mono tabular-nums ${textStyle}`}>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider opacity-75">Cena</span>{' '}
+            <span className="text-base font-bold">
+              {fmtPLN(monthlyDisplay ?? monthlyBudget)}
+            </span>
+            <span className="text-[10px] opacity-75 ml-0.5">PLN/mc</span>
+          </div>
+          <div className="text-slate-300">·</div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider opacity-75">Marża</span>{' '}
+            <span className="text-base font-bold">{appliedMarginPct.toFixed(1)}%</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-1 text-[10px] text-slate-500">
+        Backend dobrał marżę tak, by cena auta zmieściła się w Twoim budżecie {fmtPLN(monthlyBudget)} PLN.
+      </div>
+    </div>
+  );
+};
