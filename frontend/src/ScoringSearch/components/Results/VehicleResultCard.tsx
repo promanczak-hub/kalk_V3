@@ -1,5 +1,5 @@
-import React from 'react';
-import { ExternalLink, ShoppingCart, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { ExternalLink, ShoppingCart, Check, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 import type { SearchContext } from '../../types';
 import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
@@ -54,9 +54,9 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   // When applied_margin_pct is available and we're using best_monthly_price (not per-params batch),
   // best_monthly_price is already priced at applied_margin_pct by the RPC — display it directly.
   const usingAppliedMargin = !hasPriceFromAPI && car.applied_margin_pct != null;
-  const displayMarginPct = usingAppliedMargin
-    ? car.applied_margin_pct!
-    : (searchContext.margin_pct ?? 0);
+  // Always prefer per-vehicle applied_margin_pct (backend's budget-matched margin)
+  // over the global searchContext.margin_pct, so banner and grid show the same number.
+  const displayMarginPct = car.applied_margin_pct ?? (searchContext.margin_pct ?? 0);
   const marginFrac = Math.min(displayMarginPct, 99) / 100;
   const monthlyDisplay = usingAppliedMargin
     ? (car.best_monthly_price ?? null)
@@ -231,6 +231,16 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Multi-variant table — shows other (period × mileage) cache combos for this car */}
+            <VariantsTable
+              vehicleId={vehicleId}
+              variants={priceData?.variants}
+              currentDuration={price?.duration_months ?? targetDuration}
+              currentMileage={price?.annual_mileage ?? targetAnnualMileage}
+              monthlyBudget={searchContext.monthly_budget}
+              currentMarginFrac={marginFrac}
+            />
           </>
         ) : (
           <div className="text-xs text-slate-400 italic">Brak kalkulacji dla tych parametrów</div>
@@ -390,6 +400,249 @@ const BudgetMatchBanner: React.FC<BudgetMatchBannerProps> = ({
       <div className="mt-1 text-[10px] text-slate-500">
         Backend dobrał marżę tak, by cena auta zmieściła się w Twoim budżecie {fmtPLN(monthlyBudget)} PLN.
       </div>
+    </div>
+  );
+};
+
+// ── Variants Table ─────────────────────────────────────────────────────────
+// Mini-table of all (period × mileage) cache combos available for this car.
+// Sorted by margin-to-budget descending (best deal first). Highlights:
+//   - Currently displayed variant (matches current params)
+//   - Variants that fit budget (green) vs over-budget (red)
+// Computed entirely on frontend from priceData.variants[] — no backend changes.
+
+interface PriceVariant {
+  duration_months: number | null;
+  annual_mileage: number | null;
+  monthly_price_net: number | null;
+  tire_class?: string;
+  service_type?: string;
+  kalkulacja_id?: string;
+}
+
+interface VariantsTableProps {
+  vehicleId: string;
+  variants: PriceVariant[] | undefined;
+  currentDuration: number | null;
+  currentMileage: number | null;
+  monthlyBudget: number | null | undefined;
+  currentMarginFrac: number; // 0..0.99 — global margin used in main display
+}
+
+const VariantsTable: React.FC<VariantsTableProps> = ({
+  vehicleId,
+  variants: passedVariants,
+  currentDuration,
+  currentMileage,
+  monthlyBudget,
+  currentMarginFrac,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const [fetchedVariants, setFetchedVariants] = useState<PriceVariant[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Lazy-fetch variants when user opens the panel — backend's batch-prices
+  // endpoint returns empty variants[] (data overflow guard), so we hit the
+  // dedicated /scoring-search/vehicle/{id}/price-variants endpoint instead.
+  // Returns 4 variants (24/36/48/60mc) for the given annual_mileage.
+  React.useEffect(() => {
+    if (!expanded || fetchedVariants !== null || !vehicleId || !currentMileage) return;
+    setLoading(true);
+    setError(null);
+    import('../../../lib/apiClient')
+      .then(({ apiClient }) =>
+        apiClient.fetch(
+          `/api/scoring-search/vehicle/${vehicleId}/price-variants?annual_mileage=${currentMileage}`,
+        ),
+      )
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data: PriceVariant[]) => {
+        setFetchedVariants(Array.isArray(data) ? data : []);
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Nieznany błąd';
+        setError(msg);
+        setFetchedVariants([]);
+      })
+      .finally(() => setLoading(false));
+  }, [expanded, vehicleId, currentMileage, fetchedVariants]);
+
+  // Use lazily-fetched if available, else fall back to passed
+  const variants = fetchedVariants ?? passedVariants ?? [];
+
+  // Filter out invalid rows + dedupe by (duration, mileage)
+  const seen = new Set<string>();
+  const usable = variants.filter((v) => {
+    if (v.monthly_price_net == null || v.duration_months == null || v.annual_mileage == null) {
+      return false;
+    }
+    const key = `${v.duration_months}_${v.annual_mileage}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Always show the toggle button (we'll lazy-fetch on click). Hide if no
+  // vehicle id or no annual mileage to query against.
+  if (!vehicleId || !currentMileage) return null;
+
+  // Per variant: rate at current global margin + (if budget set) margin-to-budget
+  type Row = {
+    v: PriceVariant;
+    rate: number;
+    appliedMargin: number | null; // null if no budget
+    fitsBudget: boolean;
+    isCurrent: boolean;
+  };
+
+  const rows: Row[] = usable.map((v) => {
+    const base = v.monthly_price_net as number;
+    const rate = currentMarginFrac < 1 ? base / (1 - currentMarginFrac) : base;
+    const appliedMargin =
+      monthlyBudget && monthlyBudget > 0 && base < monthlyBudget
+        ? (1 - base / monthlyBudget) * 100
+        : monthlyBudget && monthlyBudget > 0
+        ? 0
+        : null;
+    const fitsBudget = monthlyBudget ? base <= monthlyBudget : true;
+    const isCurrent =
+      v.duration_months === currentDuration && v.annual_mileage === currentMileage;
+    return { v, rate, appliedMargin, fitsBudget, isCurrent };
+  });
+
+  // Sort: current first, then by appliedMargin desc (best business), then by rate asc
+  rows.sort((a, b) => {
+    if (a.isCurrent && !b.isCurrent) return -1;
+    if (b.isCurrent && !a.isCurrent) return 1;
+    if (a.appliedMargin != null && b.appliedMargin != null) {
+      return b.appliedMargin - a.appliedMargin;
+    }
+    return a.rate - b.rate;
+  });
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-200">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded(!expanded);
+        }}
+        className="w-full text-left flex items-center justify-between gap-2 text-xs text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded-md transition-colors"
+      >
+        <span className="font-medium inline-flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5" />
+          {expanded
+            ? 'Ukryj warianty cenowe'
+            : `Pokaż warianty (24 / 36 / 48 / 60 mc dla ${(currentMileage / 1000).toFixed(0)}k km/rok)`}
+          {monthlyBudget && monthlyBudget > 0 && (
+            <span className="text-slate-500 font-normal ml-1">
+              (sortowane po marży dopasowanej do budżetu)
+            </span>
+          )}
+        </span>
+        {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+
+      {expanded && loading && (
+        <div className="mt-2 text-xs text-slate-500 italic px-2 py-2">Ładowanie wariantów cenowych...</div>
+      )}
+
+      {expanded && error && (
+        <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-1.5 rounded-md">
+          Błąd ładowania: {error}
+        </div>
+      )}
+
+      {expanded && !loading && !error && rows.length === 0 && (
+        <div className="mt-2 text-xs text-slate-500 italic px-2 py-2">
+          Brak alternatywnych wariantów w cache dla tego pojazdu i przebiegu.
+        </div>
+      )}
+
+      {expanded && !loading && !error && rows.length > 0 && (
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-xs border border-slate-200 rounded-md overflow-hidden">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr className="text-[10px] uppercase tracking-wider text-slate-600">
+                <th className="text-left px-2 py-1.5 font-semibold">Okres</th>
+                <th className="text-right px-2 py-1.5 font-semibold">Przebieg/rok</th>
+                <th className="text-right px-2 py-1.5 font-semibold">Rata @ {(currentMarginFrac * 100).toFixed(0)}%</th>
+                {monthlyBudget && monthlyBudget > 0 && (
+                  <th className="text-right px-2 py-1.5 font-semibold">Marża dopasowana</th>
+                )}
+                <th className="text-center px-2 py-1.5 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => {
+                const tier = row.appliedMargin == null
+                  ? 'neutral'
+                  : !row.fitsBudget
+                  ? 'fail'
+                  : row.appliedMargin >= 12
+                  ? 'good'
+                  : row.appliedMargin >= 5
+                  ? 'warning'
+                  : 'loss';
+
+                const rowBg = row.isCurrent
+                  ? 'bg-blue-50 border-l-2 border-blue-500'
+                  : tier === 'good'
+                  ? 'bg-emerald-50/40 hover:bg-emerald-50'
+                  : tier === 'warning'
+                  ? 'bg-amber-50/40 hover:bg-amber-50'
+                  : tier === 'loss'
+                  ? 'bg-orange-50/40 hover:bg-orange-50'
+                  : tier === 'fail'
+                  ? 'bg-red-50/40 hover:bg-red-50 opacity-70'
+                  : 'hover:bg-slate-50';
+
+                const tierBadge = {
+                  good: { text: '✓ świetna', cls: 'bg-emerald-100 text-emerald-800' },
+                  warning: { text: '⚠ graniczna', cls: 'bg-amber-100 text-amber-800' },
+                  loss: { text: '⚠ niska', cls: 'bg-orange-100 text-orange-800' },
+                  fail: { text: '✗ nad budżet', cls: 'bg-red-100 text-red-800' },
+                  neutral: { text: '—', cls: 'bg-slate-100 text-slate-600' },
+                }[tier];
+
+                return (
+                  <tr
+                    key={`${row.v.duration_months}_${row.v.annual_mileage}_${idx}`}
+                    className={`border-b border-slate-100 ${rowBg} transition-colors`}
+                  >
+                    <td className="px-2 py-1.5 font-mono tabular-nums text-slate-900">
+                      {row.v.duration_months} mc
+                      {row.isCurrent && <span className="ml-1 text-[9px] text-blue-600 font-semibold uppercase">akt</span>}
+                    </td>
+                    <td className="px-2 py-1.5 font-mono tabular-nums text-right text-slate-700">
+                      {fmtPLN(row.v.annual_mileage)} km
+                    </td>
+                    <td className="px-2 py-1.5 font-mono tabular-nums text-right font-semibold text-slate-900">
+                      {fmtPLN(row.rate)}
+                    </td>
+                    {monthlyBudget && monthlyBudget > 0 && (
+                      <td className="px-2 py-1.5 font-mono tabular-nums text-right font-semibold text-slate-900">
+                        {row.appliedMargin != null ? `${row.appliedMargin.toFixed(1)}%` : '—'}
+                      </td>
+                    )}
+                    <td className="px-2 py-1.5 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${tierBadge.cls}`}>
+                        {tierBadge.text}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="text-[10px] text-slate-500 mt-1.5 px-1">
+            💡 Każda kombinacja okres × przebieg ma własną marżę dopasowaną do Twojego budżetu.
+            Wybierz wariant który ci najbardziej pasuje biznesowo.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
