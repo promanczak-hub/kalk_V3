@@ -29,6 +29,7 @@ export interface FilterState {
   selectedTransmissions: string[];
   selectedDrives: string[];
   powerRange: [number, number];
+  kosztDziennyRange: [number, number];
 }
 
 function extractSamarCategory(v: FleetVehicleView): string {
@@ -254,8 +255,8 @@ const MIN_VALID_PRICE = 1000;
 function computeAggregates(vehicles: FleetVehicleView[]) {
   if (vehicles.length === 0) {
     const now = Date.now();
-    return { 
-      dateMin: now, dateMax: now, 
+    return {
+      dateMin: now, dateMax: now,
       catalogPriceMin: 0, catalogPriceMax: 0,
       discountPriceMin: 0, discountPriceMax: 0,
       brands: [] as string[],
@@ -265,6 +266,7 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
       transmissions: [] as string[],
       drives: [] as string[],
       powerMin: 0, powerMax: 0,
+      kosztDziennyMin: 0, kosztDziennyMax: 0,
     };
   }
 
@@ -276,6 +278,8 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
   let discountPriceMax = -Infinity;
   let powerMin = Infinity;
   let powerMax = -Infinity;
+  let kosztDziennyMin = Infinity;
+  let kosztDziennyMax = -Infinity;
 
   const brandsSet = new Set<string>();
   const fuelsSet = new Set<string>();
@@ -323,6 +327,12 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
       if (pow < powerMin) powerMin = pow;
       if (pow > powerMax) powerMax = pow;
     }
+
+    const kdMin = typeof v.koszt_dzienny_min === 'number' ? v.koszt_dzienny_min : null;
+    if (kdMin !== null && kdMin > 0) {
+      if (kdMin < kosztDziennyMin) kosztDziennyMin = kdMin;
+      if (kdMin > kosztDziennyMax) kosztDziennyMax = kdMin;
+    }
   }
 
   if (catalogPriceMin === Infinity) catalogPriceMin = 0;
@@ -331,6 +341,8 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
   if (discountPriceMax === -Infinity) discountPriceMax = 0;
   if (powerMin === Infinity) powerMin = 0;
   if (powerMax === -Infinity) powerMax = 0;
+  if (kosztDziennyMin === Infinity) kosztDziennyMin = 0;
+  if (kosztDziennyMax === -Infinity) kosztDziennyMax = 0;
 
   // Align date bounds to full-day boundaries so the slider step (86400000ms)
   // divides evenly into the range and thumbs can reach both ends of the track.
@@ -338,11 +350,12 @@ function computeAggregates(vehicles: FleetVehicleView[]) {
   dateMin = Math.floor(dateMin / DAY_MS) * DAY_MS;
   dateMax = Math.ceil(dateMax / DAY_MS) * DAY_MS;
 
-  return { 
-    dateMin, dateMax, 
+  return {
+    dateMin, dateMax,
     catalogPriceMin, catalogPriceMax,
     discountPriceMin, discountPriceMax,
     powerMin, powerMax,
+    kosztDziennyMin, kosztDziennyMax,
     brands: Array.from(brandsSet).sort(),
     fuels: Array.from(fuelsSet).sort(),
     samarClasses: Array.from(samarSet).sort(),
@@ -368,7 +381,8 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     selectedBodyTypes: [],
     selectedTransmissions: [],
     selectedDrives: [],
-    powerRange: [0, Infinity]
+    powerRange: [0, Infinity],
+    kosztDziennyRange: [0, Infinity],
   });
 
   const activeDateRange = useMemo<[number, number]>(
@@ -397,6 +411,14 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
         filters.powerRange[1] >= Infinity ? aggregates.powerMax : filters.powerRange[1]
     ],
     [filters.powerRange, aggregates.powerMin, aggregates.powerMax]
+  );
+
+  const activeKosztDziennyRange = useMemo<[number, number]>(
+    () => [
+      filters.kosztDziennyRange[0] <= 0 ? aggregates.kosztDziennyMin : filters.kosztDziennyRange[0],
+      filters.kosztDziennyRange[1] >= Infinity ? aggregates.kosztDziennyMax : filters.kosztDziennyRange[1],
+    ],
+    [filters.kosztDziennyRange, aggregates.kosztDziennyMin, aggregates.kosztDziennyMax]
   );
 
   const setSortKey = useCallback((key: SortKey) => {
@@ -443,6 +465,10 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       setFilters((prev) => ({ ...prev, powerRange: range }));
   }, []);
 
+  const setKosztDziennyRange = useCallback((range: [number, number]) => {
+    setFilters((prev) => ({ ...prev, kosztDziennyRange: range }));
+  }, []);
+
   const resetFilters = useCallback(() => {
     setFilters({
       sortKey: "created_at",
@@ -457,7 +483,8 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       selectedBodyTypes: [],
       selectedTransmissions: [],
       selectedDrives: [],
-      powerRange: [0, Infinity]
+      powerRange: [0, Infinity],
+      kosztDziennyRange: [0, Infinity],
     });
   }, []);
 
@@ -546,6 +573,16 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       });
     }
 
+    // Koszt dzienny range filter — vehicles without the value always pass
+    const [kdMin, kdMax] = activeKosztDziennyRange;
+    if (kdMin > 0 || kdMax < Infinity) {
+      result = result.filter((v) => {
+        const kd = typeof v.koszt_dzienny_min === 'number' ? v.koszt_dzienny_min : null;
+        if (kd === null) return true;
+        return kd >= kdMin && kd <= kdMax;
+      });
+    }
+
     // Sorting
     const dir = filters.sortDir === "asc" ? 1 : -1;
     result.sort((a, b) => {
@@ -579,7 +616,7 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     });
 
     return result;
-  }, [vehicles, filters, activeDateRange, activePriceRange, activePowerRange]);
+  }, [vehicles, filters, activeDateRange, activePriceRange, activePowerRange, activeKosztDziennyRange]);
 
   const setShowUnmappedSamarOnly = useCallback((val: boolean) => {
     setFilters((prev) => ({ ...prev, showUnmappedSamarOnly: val }));
@@ -602,9 +639,11 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
     setShowUnmappedSamarOnly,
     resetFilters,
     activePowerRange,
+    activeKosztDziennyRange,
     setSelectedBodyTypes,
     setSelectedTransmissions,
     setSelectedDrives,
     setPowerRange,
+    setKosztDziennyRange,
   };
 }

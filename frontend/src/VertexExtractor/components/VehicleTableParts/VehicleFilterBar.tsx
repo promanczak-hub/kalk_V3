@@ -64,8 +64,10 @@ interface VehicleFilterBarProps {
   powerBounds: { powerMin: number; powerMax: number };
   onPowerRangeChange: (range: [number, number]) => void;
 
+  kosztDziennyRange: [number, number];
+  kosztDziennyBounds: { kosztDziennyMin: number; kosztDziennyMax: number };
+  onKosztDziennyRangeChange: (range: [number, number]) => void;
 
-  
   // Reset
   onResetFilters: () => void;
   
@@ -239,7 +241,9 @@ export function VehicleFilterBar({
   powerRange,
   powerBounds,
   onPowerRangeChange,
-
+  kosztDziennyRange,
+  kosztDziennyBounds,
+  onKosztDziennyRangeChange,
   onResetFilters,
   selectedCount,
   totalVisible,
@@ -249,6 +253,7 @@ export function VehicleFilterBar({
   onCompareSelected,
 }: VehicleFilterBarProps) {
   const [localSearch, setLocalSearch] = useState(liveSearchText);
+  const [isRangeExpanded, setIsRangeExpanded] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchInput = useCallback(
@@ -284,7 +289,9 @@ export function VehicleFilterBar({
     priceRange[0] > 0 ||
     priceRange[1] < Infinity ||
     powerRange[0] > 0 ||
-    powerRange[1] < Infinity;
+    powerRange[1] < Infinity ||
+    kosztDziennyRange[0] > 0 ||
+    kosztDziennyRange[1] < Infinity;
 
   const dateSpan = dateBounds.dateMax - dateBounds.dateMin;
   const priceSpan = priceBounds.priceMax - priceBounds.priceMin;
@@ -359,52 +366,62 @@ export function VehicleFilterBar({
       {/* Row 2: Advanced Dropdowns */}
       <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
         <span className="text-xs font-semibold uppercase text-slate-500 mr-2 tracking-wider">Filtry Zaawansowane</span>
-        
-        <MultiSelectDropdown 
+
+        <MultiSelectDropdown
           label="Marka"
           options={availableBrands}
           selectedOptions={selectedBrands}
           onChange={onSelectedBrandsChange}
         />
 
-        <MultiSelectDropdown 
+        <MultiSelectDropdown
           label="Silnik / Paliwo"
           options={availableFuels}
           selectedOptions={selectedFuels}
           onChange={onSelectedFuelsChange}
         />
 
-        <MultiSelectDropdown 
+        <MultiSelectDropdown
           label="Klasa SAMAR"
           options={availableSamarClasses}
           selectedOptions={selectedSamarClasses}
           onChange={onSelectedSamarClassesChange}
         />
 
-        <MultiSelectDropdown 
+        <MultiSelectDropdown
           label="Nadwozie"
           options={availableBodyTypes}
           selectedOptions={selectedBodyTypes}
           onChange={onSelectedBodyTypesChange}
         />
 
-        <MultiSelectDropdown 
+        <MultiSelectDropdown
           label="Skrzynia biegów"
           options={availableTransmissions}
           selectedOptions={selectedTransmissions}
           onChange={onSelectedTransmissionsChange}
         />
 
-        <MultiSelectDropdown 
+        <MultiSelectDropdown
           label="Napęd"
           options={availableDrives}
           selectedOptions={selectedDrives}
           onChange={onSelectedDrivesChange}
         />
+
+        <button
+          type="button"
+          onClick={() => setIsRangeExpanded(prev => !prev)}
+          className="ml-auto flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 hover:border-slate-300 rounded-lg transition-colors whitespace-nowrap"
+          title={isRangeExpanded ? "Zwiń filtry zakresu" : "Rozwiń filtry zakresu"}
+        >
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isRangeExpanded ? "" : "rotate-180"}`} />
+          Zakres
+        </button>
       </div>
 
-      {/* Row 3: Sliders (Date, Price, Power) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
+      {/* Row 3: Sliders (Date, Price, Power, Koszt Dzienny) */}
+      {isRangeExpanded && <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50/50 border border-slate-100 rounded-lg px-5 py-4 shadow-inner">
         {/* Date range slider */}
         <div className="flex-1">
           <div className="flex justify-between items-center mb-2">
@@ -517,7 +534,7 @@ export function VehicleFilterBar({
                 type="range"
                 min={powerBounds.powerMin}
                 max={powerBounds.powerMax}
-                step={5} 
+                step={5}
                 value={powerRange[0] > 0 ? powerRange[0] : powerBounds.powerMin}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -544,7 +561,60 @@ export function VehicleFilterBar({
             <span className="text-xs text-slate-400 mt-2 block">Brak zróżnicowania mocy</span>
           )}
         </div>
-      </div>
+
+        {/* Koszt dzienny slider */}
+        {(() => {
+          const kdSpan = kosztDziennyBounds.kosztDziennyMax - kosztDziennyBounds.kosztDziennyMin;
+          return (
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs uppercase font-semibold text-slate-500 tracking-wider">
+                  Koszt dzienny
+                </span>
+                <span className="text-xs text-slate-700 tabular-nums font-bold">
+                  {kosztDziennyRange[0] > 0 ? kosztDziennyRange[0] : kosztDziennyBounds.kosztDziennyMin}
+                  {" — "}
+                  {kosztDziennyRange[1] < Infinity ? kosztDziennyRange[1] : kosztDziennyBounds.kosztDziennyMax} PLN/d
+                </span>
+              </div>
+              {kdSpan > 0 ? (
+                <div className="relative h-6 flex items-center mt-1">
+                  <input
+                    type="range"
+                    min={kosztDziennyBounds.kosztDziennyMin}
+                    max={kosztDziennyBounds.kosztDziennyMax}
+                    step={1}
+                    value={kosztDziennyRange[0] > 0 ? kosztDziennyRange[0] : kosztDziennyBounds.kosztDziennyMin}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      const maxVal = kosztDziennyRange[1] < Infinity ? kosztDziennyRange[1] : kosztDziennyBounds.kosztDziennyMax;
+                      onKosztDziennyRangeChange([Math.min(val, maxVal), kosztDziennyRange[1]]);
+                    }}
+                    className="absolute w-full h-1 appearance-none bg-slate-200 rounded-full pointer-events-none z-[3] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-emerald-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer"
+                  />
+                  <input
+                    type="range"
+                    min={kosztDziennyBounds.kosztDziennyMin}
+                    max={kosztDziennyBounds.kosztDziennyMax}
+                    step={1}
+                    value={kosztDziennyRange[1] < Infinity ? kosztDziennyRange[1] : kosztDziennyBounds.kosztDziennyMax}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      const minVal = kosztDziennyRange[0] > 0 ? kosztDziennyRange[0] : kosztDziennyBounds.kosztDziennyMin;
+                      onKosztDziennyRangeChange([kosztDziennyRange[0], Math.max(val, minVal)]);
+                    }}
+                    className="absolute w-full h-1 appearance-none bg-transparent rounded-full pointer-events-none z-[4] [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[2.5px] [&::-webkit-slider-thumb]:border-emerald-500 [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:cursor-pointer"
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400 mt-2 block">
+                  {kosztDziennyBounds.kosztDziennyMin === 0 ? "Brak danych kosztowych" : "Jeden punkt kosztowy"}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+      </div>}
 
       {/* Row 4: Selection bar (only when items exist) */}
       {totalVisible > 0 && (

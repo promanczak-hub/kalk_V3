@@ -70,10 +70,12 @@ export function VehicleTable({
     setShowUnmappedSamarOnly,
     resetFilters,
     activePowerRange,
+    activeKosztDziennyRange,
     setSelectedBodyTypes,
     setSelectedTransmissions,
     setSelectedDrives,
     setPowerRange,
+    setKosztDziennyRange,
   } = useVehicleFilters(savedVehicles);
 
   const {
@@ -282,6 +284,10 @@ export function VehicleTable({
             powerRange={activePowerRange}
             powerBounds={{ powerMin: aggregates.powerMin, powerMax: aggregates.powerMax }}
             onPowerRangeChange={setPowerRange}
+
+            kosztDziennyRange={activeKosztDziennyRange}
+            kosztDziennyBounds={{ kosztDziennyMin: aggregates.kosztDziennyMin, kosztDziennyMax: aggregates.kosztDziennyMax }}
+            onKosztDziennyRangeChange={setKosztDziennyRange}
 
             showUnmappedSamarOnly={filters.showUnmappedSamarOnly}
             onShowUnmappedSamarChange={setShowUnmappedSamarOnly}
