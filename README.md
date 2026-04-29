@@ -12,6 +12,9 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 - **Stylizacja:** Tailwind CSS v4 + Material UI (MUI)
 - **Routing:** React Router DOM v7
 - **Baza/Autoryzacja:** Supabase Client
+- **Stan aplikacji:** Zustand
+- **Tabele:** AG Grid + MUI Data Grid
+- **Animacje:** Framer Motion
 
 ### Backend
 
@@ -20,6 +23,16 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 - **Baza danych:** Supabase (instancja chmurowa / online)
 - **Sztuczna Inteligencja:** Google GenAI (Vertex AI / Gemini) do procesowania plików PDF
 - **Przetwarzanie danych:** Pandas, Openpyxl
+
+## ✨ Funkcje
+
+- **Kalkulator LTR** — 12-etapowy pipeline kalkulacji leasingowej (opony → marża)
+- **Reverse Search** — wyszukiwanie odwrotne cen z filtrowaniem głosowym (voice extraction), zapisanymi filtrami i relax suggestions
+- **Ekstrakcja PDF** — AI-powered (Gemini/Vertex AI) wyciąganie danych z ofert PDF
+- **Tender Engine** — silnik przetargowy z builderem kryteriów wyszukiwania
+- **Vehicle Feature System** — semantyczny digital twin z 3-poziomowym progressive disclosure (CORE / EXTENDED / EDGE)
+- **Historia Kalkulacji** — przegląd i zarządzanie zapisanymi wynikami
+- **Integracja Excel** — import/eksport danych kalkulatora
 
 ## ☁️ Baza danych — Supabase Online
 
@@ -36,7 +49,7 @@ Projekt składa się z dwóch głównych części – nowoczesnego interfejsu w 
 > - Backend i frontend łączą się z instancją chmurową (klucze w `.env`).
 > - **NIE** uruchamiaj `supabase db reset` — grozi utratą danych.
 > - Zmiany schematu (DDL) aplikuj przez **SQL Editor** w Supabase Dashboard.
-> - Przed destrukcyjnymi operacjami **zawsze** rób backup (`pg_dump` lub eksport XLSX z Control Center).
+> - Przed destrukcyjnymi operacjami **zawsze** rób backup (`pg_dump` lub eksport XLSX bezpośrednio z Supabase Dashboard).
 > - Traktuj dane w bazie online jako **dane produkcyjne**.
 
 > [!CAUTION]
@@ -246,6 +259,21 @@ jest usuwana, zastępowana lub zmienia sygnaturę.
 - ⚠️ `[DEPRECATED]` — oznaczone do usunięcia w przyszłej wersji
 
 ### Historia zmian
+
+#### 2026-04 — Voice Extraction + Saved Filters + Relax Suggestions
+
+- `[NEW]` Reverse Search: filtrowanie głosowe (voice extraction via Gemini)
+- `[NEW]` Reverse Search: zapisane zestawy filtrów (saved filters)
+- `[NEW]` Reverse Search: relax suggestions — automatyczne rozluźnianie kryteriów przy braku wyników
+
+#### 2026-04 — Usunięcie Control Center i paneli CRUD
+
+- `[REMOVED]` Control Center — panel usunięty (~900 LOC); backup realizować przez Supabase Dashboard lub `pg_dump`
+- `[REMOVED]` Wszystkie CRUD admin panels z frontendu
+
+#### 2026-04 — Redis cache hardening
+
+- `[FIXED]` Zapobieganie cache poisoning pustymi wynikami fetchera Redis
 
 #### 2026-03-04 — Progress Tracking & Cancel w pipeline
 
