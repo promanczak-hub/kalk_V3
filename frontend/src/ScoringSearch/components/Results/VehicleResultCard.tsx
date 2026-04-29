@@ -57,6 +57,13 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
     ? new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : null;
 
+  const catalogNet = car.total_price_net ?? car.base_price_net;
+  const discountedNet =
+    catalogNet != null && car.suggested_discount_pct
+      ? catalogNet * (1 - car.suggested_discount_pct / 100)
+      : null;
+  const discountedGross = discountedNet != null ? discountedNet * 1.23 : null;
+
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     const basePrice = car.best_monthly_price ?? 0;
@@ -177,11 +184,19 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             Kalkulacja{calcDate ? ` · ${calcDate}` : ''}
             {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
           </span>
-          {!!car.suggested_discount_pct && car.suggested_discount_pct > 0 && (
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Sugerowany rabat dealerski">
-              BD <span className="font-semibold text-slate-700">{car.suggested_discount_pct}%</span>
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {discountedNet != null && (
+              <span className="text-[10px] text-slate-500 font-mono tabular-nums text-right">
+                <span className="text-slate-700 font-semibold">{fmtPLN(discountedNet)}</span> netto
+                <span className="text-slate-400 ml-1">({fmtPLN(discountedGross!)} brutto)</span>
+              </span>
+            )}
+            {!!car.suggested_discount_pct && car.suggested_discount_pct > 0 && (
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Sugerowany rabat dealerski">
+                BD <span className="font-semibold text-slate-700">{car.suggested_discount_pct}%</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {pricesLoading ? (
@@ -204,7 +219,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             <div>
               <div className="text-[10px] uppercase tracking-wider text-slate-400">Okres × Przebieg</div>
               <div className="text-xs text-slate-700 font-mono tabular-nums">
-                {targetDuration} mc · {fmtPLN(targetAnnualMileage)} km/rok
+                {targetDuration} mc · {fmtPLN(Math.round(targetAnnualMileage * targetDuration / 12))} km
               </div>
             </div>
             <div className="text-right">
