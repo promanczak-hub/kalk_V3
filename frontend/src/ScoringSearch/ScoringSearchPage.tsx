@@ -1,8 +1,6 @@
 import React from 'react';
-import {
-  Box, Paper, Typography, Divider, CircularProgress,
-  Snackbar, Alert
-} from '@mui/material';
+import { Snackbar, Alert } from '@mui/material';
+import { Loader2 } from 'lucide-react';
 import { OmniboxSearch } from './components/OmniboxSearch';
 import { ScoringFilters } from './components/ScoringFilters';
 import { ScoringResults } from './components/ScoringResults';
@@ -22,59 +20,68 @@ export const ScoringSearchPage: React.FC = () => {
   } = useScoringSearch();
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, height: { md: 'calc(100vh - 120px)' } }}>
+    <div className="flex flex-col md:flex-row gap-4 md:h-[calc(100vh-120px)]">
       {/* Left Column - Filters */}
-      <Box sx={{ width: { xs: '100%', md: 320 }, flexShrink: 0, height: { xs: 'auto', md: '100%' } }}>
-        <Paper elevation={2} sx={{ p: 0, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ p: 2, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', color: 'primary.contrastText', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography variant="h6">Wyszukiwarka Ofert</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.8 }}>Zbuduj profil Idealnego Auta</Typography>
-            </Box>
-          </Box>
-          <Divider />
+      <aside className="w-full md:w-80 flex-shrink-0 md:h-full">
+        <div className="h-full overflow-hidden flex flex-col bg-white border border-slate-200 rounded-lg shadow-sm">
+          {/* Sidebar header - Material elevation */}
+          <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">
+                Wyszukiwarka Ofert
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Zbuduj profil idealnego auta
+              </p>
+            </div>
+          </div>
           <OmniboxSearch
             searchContext={searchContext}
             onContextChange={setSearchContext}
           />
-          <Box sx={{ p: 0, flexGrow: 1, overflowY: 'auto' }}>
-            <ScoringFilters 
+          <div className="flex-grow overflow-y-auto">
+            <ScoringFilters
               searchContext={searchContext}
               onContextChange={setSearchContext}
               selectedFeatures={selectedFeatures}
               onFeaturesChange={setSelectedFeatures}
             />
-          </Box>
-        </Paper>
-      </Box>
+          </div>
+        </div>
+      </aside>
 
       {/* Right Column - Results */}
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <Paper elevation={2} sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="h6">Wyniki Dopasowania ({searchResults.length})</Typography>
-              {isSearching && <CircularProgress size={24} />}
-            </Box>
-          </Box>
+      <section className="flex-grow flex flex-col h-full">
+        <div className="h-full flex flex-col overflow-hidden bg-white border border-slate-200 rounded-lg shadow-sm">
+          <div className="px-4 py-3 border-b border-slate-200 bg-white flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-semibold text-slate-900">
+                Wyniki Dopasowania
+              </h2>
+              <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full">
+                {searchResults.length}
+              </span>
+              {isSearching && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+            </div>
+          </div>
 
-          <Box sx={{ p: 2, flexGrow: 1, overflowY: 'auto', bgcolor: 'background.default' }}>
-            <ScoringResults 
-              results={searchResults} 
-              loading={isSearching} 
+          <div className="p-4 flex-grow overflow-y-auto bg-slate-50">
+            <ScoringResults
+              results={searchResults}
+              loading={isSearching}
               searchContext={searchContext}
               selectedFeatures={selectedFeatures}
               requirements={computedRequirements}
             />
-          </Box>
-        </Paper>
-      </Box>
+          </div>
+        </div>
+      </section>
 
       <Snackbar open={!!snackbarMessage} autoHideDuration={6000} onClose={() => setSnackbarMessage(null)}>
-        <Alert onClose={() => setSnackbarMessage(null)} severity="info" sx={{ width: '100%' }}>
+        <Alert onClose={() => setSnackbarMessage(null)} severity="info" sx={{ width: '100%', borderRadius: '6px' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>
-    </Box>
+    </div>
   );
 };

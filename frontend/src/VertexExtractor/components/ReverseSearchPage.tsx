@@ -2,6 +2,7 @@ import { Search, Loader2 } from "lucide-react";
 import { useReverseSearch } from "../hooks/useReverseSearch";
 import { useVertexExtraction } from "../hooks/useVertexExtraction";
 import { useVoiceExtraction } from "../hooks/useVoiceExtraction";
+import { useEmailFileExtraction } from "../hooks/useEmailFileExtraction";
 import { VertexExtractArea } from "./VertexExtractArea";
 import { ReverseSearchFilters } from "./ReverseSearchFilters";
 import { ReverseSearchResults } from "./ReverseSearchResults";
@@ -14,6 +15,11 @@ export function ReverseSearchPage() {
     reverseSearch.actions.handleExtractionSuccess
   );
   const voiceExtraction = useVoiceExtraction(
+    reverseSearch.state.catalog,
+    reverseSearch.actions.handleExtractionSuccess,
+    vertexExtraction.setExtractionText
+  );
+  const emailExtraction = useEmailFileExtraction(
     reverseSearch.state.catalog,
     reverseSearch.actions.handleExtractionSuccess,
     vertexExtraction.setExtractionText
@@ -81,6 +87,8 @@ export function ReverseSearchPage() {
         setExtractionText={vertexExtraction.setExtractionText}
         extracting={vertexExtraction.extracting}
         handleExtraction={vertexExtraction.handleExtraction}
+        onEmailFileExtract={emailExtraction.extractFromFile}
+        emailFileExtracting={emailExtraction.extracting}
         voice={{
           recState: voiceExtraction.recState,
           error: voiceExtraction.error,
@@ -90,6 +98,9 @@ export function ReverseSearchPage() {
           stopRecording: voiceExtraction.stopRecording,
         }}
       />
+      {emailExtraction.error && (
+        <p className="text-xs text-red-600 -mt-4 mb-4 px-1">{emailExtraction.error}</p>
+      )}
 
       <div className="flex gap-6">
         {/* ── Left: Filter Sidebar ── */}

@@ -202,21 +202,23 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
   }
 
   return (
-    <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(0,0,0,0.015)', borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
+    <Box sx={{ mt: 3, p: 2, bgcolor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
       <Typography
         variant="caption"
         sx={{
           mb: 1.5,
-          color: 'text.secondary',
+          color: '#475569',
           display: 'flex',
           alignItems: 'center',
           gap: 1,
           fontWeight: 600,
+          fontSize: '0.7rem',
           textTransform: 'uppercase',
-          letterSpacing: 0.5,
+          letterSpacing: '0.06em',
+          fontFamily: '"Geist", sans-serif',
         }}
       >
-        <DirectionsCarIcon sx={{ fontSize: 16 }} /> {title || 'Inteligentne Alternatywy AI'}
+        <DirectionsCarIcon sx={{ fontSize: 16, color: '#2563EB' }} /> {title || 'Alternatywy okiem AI (rekomendacje)'}
       </Typography>
 
       <Box
@@ -255,17 +257,16 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                 sx={{
                   display: 'flex',
                   flexDirection: 'column',
-                  bgcolor: 'background.paper',
-                  border: 1,
-                  borderColor: 'divider',
-                  boxShadow: 'none',
+                  bgcolor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
                   cursor: 'pointer',
-                  borderRadius: 1.5,
-                  transition: 'all 0.2s',
+                  borderRadius: '8px',
+                  transition: 'all 0.15s',
                   '&:hover': {
-                    borderColor: 'primary.main',
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    borderColor: '#2563EB',
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                    transform: 'translateY(-1px)',
                   },
                 }}
                 onClick={(e) => {
@@ -280,8 +281,15 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                     <Chip
                       size="small"
                       label={v.ai_label}
-                      color="secondary"
-                      sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800, borderRadius: '4px', background: 'linear-gradient(45deg, #a855f7, #ec4899)' }}
+                      sx={{
+                        height: 20,
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        borderRadius: '9999px',
+                        bgcolor: '#DBEAFE',
+                        color: '#1E40AF',
+                        '& .MuiChip-label': { px: 1.25 },
+                      }}
                     />
                   )}
                   <Tooltip
@@ -297,7 +305,14 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                       size="small"
                       label={category.label}
                       color={category.color}
-                      sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, borderRadius: '4px', cursor: 'help' }}
+                      sx={{
+                        height: 20,
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        borderRadius: '9999px',
+                        cursor: 'help',
+                        '& .MuiChip-label': { px: 1.25 },
+                      }}
                     />
                   </Tooltip>
                 </Box>
@@ -338,7 +353,15 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                     borderColor: 'rgba(0,0,0,0.05)',
                   }}
                 >
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: '"Geist Mono", "Space Mono", monospace',
+                      color: '#0F172A',
+                      fontSize: '0.7rem',
+                    }}
+                  >
                     {v.best_monthly_price
                       ? `${v.best_monthly_price.toLocaleString('pl-PL')} zł`
                       : 'Wycena...'}
@@ -348,7 +371,12 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                       <Tooltip title="Wynik dopasowania cech" placement="top">
                         <Typography
                           variant="caption"
-                          sx={{ color: 'success.main', fontWeight: 800, fontSize: '0.65rem' }}
+                          sx={{
+                            color: '#059669',
+                            fontWeight: 700,
+                            fontSize: '0.65rem',
+                            fontFamily: '"Geist Mono", "Space Mono", monospace',
+                          }}
                         >
                           {v.similarity_score_pct}%
                         </Typography>
@@ -359,11 +387,11 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({ vehi
                         size="small"
                         onClick={(e) => handleAddToCart(e, v)}
                         sx={{
-                          p: 0.25,
-                          color: 'primary.main',
-                          bgcolor: 'primary.50',
-                          borderRadius: 1,
-                          '&:hover': { bgcolor: 'primary.100' }
+                          p: 0.5,
+                          color: '#2563EB',
+                          bgcolor: '#EFF6FF',
+                          borderRadius: '6px',
+                          '&:hover': { bgcolor: '#DBEAFE' }
                         }}
                       >
                         <AddIcon sx={{ fontSize: '1rem' }} />

@@ -32,27 +32,27 @@ interface MarginTier {
 function getMarginTier(pct: number): MarginTier {
   if (pct < 0) return {
     label: "< 0%", heatBg: "#ffffff", heatColor: "#dc2626",
-    badgeBg: "bg-white border border-red-500", badgeText: "text-red-700"
+    badgeBg: "bg-red-100", badgeText: "text-red-800"
   };
   if (pct < 8) return {
     label: "0–8%", heatBg: "#ffffff", heatColor: "#ea580c",
-    badgeBg: "bg-white border border-orange-500", badgeText: "text-orange-700"
+    badgeBg: "bg-orange-100", badgeText: "text-orange-800"
   };
   if (pct < 12) return {
     label: "8–12%", heatBg: "#ffffff", heatColor: "#ca8a04",
-    badgeBg: "bg-white border border-yellow-600", badgeText: "text-yellow-700"
+    badgeBg: "bg-yellow-100", badgeText: "text-yellow-800"
   };
   if (pct < 15) return {
     label: "12–15%", heatBg: "#ffffff", heatColor: "#16a34a",
-    badgeBg: "bg-white border border-green-500", badgeText: "text-green-700"
+    badgeBg: "bg-green-100", badgeText: "text-green-800"
   };
   if (pct < 20) return {
     label: "15–20%", heatBg: "#ffffff", heatColor: "#059669",
-    badgeBg: "bg-white border border-emerald-600", badgeText: "text-emerald-700"
+    badgeBg: "bg-emerald-100", badgeText: "text-emerald-800"
   };
   return {
     label: "> 20%", heatBg: "#ffffff", heatColor: "#0891b2",
-    badgeBg: "bg-white border border-cyan-500", badgeText: "text-cyan-700"
+    badgeBg: "bg-cyan-100", badgeText: "text-cyan-800"
   };
 }
 
@@ -212,7 +212,7 @@ export function MatrixHeatmapView({
   return (
     <div>
       {/* Matrix table */}
-      <div className="overflow-x-auto border-2 border-slate-900 bg-white">
+      <div className="overflow-x-auto border border-slate-200 bg-white rounded-lg shadow-sm">
         <table className="w-full border-collapse">
           <thead>
             <tr>
@@ -254,7 +254,7 @@ export function MatrixHeatmapView({
                   if (!cell) {
                     return (
                       <td key={km} className="text-center p-2 border-b border-slate-100">
-                        <div className="p-3 bg-slate-50 border border-dashed border-slate-400">
+                        <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-md">
                           <span className="text-xs text-slate-300">—</span>
                         </div>
                       </td>
@@ -281,18 +281,17 @@ export function MatrixHeatmapView({
                           if (onCellClick && !isSelected) onCellClick(cell);
                         }}
                         className={`
-                          relative w-full rounded-none p-3 transition-colors duration-150
+                          relative w-full rounded-md p-3 transition-all duration-150
                           cursor-pointer group min-w-[100px] bg-white
                           ${isSelected
-                            ? "ring-2 ring-offset-0 ring-slate-900"
-                            : ""
+                            ? "shadow-md ring-2 ring-blue-500/30"
+                            : "shadow-sm hover:shadow-md hover:-translate-y-0.5"
                           }
                         `}
                         style={{
                           borderWidth: "1px",
                           borderStyle: "solid",
-                          borderColor: isSelected ? tier.heatColor : `${tier.heatColor}60`,
-                          boxShadow: isSelected ? `0 0 0 1px ${tier.heatColor}` : undefined
+                          borderColor: isSelected ? tier.heatColor : `${tier.heatColor}40`,
                         }}
                       >
                         {/* Best cell star */}
@@ -351,13 +350,13 @@ export function MatrixHeatmapView({
 
         return (
           <div
-            className="mt-3 p-4 rounded-none border-2 bg-white"
-            style={{ borderColor: tier.heatColor }}
+            className="mt-3 p-4 rounded-lg border bg-white shadow-md animate-in fade-in slide-in-from-top-2 duration-200"
+            style={{ borderColor: tier.heatColor, borderLeftWidth: "4px" }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span
-                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-none ${tier.badgeBg} ${tier.badgeText}`}
+                  className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${tier.badgeBg} ${tier.badgeText}`}
                 >
                   {mileageMode === "contract" ? `${cell.Okres} mc / ${(getContractKm(cell) / 1000).toFixed(0)}k km/kontrakt` : `${cell.Okres} mc / ${(cell.Przebieg / 1000).toFixed(0)}k km/rok`}
                 </span>
@@ -372,7 +371,7 @@ export function MatrixHeatmapView({
                   <button
                     onClick={() => onShowTrace(cell)}
                     disabled={isFetchingTrace}
-                    className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-sm transition-colors bg-white text-emerald-700 border border-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
                   >
                     {isFetchingTrace ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileCode2 className="w-3 h-3" />}
                     Ślad Przeliczeń
@@ -413,7 +412,7 @@ export function MatrixHeatmapView({
                 Podsumowanie V1 (netto/brutto)
               </div>
               <div className="mt-2 overflow-x-auto">
-                <table className="w-full text-[11px] border border-slate-400">
+                <table className="w-full text-[11px] border border-slate-200 rounded-md overflow-hidden">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="text-left px-2 py-1.5 font-bold text-slate-500 uppercase tracking-wider">Pozycja</th>
@@ -444,13 +443,13 @@ export function MatrixHeatmapView({
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") onRecalculate?.(cell.Okres);
                                 }}
-                                className="w-20 text-xs p-1 border border-slate-900 rounded-none text-right outline-none focus:ring-1 focus:ring-slate-900 bg-white"
+                                className="w-20 text-xs p-1.5 border border-slate-300 rounded-md text-right outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 bg-white tabular-nums font-mono"
                                 placeholder="0"
                               />
                               <button
                                 onClick={() => onRecalculate?.(cell.Okres)}
                                 disabled={recalculatingCell === cell.Okres}
-                                className="px-2 py-1 text-[10px] font-bold bg-slate-900 text-white rounded-sm hover:bg-slate-800 transition-colors disabled:opacity-50"
+                                className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
                               >
                                 {recalculatingCell === cell.Okres ? "..." : "Przelicz"}
                               </button>
@@ -506,7 +505,7 @@ function DetailItem({ label, value, highlight, color }: {
 
 function BreakdownItem({ label, value }: { label: string; value: number }) {
   return (
-    <div className="text-center p-1.5 rounded-none bg-white border border-slate-200">
+    <div className="text-center p-2 rounded-md bg-slate-50 border border-slate-200">
       <div className="text-[8px] font-bold uppercase text-slate-400 tracking-wider">{label}</div>
       <div className="text-[11px] font-bold text-slate-700 tabular-nums">{fmtPLN(value)}</div>
     </div>
@@ -523,27 +522,27 @@ export function MatrixViewToggle({
   onViewChange: (v: "cards" | "heatmap") => void;
 }) {
   return (
-    <div className="inline-flex items-center rounded-none border border-slate-900 bg-white overflow-hidden">
+    <div className="inline-flex items-center rounded-md border border-slate-300 bg-white shadow-sm overflow-hidden">
       <button
         onClick={() => onViewChange("cards")}
-        className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
           view === "cards"
-            ? "bg-slate-900 text-white"
-            : "text-slate-500 hover:bg-slate-100"
+            ? "bg-blue-600 text-white"
+            : "text-slate-600 hover:bg-slate-50"
         }`}
       >
-        <List className="w-3 h-3" />
+        <List className="w-3.5 h-3.5" />
         Karty
       </button>
       <button
         onClick={() => onViewChange("heatmap")}
-        className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
           view === "heatmap"
-            ? "bg-slate-900 text-white"
-            : "text-slate-500 hover:bg-slate-100"
+            ? "bg-blue-600 text-white"
+            : "text-slate-600 hover:bg-slate-50"
         }`}
       >
-        <Grid3X3 className="w-3 h-3" />
+        <Grid3X3 className="w-3.5 h-3.5" />
         Matryca
       </button>
     </div>

@@ -632,6 +632,147 @@ async def extract_features_from_audio(
         )
 
 
+_ALLOWED_EMAIL_EXTENSIONS = {".msg", ".eml"}
+_MAX_EMAIL_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _extract_text_from_msg(file_bytes: bytes) -> tuple[str, str]:
+    """Parse Outlook .msg file and return (subject, body)."""
+    import io
+    import extract_msg  # type: ignore[import-untyped]
+
+    msg = extract_msg.openMsg(io.BytesIO(file_bytes))
+    try:
+        subject: str = msg.subject or ""
+        body: str = msg.body or ""
+        return subject.strip(), body.strip()
+    finally:
+        msg.close()
+
+
+def _extract_text_from_eml(file_bytes: bytes) -> tuple[str, str]:
+    """Parse RFC-2822 .eml file and return (subject, body)."""
+    import email as email_lib
+    from email.header import decode_header
+
+    msg = email_lib.message_from_bytes(file_bytes)
+
+    # Decode subject
+    raw_subject = msg.get("Subject", "")
+    decoded_parts = decode_header(raw_subject)
+    subject_parts = []
+    for part, charset in decoded_parts:
+        if isinstance(part, bytes):
+            subject_parts.append(part.decode(charset or "utf-8", errors="replace"))
+        else:
+            subject_parts.append(part)
+    subject = "".join(subject_parts).strip()
+
+    # Extract plain-text body
+    body_parts: list[str] = []
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain" and not part.get("Content-Disposition"):
+                payload = part.get_payload(decode=True)
+                if payload:
+                    charset = part.get_content_charset() or "utf-8"
+                    body_parts.append(payload.decode(charset, errors="replace"))
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            charset = msg.get_content_charset() or "utf-8"
+            body_parts.append(payload.decode(charset, errors="replace"))
+
+    body = "\n".join(body_parts).strip()
+    return subject, body
+
+
+@router.post("/features/extract-email-file")
+async def extract_features_from_email_file(
+    email_file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Extract structured car-search features from an Outlook .msg or .eml email file.
+
+    The email is parsed in-memory only. Subject + body are concatenated and forwarded
+    to Gemini 2.5 Flash using the same reverse-search prompt as extract-text.
+    Nothing is persisted to disk or database.
+    """
+    import json
+    from pathlib import Path
+    from google.genai import types
+    from core.gemini_client import get_gemini_client, SAFETY_SETTINGS_PERMISSIVE
+    from core.reverse_search_llm import ExtractedReverseSearchFeatures
+    from core.reverse_search_prompt import build_reverse_search_prompt
+
+    filename = email_file.filename or ""
+    ext = Path(filename).suffix.lower()
+    if ext not in _ALLOWED_EMAIL_EXTENSIONS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Nieobsługiwany format pliku: '{ext}'. Akceptowane: .msg, .eml",
+        )
+
+    file_bytes = await email_file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Plik e-mail jest pusty.")
+    if len(file_bytes) > _MAX_EMAIL_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Plik zbyt duży (max {_MAX_EMAIL_BYTES // (1024 * 1024)} MB).",
+        )
+
+    try:
+        if ext == ".msg":
+            subject, body = _extract_text_from_msg(file_bytes)
+        else:
+            subject, body = _extract_text_from_eml(file_bytes)
+    except Exception as e:
+        logger.exception("Błąd parsowania pliku email: %s", e)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Nie udało się odczytać pliku e-mail: {e}",
+        )
+
+    email_text = f"Temat: {subject}\n\n{body}" if subject else body
+    if not email_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Plik e-mail nie zawiera tekstu do analizy.",
+        )
+
+    client = get_gemini_client()
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=email_text,
+            config=types.GenerateContentConfig(
+                system_instruction=build_reverse_search_prompt(),
+                temperature=0.0,
+                response_mime_type="application/json",
+                response_schema=ExtractedReverseSearchFeatures,
+                safety_settings=SAFETY_SETTINGS_PERMISSIVE,
+            ),
+        )
+        if not response.text:
+            raise ValueError("Pusta odpowiedź od modelu językowego.")
+
+        result = _build_extraction_response(json.loads(response.text))
+        result["email_subject"] = subject
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Błąd podczas analizy e-mail przez LLM: %s", getattr(e, "message", str(e))
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analiza e-mail AI nie powiodła się: {e}",
+        )
+
+
 # ── Reverse Search ─────────────────────────────────────────────
 
 
