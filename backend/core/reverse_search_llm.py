@@ -71,7 +71,11 @@ class ExtractedReverseSearchFeatures(BaseModel):
     )
     price_max: int | None = Field(
         default=None,
-        description="Maksymalna miesięczna rata netto w PLN (np. 'rata do 2500'). Brak → null.",
+        description=(
+            "Maksymalna miesięczna rata netto w PLN. Jeśli klient poda EUR/USD, przelicz: "
+            "1 EUR ≈ 4.30 PLN, 1 USD ≈ 4.00 PLN. Przy zakresie weź górną granicę. "
+            "Przykłady: '650 EUR/mc' → 2795, '2500-2700 zł' → 2700, 'do 2500' → 2500. Brak → null."
+        ),
     )
     duration_months: int | None = Field(
         default=None,

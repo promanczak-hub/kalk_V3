@@ -51,8 +51,16 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const variantsCount = price?.variants_count;
   const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
   const rawMonthly = hasPriceFromAPI ? price!.monthly_price_net : car.best_monthly_price;
-  const marginFrac = Math.min(searchContext.margin_pct ?? 0, 99) / 100;
-  const monthlyDisplay = rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
+  // When applied_margin_pct is available and we're using best_monthly_price (not per-params batch),
+  // best_monthly_price is already priced at applied_margin_pct by the RPC — display it directly.
+  const usingAppliedMargin = !hasPriceFromAPI && car.applied_margin_pct != null;
+  const displayMarginPct = usingAppliedMargin
+    ? car.applied_margin_pct!
+    : (searchContext.margin_pct ?? 0);
+  const marginFrac = Math.min(displayMarginPct, 99) / 100;
+  const monthlyDisplay = usingAppliedMargin
+    ? (car.best_monthly_price ?? null)
+    : rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
   const calcDate = price?.calculated_at
     ? new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : null;
@@ -60,7 +68,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     const basePrice = car.best_monthly_price ?? 0;
-    const finalPrice = marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice;
+    const finalPrice = usingAppliedMargin ? basePrice : (marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice);
     const variantPriceData = priceData?.price_for_params;
     const uniqueId = `${vehicleId}_${variantPriceData?.duration_months ?? targetDuration}_${variantPriceData?.annual_mileage ?? targetAnnualMileage}`;
 
@@ -74,7 +82,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       mileage: variantPriceData?.annual_mileage || targetAnnualMileage,
       net_installment: finalPrice,
       contribution: 0,
-      margin_pct: searchContext.margin_pct || 0,
+      margin_pct: displayMarginPct,
       variants: priceData?.variants || [],
       system_recommendation: typeof score === 'number' && score >= 90 ? 'Najlepsze dopasowanie' : undefined,
       standard_equipment: [],
@@ -198,7 +206,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             <div className="text-right">
               <div className="text-[10px] uppercase tracking-wider text-slate-400">Marża</div>
               <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
-                {searchContext.margin_pct ?? 0}%
+                {displayMarginPct}%
               </div>
             </div>
             <div>

@@ -52,6 +52,8 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
 ## POLA FINANSOWE (poza katalogiem cech)
 
 - `price_max`: maksymalna miesięczna rata netto w PLN. Brak → null.
+  **Jeśli klient poda kwotę w EUR/USD, przelicz na PLN** (kurs: 1 EUR ≈ 4.30 PLN, 1 USD ≈ 4.00 PLN).
+  Przykład: "650 EUR/mc" → 2795. "Budżet 2500-2700 zł" → 2700 (górna granica). "do 2500" → 2500.
 - `duration_months`: czas leasingu w miesiącach. "4 lata" → 48. Brak → null.
 - `annual_mileage`: roczny limit kilometrów. "30 tys" → 30000. Jeśli klient podaje na
   cały okres ("160 tys przez 4 lata"), oblicz roczny limit (160000/4 = 40000). Brak → null.
