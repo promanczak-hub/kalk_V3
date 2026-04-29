@@ -1,15 +1,22 @@
 import { Search, Loader2 } from "lucide-react";
 import { useReverseSearch } from "../hooks/useReverseSearch";
 import { useVertexExtraction } from "../hooks/useVertexExtraction";
+import { useVoiceExtraction } from "../hooks/useVoiceExtraction";
 import { VertexExtractArea } from "./VertexExtractArea";
 import { ReverseSearchFilters } from "./ReverseSearchFilters";
 import { ReverseSearchResults } from "./ReverseSearchResults";
+import { SavedFiltersBar } from "./SavedFiltersBar";
 
 export function ReverseSearchPage() {
   const reverseSearch = useReverseSearch();
   const vertexExtraction = useVertexExtraction(
     reverseSearch.state.catalog,
     reverseSearch.actions.handleExtractionSuccess
+  );
+  const voiceExtraction = useVoiceExtraction(
+    reverseSearch.state.catalog,
+    reverseSearch.actions.handleExtractionSuccess,
+    vertexExtraction.setExtractionText
   );
 
   if (reverseSearch.state.loading) {
@@ -36,6 +43,22 @@ export function ReverseSearchPage() {
         </div>
       </div>
 
+      <SavedFiltersBar
+        currentState={{
+          globalSearchQuery: reverseSearch.state.globalSearchQuery,
+          activeFilters: reverseSearch.state.activeFilters,
+          bodyTypes: reverseSearch.state.bodyTypes,
+          vehicleScope: reverseSearch.state.vehicleScope,
+          priceMin: reverseSearch.state.priceMin,
+          priceMax: reverseSearch.state.priceMax,
+          priceMonths: reverseSearch.state.priceMonths,
+          priceMileage: reverseSearch.state.priceMileage,
+          priceDepositPct: reverseSearch.state.priceDepositPct,
+          priceMarginPct: reverseSearch.state.priceMarginPct,
+        }}
+        onLoad={reverseSearch.actions.loadFilterState}
+      />
+
       {/* Global Live Search */}
       <div className="mb-6">
         <div className="relative">
@@ -53,11 +76,19 @@ export function ReverseSearchPage() {
       </div>
 
       {/* AI Assistant Banner */}
-      <VertexExtractArea 
+      <VertexExtractArea
         extractionText={vertexExtraction.extractionText}
         setExtractionText={vertexExtraction.setExtractionText}
         extracting={vertexExtraction.extracting}
         handleExtraction={vertexExtraction.handleExtraction}
+        voice={{
+          recState: voiceExtraction.recState,
+          error: voiceExtraction.error,
+          elapsedSec: voiceExtraction.elapsedSec,
+          maxSeconds: voiceExtraction.maxSeconds,
+          startRecording: voiceExtraction.startRecording,
+          stopRecording: voiceExtraction.stopRecording,
+        }}
       />
 
       <div className="flex gap-6">

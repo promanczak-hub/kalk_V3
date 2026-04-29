@@ -172,6 +172,30 @@ export function useReverseSearch() {
     setFeatureSearchQuery("");
   };
 
+  const loadFilterState = useCallback((s: {
+    globalSearchQuery?: string;
+    activeFilters?: SearchFilter[];
+    bodyTypes?: string[];
+    vehicleScope?: "all" | "passenger" | "commercial";
+    priceMin?: number | "";
+    priceMax?: number | "";
+    priceMonths?: number;
+    priceMileage?: number;
+    priceDepositPct?: number;
+    priceMarginPct?: number | "";
+  }) => {
+    setGlobalSearchQuery(s.globalSearchQuery ?? "");
+    setActiveFilters(Array.isArray(s.activeFilters) ? s.activeFilters : []);
+    setBodyTypes(Array.isArray(s.bodyTypes) ? s.bodyTypes : []);
+    setVehicleScope(s.vehicleScope ?? "all");
+    setPriceMin(s.priceMin ?? "");
+    setPriceMax(s.priceMax ?? "");
+    setPriceMonths(typeof s.priceMonths === "number" ? s.priceMonths : 48);
+    setPriceMileage(typeof s.priceMileage === "number" ? s.priceMileage : 20000);
+    setPriceDepositPct(typeof s.priceDepositPct === "number" ? s.priceDepositPct : 0);
+    setPriceMarginPct(s.priceMarginPct ?? "");
+  }, []);
+
   const handleExtractionSuccess = useCallback((
     extractedFilters: SearchFilter[], 
     newExpandedCats: Set<string>,
@@ -211,7 +235,7 @@ export function useReverseSearch() {
       setHasSearched, setVehicleScope, setBodyTypes, setBodyTypeSearch, setShowBodyTypeDropdown,
       setShowAdvancedFilters, setDbBodyTypes, setGlobalSearchQuery, setFeatureSearchQuery,
       setPriceMin, setPriceMax, setPriceMonths, setPriceMileage, setPriceDepositPct, setPriceMarginPct,
-      setFeatureFilter, runSearch, clearFilters, handleExtractionSuccess
+      setFeatureFilter, runSearch, clearFilters, handleExtractionSuccess, loadFilterState
     }
   };
 }

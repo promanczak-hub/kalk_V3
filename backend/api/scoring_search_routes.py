@@ -885,9 +885,27 @@ def get_price_for_params(
                 if kid_str not in kalk_times or dt > kalk_times[kid_str]:
                     kalk_times[kid_str] = dt
 
-        # Find the latest kalkulacja_id
+        # Prefer the user-selected calculation when set and present in cache;
+        # otherwise fall back to the most recently computed one.
+        try:
+            synth_resp = (
+                sb.table("vehicle_synthesis")
+                .select("selected_kalkulacja_id")
+                .eq("id", vehicle_id)
+                .limit(1)
+                .execute()
+            )
+            synth_rows = synth_resp.data or []
+            user_selected = (
+                synth_rows[0].get("selected_kalkulacja_id") if synth_rows else None
+            )
+        except Exception:
+            user_selected = None
+
         latest_kid = None
-        if kalk_times:
+        if user_selected and user_selected in calc_map:
+            latest_kid = user_selected
+        elif kalk_times:
             latest_kid = max(kalk_times, key=kalk_times.get)
         else:
             latest_kid = list(calc_map.keys())[0]
