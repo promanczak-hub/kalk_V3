@@ -4,13 +4,12 @@ import type { SelectChangeEvent } from '@mui/material';
 import type { SearchContext, SelectedFeature, ScoredVehicle } from '../types';
 import { useBatchPrices, useBatchSimilarVehicles } from '../hooks/useBatchData';
 import { VehicleResultCard } from './Results/VehicleResultCard';
-import { MATRIX_LIMITS } from '../../config/matrixLimits';
-import { buildScoringPayload } from '../utils/buildScoringPayload';
 import { computeSearchRanges } from '../utils/computeSearchRanges';
 
-export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
+export type SortOption = 'budget_margin_desc' | 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'budget_margin_desc', label: 'Marża dopasowana ↓ (najlepsze)' },
   { value: 'score_desc', label: 'Dopasowanie ↓' },
   { value: 'price_asc', label: 'Cena ↑ (najtańsze)' },
   { value: 'price_desc', label: 'Cena ↓ (najdroższe)' },
@@ -25,8 +24,13 @@ interface ScoringResultsProps {
   requirements: SelectedFeature[];
 }
 
-export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext, selectedFeatures, requirements }) => {
-  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
+export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading, searchContext, requirements }) => {
+  // Default sort = "Marża dopasowana" when matrix+budget is active (best business deal first),
+  // otherwise = "Dopasowanie" (cech-based score).
+  const matrixActive = searchContext.useMatrixFilters && !!searchContext.monthly_budget;
+  const [sortBy, setSortBy] = useState<SortOption>(
+    matrixActive ? 'budget_margin_desc' : 'score_desc',
+  );
   const similarityMode = 'semantic';
 
   const {
@@ -65,6 +69,15 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   const sortedResults = useMemo(() => {
     const sorted = [...results];
     switch (sortBy) {
+      case 'budget_margin_desc':
+        // Highest applied_margin_pct first (best business deal in budget).
+        // Cars without applied_margin_pct fall to the end (treated as -Infinity).
+        sorted.sort((a, b) => {
+          const ma = (a.applied_margin_pct as number | undefined) ?? -Infinity;
+          const mb = (b.applied_margin_pct as number | undefined) ?? -Infinity;
+          return mb - ma;
+        });
+        break;
       case 'score_desc':
         sorted.sort((a, b) => ((b.match_score_pct as number) || 0) - ((a.match_score_pct as number) || 0));
         break;

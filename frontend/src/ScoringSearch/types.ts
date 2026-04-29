@@ -131,6 +131,7 @@ export interface ScoredVehicle {
   matched_features?: string[];
   missing_features?: string[];
   best_monthly_price?: number;
+  applied_margin_pct?: number;
   has_ltr_cache?: boolean;
   suggested_discount_pct?: number;
   service_cost_type?: string;

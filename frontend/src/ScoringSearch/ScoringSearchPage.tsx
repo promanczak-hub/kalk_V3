@@ -1,10 +1,11 @@
 import React from 'react';
 import { Snackbar, Alert } from '@mui/material';
 import { Loader2 } from 'lucide-react';
-import { OmniboxSearch } from './components/OmniboxSearch';
+import { SearchInputPanel } from './components/SearchInputPanel';
 import { ScoringFilters } from './components/ScoringFilters';
 import { ScoringResults } from './components/ScoringResults';
 import { useScoringSearch } from './hooks/useScoringSearch';
+import { useInitialData } from './hooks/useInitialData';
 
 export const ScoringSearchPage: React.FC = () => {
   const {
@@ -18,6 +19,8 @@ export const ScoringSearchPage: React.FC = () => {
     setSnackbarMessage,
     computedRequirements
   } = useScoringSearch();
+
+  const { initialData } = useInitialData();
 
   return (
     <div className="flex flex-col md:flex-row gap-4 md:h-[calc(100vh-120px)]">
@@ -35,9 +38,11 @@ export const ScoringSearchPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <OmniboxSearch
+          <SearchInputPanel
             searchContext={searchContext}
             onContextChange={setSearchContext}
+            setSelectedFeatures={setSelectedFeatures}
+            initialData={initialData}
           />
           <div className="flex-grow overflow-y-auto">
             <ScoringFilters
