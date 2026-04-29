@@ -499,12 +499,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
   const rows: Row[] = usable.map((v) => {
     const base = v.monthly_price_net as number;
     const rate = currentMarginFrac < 1 ? base / (1 - currentMarginFrac) : base;
-    const appliedMargin =
-      monthlyBudget && monthlyBudget > 0 && base < monthlyBudget
-        ? (1 - base / monthlyBudget) * 100
-        : monthlyBudget && monthlyBudget > 0
-        ? 0
-        : null;
+    const appliedMargin = currentMarginFrac * 100;
     const fitsBudget = monthlyBudget ? base <= monthlyBudget : true;
     const isCurrent =
       v.duration_months === currentDuration && v.annual_mileage === currentMileage;
@@ -567,10 +562,10 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-[10px] uppercase tracking-wider text-slate-600">
                 <th className="text-left px-2 py-1.5 font-semibold">Okres</th>
-                <th className="text-right px-2 py-1.5 font-semibold">Przebieg/rok</th>
+                <th className="text-right px-2 py-1.5 font-semibold">Przebieg/kontrakt</th>
                 <th className="text-right px-2 py-1.5 font-semibold">Rata @ {(currentMarginFrac * 100).toFixed(0)}%</th>
                 {monthlyBudget && monthlyBudget > 0 && (
-                  <th className="text-right px-2 py-1.5 font-semibold">Marża dopasowana</th>
+                  <th className="text-right px-2 py-1.5 font-semibold">Marża</th>
                 )}
                 <th className="text-center px-2 py-1.5 font-semibold">Status</th>
               </tr>
@@ -617,7 +612,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                       {row.isCurrent && <span className="ml-1 text-[9px] text-blue-600 font-semibold uppercase">akt</span>}
                     </td>
                     <td className="px-2 py-1.5 font-mono tabular-nums text-right text-slate-700">
-                      {fmtPLN(row.v.annual_mileage)} km
+                      {fmtPLN((row.v.annual_mileage as number) * (row.v.duration_months as number) / 12)} km
                     </td>
                     <td className="px-2 py-1.5 font-mono tabular-nums text-right font-semibold text-slate-900">
                       {fmtPLN(row.rate)}
