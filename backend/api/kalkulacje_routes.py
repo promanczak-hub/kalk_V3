@@ -2,12 +2,42 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Literal, Optional, List, cast
 from datetime import datetime
+import time
 import uuid
 import logging
 from core.database import supabase
 from api.schemas.pricing import PricingPatch, PricingResult
 
 logger = logging.getLogger(__name__)
+
+
+def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
+    """Execute a Supabase query, retrying on transient httpx connection issues."""
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            return query_obj.execute()
+        except Exception as e:
+            last_exc = e
+            err_str = str(e).lower()
+            if (
+                "server disconnected" in err_str
+                or "unreachable" in err_str
+                or "timeout" in err_str
+                or "connection" in err_str
+            ):
+                logger.warning(
+                    "Supabase connection issue (attempt %d/%d): %s: %s",
+                    attempt + 1,
+                    max_retries,
+                    type(e).__name__,
+                    e,
+                )
+                time.sleep(0.5 * (2**attempt))
+                continue
+            raise
+    assert last_exc is not None
+    raise last_exc
 
 router = APIRouter(prefix="/kalkulacje", tags=["kalkulacje"])
 
@@ -355,28 +385,41 @@ def refresh_matrix_cache(request: MatrixCacheRefreshRequest):
 @router.get("/vehicle/{vehicle_id}", response_model=List[KalkulacjaListItem])
 def get_kalkulacje_by_vehicle(vehicle_id: str):
     """Fetch calculations strictly associated with a given vehicle ID from vertex."""
+    # Validate UUID format upfront to fail fast with a clean 400 instead of a Postgres parse error.
     try:
-        # We query the JSONB field stan_json->>'vehicle_id'
-        res = (
+        uuid.UUID(vehicle_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid vehicle_id format: {vehicle_id!r}"
+        )
+
+    step = "init"
+    try:
+        # ── Step 1: fetch calculations linked to this vehicle ──
+        step = "fetch_kalkulacje"
+        res = _supabase_execute_with_retry(
             supabase.table("ltr_kalkulacje")
             .select("*")
             .eq("stan_json->>vehicle_id", vehicle_id)
             .order("created_at", desc=True)
-            .execute()
         )
         if not res.data:
             return []
 
         kalk_ids = [r["id"] for r in res.data]
-        rates_res = (
+
+        # ── Step 2: fetch matrix cache rates for these calculations ──
+        step = "fetch_matrix_cache"
+        rates_res = _supabase_execute_with_retry(
             supabase.table("vehicle_matrix_cache")
             .select("kalkulacja_id,monthly_price_net")
             .in_("kalkulacja_id", kalk_ids)
-            .execute()
         )
 
-        best_rates = {}
-        matrix_counts = {}
+        # ── Step 3: aggregate best rate + matrix count per kalkulacja ──
+        step = "aggregate_rates"
+        best_rates: dict[str, float] = {}
+        matrix_counts: dict[str, int] = {}
         for m in rates_res.data or []:
             k_id = m.get("kalkulacja_id")
             if k_id:
@@ -406,6 +449,7 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
             )
             selected_id = None
 
+        step = "build_response"
         return [
             _extract_list_fields(
                 r,
@@ -415,9 +459,19 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
             )
             for r in res.data
         ]
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("GET /kalkulacje/vehicle/%s failed", vehicle_id)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(
+            "GET /kalkulacje/vehicle/%s failed at step=%s exc_type=%s",
+            vehicle_id,
+            step,
+            type(e).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(e).__name__} at step '{step}': {e}",
+        )
 
 
 @router.patch("/vehicle/{vehicle_id}/selected-calculation")

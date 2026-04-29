@@ -83,8 +83,37 @@ export async function fetchFeaturesForCache(vehicleId: string) {
           confidence_score: 1.0,
           category_name: "⭐ Konfiguracja (PDF)"
         }));
-        
-        instantFeatures = [...stdEq, ...paidEq];
+
+        const dims = (synthDataRaw.digital_twin?.dimensions || {}) as Record<string, number | null>;
+        const dimensionFeatures: FeatureItem[] = [];
+
+        if (typeof dims.payload_kg === "number" && dims.payload_kg > 0) {
+          dimensionFeatures.push({
+            feature_key: "dim_payload_kg",
+            display_name: "Ładowność",
+            resolved_status: "present_confirmed_primary",
+            resolved_value_bool: null,
+            resolved_value_text: `${dims.payload_kg} kg`,
+            resolved_value_num: null,
+            confidence_score: 1.0,
+            category_name: "Wymiary",
+          });
+        }
+
+        if (typeof dims.wheelbase_mm === "number" && dims.wheelbase_mm > 0) {
+          dimensionFeatures.push({
+            feature_key: "dim_wheelbase_mm",
+            display_name: "Rozstaw osi",
+            resolved_status: "present_confirmed_primary",
+            resolved_value_bool: null,
+            resolved_value_text: `${dims.wheelbase_mm} mm`,
+            resolved_value_num: null,
+            confidence_score: 1.0,
+            category_name: "Wymiary",
+          });
+        }
+
+        instantFeatures = [...stdEq, ...paidEq, ...dimensionFeatures];
     }
 
     const response = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/state`);

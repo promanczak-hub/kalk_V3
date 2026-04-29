@@ -203,41 +203,38 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
 
 @router.post("/scoring-search/available-filters")
 def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
-    """Get dynamic facets (enums, ranges) generated directly from DB evidence."""
-    params_hash = _params_hash(request.model_dump_json())
-    cache_key = f"{_PREFIX}filters:{params_hash}"
+    """Return dynamic facets (enums, ranges).
 
-    cached = _redis_get(cache_key)
-    if cached is not None:
-        logger.debug("Cache HIT: available-filters [%s]", params_hash)
-        return cached
-
-    sb = supabase
-    try:
-        resp = sb.rpc(
-            "rpc_get_available_filters",
-            {
-                "p_brands": request.brands,
-                "p_models": request.models,
-                "p_body_types": request.body_types,
-                "p_samar_class_ids": request.samar_class_ids,
-                "p_current_filters": request.current_filters or {},
-            },
-        ).execute()
-
-        result: dict[str, Any] = resp.data or {}
-        _redis_set(cache_key, result, _TTL_FILTERS)
-        return result
-    except Exception as e:
-        logger.exception("Error calling rpc_get_available_filters: %s", e)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch available filters: {e}"
-        )
+    The original `rpc_get_available_filters` was dropped on 2026-04-27 along with the
+    rest of `reverse_search.*`. Until we rebuild facet aggregation in Python, return
+    an empty shape so the frontend doesn't 500 — it will simply render no facets.
+    """
+    # Empty but well-typed shape - matches roughly what the old RPC returned, so
+    # frontend code that destructures keys won't crash on undefined.
+    return {
+        "brands": [],
+        "models": [],
+        "body_types": [],
+        "fuels": [],
+        "transmissions": [],
+        "drive_types": [],
+        "samar_classes": [],
+        "trim_levels": [],
+        "ranges": {},
+        "_notice": "facets temporarily unavailable - rpc_get_available_filters dropped 2026-04-27",
+    }
 
 
 @router.post("/scoring-search/search")
 def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
-    """Run search scoring against Must-Have and Nice-To-Have criteria."""
+    """Vector-based vehicle search backed by rpc_search_vehicles_multi_vector.
+
+    Was previously backed by the dropped public.rpc_reverse_search. Now:
+      • If `semantic_query` is provided → embed it and call multi-vector RPC.
+      • Otherwise → fall back to a plain SELECT with hard filters
+        (brands / models / samar_class names) ranked by recency.
+    Hard filters (samar_class_ids, brands, models) are always applied as a post-filter.
+    """
     params_hash = _params_hash(request.model_dump_json())
     cache_key = f"{_PREFIX}search:{params_hash}"
 
@@ -249,60 +246,143 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
         return ScoringSearchResponse(results=page_results, total_count=cached["total"])
 
     sb = supabase
+    step = "init"
     try:
-        req_list = [req.model_dump() for req in request.requirements]
+        # ── 1. Resolve hard-filter samar class names from samar_class_ids (post-filter) ──
+        step = "resolve_samar_names"
+        samar_class_names: set[str] | None = None
+        if request.samar_class_ids:
+            samar_resp = _supabase_execute_with_retry(
+                sb.table("samar_classes")
+                .select("name")
+                .in_("id", request.samar_class_ids)
+            )
+            samar_class_names = {
+                r["name"] for r in (samar_resp.data or []) if r.get("name")
+            }
 
-        semantic_vector = None
+        brand_filter: set[str] | None = (
+            {b.lower() for b in request.brands} if request.brands else None
+        )
+        model_filter: set[str] | None = (
+            {m.lower() for m in request.models} if request.models else None
+        )
+        trim_filter: set[str] | None = (
+            {t.lower() for t in request.trims} if request.trims else None
+        )
+
+        rows: list[dict] = []
+
         if request.semantic_query:
+            # ── 2a. Vector path: embed query → multi-vector RPC ──
+            step = "generate_embedding"
             logger.info(
                 "Generating embedding for semantic query: '%s'", request.semantic_query
             )
             semantic_vector = generate_embedding(request.semantic_query)
             if semantic_vector is None:
-                logger.warning(
-                    "Failed to generate embedding for query: '%s'",
-                    request.semantic_query,
+                raise HTTPException(
+                    status_code=502,
+                    detail="Embedding service unavailable - cannot run semantic search",
                 )
 
-        resp = sb.rpc(
-            "rpc_reverse_search",
-            {
-                "p_brands": request.brands,
-                "p_models": request.models,
-                "p_samar_class_ids": request.samar_class_ids,
-                "p_trims": request.trims,
-                "p_vehicle_ids": request.vehicle_ids,
-                "p_requirements": req_list,
-                "p_semantic_query_vector": semantic_vector,
-            },
-        ).execute()
+            step = "rpc_search_vehicles_multi_vector"
+            # Wide candidate pool — post-filter narrows it. Hard cap so we don't blow up.
+            candidate_limit = max(request.limit + request.offset, 100) * 3
+            resp = _supabase_execute_with_retry(
+                sb.rpc(
+                    "rpc_search_vehicles_multi_vector",
+                    {
+                        "p_query_embedding": semantic_vector,
+                        "p_weight_use_case": 0.4,
+                        "p_weight_specs": 0.4,
+                        "p_weight_equipment": 0.2,
+                        "p_limit": candidate_limit,
+                        "p_min_similarity": 30.0,
+                        "p_required_feature_keys": None,
+                    },
+                )
+            )
+            rows = resp.data or []
+        else:
+            # ── 2b. No-query path: plain SELECT with hard filters, recency ranked ──
+            step = "fallback_select_vehicle_synthesis"
+            q = (
+                sb.table("vehicle_synthesis")
+                .select("id,brand,model,synthesis_data")
+                .eq("verification_status", "completed")
+                .order("created_at", desc=True)
+                .limit(max(request.limit + request.offset, 100) * 3)
+            )
+            if request.vehicle_ids:
+                q = q.in_("id", request.vehicle_ids)
+            resp = _supabase_execute_with_retry(q)
+            for r in resp.data or []:
+                sd = r.get("synthesis_data") or {}
+                cs = sd.get("card_summary") or {}
+                mapped = sd.get("mapped_ai_data") or {}
+                rows.append(
+                    {
+                        "vehicle_id": r["id"],
+                        "brand": r.get("brand"),
+                        "model": r.get("model"),
+                        "version": cs.get("trim_level"),
+                        "samar_category": mapped.get("samar_category"),
+                        "fuel": mapped.get("fuel") or cs.get("fuel"),
+                        "body_style": mapped.get("body_style") or cs.get("body_style"),
+                        "power_hp": cs.get("power_hp"),
+                        "base_price": _parse_numeric(cs.get("base_price")),
+                        "score_total_pct": None,
+                    }
+                )
 
-        rows = resp.data or []
-        all_matches = []
+        # ── 3. Post-filter and map to ScoringSearchMatch ──
+        step = "post_filter_and_map"
+        all_matches: list[ScoringSearchMatch] = []
         for row in rows:
-            domain = row.get("price_domain")
-            row["base_price_net"] = _parse_price_to_net(
-                row.get("base_price_raw"), domain
-            )
-            row["options_price_net"] = _parse_price_to_net(
-                row.get("options_price_raw"), domain
-            )
-            row["total_price_net"] = _parse_price_to_net(
-                row.get("total_price_raw"), domain
-            )
+            brand = (row.get("brand") or "").lower()
+            model = (row.get("model") or "").lower()
+            version = (row.get("version") or "").lower()
+            samar_cat = row.get("samar_category") or ""
 
-            # Ensure total_price_net is calculated from components if missing but components exist
-            if row["total_price_net"] is None and (
-                row["base_price_net"] is not None
-                or row["options_price_net"] is not None
-            ):
-                row["total_price_net"] = (row["base_price_net"] or 0) + (
-                    row["options_price_net"] or 0
+            if brand_filter and brand and brand not in brand_filter:
+                continue
+            if model_filter and model and model not in model_filter:
+                continue
+            if trim_filter and version and version not in trim_filter:
+                continue
+            if samar_class_names is not None and samar_cat not in samar_class_names:
+                continue
+
+            base_price = row.get("base_price")
+            score = row.get("score_total_pct")
+            all_matches.append(
+                ScoringSearchMatch(
+                    vehicle_id=row.get("vehicle_id"),
+                    brand=row.get("brand"),
+                    model=row.get("model"),
+                    version=row.get("version"),
+                    match_score_pct=float(score) if score is not None else 100.0,
+                    matched_features=[],
+                    missing_features=[],
+                    best_monthly_price=None,
+                    fuel_type=row.get("fuel"),
+                    power_hp=row.get("power_hp"),
+                    body_style=row.get("body_style"),
+                    base_price_net=float(base_price) if base_price else None,
+                    price_domain="netto",
+                    semantic_hit_reason=(
+                        f"use_case {row.get('score_use_case_pct')}% / "
+                        f"specs {row.get('score_specs_pct')}% / "
+                        f"equipment {row.get('score_equipment_pct')}%"
+                        if request.semantic_query and score is not None
+                        else None
+                    ),
+                    trim_level=row.get("version"),
+                    vehicle_class=row.get("samar_category"),
                 )
+            )
 
-            all_matches.append(ScoringSearchMatch(**row))
-
-        # Cache parsed results with evaluated prices
         _redis_set(
             cache_key,
             {
@@ -314,14 +394,45 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
 
         page_results = all_matches[request.offset : request.offset + request.limit]
         return ScoringSearchResponse(results=page_results, total_count=len(all_matches))
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("Error calling rpc_reverse_search: %s", e)
-        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
+        logger.exception(
+            "POST /scoring-search/search failed at step=%s exc_type=%s",
+            step,
+            type(e).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(e).__name__} at step '{step}': {e}",
+        )
+
+
+def _parse_numeric(val: Any) -> float | None:
+    """Best-effort parse of a price string into float."""
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        cleaned = val.replace(",", ".").strip()
+        # Strip non-numeric except dot
+        digits = "".join(c for c in cleaned if c.isdigit() or c == ".")
+        try:
+            return float(digits) if digits else None
+        except ValueError:
+            return None
+    return None
 
 
 @router.get("/scoring-search/initial-data", response_model=InitialDataResponse)
 def get_initial_data() -> InitialDataResponse:
-    """Get unique brands, models, and Samar classes for the Multi-Filter UI."""
+    """Aggregate brands / models / trims / samar classes / body types from vehicle_synthesis.
+
+    Was previously backed by the dropped reverse_search.rpc_get_scoring_initial_data RPC.
+    Now we aggregate directly in Python — keeps the same response shape so the frontend
+    is unchanged.
+    """
     cache_key = f"{_PREFIX}initial_data"
 
     cached = _redis_get(cache_key)
@@ -330,15 +441,84 @@ def get_initial_data() -> InitialDataResponse:
         return InitialDataResponse(**cached)
 
     sb = supabase
+    step = "init"
     try:
-        resp = sb.rpc("rpc_get_scoring_initial_data").execute()
-        result = InitialDataResponse(**resp.data)
+        # ── 1. Pull synthesis rows (brand, model, synthesis_data only — keep payload small) ──
+        step = "fetch_vehicle_synthesis"
+        rows_resp = _supabase_execute_with_retry(
+            sb.table("vehicle_synthesis")
+            .select("brand,model,synthesis_data")
+            .eq("verification_status", "completed")
+        )
+        rows = rows_resp.data or []
+
+        # ── 2. Pull samar classes (id, name) ──
+        step = "fetch_samar_classes"
+        samar_resp = _supabase_execute_with_retry(
+            sb.table("samar_classes").select("id,name").order("id")
+        )
+        samar_classes = [
+            {"id": r["id"], "name": r["name"]} for r in (samar_resp.data or [])
+        ]
+
+        # ── 3. Aggregate in-memory ──
+        step = "aggregate"
+        brand_set: set[str] = set()
+        model_set: set[str] = set()
+        brand_models: dict[str, set[str]] = {}
+        brand_counts: dict[str, int] = {}
+        trim_levels: dict[str, set[str]] = {}
+        body_counts: dict[str, int] = {}
+
+        for r in rows:
+            brand = (r.get("brand") or "").strip()
+            model = (r.get("model") or "").strip()
+            if not brand or not model:
+                continue
+
+            brand_set.add(brand)
+            model_set.add(model)
+            brand_models.setdefault(brand, set()).add(model)
+            brand_counts[brand] = brand_counts.get(brand, 0) + 1
+
+            sd = r.get("synthesis_data") or {}
+            cs = sd.get("card_summary") or {}
+            mapped = sd.get("mapped_ai_data") or {}
+
+            trim = (cs.get("trim_level") or "").strip()
+            if trim:
+                trim_levels.setdefault(f"{brand}|{model}", set()).add(trim)
+
+            body_style = (
+                mapped.get("body_style") or cs.get("body_style") or ""
+            ).strip()
+            if body_style:
+                body_counts[body_style] = body_counts.get(body_style, 0) + 1
+
+        result = InitialDataResponse(
+            brands=sorted(brand_set),
+            models=sorted(model_set),
+            brand_model_map={b: sorted(ms) for b, ms in brand_models.items()},
+            brand_counts=brand_counts,
+            trim_level_map={k: sorted(v) for k, v in trim_levels.items()},
+            samar_classes=samar_classes,
+            body_types=[
+                {"name": n, "count": c}
+                for n, c in sorted(body_counts.items(), key=lambda x: -x[1])
+            ],
+        )
+
         _redis_set(cache_key, result.model_dump(), _TTL_INITIAL_DATA)
         return result
     except Exception as e:
-        logger.exception("Error calling rpc_get_scoring_initial_data: %s", e)
+        logger.exception(
+            "GET /scoring-search/initial-data failed at step=%s exc_type=%s",
+            step,
+            type(e).__name__,
+        )
         raise HTTPException(
-            status_code=500, detail=f"Failed to fetch initial data: {e}"
+            status_code=500,
+            detail=f"{type(e).__name__} at step '{step}': {e}",
         )
 
 

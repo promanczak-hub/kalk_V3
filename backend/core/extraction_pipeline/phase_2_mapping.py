@@ -11,6 +11,7 @@ from core.extraction_pipeline.utils import (
     is_cancelled,
     normalize_brand,
 )
+from core.model_normalizer import normalize_model_trim_body
 from tasks.enrichment_tasks import generate_embedding_for_vehicle
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,39 @@ def finalize_vehicle_pipeline(
             model,
             vehicle_id,
         )
+
+    # ── Normalize model/trim/body to SOT before persisting ──
+    # The LLM sometimes leaks trim, brand prefix, engine specs, year codes, or
+    # body type into the model field. We strip those out and reassign them to
+    # the proper columns (trim_level / body_style in card_summary).
+    cs = parsed_data.get("card_summary") or {}
+    raw_trim_in_cs = cs.get("trim_level")
+    raw_body_in_cs = cs.get("body_style")
+    norm_model, norm_trim, norm_body = normalize_model_trim_body(
+        raw_model=model,
+        brand=brand,
+        raw_trim=raw_trim_in_cs or trim,
+        raw_body=raw_body_in_cs,
+    )
+    if norm_model and norm_model != model:
+        logger.info(
+            "[NORMALIZE] model %r -> %r (vehicle_id=%s)", model, norm_model, vehicle_id
+        )
+        model = norm_model
+    if norm_trim != raw_trim_in_cs:
+        logger.info(
+            "[NORMALIZE] trim_level %r -> %r (vehicle_id=%s)",
+            raw_trim_in_cs, norm_trim, vehicle_id,
+        )
+        cs["trim_level"] = norm_trim
+        parsed_data["card_summary"] = cs
+    if norm_body and norm_body != raw_body_in_cs:
+        logger.info(
+            "[NORMALIZE] body_style %r -> %r (vehicle_id=%s)",
+            raw_body_in_cs, norm_body, vehicle_id,
+        )
+        cs["body_style"] = norm_body
+        parsed_data["card_summary"] = cs
 
     # ── P0-A: Partial save — always persist extracted data ──
     update_payload = {

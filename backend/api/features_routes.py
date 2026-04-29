@@ -407,6 +407,8 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
         value_bool = raw.get("value_bool")
         value_num = raw.get("value_num")
         value_text = raw.get("value_text")
+        req_raw = raw.get("requirement", "MUST_HAVE")
+        requirement = req_raw if req_raw in ("MUST_HAVE", "NICE_TO_HAVE") else "MUST_HAVE"
 
         if ftype == "boolean":
             if value_bool is not True:
@@ -418,6 +420,7 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
                 "op": "eq",
                 "value_bool": True,
                 "display_name": cat_entry.display_name,
+                "requirement": requirement,
             }
             extracted_features.append(entry)
             legacy_filters.append({"feature_key": key, "value_bool": True})
@@ -438,6 +441,7 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
                 "value_num": num,
                 "display_name": cat_entry.display_name,
                 "canonical_unit": cat_entry.canonical_unit,
+                "requirement": requirement,
             })
 
         elif ftype in ("text", "enum"):
@@ -458,6 +462,7 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
                 "op": "eq",
                 "value_text": text_val,
                 "display_name": cat_entry.display_name,
+                "requirement": requirement,
             })
 
         else:
@@ -503,6 +508,25 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
             duplicate_count,
         )
 
+    raw_brands = json_resp.get("brands") or []
+    raw_models = json_resp.get("models") or []
+    raw_trims = json_resp.get("trims") or []
+
+    def _clean_str_list(values: Any) -> list[str]:
+        if not isinstance(values, list):
+            return []
+        return [v.strip() for v in values if isinstance(v, str) and v.strip()]
+
+    extracted_brands = _clean_str_list(raw_brands)
+    extracted_models = _clean_str_list(raw_models)
+    extracted_trims = _clean_str_list(raw_trims)
+
+    semantic_hint = json_resp.get("semantic_hint")
+    if not isinstance(semantic_hint, str) or not semantic_hint.strip():
+        semantic_hint = None
+    else:
+        semantic_hint = semantic_hint.strip()
+
     return {
         "status": "success",
         "extracted_features": deduped_features,
@@ -512,6 +536,10 @@ def _build_extraction_response(json_resp: dict[str, Any]) -> dict[str, Any]:
             "duration_months": json_resp.get("duration_months"),
             "annual_mileage": json_resp.get("annual_mileage"),
         },
+        "extracted_brands": extracted_brands,
+        "extracted_models": extracted_models,
+        "extracted_trims": extracted_trims,
+        "semantic_hint": semantic_hint,
         "total_extracted": len(deduped_features),
         "transcript": json_resp.get("transcript"),
         "rejected_count": len(rejected),

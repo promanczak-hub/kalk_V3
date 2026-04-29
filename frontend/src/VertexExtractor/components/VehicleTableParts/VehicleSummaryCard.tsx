@@ -319,11 +319,9 @@ export function VehicleSummaryCard({
   
   const dimensionsRows: typeof identityRows = [
     { label: "Poj. ładunkowa", value: formatDim(dimensions?.cargo_volume_m3, "m³") },
-    { label: "Ładowność", value: formatDim(dimensions?.payload_kg, "kg") },
     { label: "Długość paki", value: formatDim(dimensions?.cargo_length_mm, "mm") },
     { label: "Szerokość paki", value: formatDim(dimensions?.cargo_width_mm, "mm") },
     { label: "Wysokość paki", value: formatDim(dimensions?.cargo_height_mm, "mm") },
-    { label: "Rozstaw osi", value: formatDim(dimensions?.wheelbase_mm, "mm") },
     { label: "Długość pojazdu", value: formatDim(dimensions?.vehicle_length_mm, "mm") },
     { label: "Liczba europalet", value: dimensions?.europallet_capacity ? String(dimensions.europallet_capacity) : EMPTY },
   ].filter(row => row.value !== EMPTY); // Only show rows that have data

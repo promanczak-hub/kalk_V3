@@ -27,8 +27,8 @@ class GearboxType(str, Enum):
 
 
 class DriveType(str, Enum):
-    G_2X4 = "2X4"
-    G_4X4 = "4X4"
+    FWD = "FWD"
+    AWD = "AWD"
     RWD = "RWD"
 
 
@@ -53,7 +53,7 @@ class MappedVehicleData(BaseModel):
     )
     drive_type: DriveType = Field(
         ...,
-        description="Rodzaj napędu z dozwolonej listy. Zauważ: Napęd przedni (FWD) mapuj jako 2X4, a napęd na wszystkie (AWD) jako 4X4.",
+        description="Rodzaj napędu z dozwolonej listy: FWD (przedni), RWD (tylny), AWD (na wszystkie koła).",
     )
     transmission: str = Field(
         ...,
@@ -68,7 +68,7 @@ SYSTEM_PROMPT = """Jesteś ekspertem ds. analizy danych motoryzacyjnych.
 Twoim zadaniem jest na bazie przekazanego surowego JSONA z danymi pojazdu zwrócić obiekt zgodny ze schematem.
 Masz zakaz halucynacji. Musisz zdeterminować `vehicle_type` na podstawie modelu (np. Volkswagen Crafter to zazwyczaj ciężarowy furgon, a Golf to osobowy) oraz danych w JSONie.
 Paliwo (`fuel`), skrzynia biegów (`gearbox`) i napęd (`drive_type`) muszą zostać kategorycznie zmapowane TYLKO do dozwolonych typów wyliczeniowych (Enum) w systemie. 
-Instrukcja napędu: FWD (przedni) mapuj jako 2X4. AWD/Quattro (na 4/wszystkie) mapuj jako 4X4. RWD mapuj jako RWD.
+Instrukcja napędu: zawsze zwracaj jedną z trzech wartości — FWD (napęd przedni / front-wheel), RWD (napęd tylny / rear-wheel) lub AWD (Quattro, 4motion, 4×4, xDrive, 4MATIC, ALL4 itp.).
 Jeśli brakuje danych, zdedukuj najbardziej logiczny typ dla tego pojazdu, nie wolno Ci zwrócić NULL ani błędnego klucza. Zawsze musisz zwrócić kompletny JSON.
 """
 
@@ -123,7 +123,7 @@ def map_vehicle_data_flash(original_json: Dict[str, Any]) -> dict:
             "trim_level": "Brak",
             "fuel": "Benzyna (PB)",
             "gearbox": "MANUALNA",
-            "drive_type": "2X4",
+            "drive_type": "FWD",
             "transmission": "Brak",
             "vehicle_type": "Osobowy",
         }
