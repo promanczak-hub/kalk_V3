@@ -36,6 +36,7 @@ class ScoringSearchMatch(BaseModel):
     matched_features: List[str]
     missing_features: List[str]
     best_monthly_price: Optional[float] = None
+    applied_margin_pct: Optional[float] = None
     # Technical specification badges
     fuel_type: Optional[str] = None
     power_hp: Optional[int] = None

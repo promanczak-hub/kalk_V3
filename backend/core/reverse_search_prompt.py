@@ -38,6 +38,15 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
    - "minimum X", "co najmniej", "od X" → `op=gte`
    - "max X", "do X", "nie więcej niż" → `op=lte`
    - "dokładnie X" → `op=eq`
+3a. **MUST_HAVE vs NICE_TO_HAVE — KRYTYCZNE:**
+   - Domyślnie `requirement=MUST_HAVE` (klient wymienia cechę bez kwalifikatora).
+   - `requirement=NICE_TO_HAVE` GDY klient użyje:
+     "jeśli dostępne", "jeśli możliwe", "preferowane", "preferowanie",
+     "mile widziane", "byłoby fajnie", "byłoby dobrze", "opcjonalnie",
+     "jeśli się da", "gdyby było", "ewentualnie".
+   - Przykład: "kamera cofania" → MUST. "kamera cofania jeśli dostępna" → NICE.
+   - Przykład: "podgrzewane szyby (jeśli dostępne)" → NICE.
+   - Przykład: "automat" → MUST. "preferowany automat" → NICE.
 4. **Kontekst pojazdu (applies_to):** Jeśli z zapytania wynika typ pojazdu (osobowy / LCV /
    ciężarowy), pomiń cechy nieadekwatne — w katalogu masz tag `pojazdy:[...]`. Pusta lista
    = uniwersalne.
@@ -52,9 +61,33 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
 ## POLA FINANSOWE (poza katalogiem cech)
 
 - `price_max`: maksymalna miesięczna rata netto w PLN. Brak → null.
+  **Jeśli klient poda kwotę w EUR/USD, przelicz na PLN** (kurs: 1 EUR ≈ 4.30 PLN, 1 USD ≈ 4.00 PLN).
+  Przykład: "650 EUR/mc" → 2795. "Budżet 2500-2700 zł" → 2700 (górna granica). "do 2500" → 2500.
 - `duration_months`: czas leasingu w miesiącach. "4 lata" → 48. Brak → null.
 - `annual_mileage`: roczny limit kilometrów. "30 tys" → 30000. Jeśli klient podaje na
   cały okres ("160 tys przez 4 lata"), oblicz roczny limit (160000/4 = 40000). Brak → null.
+
+## POLA POJAZDÓW (poza katalogiem cech)
+
+- `brands`: lista marek wymienionych przez klienta. **Zwracaj kanoniczne nazwy:**
+  "WV"/"VW"/"Volkswagen" → "Volkswagen". "Mercedes"/"MB" → "Mercedes-Benz".
+  Przykład: "Skoda Kodiaq lub VW Tayron, ewentualnie Volvo XC60" → ["Skoda", "Volkswagen", "Volvo"].
+  Brak marek → null.
+- `models`: lista modeli (sama nazwa, bez marki i bez wersji silnikowej).
+  "Skoda Kodiaq Drive 2.0 TSI 204KM" → "Kodiaq". "Hyundai Tucson 2025/2026" → "Tucson".
+  "VW Tayron"/"Volkswagen Tayron" → "Tayron". "Volvo XC40 lub XC60" → ["XC40", "XC60"].
+  Przykład pełny: ["Kodiaq", "Superb", "Tucson", "XC40", "XC60", "Tayron", "Passat"].
+  Brak → null.
+- `trims`: wersje wyposażenia (trim levels) wymienione przez klienta.
+  "Skoda Kodiaq **Drive** 2.0 TSI" → "Drive". "Superb **Sportline**" → "Sportline".
+  Typowe trimy: Drive, Sportline, R-Line, M Sport, Style, Selection, Ambition,
+  Elegance, Active, Trendline, Highline, GTI, GTD. Bez marki/modelu/silnika.
+  Brak → null.
+- `semantic_hint`: krótka fraza (5-15 słów po polsku) opisująca segment / typ auta,
+  GDY klient użyje "lub podobna", "lub coś z tego segmentu", "lub inne SUV-y".
+  Pomaga znaleźć podobne auta poza wymienionymi modelami.
+  Przykład: "Skoda Kodiaq lub podobna" → "duży SUV rodzinny segmentu D, 7-osobowy, benzynowy".
+  Bez "lub podobna" / "coś z tego" → null.
 
 ## WEJŚCIE AUDIO
 
