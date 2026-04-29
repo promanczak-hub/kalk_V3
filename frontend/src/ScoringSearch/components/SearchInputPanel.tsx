@@ -21,6 +21,7 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
 }) => {
   const knownBrands = initialData?.brands || [];
   const brandModelMap = initialData?.brand_model_map || {};
+  const knownBodyTypes = (initialData?.body_types || []).map((bt) => bt.name);
 
   const {
     emailText: queryText,
@@ -36,6 +37,7 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
     setSelectedFeatures,
     knownBrands,
     brandModelMap,
+    knownBodyTypes,
   });
 
   return (
@@ -110,6 +112,11 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
               {lastSummary.trims.length > 0 && (
                 <li>
                   Wersje: <span className="font-mono">{lastSummary.trims.join(', ')}</span>
+                </li>
+              )}
+              {lastSummary.bodyTypes.length > 0 && (
+                <li>
+                  Typ nadwozia: <span className="font-mono">{lastSummary.bodyTypes.join(', ')}</span>
                 </li>
               )}
               {lastSummary.budget && (
