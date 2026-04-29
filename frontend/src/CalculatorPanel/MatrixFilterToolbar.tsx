@@ -119,26 +119,26 @@ function DualRangeSlider({
       {/* Track */}
       <div
         ref={trackRef}
-        className="relative h-2 rounded-none bg-slate-200 cursor-pointer"
+        className="relative h-1.5 rounded-full bg-slate-200 cursor-pointer"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
         {/* Filled range */}
         <div
-          className="absolute inset-y-0 rounded-none bg-slate-900"
+          className="absolute inset-y-0 rounded-full bg-blue-600"
           style={{ left: `${lowPct}%`, right: `${100 - highPct}%` }}
         />
 
         {/* Low thumb */}
         <div
-          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-none bg-white border-2 border-slate-900 cursor-grab ${dragging === "low" ? "ring-1 ring-slate-900" : "hover:border-slate-700"}`}
+          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-blue-600 shadow-md cursor-grab transition-transform ${dragging === "low" ? "scale-125 ring-4 ring-blue-100" : "hover:scale-110"}`}
           style={{ left: `calc(${lowPct}% - 8px)` }}
           onPointerDown={handlePointerDown("low")}
         />
 
         {/* High thumb */}
         <div
-          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-none bg-white border-2 border-slate-900 cursor-grab ${dragging === "high" ? "ring-1 ring-slate-900" : "hover:border-slate-700"}`}
+          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-blue-600 shadow-md cursor-grab transition-transform ${dragging === "high" ? "scale-125 ring-4 ring-blue-100" : "hover:scale-110"}`}
           style={{ left: `calc(${highPct}% - 8px)` }}
           onPointerDown={handlePointerDown("high")}
         />
@@ -174,7 +174,6 @@ function SingleSlider({
   onChange,
   formatValue,
   fillColor = "bg-emerald-600",
-  thumbColor = "border-emerald-600",
 }: {
   min: number;
   max: number;
@@ -183,16 +182,15 @@ function SingleSlider({
   onChange: (v: number) => void;
   formatValue?: (v: number) => string;
   fillColor?: string;
-  thumbColor?: string;
 }) {
   const pct = pctOfRange(value, min, max);
 
   return (
     <div className="relative pt-2 pb-1">
-      <div className="relative h-2 rounded-none bg-slate-200">
+      <div className="relative h-1.5 rounded-full bg-slate-200">
         {/* Fill */}
         <div
-          className={`absolute inset-y-0 left-0 rounded-none ${fillColor} transition-all duration-100`}
+          className={`absolute inset-y-0 left-0 rounded-full ${fillColor} transition-all duration-100`}
           style={{ width: `${pct}%` }}
         />
         {/* Native range */}
@@ -205,9 +203,9 @@ function SingleSlider({
           onChange={(e) => onChange(parseFloat(e.target.value))}
           className="absolute inset-0 w-full opacity-0 cursor-pointer"
         />
-        {/* Thumb visual */}
+        {/* Thumb visual - round Material */}
         <div
-          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-none bg-white border-2 ${thumbColor} pointer-events-none transition-all duration-100`}
+          className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full ${fillColor} shadow-md pointer-events-none transition-transform duration-100 hover:scale-110`}
           style={{ left: `calc(${pct}% - 8px)` }}
         />
       </div>
@@ -341,18 +339,18 @@ export function MatrixFilterToolbar({
     filters.globalMarginPct !== defaultMarginPct;
 
   return (
-    <div className="mb-4 rounded-none border-2 border-slate-900 bg-white overflow-hidden">
+    <div className="mb-4 rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-none bg-slate-900">
-            <SlidersHorizontal className="w-4 h-4 text-white" />
+          <div className="p-1.5 rounded-md bg-blue-50">
+            <SlidersHorizontal className="w-4 h-4 text-blue-600" />
           </div>
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+          <span className="text-sm font-semibold text-slate-900">
             Filtry matrycy
           </span>
           {isFiltered && (
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-none bg-slate-900 text-white">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
               Aktywne
             </span>
           )}
@@ -360,7 +358,7 @@ export function MatrixFilterToolbar({
         {isFiltered && (
           <button
             onClick={handleReset}
-            className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-sm text-slate-700 bg-white border border-slate-900 hover:bg-slate-100 transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"
           >
             <RotateCcw className="w-3 h-3" />
             Resetuj
@@ -402,28 +400,28 @@ export function MatrixFilterToolbar({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-none border border-slate-900 overflow-hidden bg-white">
+              <div className="inline-flex rounded-md border border-slate-300 overflow-hidden bg-white">
                 <button
                   type="button"
                   onClick={() => onMileageModeChange("annual")}
-                  className={`px-2 py-0.5 text-[9px] font-bold uppercase ${mileageMode === "annual" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                  className={`px-2.5 py-1 text-[10px] font-medium transition-colors ${mileageMode === "annual" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
                 >
                   Roczny
                 </button>
                 <button
                   type="button"
                   onClick={() => onMileageModeChange("contract")}
-                  className={`px-2 py-0.5 text-[9px] font-bold uppercase ${mileageMode === "contract" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                  className={`px-2.5 py-1 text-[10px] font-medium transition-colors ${mileageMode === "contract" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
                 >
                   Kontrakt
                 </button>
               </div>
               <button
                 onClick={handleKmToggle}
-                className={`text-[9px] font-bold px-2.5 py-0.5 rounded-none transition-colors ${
+                className={`text-[10px] font-medium px-3 py-1 rounded-full transition-colors ${
                   kmActive
-                    ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-500 border border-slate-900 hover:bg-slate-100"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {kmActive ? "Aktywny" : "Wlacz"}
@@ -478,7 +476,7 @@ export function MatrixFilterToolbar({
           </div>
           {/* Colored zone margin slider */}
           <div className="relative pt-2 pb-1">
-            <div className="relative h-2.5 rounded-none overflow-hidden">
+            <div className="relative h-2 rounded-full overflow-hidden">
               {/* Zone: Red 0-8% */}
               <div
                 className="absolute inset-y-0 left-0 bg-red-500"
@@ -514,13 +512,13 @@ export function MatrixFilterToolbar({
               className="absolute inset-0 w-full opacity-0 cursor-pointer"
               style={{ top: "8px", height: "10px" }}
             />
-            {/* Thumb */}
+            {/* Thumb - round Material with tier-color border */}
             <div
-              className="absolute w-4 h-4 rounded-none bg-white pointer-events-none transition-all duration-100"
+              className="absolute w-5 h-5 rounded-full bg-white shadow-md pointer-events-none transition-transform duration-100 hover:scale-110"
               style={{
-                left: `calc(${pctOfRange(filters.globalMarginPct ?? defaultMarginPct, MARGIN_MIN, MARGIN_MAX)}% - 8px)`,
-                top: "5px",
-                borderWidth: "2px",
+                left: `calc(${pctOfRange(filters.globalMarginPct ?? defaultMarginPct, MARGIN_MIN, MARGIN_MAX)}% - 10px)`,
+                top: "4px",
+                borderWidth: "3px",
                 borderStyle: "solid",
                 borderColor: getMarginSliderColor(filters.globalMarginPct ?? defaultMarginPct),
               }}
@@ -536,7 +534,7 @@ export function MatrixFilterToolbar({
             <button
               onClick={handleRecalculate}
               disabled={isRecalculating}
-              className="mt-2 w-full flex items-center justify-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-sm text-white hover:brightness-110 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium px-4 py-2 rounded-md text-white shadow-sm hover:shadow hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: getMarginSliderColor(filters.globalMarginPct ?? defaultMarginPct) }}
             >
               {isRecalculating ? (
@@ -561,7 +559,7 @@ export function MatrixFilterToolbar({
             </span>
           </div>
           <div className="flex flex-1 items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-white border border-slate-900 rounded-sm px-2 py-1">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 rounded-md px-2 py-1 transition-colors">
               <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactMonths">Okres (mc):</label>
               <input
                 id="exactMonths"
@@ -573,7 +571,7 @@ export function MatrixFilterToolbar({
                 className="w-12 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
               />
             </div>
-            <div className="flex items-center gap-1.5 bg-white border border-slate-900 rounded-sm px-2 py-1">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 rounded-md px-2 py-1 transition-colors">
               <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactKm">
                 {mileageMode === "contract" ? "Przebieg (km/kontrakt):" : "Przebieg (km/rok):"}
               </label>
@@ -588,7 +586,7 @@ export function MatrixFilterToolbar({
                 className="w-20 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
               />
             </div>
-            <div className="flex items-center gap-1.5 bg-white border border-slate-900 rounded-sm px-2 py-1">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 rounded-md px-2 py-1 transition-colors">
               <label className="text-[10px] text-slate-400 font-semibold" htmlFor="exactMargin">Marża (%):</label>
               <input
                 id="exactMargin"
@@ -601,7 +599,7 @@ export function MatrixFilterToolbar({
                 className="w-14 text-xs font-bold text-slate-700 bg-transparent outline-none tabular-nums"
               />
             </div>
-            <div className="flex items-center gap-1.5 bg-white border border-slate-900 rounded-sm px-2 py-1">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 rounded-md px-2 py-1 transition-colors">
               <label className="text-[10px] text-blue-600 font-bold" htmlFor="exactPrice" title="Zostaw puste, aby użyć marży">Szukaj Wyniku (Netto):</label>
               <input
                 id="exactPrice"
@@ -617,7 +615,7 @@ export function MatrixFilterToolbar({
             <button
               onClick={handleExactRecalculateClick}
               disabled={isRecalculating}
-              className="ml-auto flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-sm text-white bg-slate-900 hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRecalculating ? "Przeliczam..." : "⚡ Wygeneruj wariant"}
             </button>
