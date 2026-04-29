@@ -95,6 +95,7 @@ _DRIVE_TYPE_EXACT: dict[str, str] = {
     "napęd fwd": _CANONICAL_DRIVE_FWD,
     "fwd": _CANONICAL_DRIVE_FWD,
     "4x2": _CANONICAL_DRIVE_FWD,
+    "2x4": _CANONICAL_DRIVE_FWD,
     "4x2 (fwd)": _CANONICAL_DRIVE_FWD,
     "napęd przedni": _CANONICAL_DRIVE_FWD,
     "napęd przedni (fwd)": _CANONICAL_DRIVE_FWD,

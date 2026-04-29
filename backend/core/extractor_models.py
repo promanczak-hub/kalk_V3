@@ -352,7 +352,12 @@ class CardSummary(BaseModel):
     )
     drive_type: Optional[NapedRodzaj] = Field(
         None,
-        description="Rodzaj napędu znormalizowany do (FWD, RWD, AWD). Zasady: '4x4' i 'ALL' mapuj zawsze na 'AWD'. '4x2' mapuj na 'FWD' (lub RWD). Wynik musi być przyporządkowany do jednej z opcji Enum `NapedRodzaj` lub pozostać pusty.",
+        description=(
+            "Rodzaj napędu znormalizowany do (FWD, RWD, AWD). "
+            "Zasady: '4x4' i 'ALL' mapuj zawsze na 'AWD'. "
+            "'4x2' i '2x4' mapuj na 'FWD' (2x4 = dwa koła napędzane z czterech = napęd przedni). "
+            "Wynik musi być przyporządkowany do jednej z opcji Enum `NapedRodzaj` lub pozostać pusty."
+        ),
     )
     transmission: str = Field(
         description="Rodzaj skrzyni biegów, np. 'Automatyczna', 'Manualna', 'DSG'. Zwróć 'Brak' jeśli nie przypisano."
