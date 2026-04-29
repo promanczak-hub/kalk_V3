@@ -33,13 +33,36 @@ class EquipmentItem(BaseModel):
 
 class VehicleExtractionSchema(BaseModel):
     brand: str = Field(
-        description="Zidentyfikowana marka pojazdu, np. Volkswagen, Skoda, Audi"
+        description=(
+            "Zidentyfikowana marka pojazdu (TYLKO marka, bez modelu). "
+            "Np. 'Volkswagen', 'Skoda', 'Audi', 'BMW'. "
+            "BŁĘDNE: 'Volkswagen Tayron', 'Škoda Octavia'."
+        )
     )
     model: str = Field(
-        description="Zidentyfikowany główny model pojazdu (bez marki i bez wersji wyposażenia), np. Tayron, Kodiaq, A6"
+        description=(
+            "Główny model pojazdu — TYLKO nazwa modelu, BEZ marki, BEZ wersji wyposażenia, "
+            "BEZ silnika, BEZ typu nadwozia, BEZ kodów rocznika. "
+            "POPRAWNE: 'Tayron', 'Kodiaq', 'A6', 'Octavia', '320i', 'Santa Fe'. "
+            "BŁĘDNE: "
+            "'Octavia RS' (RS to trim), "
+            "'Kodiaq Drive' (Drive to trim), "
+            "'Octavia Combi' (Combi to body type), "
+            "'A5 Avant' (Avant to body type → Kombi), "
+            "'Audi A6' (Audi to brand), "
+            "'320i xDrive Limuzyna' (xDrive to napęd, Limuzyna to body), "
+            "'SUPERB RM2022 AMBITION' (RM2022 to year code, AMBITION to trim)."
+        )
     )
     trim_level: Optional[str] = Field(
-        None, description="Wersja wyposażenia / linia, np. L&K, Elegance, R-Line"
+        None,
+        description=(
+            "Wersja wyposażenia / linia (TYLKO trim). "
+            "Np. 'L&K', 'Elegance', 'R-Line', 'Sportline', 'Drive', 'Selection', 'RS', 'M Sport'. "
+            "BŁĘDNE: '45 TFSI quattro' (to silnik+napęd), 'Furgon z wysokim dachem' (body), "
+            "'Kombi N1' (body), '20 xDrive' (silnik). "
+            "Jeśli klient nie ma jawnej wersji → null (NIE 'Brak', NIE pusty string)."
+        ),
     )
     offer_number: Optional[str] = Field(
         None, description="Numer oferty widoczny na dokumencie (jeśli występuje)"
