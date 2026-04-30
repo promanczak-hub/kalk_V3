@@ -13,7 +13,7 @@ SECOND_PASS_BODYWORK_HINT = """
 SECOND PASS (BODYWORK ONLY):
 - Extract only options that modify body shape/homologation/load area.
 - Ignore purely financial/accessory items like mats, insurance, warranty, inspections.
-- If the document includes container/refrigerated/box/tarp/tipper/wywrotka/crane build-up, it must appear in output.
+- If the document includes container/refrigerated/box/tarp/crane build-up, it must appear in output.
 - If no explicit price is visible for a body build-up, still return it with net_price=0.
 """
 
@@ -30,8 +30,6 @@ BODYWORK_KEYWORDS = (
     "lawet",
     "hds",
     "furgon",
-    "wywrotk",
-    "wywrotc",
 )
 
 
