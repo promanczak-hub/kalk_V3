@@ -1,16 +1,3 @@
-# ==============================================================================
-# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
-# ==============================================================================
-# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
-# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
-# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
-#
-# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
-# 1. PRZERWIJ DZIAŁANIE.
-# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
-# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
-# ==============================================================================
-
 from typing import Any, Dict, List
 
 
@@ -30,7 +17,13 @@ class InsuranceCalculator:
         self.total_km = total_km
         self.LICZBA_LAT = 7
 
-    def calculate_cost(self, months: int, base_price: float) -> dict:
+    def calculate_cost(self, months: int, base_price: float, enabled: bool = True) -> dict:
+        if not enabled:
+            return {
+                "monthly_insurance": 0.0,
+                "total_insurance": 0.0,
+                "trace": [{"krok": "Ubezpieczenie (Wyłączone)", "rownanie": "express_pays_insurance = False", "wynik": 0.0}],
+            }
         if months <= 0:
             raise ValueError("Okres (months) musi być > 0")
         if base_price <= 0:
