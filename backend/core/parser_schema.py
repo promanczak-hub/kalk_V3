@@ -11,6 +11,18 @@ class MappedOption(BaseModel):
     price_net: float = Field(
         description="Cena netto opcji w PLN. Jeśli to rabat na opcję, kwota ujemna."
     )
+    no_discount: bool = Field(
+        default=False,
+        description=(
+            "Czy ta opcja JEST WYŁĄCZONA spod rabatu producenta. "
+            "Ustaw True dla: zabudowa dealera (wywrotka, kontener, izoterma, "
+            "chłodnia, plandeka, skrzynia ładunkowa, HDS, winda), modyfikacje "
+            "karoserii, akcesoria pozafabryczne (GPS, hak dealerski, foliowanie), "
+            "pakiety serwisowe i przedłużone gwarancje wymienione osobno przez dealera. "
+            "Pozostaw False dla opcji fabrycznych objętych rabatem (lakier, pakiety "
+            "wyposażenia, silnik, kolor, felgi z cennika producenta)."
+        ),
+    )
 
 
 class MappedOffer(BaseModel):

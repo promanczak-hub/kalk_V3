@@ -10,6 +10,8 @@ import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
+import { DiscountAuditCard } from "./DiscountAuditCard";
+import type { DiscountBreakdown } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { supabase } from "../../../lib/supabaseClient";
 import { apiClient } from '../../../lib/apiClient';
@@ -807,8 +809,8 @@ export function VehicleRowCard({
 
 
               <div className="space-y-4">
-                <VehicleSummaryCard 
-                  vehicle={vehicle} 
+                <VehicleSummaryCard
+                  vehicle={vehicle}
                   mappedData={mappedData}
                   samarCandidates={samarCandidates}
                   allSamarClasses={ALL_SAMAR_CLASSES}
@@ -829,6 +831,21 @@ export function VehicleRowCard({
                   isSaving={isSavingFields}
                   onRemapClassification={handleRemapClassification}
                   isRemapping={isRemappingClassification}
+                />
+                <DiscountAuditCard
+                  vehicleId={vehicle.id}
+                  discount={
+                    ((vehicle.synthesis_data as Record<string, unknown> | undefined)
+                      ?.card_summary as Record<string, unknown> | undefined)
+                      ?.discount as DiscountBreakdown | null | undefined
+                  }
+                  priceValidation={vehicle.price_validation}
+                  activeMode={discountMode}
+                  activeDiscountPct={activeDiscountPct}
+                  activeDiscountAmountNet={activeDiscountAmountNet}
+                  discountableBaseNet={catalogBasePriceNet + discountableOptionsTotal}
+                  nonDiscountableTotalNet={nonDiscountableOptionsTotal + customServiceOptionsPriceTotal}
+                  onUpdated={onRefresh}
                 />
                 <VehicleEquipmentCard
                   vehicle={vehicle}

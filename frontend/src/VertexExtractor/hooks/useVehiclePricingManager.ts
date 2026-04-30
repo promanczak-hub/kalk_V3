@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FleetVehicleView } from "../types";
+import type { DiscountBreakdown, FleetVehicleView } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
 
 interface UseVehiclePricingProps {
@@ -17,9 +17,12 @@ export function useVehiclePricingManager({
 }: UseVehiclePricingProps) {
   const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
     const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+    const breakdown = cs?.discount as DiscountBreakdown | undefined;
+    const breakdownPct = breakdown?.computed_pct ?? breakdown?.explicit_rabat_pct ?? 0;
     const offerPct = Number(cs?.offer_discount_pct ?? 0);
     const suggestedPct = Number(vehicle.suggested_discount_pct ?? 0);
 
+    if (breakdown && breakdown.extraction_method !== "none" && breakdownPct > 0) return "offer";
     if (Number.isFinite(offerPct) && offerPct > 0) return "offer";
     if (Number.isFinite(suggestedPct) && suggestedPct > 0) return "suggested";
     return "offer";
@@ -80,9 +83,21 @@ export function useVehiclePricingManager({
     hasOfferFinalPrice && offerFinalPriceNet > 0 && offerFinalPriceNet < totalCatalogPriceNet - 1.0
   );
   
+  // ── Strukturalny breakdown rabatu (preferowany od legacy offer_discount_*) ──
+  const discountBreakdown = cardSummary?.discount as DiscountBreakdown | undefined;
+  const breakdownPln = discountBreakdown?.explicit_rabat_pln;
+  const breakdownPct = discountBreakdown?.computed_pct ?? discountBreakdown?.explicit_rabat_pct;
+  const hasBreakdownDiscount = Boolean(
+    discountBreakdown &&
+      discountBreakdown.extraction_method !== "none" &&
+      ((typeof breakdownPln === "number" && breakdownPln > 0) ||
+        (typeof breakdownPct === "number" && breakdownPct > 0))
+  );
+
+  // Legacy fallback (gdy stary dokument lub LLM jeszcze nie wypełnił `discount`)
   const parsedOfferDiscountPctStr = cardSummary?.offer_discount_pct;
   const parsedOfferDiscountPlnStr = cardSummary?.offer_discount_pln;
-  
+
   const parsedOfferDiscountPct = parsedOfferDiscountPctStr ? Number(parsedOfferDiscountPctStr) : 0;
   const parsedOfferDiscountPln = parsedOfferDiscountPlnStr
     ? Number(String(parsedOfferDiscountPlnStr).replace(/[^0-9.,]/g, "").replace(",", "."))
@@ -90,17 +105,24 @@ export function useVehiclePricingManager({
 
   const hasValidOfferDiscountPct = Boolean(parsedOfferDiscountPct > 0);
   const hasValidOfferDiscountPln = Boolean(parsedOfferDiscountPln > 0 && discountableBaseNet > 0);
-  
-  const hasValidOfferDiscount = hasValidOfferDiscountPct || hasValidOfferDiscountPln;
+
+  const hasValidOfferDiscount = hasBreakdownDiscount || hasValidOfferDiscountPct || hasValidOfferDiscountPln;
   const isDealerOfferExtended = isDealerOffer || hasValidOfferDiscount;
 
-  const offerDiscountPercentage = hasValidOfferDiscountPct
-    ? parsedOfferDiscountPct
-    : hasValidOfferDiscountPln
-      ? Number(((parsedOfferDiscountPln / discountableBaseNet) * 100).toFixed(2))
-      : isDealerOffer && totalCatalogPriceNet > 0
-        ? Number((((totalCatalogPriceNet - offerFinalPriceNet) / totalCatalogPriceNet) * 100).toFixed(1))
-        : 0;
+  // Priorytet: DiscountBreakdown > legacy pct > legacy pln > implicit z final_price
+  const offerDiscountPercentage = hasBreakdownDiscount
+    ? typeof breakdownPct === "number" && breakdownPct > 0
+      ? Number(breakdownPct.toFixed(2))
+      : typeof breakdownPln === "number" && breakdownPln > 0 && discountableBaseNet > 0
+        ? Number(((breakdownPln / discountableBaseNet) * 100).toFixed(2))
+        : 0
+    : hasValidOfferDiscountPct
+      ? parsedOfferDiscountPct
+      : hasValidOfferDiscountPln
+        ? Number(((parsedOfferDiscountPln / discountableBaseNet) * 100).toFixed(2))
+        : isDealerOffer && totalCatalogPriceNet > 0
+          ? Number((((totalCatalogPriceNet - offerFinalPriceNet) / totalCatalogPriceNet) * 100).toFixed(1))
+          : 0;
 
   const suggestedDiscountPct = vehicle.suggested_discount_pct || 0;
   const suggestedDiscountConfidence = vehicle.suggested_discount_confidence || 0;

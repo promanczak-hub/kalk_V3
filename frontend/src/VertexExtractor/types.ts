@@ -149,6 +149,23 @@ export interface PriceValidation {
   };
   summary?: PriceValidationSummary;
 }
+
+export type DiscountExtractionMethod =
+  | "explicit_amount"
+  | "explicit_percentage"
+  | "computed_from_total"
+  | "none";
+
+export interface DiscountBreakdown {
+  explicit_rabat_pln: number | null;
+  explicit_rabat_pct: number | null;
+  discountable_base_net: number | null;
+  non_discountable_total_net: number | null;
+  computed_pct: number | null;
+  extraction_method: DiscountExtractionMethod;
+  confidence: number;
+  audit_notes: string[];
+}
 export interface ModificationEffect {
   override_samar_class?: string | null;
   override_homologation?: string | null;

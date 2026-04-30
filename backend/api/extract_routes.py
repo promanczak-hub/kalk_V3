@@ -124,6 +124,194 @@ def map_vehicle_data(request: MapDataRequest) -> Dict[str, Any]:
         )
 
 
+class DiscountBackfillRequest(BaseModel):
+    overwrite_existing: bool = False
+    limit: int = 0  # 0 = bez limitu (tylko dla batch)
+
+
+class DiscountOverrideRequest(BaseModel):
+    explicit_rabat_pln: float | None = None
+    discountable_base_net: float | None = None
+    non_discountable_total_net: float | None = None
+    audit_note: str | None = None
+
+
+@router.post("/extract/backfill-discount/{vehicle_id}")
+def backfill_discount_single(
+    vehicle_id: str, request: DiscountBackfillRequest
+) -> Dict[str, Any]:
+    """Deterministyczny backfill `card_summary.discount` dla pojedynczego pojazdu.
+
+    Idempotentny — domyślnie nie nadpisuje wpisów które już mają explicit_amount/percentage.
+    Ustaw overwrite_existing=True by przeforsować rebuild (np. po zmianie reguł).
+    """
+    from core.discount_backfill import apply_backfill_to_card_summary
+
+    client = _get_admin_client()
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    synthesis = resp.data.get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary")
+    if not isinstance(card_summary, dict):
+        return {"status": "skipped", "reason": "no card_summary"}
+
+    digital_twin = synthesis.get("digital_twin")
+    changed = apply_backfill_to_card_summary(
+        card_summary, digital_twin, overwrite_existing=request.overwrite_existing
+    )
+
+    if changed:
+        synthesis["card_summary"] = card_summary
+        client.table("vehicle_synthesis").update({"synthesis_data": synthesis}).eq(
+            "id", vehicle_id
+        ).execute()
+        cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
+
+    return {
+        "status": "updated" if changed else "skipped",
+        "vehicle_id": vehicle_id,
+        "discount": card_summary.get("discount"),
+    }
+
+
+@router.post("/extract/backfill-discount/all")
+def backfill_discount_all(request: DiscountBackfillRequest) -> Dict[str, Any]:
+    """Batch backfill — przelatuje wszystkie wpisy w `vehicle_synthesis`.
+
+    Zwraca licznik (updated, skipped, errors). Bezpieczny do uruchomienia w produkcji
+    bo każda iteracja jest idempotentna.
+    """
+    from core.discount_backfill import apply_backfill_to_card_summary
+
+    client = _get_admin_client()
+    query = client.table("vehicle_synthesis").select("id, synthesis_data")
+    if request.limit and request.limit > 0:
+        query = query.limit(request.limit)
+    resp = query.execute()
+
+    rows = resp.data or []
+    updated = 0
+    skipped = 0
+    errors = 0
+
+    for row in rows:
+        try:
+            synthesis = row.get("synthesis_data") or {}
+            card_summary = synthesis.get("card_summary")
+            if not isinstance(card_summary, dict):
+                skipped += 1
+                continue
+
+            digital_twin = synthesis.get("digital_twin")
+            changed = apply_backfill_to_card_summary(
+                card_summary,
+                digital_twin,
+                overwrite_existing=request.overwrite_existing,
+            )
+
+            if changed:
+                synthesis["card_summary"] = card_summary
+                client.table("vehicle_synthesis").update(
+                    {"synthesis_data": synthesis}
+                ).eq("id", row["id"]).execute()
+                updated += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            logger.exception("Backfill failed for vehicle %s: %s", row.get("id"), e)
+            errors += 1
+
+    cache_invalidate_pattern("initial_data")
+    cache_invalidate_pattern("vehicle:*")
+
+    return {
+        "status": "ok",
+        "total": len(rows),
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors,
+    }
+
+
+@router.post("/extract/discount-override/{vehicle_id}")
+def discount_override(
+    vehicle_id: str, request: DiscountOverrideRequest
+) -> Dict[str, Any]:
+    """Manualne nadpisanie pól `discount` przez użytkownika z UI.
+
+    Pozwala edytować `explicit_rabat_pln`, `discountable_base_net`,
+    `non_discountable_total_net`. Przelicza `computed_pct` automatycznie.
+    Confidence ustawiana na 1.0 i extraction_method na 'explicit_amount'.
+    """
+    client = _get_admin_client()
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    synthesis = resp.data.get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary")
+    if not isinstance(card_summary, dict):
+        raise HTTPException(status_code=400, detail="No card_summary to override")
+
+    existing = card_summary.get("discount") or {}
+
+    new_breakdown = {
+        "explicit_rabat_pln": request.explicit_rabat_pln
+        if request.explicit_rabat_pln is not None
+        else existing.get("explicit_rabat_pln"),
+        "explicit_rabat_pct": existing.get("explicit_rabat_pct"),
+        "discountable_base_net": request.discountable_base_net
+        if request.discountable_base_net is not None
+        else existing.get("discountable_base_net"),
+        "non_discountable_total_net": request.non_discountable_total_net
+        if request.non_discountable_total_net is not None
+        else existing.get("non_discountable_total_net"),
+        "extraction_method": "explicit_amount",
+        "confidence": 1.0,
+        "audit_notes": list(existing.get("audit_notes") or []),
+    }
+
+    if request.audit_note:
+        new_breakdown["audit_notes"].append(f"[OVERRIDE] {request.audit_note}")
+    else:
+        new_breakdown["audit_notes"].append("[OVERRIDE] Manualna korekta z UI")
+
+    pln = new_breakdown.get("explicit_rabat_pln")
+    base = new_breakdown.get("discountable_base_net")
+    if pln and base:
+        new_breakdown["computed_pct"] = round((float(pln) / float(base)) * 100, 2)
+    else:
+        new_breakdown["computed_pct"] = existing.get("computed_pct")
+
+    card_summary["discount"] = new_breakdown
+    if new_breakdown.get("computed_pct") is not None:
+        card_summary["offer_discount_pct"] = str(new_breakdown["computed_pct"])
+    if new_breakdown.get("explicit_rabat_pln") is not None:
+        card_summary["offer_discount_pln"] = f"{int(new_breakdown['explicit_rabat_pln'])} PLN"
+
+    synthesis["card_summary"] = card_summary
+    client.table("vehicle_synthesis").update({"synthesis_data": synthesis}).eq(
+        "id", vehicle_id
+    ).execute()
+    cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
+
+    return {"status": "ok", "vehicle_id": vehicle_id, "discount": new_breakdown}
+
+
 @router.post("/extract/remap-classification")
 def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
     """

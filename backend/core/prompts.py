@@ -100,6 +100,88 @@ Masz zakaz fałszowania i dopasowywania kwot na siłę do siebie! Jeśli suma op
 
 Koniecznie dodaj przyrostek 'netto' lub 'brutto' do każdej kwoty na podstawie dedukcji z dokumentu. Dokładaj do tego walutę. Zwróć te zmienne jako stringi (np. "120 000 PLN netto").
 
+EKSTRAKCJA RABATU (KRYTYCZNE — drzewko decyzyjne, wykonaj KAŻDY krok po kolei):
+Wypełniasz strukturę `discount` typu `DiscountBreakdown`. NIE pomijaj żadnego kroku.
+
+KROK 1 — Szukaj LITERALNEJ kwoty rabatu w dokumencie:
+  → Słowa kluczowe (case-insensitive): "RABAT", "Rabat", "Discount", "Zniżka", "Upust", "Bonus", "Korzyść klienta".
+  → Jeśli widzisz linię typu "RABAT 42 317,-" lub "Rabat dealerski: 15 000 PLN":
+     • Zapisz tę kwotę w `discount.explicit_rabat_pln` (jako float, np. 42317.0)
+     • Ustaw `discount.extraction_method = "explicit_amount"`, `confidence = 1.0`
+     • PRZEJDŹ DO KROKU 3.
+
+KROK 2 — Szukaj LITERALNEGO procentu rabatu:
+  → Słowa kluczowe: "Rabat 24%", "Discount 15%", "-12%", "Upust 10%".
+  → Jeśli widzisz: zapisz w `discount.explicit_rabat_pct`, ustaw method = "explicit_percentage".
+  → PRZEJDŹ DO KROKU 3.
+
+KROK 3 — Zidentyfikuj PODSTAWĘ rabatu (KRYTYCZNE — tu rodzą się błędy):
+  Rabat producenta NIE obejmuje wyposażenia dealera/zabudowy. Musisz to oddzielić.
+
+  3a. discountable_base_net = base_price + Σ(price opcji fabrycznych z cennika producenta)
+      Liczone TYLKO opcje fabryczne (pakiety wyposażenia, silnik, lakier z cennika producenta,
+      kolor, felgi fabryczne, opcje z opisu wersji wyposażeniowej).
+  3b. non_discountable_total_net = Σ(opcji oznaczonych jako)
+      • "Dodatkowe wyposażenie dealera" / "DODATKOWE WYPOSAŻENIE DEALERA"
+      • "Zabudowa" / "Zabudowa typu wywrotka" / "Kontener" / "Izoterma" / "Chłodnia"
+      • "Plandeka" / "Skrzynia ładunkowa" / "HDS" / "Winda"
+      • "Modyfikacja podwozia" / "Modyfikacja karoserii"
+      • "Pakiet serwisowy" / "Przedłużona gwarancja" (gdy wymienione osobno przez dealera)
+      • "Akcesoria dealera" / "Hak dealerski" / "GPS" / "Foliowanie"
+
+  3c. WERYFIKACJA TRIANGULACYJNA:
+      discountable_base_net + non_discountable_total_net - explicit_rabat_pln ≈ total_price
+      • Jeśli równanie się zgadza (tolerancja ±1 PLN) → masz prawidłowy podział,
+        confidence = 1.0, dopisz do `audit_notes` notatkę typu
+        "Triangulacja: 145485 + 31732 - 42317 = 134900 ✓"
+      • Jeśli NIE zgadza się → confidence = 0.6, dopisz ai_warning + zapisz audit_notes
+        z liczbami które dostałeś.
+
+KROK 4 — TYLKO jeśli kroki 1-2 nie znalazły jawnego rabatu:
+  → implied_rabat = discountable_base_net - (total_price - non_discountable_total_net)
+  → Jeśli wynik > 0:
+     • Zapisz w `discount.explicit_rabat_pln`
+     • Ustaw method = "computed_from_total", confidence = 0.5
+     • Dodaj do ai_warnings: "Rabat wyliczony pośrednio - zweryfikuj manualnie"
+
+KROK 5 — Wylicz computed_pct (zawsze gdy masz oba inputy):
+  → discount.computed_pct = round((explicit_rabat_pln / discountable_base_net) × 100, 2)
+
+KROK 6 — OZNACZ OPCJE FLAG-ą `no_discount` (KRYTYCZNE dla kalkulatora):
+  W liście `paid_options` każda opcja ma kategorię. Dodatkowo w obiektach mapowanych
+  (factory_options, dealer_options) ustaw flagę `no_discount`:
+  • no_discount = True dla pozycji ze zbioru w 3b (zabudowy, dealer extras, pakiety serwisowe)
+  • no_discount = False dla opcji fabrycznych z cennika producenta
+
+PRZYKŁAD KLUCZOWY (Ford Transit z zabudową — antywzorzec błędu 7%):
+  Dokument zawiera:
+  - Cena bazowa: 142 760
+  - Wyposażenie fabryczne (kluczyki+hak+koło): 2 725
+  - Cena prezentowanego modelu: 145 485
+  - "DODATKOWE WYPOSAŻENIE DEALERA: ZABUDOWA TYPU WYWROTKA: 31 732"   ← NON-DISCOUNTABLE
+  - "RABAT 42 317,-"                                                    ← LITERALNIE NA PAPIERZE
+  - "CENA CAŁKOWITA POJAZDU Z RABATEM: 134 900"
+
+  Twoja analiza KROK-PO-KROKU:
+  • Krok 1: znajdujesz "RABAT 42 317" → explicit_rabat_pln = 42317.0,
+    method = "explicit_amount"
+  • Krok 3a: discountable_base_net = 142760 + 2725 = 145485
+  • Krok 3b: non_discountable_total_net = 31732 (zabudowa wywrotka)
+  • Krok 3c: triangulacja: 145485 + 31732 - 42317 = 134900 ✓
+    audit_notes = ["Triangulacja: 145485 + 31732 - 42317 = 134900 ✓",
+                   "Zabudowa wywrotka 31732 zł oznaczona jako non_discountable"]
+  • Krok 5: computed_pct = round(42317 / 145485 × 100, 2) = 29.08
+  • Krok 6: w `paid_options` zabudowa wywrotka dostaje category "Zabudowa dealera",
+    a w `factory_options/dealer_options` jej `no_discount = True`.
+
+  ⚠️ ANTYWZORCE (czego ABSOLUTNIE NIE rób):
+  • NIE licz rabatu jako (cena_prezentowanego_modelu - total_z_rabatem) / cena_prezentowanego
+    = (145485 - 134900) / 145485 = 7.28% — to IGNORUJE zabudowę i daje fałszywe 7%.
+  • NIE wliczaj zabudowy 31732 do options_price ani do discountable_base_net —
+    to jest wyposażenie dealera, NIE fabryczna opcja objęta rabatem.
+  • NIE pomijaj zabudowy mówiąc "w podsumowaniu napisali bez dopłaty" —
+    sprawdzaj WSZYSTKIE strony dokumentu, w sekcji "DODATKOWE WYPOSAŻENIE DEALERA".
+
 DETEKCJA DOMENY CENOWEJ (price_domain / price_type):
 Ustal globalną domenen cenową całego dokumentu (pole `price_domain`):
 1. Szukaj wprost etykiet "netto" / "brutto" / "net" / "gross" przy cenach głównych (base_price, total_price).
