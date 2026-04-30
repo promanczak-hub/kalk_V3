@@ -28,6 +28,17 @@ export interface SimilarityReasons {
   body_style: string | null;
   base_price?: number | null;
   paid_options?: Record<string, unknown>[] | null;
+  is_fallback_match?: boolean;
+
+  // ── V2 fields (rabat-aware + utility features) ──
+  discount_pct?: number | null;          // candidate offer discount % (0-100)
+  final_price_net?: number | null;       // candidate's final price after discount
+  final_price_pct_diff?: number | null;  // % diff vs source FINAL price
+  discount_pct_diff?: number | null;     // candidate.disc - source.disc (pp)
+
+  payload_kg?: number | null;
+  cargo_volume_m3?: number | null;
+  body_type?: string | null;
 }
 
 export interface SimilarVehicle {

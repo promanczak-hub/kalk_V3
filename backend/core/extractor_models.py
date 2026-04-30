@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -190,6 +190,86 @@ class PrzedzialMocy(str, Enum):
 # --- V2 CARD SUMMARY (Flash LLM Output) ---
 
 
+class DiscountExtractionMethod(str, Enum):
+    """Sposób w jaki rabat został zidentyfikowany w dokumencie."""
+
+    EXPLICIT_AMOUNT = "explicit_amount"
+    EXPLICIT_PERCENTAGE = "explicit_percentage"
+    COMPUTED_FROM_TOTAL = "computed_from_total"
+    NONE = "none"
+
+
+class DiscountBreakdown(BaseModel):
+    """Strukturalny opis rabatu udzielonego w ofercie dealera.
+
+    Rozdziela 'co widzę literalnie' od 'co wyliczyłem' i jawnie modeluje
+    kwoty NIE objęte rabatem (zabudowy dealera, akcesoria pozafabryczne).
+    """
+
+    explicit_rabat_pln: Optional[float] = Field(
+        None,
+        description=(
+            "Kwota rabatu DOKŁADNIE odczytana z dokumentu (np. linia 'RABAT 42 317,-'). "
+            "Wpisuj TYLKO jeśli widnieje literalnie w dokumencie. "
+            "NIE wyliczaj. NIE zgaduj. → null jeśli brak."
+        ),
+    )
+    explicit_rabat_pct: Optional[float] = Field(
+        None,
+        description=(
+            "Procent rabatu LITERALNIE odczytany (np. 'Rabat 24%' / '-12%'). "
+            "Wpisuj TYLKO jeśli widnieje literalnie. → null jeśli brak."
+        ),
+    )
+    discountable_base_net: Optional[float] = Field(
+        None,
+        description=(
+            "Kwota netto, do której rabat się odnosi (= base_price + factory_options). "
+            "WAŻNE: NIE wliczaj tu zabudowy/wyposażenia dealera/modyfikacji karoserii. "
+            "Te pozycje zwykle NIE podlegają rabatowi producenta."
+        ),
+    )
+    non_discountable_total_net: Optional[float] = Field(
+        None,
+        description=(
+            "Suma pozycji NIE objętych rabatem (zabudowa wywrotka/kontener/izoterma, "
+            "akcesoria dealera, modyfikacje karoserii, GPS, hak dealerski). "
+            "Wlicza się do total_price, ale NIE do podstawy rabatu."
+        ),
+    )
+    computed_pct: Optional[float] = Field(
+        None,
+        description=(
+            "Wyliczone matematycznie jako (explicit_rabat_pln / discountable_base_net) × 100. "
+            "Zaokrąglij do 2 miejsc po przecinku. Wyliczaj zawsze gdy masz oba inputy."
+        ),
+    )
+    extraction_method: DiscountExtractionMethod = Field(
+        DiscountExtractionMethod.NONE,
+        description=(
+            "Skąd pochodzi rabat: 'explicit_amount' (kwota PLN przepisana), "
+            "'explicit_percentage' (procent przepisany), 'computed_from_total' "
+            "(wyliczony pośrednio z różnicy cen — najmniej pewne), 'none' (brak rabatu)."
+        ),
+    )
+    confidence: float = Field(
+        1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Pewność ekstrakcji rabatu (0.0-1.0). 1.0 = explicit + triangulacja zgadza się. "
+            "0.5 = wyliczony pośrednio. 0.6 = explicit ale arytmetyka się nie zgadza."
+        ),
+    )
+    audit_notes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Notatki audytowe — np. 'Triangulacja: 145485 + 31732 - 42317 = 134900 ✓', "
+            "'Zabudowa wywrotka 31732 zł oznaczona jako non-discountable'."
+        ),
+    )
+
+
 class PaidOption(BaseModel):
     name: str = Field(description="Nazwa płatnej opcji")
     price: str = Field(
@@ -292,11 +372,26 @@ class CardSummary(BaseModel):
     )
     offer_discount_pct: Optional[str] = Field(
         default=None,
-        description="Rabat w procentach wyliczony matematycznie lub przepisany z dokumentu (np. '23.08'). Jeśli wiesz, że zastosowano rabat kwotowy, wylicz go matematycznie: (kwota rabatu / (cena bazowa + cena opcji przed rabatami)) * 100. Wynik zaokrąglij do 2 miejsc po przecinku. Zwróć tylko jeśli zidentyfikowano jednoznaczny rabat!",
+        description=(
+            "[LEGACY — preferuj `discount.computed_pct`] Rabat w procentach jako string. "
+            "Wypełniaj dla wstecznej kompatybilności wartością z `discount.computed_pct`."
+        ),
     )
     offer_discount_pln: Optional[str] = Field(
         default=None,
-        description="Rabat kwotowy (np. '15000' lub '15000 PLN') zidentyfikowany bezpośrednio na ofercie. Zwróć go jako tekst z kwotą, jeśli występuje (zamiast lub obok procentowego).",
+        description=(
+            "[LEGACY — preferuj `discount.explicit_rabat_pln`] Rabat kwotowy jako string. "
+            "Wypełniaj dla wstecznej kompatybilności wartością z `discount.explicit_rabat_pln`."
+        ),
+    )
+    discount: Optional[DiscountBreakdown] = Field(
+        default=None,
+        description=(
+            "Strukturalny breakdown rabatu z oferty dealera. "
+            "Rozdziela kwoty objęte rabatem (base + opcje fabryczne) od pozycji "
+            "niepodlegających rabatowi (zabudowa dealera, akcesoria, modyfikacje karoserii). "
+            "Wykonaj DRZEWKO DECYZYJNE z sekcji 'EKSTRAKCJA RABATU' w prompcie."
+        ),
     )
     powertrain: str = Field(
         description=(

@@ -117,13 +117,24 @@ class SimilarityReasons(BaseModel):
     equipment_match: bool = False
     is_same_brand: bool = False
     equipment_similarity_pct: Optional[float] = None
-    price_pct_diff: Optional[float] = None  # e.g. 4.2 — catalog price % difference
+    price_pct_diff: Optional[float] = None  # catalog price % difference
     is_cheaper: Optional[bool] = None  # True if this vehicle is cheaper than source
     samar_category: Optional[str] = None  # e.g. "C Niższa Średnia"
     body_style: Optional[str] = None  # e.g. "Sedan"
     base_price: Optional[float] = None
     paid_options: Optional[Any] = None
     is_fallback_match: bool = False
+
+    # ── Discount-aware fields (V2 — populated by RPC enrichment when available) ──
+    discount_pct: Optional[float] = None  # candidate's offer discount % (0-100)
+    final_price_net: Optional[float] = None  # candidate's price after discount
+    final_price_pct_diff: Optional[float] = None  # % diff vs source FINAL price
+    discount_pct_diff: Optional[float] = None  # candidate.disc_pct - source.disc_pct (pp)
+
+    # ── Utility-features for delivery vehicles ──
+    payload_kg: Optional[int] = None
+    cargo_volume_m3: Optional[float] = None
+    body_type: Optional[str] = None  # zabudowa: "Wywrotka" | "Plandeka" | "Izoterma" itp.
 
 
 class SimilarVehicleMatch(BaseModel):

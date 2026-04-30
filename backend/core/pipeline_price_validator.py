@@ -131,6 +131,15 @@ def validate_card_summary_prices(
     # ── Rule 8: Power consistency (kW vs HP) ──
     _check_power_consistency(report, card_summary)
 
+    # ── Rule 9: Discount triangulation (DiscountBreakdown) ──
+    _check_discount_consistency(report, card_summary)
+
+    # ── Rule 10: Detect dealer extras leaking into discountable options ──
+    _detect_dealer_extras(report, card_summary)
+
+    # ── Rule 11: Sanity range on computed discount % ──
+    _check_discount_pct_sanity(report, card_summary)
+
     _log_report(report)
     return report
 
@@ -696,6 +705,212 @@ def _check_unparseable_options(
                     f"wymaga weryfikacji: {', '.join(unparseable)}"
                 ),
                 severity="WARNING",
+            )
+        )
+
+
+_DEALER_EXTRA_KEYWORDS = (
+    "zabudowa",
+    "kontener",
+    "izoterm",
+    "wywrotka",
+    "plandeka",
+    "skrzynia ładunkow",
+    "skrzynia ladunkow",
+    "chłodnia",
+    "chlodnia",
+    "winda",
+    " hds",
+    "modyfikacj",
+    "akcesoria dealer",
+    "wyposażenie dealer",
+    "wyposazenie dealer",
+    "foliowanie",
+    "hak dealer",
+)
+
+_DISCOUNT_TRIANGULATION_TOLERANCE_PLN = 1.0
+_DISCOUNT_PCT_MIN_SANE = 0.5
+_DISCOUNT_PCT_MAX_SANE = 60.0
+
+
+def _check_discount_consistency(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Rule 9 — triangulacja DiscountBreakdown.
+
+    Sprawdza czy: discountable_base + non_discountable - explicit_rabat ≈ total
+    Zatrzymuje błąd '7% zamiast 29%' przy ofertach z zabudową dealera.
+    """
+    discount = card_summary.get("discount")
+    if not isinstance(discount, dict):
+        return
+
+    explicit_pln = discount.get("explicit_rabat_pln")
+    discountable_base = discount.get("discountable_base_net")
+    non_discountable = discount.get("non_discountable_total_net") or 0.0
+
+    base = parse_price_string(card_summary.get("base_price"))
+    total = parse_price_string(card_summary.get("total_price"))
+
+    if explicit_pln is None or total is None:
+        return
+
+    base_for_check = discountable_base if discountable_base else (base.value if base else None)
+    if base_for_check is None:
+        return
+
+    expected_total = base_for_check - explicit_pln + non_discountable
+    diff = abs(expected_total - total.value)
+
+    if diff > _DISCOUNT_TRIANGULATION_TOLERANCE_PLN:
+        diff_pct = (diff / total.value) * 100 if total.value else 0
+        severity = "ERROR" if diff_pct > 5 else "WARNING"
+        report.add(
+            ValidationWarning(
+                rule="DISCOUNT_TRIANGULATION_FAILED",
+                message=(
+                    f"Rabat {explicit_pln:.0f} PLN nie pasuje do arytmetyki: "
+                    f"discountable({base_for_check:.0f}) - rabat({explicit_pln:.0f}) "
+                    f"+ non_discountable({non_discountable:.0f}) = {expected_total:.0f}, "
+                    f"ale total = {total.value:.0f} (Δ {diff_pct:.1f}%). "
+                    "Sprawdź czy zabudowa/dealer extras nie zostały pominięte w non_discountable."
+                ),
+                severity=severity,
+                expected=expected_total,
+                actual=total.value,
+                diff_pct=diff_pct,
+            )
+        )
+
+
+def _detect_dealer_extras(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Rule 10 — wykryj zabudowy/dealer extras w paid_options.
+
+    Te pozycje powinny mieć `no_discount=true` w warstwie kalkulatora,
+    a w `discount.non_discountable_total_net` ich suma powinna się zgadzać.
+    """
+    paid_options = card_summary.get("paid_options", [])
+    if not paid_options:
+        return
+
+    suspect: list[tuple[str, float]] = []
+    for opt in paid_options:
+        if not isinstance(opt, dict):
+            continue
+        name = (opt.get("name") or "").lower()
+        category = (opt.get("category") or "").lower()
+        haystack = f"{name} {category}"
+        if any(kw in haystack for kw in _DEALER_EXTRA_KEYWORDS):
+            parsed = parse_price_string(opt.get("price", ""))
+            price_val = parsed.value if parsed else 0.0
+            suspect.append((opt.get("name", "?"), price_val))
+
+    if not suspect:
+        return
+
+    suspect_sum = sum(p for _, p in suspect)
+    suspect_names = ", ".join(name for name, _ in suspect)
+
+    discount = card_summary.get("discount")
+    declared_non_discountable = (
+        discount.get("non_discountable_total_net") if isinstance(discount, dict) else None
+    ) or 0.0
+
+    diff = abs(suspect_sum - declared_non_discountable)
+    if diff > 1.0:
+        report.add(
+            ValidationWarning(
+                rule="DEALER_EXTRA_NOT_IN_NON_DISCOUNTABLE",
+                message=(
+                    f"Wykryto pozycje typu zabudowa/dealer w paid_options: "
+                    f"{suspect_names} (Σ ≈ {suspect_sum:.0f} PLN), ale "
+                    f"non_discountable_total_net = {declared_non_discountable:.0f}. "
+                    "Te pozycje powinny zostać oznaczone `no_discount=true` "
+                    "i wliczone do non_discountable, inaczej rabat zostanie "
+                    "błędnie zastosowany do podstawy zawierającej zabudowę."
+                ),
+                severity="WARNING",
+                expected=suspect_sum,
+                actual=declared_non_discountable,
+            )
+        )
+    else:
+        report.add(
+            ValidationWarning(
+                rule="DEALER_EXTRA_DETECTED",
+                message=(
+                    f"Wykryto i prawidłowo zaklasyfikowano dealer extras: "
+                    f"{suspect_names} (Σ {suspect_sum:.0f} PLN)."
+                ),
+                severity="INFO",
+            )
+        )
+
+
+def _check_discount_pct_sanity(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Rule 11 — zakres normalny wyliczonego rabatu.
+
+    Bardzo niski (<0.5%) sugeruje że LLM zlekceważył non_discountable.
+    Bardzo wysoki (>60%) to prawdopodobnie błąd ekstrakcji.
+    """
+    discount = card_summary.get("discount")
+    if not isinstance(discount, dict):
+        return
+
+    pct = discount.get("computed_pct")
+    if pct is None:
+        return
+
+    method = discount.get("extraction_method")
+
+    if pct < _DISCOUNT_PCT_MIN_SANE:
+        report.add(
+            ValidationWarning(
+                rule="DISCOUNT_PCT_SUSPICIOUSLY_LOW",
+                message=(
+                    f"Rabat {pct:.2f}% jest podejrzanie niski. "
+                    "Najczęstsza przyczyna: zabudowa lub akcesoria dealera "
+                    "zostały błędnie wliczone do discountable_base_net "
+                    "(zamiast do non_discountable)."
+                ),
+                severity="WARNING",
+                actual=pct,
+            )
+        )
+        return
+
+    if pct > _DISCOUNT_PCT_MAX_SANE:
+        report.add(
+            ValidationWarning(
+                rule="DISCOUNT_PCT_SUSPICIOUSLY_HIGH",
+                message=(
+                    f"Rabat {pct:.2f}% przekracza {_DISCOUNT_PCT_MAX_SANE:.0f}% — "
+                    "prawdopodobny błąd ekstrakcji lub niepełna podstawa."
+                ),
+                severity="ERROR",
+                actual=pct,
+            )
+        )
+        return
+
+    if method == "computed_from_total":
+        report.add(
+            ValidationWarning(
+                rule="DISCOUNT_COMPUTED_INDIRECTLY",
+                message=(
+                    f"Rabat {pct:.2f}% wyliczony pośrednio (brak literalnej linii "
+                    "RABAT w dokumencie). Zweryfikuj manualnie."
+                ),
+                severity="INFO",
+                actual=pct,
             )
         )
 

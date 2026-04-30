@@ -231,6 +231,32 @@ class LTRKalkulator:
         if hasattr(self.input_data, "is_metalic"):
             self.vehicle.is_metalic = bool(getattr(self.input_data, "is_metalic"))
 
+    def _calculate_wr_options_split(self) -> Tuple[float, float, float]:
+        """Rozdziel opcje wchodzące do Wartości Rezydualnej na rabatowalne i poza-rabatowe.
+
+        Zwraca: (discountable_wr_options, non_discountable_wr_options, service_options_in_wr)
+        - discountable: factory_options gdzie no_discount=False (objęte rabatem producenta)
+        - non_discountable: factory_options gdzie no_discount=True (zabudowy dealera, akcesoria
+          pozafabryczne — wliczane do amortyzacji w pełnej kwocie, bo również tracą wartość)
+        - service_options_in_wr: service_options z include_in_wr=True (zawsze pełna kwota)
+        """
+        discountable = sum(
+            opt.price_net
+            for opt in self.input_data.factory_options
+            if not getattr(opt, "no_discount", False)
+        )
+        non_discountable = sum(
+            opt.price_net
+            for opt in self.input_data.factory_options
+            if getattr(opt, "no_discount", False)
+        )
+        service_in_wr = sum(
+            opt.price_net
+            for opt in self.input_data.service_options
+            if getattr(opt, "include_in_wr", False)
+        )
+        return discountable, non_discountable, service_in_wr
+
     def _calculate_capex(self) -> Tuple[float, float, Any]:
         """Kalkuluje wejĹ›ciowÄ… sumÄ™ finansowanÄ… (CAPEX) autorskim kalkulatorem (V3)"""
         base_net = self.input_data.base_price_net
@@ -327,13 +353,12 @@ class LTRKalkulator:
 
         rv_calc = LTRSubCalculatorUtrataWartosciNew(self.vehicle, self.input_data)
 
-        # Opcje pod WartoĹ›Ä‡ RezydualnÄ… (Zawsze Fabryczne + Serwisowe z include_in_wr)
-        base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
-        base_wr_options += sum(
-            opt.price_net
-            for opt in self.input_data.service_options
-            if getattr(opt, "include_in_wr", False)
-        )
+        # Opcje pod Wartość Rezydualną (Zawsze Fabryczne + Serwisowe z include_in_wr)
+        # Rozdzielamy na rabatowalne / nierabatowalne — flaga no_discount na opcji.
+        # WR-options-catalog (do RV) liczymy pełną kwotą (bez rabatu) — odzwierciedla
+        # katalogową wartość pojazdu z osprzętem na rynku wtórnym.
+        wr_disc_opts, wr_non_disc_opts, wr_service_in_wr = self._calculate_wr_options_split()
+        base_wr_options = wr_disc_opts + wr_non_disc_opts + wr_service_in_wr
 
         # Tryb kalkulacji biznesowej (standard vs bez marży w Reverse Lookup)
         calc_mode = getattr(self.input_data, "calculation_mode", "standard")
@@ -430,10 +455,17 @@ class LTRKalkulator:
             # 2. Koszty Techniczne/Operacyjne â€” legacy ops_calc usuniÄ™ty (Fix 2)
 
             # W V1 Utrata Wartości i WR liczone są na Cenie pojazdu (po rabacie) + opcje fabryczne
-            # Należy użyć opcji fabrycznych po rabacie (które w V3 to factory options discounted)
+            # FIX: Rabat aplikujemy TYLKO do opcji rabatowalnych. Zabudowy dealera (no_discount=True)
+            # i opcje serwisowe wchodzą do amortyzacji w pełnej kwocie — tracą wartość razem
+            # z pojazdem ale nie są obniżone rabatem producenta przy zakupie.
             discount_pct = getattr(self.input_data, "discount_pct", 0) / 100.0
-            discounted_factory_options = base_wr_options * (1 - discount_pct)
-            wp_amortyzacja = vehicle_capex + discounted_factory_options
+            discounted_factory_options = wr_disc_opts * (1 - discount_pct)
+            wp_amortyzacja = (
+                vehicle_capex
+                + discounted_factory_options
+                + wr_non_disc_opts
+                + wr_service_in_wr
+            )
 
             # VAT Rate to apply gross math
             vat_rate = getattr(self.settings, "vat_rate", 1.23)
@@ -840,13 +872,9 @@ class LTRKalkulator:
         if base_price_net_full == 0.0:
             base_price_net_full = float(getattr(self.input_data, "base_price_net", 0.0))
 
-        # Opcje pod WartoĹ›Ä‡ RezydualnÄ… (Zawsze Fabryczne + Serwisowe z include_in_wr)
-        base_wr_options = sum(opt.price_net for opt in self.input_data.factory_options)
-        base_wr_options += sum(
-            opt.price_net
-            for opt in self.input_data.service_options
-            if getattr(opt, "include_in_wr", False)
-        )
+        # Opcje pod Wartość Rezydualną — analogicznie do build_matrix.
+        wr_disc_opts, wr_non_disc_opts, wr_service_in_wr = self._calculate_wr_options_split()
+        base_wr_options = wr_disc_opts + wr_non_disc_opts + wr_service_in_wr
 
         margin_pct = 0.0001  # Fix for division by zero - Reverse Search operates solely on base net cost 0 margin
 
@@ -868,10 +896,15 @@ class LTRKalkulator:
             tires_res = self.tires_calc.calculate_cost(months=months, total_km=total_km)
             capex_for_financing = capex + tires_res["capex_initial_set"]
 
-            # Uzywamy tylko opcji wp_amortyzacja do WR
+            # FIX: Rabat aplikujemy TYLKO do opcji rabatowalnych — analogicznie do build_matrix.
             discount_pct = getattr(self.input_data, "discount_pct", 0) / 100.0
-            discounted_factory_options = base_wr_options * (1 - discount_pct)
-            wp_amortyzacja = vehicle_capex + discounted_factory_options
+            discounted_factory_options = wr_disc_opts * (1 - discount_pct)
+            wp_amortyzacja = (
+                vehicle_capex
+                + discounted_factory_options
+                + wr_non_disc_opts
+                + wr_service_in_wr
+            )
 
             vat_rate = getattr(self.settings, "vat_rate", 1.23)
             if vat_rate > 10.0:
