@@ -302,7 +302,7 @@ Critical rules:
 1. Extract ALL paid options found in the document, not only one item.
 2. If both accessories (e.g. floor mats) and a body modification (e.g. container build-up) are present, include both as separate entries.
 3. Do not merge unrelated options into one record.
-4. For body modifications (kontener, izoterma, chlodnia, skrzynia, plandeka, HDS, zabudowa) set `is_financial_only=false` and fill `override_samar_class`.
+4. For body modifications (kontener, izoterma, chlodnia, skrzynia, plandeka, HDS, zabudowa, wywrotka, tipper) set `is_financial_only=false` and fill `override_samar_class`.
 5. For pure financial/accessory options (mats, hook, insurance, warranty, inspections) set `is_financial_only=true`.
 6. `net_price` must be a numeric NET value in PLN. If only gross exists, divide by 1.23.
 7. `description_or_components` should contain key components from the document.
