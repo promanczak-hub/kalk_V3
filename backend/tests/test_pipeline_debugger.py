@@ -24,7 +24,6 @@ def mock_settings():
         value_threshold_1=0.0,
         value_threshold_2=0.0,
         resale_time_days=0,
-        inventory_financing_cost=0.0,
         samar_rv_apply_color_correction=True,
         samar_rv_apply_body_correction=True,
         samar_rv_apply_options_depreciation=True,
