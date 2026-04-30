@@ -7,7 +7,8 @@ export const FilterChip: React.FC<{
   selected: boolean;
   onClick: () => void;
   variant?: 'primary' | 'secondary';
-}> = ({ label, selected, onClick, variant = 'primary' }) => {
+  dim?: boolean;
+}> = ({ label, selected, onClick, variant = 'primary', dim = false }) => {
   const selectedBg =
     variant === 'secondary'
       ? 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
@@ -19,17 +20,19 @@ export const FilterChip: React.FC<{
       size="small"
       onClick={onClick}
       sx={{
-        cursor: 'pointer',
+        cursor: dim ? 'not-allowed' : 'pointer',
         fontWeight: selected ? 700 : 400,
         fontSize: '0.75rem',
         height: 26,
         transition: 'all 0.15s ease',
+        opacity: dim && !selected ? 0.35 : 1,
         background: selected ? selectedBg : '#f1f5f9',
         color: selected ? '#ffffff' : '#475569',
         border: selected ? 'none' : '1px solid #cbd5e1',
         boxShadow: selected ? '0 2px 6px rgba(59,130,246,0.35)' : 'none',
+        pointerEvents: dim && !selected ? 'none' : undefined,
         '&:hover': {
-          transform: 'scale(1.04)',
+          transform: dim ? 'none' : 'scale(1.04)',
           background: selected ? selectedBg : '#e2e8f0',
           boxShadow: selected
             ? '0 4px 10px rgba(59,130,246,0.45)'

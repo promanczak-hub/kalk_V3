@@ -25,10 +25,32 @@ export const useScoringFilterActions = (
 
   const toggleBodyType = useCallback((name: string) => {
     const current = searchContext.bodyTypes || [];
-    const next = current.includes(name)
-      ? current.filter((b: string) => b !== name)
-      : [...current, name];
+    const next = current.includes(name) ? current.filter((b: string) => b !== name) : [...current, name];
     onContextChange({ ...searchContext, bodyTypes: next });
+  }, [searchContext, onContextChange]);
+
+  const toggleFuelType = useCallback((fuel: string) => {
+    const current = searchContext.fuelTypes || [];
+    const next = current.includes(fuel) ? current.filter(f => f !== fuel) : [...current, fuel];
+    onContextChange({ ...searchContext, fuelTypes: next });
+  }, [searchContext, onContextChange]);
+
+  const toggleTransmission = useCallback((transmission: string) => {
+    const current = searchContext.transmissions || [];
+    const next = current.includes(transmission) ? current.filter(t => t !== transmission) : [...current, transmission];
+    onContextChange({ ...searchContext, transmissions: next });
+  }, [searchContext, onContextChange]);
+
+  const toggleDriveType = useCallback((drive: string) => {
+    const current = searchContext.driveTypes || [];
+    const next = current.includes(drive) ? current.filter(d => d !== drive) : [...current, drive];
+    onContextChange({ ...searchContext, driveTypes: next });
+  }, [searchContext, onContextChange]);
+
+  const toggleSamarClassId = useCallback((id: number) => {
+    const current = searchContext.samarClassIds || [];
+    const next = current.includes(id) ? current.filter(i => i !== id) : [...current, id];
+    onContextChange({ ...searchContext, samarClassIds: next });
   }, [searchContext, onContextChange]);
 
   const isFeatureSelected = useCallback((key: string, value: string) =>
@@ -91,6 +113,10 @@ export const useScoringFilterActions = (
     toggleBrand,
     toggleTrim,
     toggleBodyType,
+    toggleFuelType,
+    toggleTransmission,
+    toggleDriveType,
+    toggleSamarClassId,
     isFeatureSelected,
     toggleFeature,
     updateRangeFeature,
