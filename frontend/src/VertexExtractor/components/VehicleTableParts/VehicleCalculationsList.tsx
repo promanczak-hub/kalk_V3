@@ -439,7 +439,7 @@ export function VehicleCalculationsList({
         {loading && <Loader2 className="w-3 h-3 animate-spin text-slate-400 ml-2" />}
       </div>
 
-      <div className="ag-theme-quartz border border-slate-200 rounded-lg shadow-sm w-full overflow-hidden" style={{ minHeight: items.length > 0 ? items.length * 62 + 45 : 150 }}>
+      <div className="ag-theme-quartz border border-slate-200 rounded-lg shadow-sm w-full overflow-hidden" style={{ height: Math.min(items.length, 5) * 60 + 45 }}>
         <AgGridReact<HistoricalCalculation>
           rowData={items}
           columnDefs={columnDefs}
@@ -448,6 +448,7 @@ export function VehicleCalculationsList({
           headerHeight={40}
           animateRows={true}
           rowClassRules={rowClassRules}
+          getRowId={(params) => params.data.id}
           onRowClicked={(e) => {
             // Prevent selection if Klonuj was clicked
             if ((e.event?.target as HTMLElement)?.closest('.clone-btn')) return;
@@ -455,7 +456,6 @@ export function VehicleCalculationsList({
                 onSelect(e.data.id, e.data.numer_kalkulacji);
             }
           }}
-          domLayout="autoHeight"
           overlayNoRowsTemplate="<span class='text-slate-400 text-sm'>Brak wariantów ofert</span>"
         />
       </div>
