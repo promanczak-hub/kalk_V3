@@ -214,6 +214,7 @@ def build_calculator_input(
     z_oponami = toggles.get("include_tires", True)  # Custom fallback
     include_servicing = toggles.get("include_servicing", True)
     replacement_car = toggles.get("replacement_car", True)
+    express_pays_insurance = toggles.get("express_pays_insurance", True)
     add_hook = toggles.get("hook_installation", False)
 
     # ── Tire parameters ──
@@ -254,6 +255,7 @@ def build_calculator_input(
         srednica_felgi=srednica_felgi,
         include_servicing=include_servicing,
         replacement_car_enabled=replacement_car,
+        express_pays_insurance=express_pays_insurance,
         add_hook_installation=add_hook,
         service_cost_type=setup.get("service_cost_type", "ASO"),
         is_metalic=is_metalic,

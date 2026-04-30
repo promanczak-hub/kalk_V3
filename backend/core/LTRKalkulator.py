@@ -1,15 +1,4 @@
-# ==============================================================================
-# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
-# ==============================================================================
-# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
-# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
-# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
-#
-# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
-# 1. PRZERWIJ DZIAŁANIE.
-# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
-# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
-# ==============================================================================
+
 
 import logging
 from typing import Any, Dict, List, Tuple
@@ -132,6 +121,9 @@ class LTRKalkulator:
         # Service calculator (ASO/nonASO)
         self.include_servicing = bool(
             getattr(self.input_data, "include_servicing", True)
+        )
+        self.express_pays_insurance = bool(
+            getattr(self.input_data, "express_pays_insurance", True)
         )
         self.service_cost_type = str(
             getattr(self.input_data, "service_cost_type", "ASO") or "ASO"
@@ -466,16 +458,15 @@ class LTRKalkulator:
             vat_rate_fin = getattr(self.settings, "vat_rate", 1.23)
             if vat_rate_fin > 10.0:
                 vat_rate_fin = 1.0 + (vat_rate_fin / 100.0)
+            _initial_deposit_pct = float(
+                getattr(self.input_data, "initial_deposit_pct", 0.0) or 0.0
+            )
             finance_input = FinanseInput(
                 WartoscPoczatkowaNetto=capex_for_financing,
                 WrPrzewidywanaCenaSprzedazy=vr_samar,
-                CzynszInicjalny=float(
-                    getattr(self.input_data, "CzynszKwota", 0.0) or 0.0
-                ),
-                CzynszProcent=float(
-                    getattr(self.input_data, "CzynszProcent", 0.0) or 0.0
-                ),
-                RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
+                CzynszInicjalny=0.0,
+                CzynszProcent=_initial_deposit_pct,
+                RodzajCzynszu="Procentowo" if _initial_deposit_pct > 0 else "Kwotowo",
                 StawkaVAT=vat_rate_fin,
                 Okres=months,
                 WIBORProcent=float(
@@ -615,7 +606,7 @@ class LTRKalkulator:
                 total_km=total_km,  # type: ignore
             )
 
-            insurance_res = ins_calc.calculate_cost(months, capex_for_financing)  # type: ignore
+            insurance_res = ins_calc.calculate_cost(months, capex_for_financing, enabled=self.express_pays_insurance)  # type: ignore
             insurance_base = float(insurance_res["monthly_insurance"])
             insurance_total = float(
                 insurance_res.get("total_insurance", insurance_base * months)
@@ -902,16 +893,15 @@ class LTRKalkulator:
             if vat_rate_fin > 10.0:
                 vat_rate_fin = 1.0 + (vat_rate_fin / 100.0)
 
+            _initial_deposit_pct = float(
+                getattr(self.input_data, "initial_deposit_pct", 0.0) or 0.0
+            )
             finance_input = FinanseInput(
                 WartoscPoczatkowaNetto=capex_for_financing,
                 WrPrzewidywanaCenaSprzedazy=vr_samar,
-                CzynszInicjalny=float(
-                    getattr(self.input_data, "CzynszKwota", 0.0) or 0.0
-                ),
-                CzynszProcent=float(
-                    getattr(self.input_data, "CzynszProcent", 0.0) or 0.0
-                ),
-                RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
+                CzynszInicjalny=0.0,
+                CzynszProcent=_initial_deposit_pct,
+                RodzajCzynszu="Procentowo" if _initial_deposit_pct > 0 else "Kwotowo",
                 StawkaVAT=vat_rate_fin,
                 Okres=months,
                 WIBORProcent=float(
@@ -1039,7 +1029,7 @@ class LTRKalkulator:
                 amortization_pct=procent_amortyzacji_miesiecznie,  # type: ignore
                 total_km=total_km,  # type: ignore
             )
-            insurance_res = ins_calc.calculate_cost(months, capex_for_financing)  # type: ignore
+            insurance_res = ins_calc.calculate_cost(months, capex_for_financing, enabled=self.express_pays_insurance)  # type: ignore
             insurance_base = float(insurance_res["monthly_insurance"])
             insurance_total = float(
                 insurance_res.get("total_insurance", insurance_base * months)

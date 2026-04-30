@@ -117,6 +117,11 @@ class CalculatorInput(BaseModel):
         default=True, description="Czy wliczać koszty auta zastępczego"
     )
 
+    # Ubezpieczenie
+    express_pays_insurance: bool = Field(
+        default=True, description="Czy Express płaci ubezpieczenie (V1: CzyExpressPlaciUbezpieczenie)"
+    )
+
     # Koszty Dodatkowe
     add_gsm_subscription: bool = Field(default=True, description="Abonament GSM")
     add_hook_installation: bool = Field(default=False, description="Montaż Haka")
