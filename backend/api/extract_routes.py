@@ -147,7 +147,9 @@ def backfill_discount_single(
     """
     from core.discount_backfill import apply_backfill_to_card_summary
 
-    client = _get_admin_client()
+    # Use direct supabase client (admin _get_admin_client has stale schema state
+    # that defaults to reverse_search for some reason).
+    client = supabase_client
     resp = (
         client.table("vehicle_synthesis")
         .select("id, synthesis_data")
@@ -170,9 +172,8 @@ def backfill_discount_single(
 
     if changed:
         synthesis["card_summary"] = card_summary
-        client.table("vehicle_synthesis").update({"synthesis_data": synthesis}).eq(
-            "id", vehicle_id
-        ).execute()
+        # Direct httpx call — bypasses postgrest-py schema state issues.
+        _direct_update_synthesis(vehicle_id, synthesis)
         cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
 
     return {
@@ -180,6 +181,38 @@ def backfill_discount_single(
         "vehicle_id": vehicle_id,
         "discount": card_summary.get("discount"),
     }
+
+
+def _direct_update_synthesis(vehicle_id: str, synthesis: dict) -> None:
+    """Direct UPDATE via psycopg2 — PostgREST in this Supabase instance has
+    default schema set to `reverse_search` and ignores Content-Profile for
+    vehicle_synthesis. We bypass it entirely with a direct DB connection.
+    """
+    import psycopg2
+    from psycopg2.extras import Json
+    import os
+
+    db_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+    if not db_url:
+        # Fallback: build from SUPABASE_URL
+        host = SUPABASE_URL.replace("https://", "").replace("http://", "").rstrip("/")
+        # Direct postgres connection to Supabase: db.{ref}.supabase.co:5432
+        ref = host.split(".")[0]
+        password = os.getenv("SUPABASE_DB_PASSWORD")
+        if not password:
+            raise RuntimeError("SUPABASE_DB_PASSWORD not set in env")
+        db_url = f"postgresql://postgres:{password}@db.{ref}.supabase.co:5432/postgres"
+
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE public.vehicle_synthesis SET synthesis_data = %s WHERE id = %s",
+                (Json(synthesis), vehicle_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 @router.post("/extract/backfill-discount/all")
@@ -191,7 +224,9 @@ def backfill_discount_all(request: DiscountBackfillRequest) -> Dict[str, Any]:
     """
     from core.discount_backfill import apply_backfill_to_card_summary
 
-    client = _get_admin_client()
+    # Use direct supabase client (admin _get_admin_client has stale schema state
+    # that defaults to reverse_search for some reason).
+    client = supabase_client
     query = client.table("vehicle_synthesis").select("id, synthesis_data")
     if request.limit and request.limit > 0:
         query = query.limit(request.limit)
@@ -219,9 +254,7 @@ def backfill_discount_all(request: DiscountBackfillRequest) -> Dict[str, Any]:
 
             if changed:
                 synthesis["card_summary"] = card_summary
-                client.table("vehicle_synthesis").update(
-                    {"synthesis_data": synthesis}
-                ).eq("id", row["id"]).execute()
+                _direct_update_synthesis(row["id"], synthesis)
                 updated += 1
             else:
                 skipped += 1
@@ -251,7 +284,7 @@ def discount_override(
     `non_discountable_total_net`. Przelicza `computed_pct` automatycznie.
     Confidence ustawiana na 1.0 i extraction_method na 'explicit_amount'.
     """
-    client = _get_admin_client()
+    client = supabase_client
     resp = (
         client.table("vehicle_synthesis")
         .select("id, synthesis_data")
@@ -304,9 +337,7 @@ def discount_override(
         card_summary["offer_discount_pln"] = f"{int(new_breakdown['explicit_rabat_pln'])} PLN"
 
     synthesis["card_summary"] = card_summary
-    client.table("vehicle_synthesis").update({"synthesis_data": synthesis}).eq(
-        "id", vehicle_id
-    ).execute()
+    _direct_update_synthesis(vehicle_id, synthesis)
     cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
 
     return {"status": "ok", "vehicle_id": vehicle_id, "discount": new_breakdown}

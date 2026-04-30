@@ -25,7 +25,7 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
 
   // Local state for CRUD operations on Service Options
   const initialServiceOptions = useMemo(() => {
-    return vehicle.paid_options?.filter(
+    const fromPaidOptions = vehicle.paid_options?.filter(
       (o: any) => o.category && !o.category.includes("Fabryczna")
     ).map((o: any) => ({
        id: crypto.randomUUID(),
@@ -34,8 +34,36 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
        category: o.category || "Opcja Serwisowa",
        include_in_wr: o.include_in_wr || false
     })) || [];
+
+    // Include card_summary.service_equipment (zabudowy specjalne, pakiety serwisowe).
+    // LLM zapisuje je w osobnym polu, NIE w paid_options. Bez tego zabudowa wywrotka
+    // 31 732 zł nie pojawiałaby się w akordeonie wyposażenia.
+    const cs = (vehicle.synthesis_data as any)?.card_summary;
+    const serviceEquipment = cs?.service_equipment as
+      | { name?: string; total_price_net?: string | number; components?: any[] }
+      | undefined;
+    if (serviceEquipment && serviceEquipment.name && serviceEquipment.total_price_net) {
+      const rawPrice = parsePriceToNumber(String(serviceEquipment.total_price_net));
+      if (rawPrice > 0) {
+        // service_equipment is documented as net by Pydantic schema
+        const alreadyAdded = fromPaidOptions.some(
+          (opt: any) => opt.name?.toLowerCase().includes(serviceEquipment.name!.toLowerCase().substring(0, 15))
+        );
+        if (!alreadyAdded) {
+          fromPaidOptions.push({
+            id: crypto.randomUUID(),
+            name: serviceEquipment.name,
+            price_net: Math.round(rawPrice * 100) / 100,
+            category: "Zabudowa / Wyposażenie serwisowe",
+            include_in_wr: true,  // zabudowa traci wartość razem z pojazdem
+          });
+        }
+      }
+    }
+
+    return fromPaidOptions;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.paid_options, priceDomain]);
+  }, [vehicle.paid_options, vehicle.synthesis_data, priceDomain]);
 
   const initialFactoryOptions = useMemo(() => {
     const opts = vehicle.paid_options?.filter(

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DiscountBreakdown, FleetVehicleView } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
 
@@ -18,7 +18,8 @@ export function useVehiclePricingManager({
   const [discountMode, setDiscountMode] = useState<"offer" | "suggested" | "custom">(() => {
     const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
     const breakdown = cs?.discount as DiscountBreakdown | undefined;
-    const breakdownPct = breakdown?.computed_pct ?? breakdown?.explicit_rabat_pct ?? 0;
+    // JSONB from Supabase delivers numbers as strings — coerce explicitly.
+    const breakdownPct = Number(breakdown?.computed_pct ?? breakdown?.explicit_rabat_pct ?? 0);
     const offerPct = Number(cs?.offer_discount_pct ?? 0);
     const suggestedPct = Number(vehicle.suggested_discount_pct ?? 0);
 
@@ -27,6 +28,32 @@ export function useVehiclePricingManager({
     if (Number.isFinite(suggestedPct) && suggestedPct > 0) return "suggested";
     return "offer";
   });
+
+  // ── Auto-switch to "offer" when fresh DiscountBreakdown lands (e.g. after Re-extract).
+  // Skipped if user explicitly switched to "custom" — then we respect their choice.
+  const breakdownExtractionMethod =
+    (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary
+      ? ((vehicle.synthesis_data as Record<string, unknown>).card_summary as Record<string, unknown>)?.discount
+      : undefined;
+  const breakdownPctForEffect = Number(
+    (breakdownExtractionMethod as DiscountBreakdown | undefined)?.computed_pct ?? 0,
+  );
+  useEffect(() => {
+    const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+    const breakdown = cs?.discount as DiscountBreakdown | undefined;
+    const breakdownPct = Number(breakdown?.computed_pct ?? 0);
+    if (
+      breakdown &&
+      breakdown.extraction_method !== "none" &&
+      breakdownPct > 0 &&
+      discountMode === "suggested" &&
+      Number(vehicle.suggested_discount_pct ?? 0) === 0
+    ) {
+      // suggested mode is empty (0%) but offer has a real rabat — switch to offer
+      setDiscountMode("offer");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breakdownPctForEffect]);
   const [customDiscountPctRaw, setCustomDiscountPctRaw] = useState<string | number>("");
 
   const customDiscountPct = Number(customDiscountPctRaw) || 0;
