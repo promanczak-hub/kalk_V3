@@ -42,9 +42,28 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
       )}
 
       {loading && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 1 }}>
-          <CircularProgress size={20} />
-          <Typography variant="caption" color="text.secondary">Badam zróżnicowane opcje (AI)...</Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            mt: 3,
+            mb: 1,
+            p: 1.25,
+            bgcolor: '#F8FAFC',
+            borderRadius: '8px',
+            border: '1px dashed #CBD5E1',
+          }}
+        >
+          <CircularProgress size={16} thickness={5} />
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600, fontSize: '0.7rem' }}>
+              AI szuka zróżnicowanych alternatyw…
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '0.6rem' }}>
+              Analiza klas SAMAR, opcji wyposażenia i konkurencyjnych marek (~5-15s)
+            </Typography>
+          </Box>
         </Box>
       )}
 

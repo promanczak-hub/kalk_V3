@@ -6,7 +6,7 @@ import logging
 
 from datetime import datetime
 import time
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -155,6 +155,20 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         if base_price_val is not None and price_domain == "brutto":
             base_price_val = round(base_price_val / 1.23, 2)
 
+        def _opt_float(key: str) -> Optional[float]:
+            v = raw_reasons.get(key)
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        def _opt_int(key: str) -> Optional[int]:
+            v = raw_reasons.get(key)
+            try:
+                return int(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
         similarity_reasons = SimilarityReasons(
             samar_match=bool(raw_reasons.get("samar_match", False)),
             body_match=bool(raw_reasons.get("body_match", False)),
@@ -162,18 +176,22 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
             drive_match=bool(raw_reasons.get("drive_match", False)),
             equipment_match=bool(raw_reasons.get("equipment_match", False)),
             is_same_brand=bool(raw_reasons.get("is_same_brand", False)),
-            equipment_similarity_pct=float(raw_reasons["equipment_similarity_pct"])
-            if raw_reasons.get("equipment_similarity_pct") is not None
-            else None,
-            price_pct_diff=float(raw_reasons["price_pct_diff"])
-            if raw_reasons.get("price_pct_diff") is not None
-            else None,
+            equipment_similarity_pct=_opt_float("equipment_similarity_pct"),
+            price_pct_diff=_opt_float("price_pct_diff"),
             is_cheaper=raw_reasons.get("is_cheaper"),
             samar_category=raw_reasons.get("samar_category"),
             body_style=raw_reasons.get("body_style"),
             base_price=base_price_val,
             paid_options=raw_reasons.get("paid_options"),
             is_fallback_match=bool(raw_reasons.get("is_fallback_match", False)),
+            # V2 enrichment fields (gracefully None if RPC nie zwraca)
+            discount_pct=_opt_float("discount_pct"),
+            final_price_net=_opt_float("final_price_net"),
+            final_price_pct_diff=_opt_float("final_price_pct_diff"),
+            discount_pct_diff=_opt_float("discount_pct_diff"),
+            payload_kg=_opt_int("payload_kg"),
+            cargo_volume_m3=_opt_float("cargo_volume_m3"),
+            body_type=raw_reasons.get("body_type"),
         )
 
     return SimilarVehicleMatch(
