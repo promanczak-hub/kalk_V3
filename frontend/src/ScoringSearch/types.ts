@@ -95,6 +95,9 @@ export interface SearchContext {
   trims: string[];
   samarClassIds: number[];
   bodyTypes: string[];
+  fuelTypes: string[];
+  transmissions: string[];
+  driveTypes: string[];
   useMatrixFilters: boolean;
   monthly_budget?: number;
   duration_months_range: [number, number];

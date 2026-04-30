@@ -39,16 +39,18 @@ export const buildScoringPayload = (searchContext: SearchContext, selectedFeatur
     }
   }
 
-  // Body type filter — keep as MUST_HAVE because body style (kombi vs SUV) is
-  // a categorical choice, not a soft preference.
+  // Categorical hard filters — same rationale as body_style
   if (searchContext.bodyTypes.length > 0) {
-    requirements.push({
-      feature_key: 'body_style',
-      operator: 'in',
-      value: searchContext.bodyTypes,
-      requirement: 'MUST_HAVE',
-      weight: 1
-    });
+    requirements.push({ feature_key: 'body_style', operator: 'in', value: searchContext.bodyTypes as unknown as string, requirement: 'MUST_HAVE', weight: 1 });
+  }
+  if (searchContext.fuelTypes.length > 0) {
+    requirements.push({ feature_key: 'fuel', operator: 'in', value: searchContext.fuelTypes as unknown as string, requirement: 'MUST_HAVE', weight: 1 });
+  }
+  if (searchContext.transmissions.length > 0) {
+    requirements.push({ feature_key: 'transmission', operator: 'in', value: searchContext.transmissions as unknown as string, requirement: 'MUST_HAVE', weight: 1 });
+  }
+  if (searchContext.driveTypes.length > 0) {
+    requirements.push({ feature_key: 'drive_type', operator: 'in', value: searchContext.driveTypes as unknown as string, requirement: 'MUST_HAVE', weight: 1 });
   }
 
   return {

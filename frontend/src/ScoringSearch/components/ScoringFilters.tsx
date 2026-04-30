@@ -4,10 +4,11 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import type { SearchContext, SelectedFeature } from '../types';
+import type { SearchContext, SelectedFeature, ScoredVehicle } from '../types';
 
 import { useFilterDictionaries } from '../hooks/useFilterDictionaries';
 import { useScoringFilterActions } from '../hooks/useScoringFilterActions';
+import { useLiveFacets } from '../hooks/useLiveFacets';
 import { Level1Primary } from './Filters/Level1Primary';
 import { Level2Detailed } from './Filters/Level2Detailed';
 
@@ -16,6 +17,7 @@ interface ScoringFiltersProps {
   onContextChange: (ctx: SearchContext) => void;
   selectedFeatures: SelectedFeature[];
   onFeaturesChange: (features: SelectedFeature[]) => void;
+  searchResults: ScoredVehicle[];
 }
 
 export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
@@ -23,6 +25,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
   onContextChange,
   selectedFeatures,
   onFeaturesChange,
+  searchResults,
 }) => {
   const [onLevel2, setOnLevel2] = useState(false);
   const level2Ref = useRef<HTMLDivElement>(null);
@@ -32,7 +35,6 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
   const [stdOptionSearch, setStdOptionSearch] = useState('');
   const [paidOptionSearch, setPaidOptionSearch] = useState('');
 
-  // 1. Fetching logic hook
   const {
     initialData, loadingInitial,
     data, loadingFilters,
@@ -40,11 +42,12 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
     sortedBrands, primaryEnumFacets, sortedBooleanGroups
   } = useFilterDictionaries({ searchContext, onLevel2 });
 
-  // 2. Action logic hook
   const actions = useScoringFilterActions(
     searchContext, onContextChange,
     selectedFeatures, onFeaturesChange
   );
+
+  const liveFacets = useLiveFacets(searchResults, initialData?.samar_classes ?? []);
 
   const handleLevel2Toggle = () => {
     setOnLevel2(prev => {
@@ -61,7 +64,9 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
   const handleReset = () => {
     onContextChange({
       ...searchContext,
-      brands: [], models: [], bodyTypes: [], trims: [], margin_pct: undefined, monthly_budget: undefined,
+      brands: [], models: [], bodyTypes: [], trims: [],
+      fuelTypes: [], transmissions: [], driveTypes: [], samarClassIds: [],
+      margin_pct: undefined, monthly_budget: undefined,
       exact_mode: false, exact_duration_months: 36, exact_total_mileage: 60000,
     });
     onFeaturesChange([]);
@@ -89,9 +94,9 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
 
       {/* ── Scrollable Content ── */}
       <Box sx={{ flex: 1, overflowY: 'auto' }}>
-        
+
         {/* ══ LEVEL 1 ══ */}
-        <Level1Primary 
+        <Level1Primary
           searchContext={searchContext}
           onContextChange={onContextChange}
           selectedFeatures={selectedFeatures}
@@ -102,6 +107,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
           trimsAndOptions={trimsAndOptions}
           loadingFilters={loadingFilters}
           primaryEnumFacets={primaryEnumFacets}
+          liveFacets={liveFacets}
           {...actions}
         />
 
@@ -123,7 +129,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
 
         {/* ══ LEVEL 2 ══ */}
         {onLevel2 && (
-          <Level2Detailed 
+          <Level2Detailed
             level2Ref={level2Ref}
             l2Tab={l2Tab} setL2Tab={setL2Tab}
             universalSearch={universalSearch} setUniversalSearch={setUniversalSearch}

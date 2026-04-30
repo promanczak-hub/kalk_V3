@@ -50,6 +50,7 @@ export const ScoringSearchPage: React.FC = () => {
               onContextChange={setSearchContext}
               selectedFeatures={selectedFeatures}
               onFeaturesChange={setSelectedFeatures}
+              searchResults={searchResults}
             />
           </div>
         </div>

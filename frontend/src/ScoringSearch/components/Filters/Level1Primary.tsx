@@ -1,32 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box, CircularProgress, Autocomplete, TextField, Typography,
-  FormControlLabel, Switch, Collapse, Slider
+  FormControlLabel, Switch, Collapse, Slider, Button
 } from '@mui/material';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { FilterChip, SectionLabel, Section } from './FilterUIComponents';
 import { AdaptiveSliderField } from '../AdaptiveSliderField';
 import type { SearchContext, SelectedFeature, InitialDataResponse, TrimsAndOptionsResponse, EnumFilter } from '../../types';
+import type { LiveFacets } from '../../hooks/useLiveFacets';
 import { MATRIX_LIMITS } from '../../../config/matrixLimits';
+
+const SAMAR_TOP_N = 10;
 
 interface Level1PrimaryProps {
   searchContext: SearchContext;
   onContextChange: (ctx: SearchContext) => void;
   selectedFeatures: SelectedFeature[];
-  
+
   loadingInitial: boolean;
   initialData: InitialDataResponse | null;
   sortedBrands: string[];
-  
+
   loadingTrims: boolean;
   trimsAndOptions: TrimsAndOptionsResponse | null;
-  
+
   loadingFilters: boolean;
   primaryEnumFacets: EnumFilter[];
-  
+
+  liveFacets: LiveFacets;
+
   // Actions
   toggleBrand: (brand: string) => void;
   toggleTrim: (trim: string) => void;
   toggleBodyType: (name: string) => void;
+  toggleFuelType: (fuel: string) => void;
+  toggleTransmission: (transmission: string) => void;
+  toggleDriveType: (drive: string) => void;
+  toggleSamarClassId: (id: number) => void;
   isFeatureSelected: (key: string, value: string) => boolean;
   toggleFeature: (key: string, value: string, weight?: number, isMustHave?: boolean) => void;
 }
@@ -36,8 +47,24 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
   loadingInitial, initialData, sortedBrands,
   loadingTrims, trimsAndOptions,
   loadingFilters, primaryEnumFacets,
-  toggleBrand, toggleTrim, toggleBodyType, isFeatureSelected, toggleFeature
+  liveFacets,
+  toggleBrand, toggleTrim, toggleBodyType,
+  toggleFuelType, toggleTransmission, toggleDriveType, toggleSamarClassId,
+  isFeatureSelected, toggleFeature,
 }) => {
+  const [samarExpanded, setSamarExpanded] = useState(false);
+
+  const hasAnyFilter =
+    searchContext.fuelTypes.length > 0 ||
+    searchContext.transmissions.length > 0 ||
+    searchContext.driveTypes.length > 0 ||
+    searchContext.samarClassIds.length > 0 ||
+    searchContext.bodyTypes.length > 0;
+
+  const samarVisible = samarExpanded
+    ? liveFacets.samarItems
+    : liveFacets.samarItems.slice(0, SAMAR_TOP_N);
+  const hiddenSamarCount = liveFacets.samarItems.length - SAMAR_TOP_N;
 
   return (
     <>
@@ -76,6 +103,108 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
               />
             ))}
           </Box>
+        </Section>
+      )}
+
+      {/* Section: Fuel type */}
+      {liveFacets.fuels.length > 0 && (
+        <Section>
+          <SectionLabel label="Paliwo" selectedCount={searchContext.fuelTypes.length} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {liveFacets.fuels.map(item => {
+              const selected = searchContext.fuelTypes.includes(item.value);
+              const dim = hasAnyFilter && !selected && item.count === 0;
+              return (
+                <FilterChip
+                  key={item.value}
+                  label={`${item.value} (${item.count})`}
+                  selected={selected}
+                  onClick={() => toggleFuelType(item.value)}
+                  variant="primary"
+                  dim={dim}
+                />
+              );
+            })}
+          </Box>
+        </Section>
+      )}
+
+      {/* Section: Transmission */}
+      {liveFacets.transmissions.length > 0 && (
+        <Section alt>
+          <SectionLabel label="Skrzynia biegów" selectedCount={searchContext.transmissions.length} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {liveFacets.transmissions.map(item => {
+              const selected = searchContext.transmissions.includes(item.value);
+              const dim = hasAnyFilter && !selected && item.count === 0;
+              return (
+                <FilterChip
+                  key={item.value}
+                  label={`${item.value} (${item.count})`}
+                  selected={selected}
+                  onClick={() => toggleTransmission(item.value)}
+                  variant="primary"
+                  dim={dim}
+                />
+              );
+            })}
+          </Box>
+        </Section>
+      )}
+
+      {/* Section: Drive type */}
+      {liveFacets.driveTypes.length > 0 && (
+        <Section>
+          <SectionLabel label="Napęd" selectedCount={searchContext.driveTypes.length} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {liveFacets.driveTypes.map(item => {
+              const selected = searchContext.driveTypes.includes(item.value);
+              const dim = hasAnyFilter && !selected && item.count === 0;
+              return (
+                <FilterChip
+                  key={item.value}
+                  label={`${item.value} (${item.count})`}
+                  selected={selected}
+                  onClick={() => toggleDriveType(item.value)}
+                  variant="primary"
+                  dim={dim}
+                />
+              );
+            })}
+          </Box>
+        </Section>
+      )}
+
+      {/* Section: SAMAR class */}
+      {liveFacets.samarItems.length > 0 && (
+        <Section alt>
+          <SectionLabel label="Klasa SAMAR" selectedCount={searchContext.samarClassIds.length} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {samarVisible.map(item => {
+              const selected = searchContext.samarClassIds.includes(item.id);
+              const dim = hasAnyFilter && !selected && item.count === 0;
+              return (
+                <FilterChip
+                  key={item.id}
+                  label={`${item.value} (${item.count})`}
+                  selected={selected}
+                  onClick={() => toggleSamarClassId(item.id)}
+                  variant="secondary"
+                  dim={dim}
+                />
+              );
+            })}
+          </Box>
+          {hiddenSamarCount > 0 && (
+            <Button
+              size="small"
+              onClick={() => setSamarExpanded(prev => !prev)}
+              endIcon={samarExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+              sx={{ mt: 0.75, fontSize: '0.7rem', p: 0, color: '#64748b', minWidth: 0, textTransform: 'none' }}
+            >
+              {samarExpanded ? 'Zwiń' : `Pokaż pozostałe (${hiddenSamarCount})`}
+            </Button>
+          )}
         </Section>
       )}
 
@@ -147,7 +276,7 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
         </Section>
       )}
 
-      {/* Section: Numeric params */}
+      {/* Section: Matrix calc */}
       <Section>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0 }}>
           <SectionLabel label="Kalkulacje (Matrix)" />
