@@ -11,10 +11,11 @@ import { AllCommunityModule, type ColDef, type ICellRendererParams, ModuleRegist
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export interface TogglesSummary {
-  include_tires: boolean;
-  include_insurance: boolean;
-  include_service: boolean;
-  include_replacement_car: boolean;
+  z_oponami: boolean;
+  express_pays_insurance: boolean;
+  include_servicing: boolean;
+  replacement_car: boolean;
+  is_metalic?: boolean;
 }
 
 export interface HistoricalCalculation {
@@ -148,25 +149,25 @@ function ConfigCellRenderer(params: ICellRendererParams<HistoricalCalculation>) 
 
   return (
     <div className="flex flex-wrap items-center gap-2 h-full content-center">
-      <ConfigBadge 
-        label="Serwis" 
-        enabled={!!item.toggles_summary?.include_service} 
-        icon={Wrench} 
+      <ConfigBadge
+        label="Serwis"
+        enabled={!!item.toggles_summary?.include_servicing}
+        icon={Wrench}
       />
-      <ConfigBadge 
-        label="Opony" 
-        enabled={!!item.toggles_summary?.include_tires} 
-        icon={Settings} 
+      <ConfigBadge
+        label="Opony"
+        enabled={!!item.toggles_summary?.z_oponami}
+        icon={Settings}
       />
-      <ConfigBadge 
-        label="Ubezpieczenie" 
-        enabled={!!item.toggles_summary?.include_insurance} 
-        icon={Shield} 
+      <ConfigBadge
+        label="Ubezpieczenie"
+        enabled={!!item.toggles_summary?.express_pays_insurance}
+        icon={Shield}
       />
-      <ConfigBadge 
-        label="Auto zastępcze" 
-        enabled={!!item.toggles_summary?.include_replacement_car} 
-        icon={CarFront} 
+      <ConfigBadge
+        label="Auto zastępcze"
+        enabled={!!item.toggles_summary?.replacement_car}
+        icon={CarFront}
       />
     </div>
   );
