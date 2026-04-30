@@ -41,6 +41,29 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
 
 router = APIRouter(prefix="/kalkulacje", tags=["kalkulacje"])
 
+_PREFERRED_MONTHS = 48
+_PREFERRED_MILEAGE = 120_000
+
+
+def _pick_rata_netto(matrix_rows: list[dict]) -> dict[str, float]:
+    """Return {kalkulacja_id: monthly_price_net} preferring 48mc/120k, falling back to minimum."""
+    preferred: dict[str, float] = {}
+    fallback: dict[str, float] = {}
+    for m in matrix_rows:
+        k_id = m.get("kalkulacja_id")
+        val = m.get("monthly_price_net")
+        if not k_id or val is None:
+            continue
+        val = float(val)
+        if (
+            m.get("duration_months") == _PREFERRED_MONTHS
+            and m.get("annual_mileage") == _PREFERRED_MILEAGE
+        ):
+            preferred[k_id] = val
+        if k_id not in fallback or val < fallback[k_id]:
+            fallback[k_id] = val
+    return {k_id: preferred.get(k_id, fallback[k_id]) for k_id in fallback}
+
 
 class CreateKalkulacjaRequest(BaseModel):
     stan_json: dict
@@ -319,22 +342,18 @@ def get_kalkulacje():
         kalk_ids = [r["id"] for r in res.data]
         rates_res = (
             supabase.table("vehicle_matrix_cache")
-            .select("kalkulacja_id,monthly_price_net")
+            .select("kalkulacja_id,monthly_price_net,duration_months,annual_mileage")
             .in_("kalkulacja_id", kalk_ids)
             .execute()
         )
 
-        best_rates = {}
-        matrix_counts = {}
-        for m in rates_res.data or []:
+        matrix_rows = rates_res.data or []
+        best_rates = _pick_rata_netto(matrix_rows)
+        matrix_counts: dict[str, int] = {}
+        for m in matrix_rows:
             k_id = m.get("kalkulacja_id")
             if k_id:
                 matrix_counts[k_id] = matrix_counts.get(k_id, 0) + 1
-                val = m.get("monthly_price_net")
-                if val is not None:
-                    val = float(val)
-                    if k_id not in best_rates or val < best_rates[k_id]:
-                        best_rates[k_id] = val
 
         return [
             _extract_list_fields(
@@ -412,23 +431,19 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
         step = "fetch_matrix_cache"
         rates_res = _supabase_execute_with_retry(
             supabase.table("vehicle_matrix_cache")
-            .select("kalkulacja_id,monthly_price_net")
+            .select("kalkulacja_id,monthly_price_net,duration_months,annual_mileage")
             .in_("kalkulacja_id", kalk_ids)
         )
 
-        # ── Step 3: aggregate best rate + matrix count per kalkulacja ──
+        # ── Step 3: aggregate preferred rate (48mc/120k) + matrix count per kalkulacja ──
         step = "aggregate_rates"
-        best_rates: dict[str, float] = {}
+        matrix_rows = rates_res.data or []
+        best_rates: dict[str, float] = _pick_rata_netto(matrix_rows)
         matrix_counts: dict[str, int] = {}
-        for m in rates_res.data or []:
+        for m in matrix_rows:
             k_id = m.get("kalkulacja_id")
             if k_id:
                 matrix_counts[k_id] = matrix_counts.get(k_id, 0) + 1
-                val = m.get("monthly_price_net")
-                if val is not None:
-                    val = float(val)
-                    if k_id not in best_rates or val < best_rates[k_id]:
-                        best_rates[k_id] = val
 
         try:
             synth_res = (
@@ -499,9 +514,10 @@ def set_selected_calculation(vehicle_id: str, body: SelectCalculationRequest) ->
                     detail="Kalkulacja nie należy do podanego pojazdu",
                 )
 
-        supabase.table("vehicle_synthesis").update(
-            {"selected_kalkulacja_id": body.kalkulacja_id}
-        ).eq("id", vehicle_id).execute()
+        supabase.table("vehicle_synthesis").upsert(
+            {"id": vehicle_id, "selected_kalkulacja_id": body.kalkulacja_id},
+            on_conflict="id",
+        ).execute()
         return {"ok": True, "vehicle_id": vehicle_id, "selected_kalkulacja_id": body.kalkulacja_id}
     except HTTPException:
         raise
