@@ -209,6 +209,27 @@ def build_calculator_input(
         else:
             factory_options_list.append(option_item)
 
+    # ── Service equipment (zabudowy / body build-ups from card_summary) ──
+    # CARD_SUMMARY_PROMPT routes body modifications to service_equipment, not paid_options.
+    # We must read it separately and add as a non-discountable service option.
+    service_eq = cs.get("service_equipment")
+    if isinstance(service_eq, dict):
+        se_name = str(service_eq.get("name") or "").strip()
+        se_price_raw = service_eq.get("total_price_net") or service_eq.get("total_price_gross") or ""
+        if se_name and se_price_raw:
+            se_is_brutto = "brutto" in str(se_price_raw).lower() and "netto" not in str(se_price_raw).lower()
+            se_price_net = _parse_price_to_net(se_price_raw, se_is_brutto)
+            if se_price_net > 0:
+                service_options_list.append(
+                    VehicleOptions(
+                        name=se_name,
+                        price_net=se_price_net,
+                        price_gross=round(se_price_net * 1.23, 2),
+                        no_discount=True,
+                        include_in_wr=False,
+                    )
+                )
+
     # ── Toggles ──
     toggles = setup.get("toggles") or {}
     z_oponami = toggles.get("include_tires", True)  # Custom fallback
