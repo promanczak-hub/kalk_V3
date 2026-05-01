@@ -8,13 +8,29 @@ import logging
 
 from typing import Any, Dict, Optional, cast
 
+from supabase import create_client, Client, ClientOptions
 from core.database import supabase
+from core.settings import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 from core.models import ControlCenterSettings
 from api.schemas.calculator import CalculatorInput, VehicleOptions
 from core.LTRKalkulator import LTRKalkulator
 from core.price_parser import parse_price_string
 
 logger = logging.getLogger(__name__)
+
+_supabase_admin: Client | None = None
+
+
+def _get_admin_supabase() -> Client:
+    """Service-role client that bypasses RLS for matrix cache writes."""
+    global _supabase_admin
+    if _supabase_admin is None:
+        if not SUPABASE_SERVICE_ROLE_KEY:
+            logger.warning("SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon client (writes may fail RLS)")
+            return supabase
+        options = ClientOptions(postgrest_client_timeout=60, storage_client_timeout=60)
+        _supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, options=options)
+    return _supabase_admin
 
 
 def _upsert_job(
@@ -470,7 +486,7 @@ def process_single_kalkulacja_matrix_task(
         for i in range(0, len(records_to_upsert), chunk_size):
             chunk = records_to_upsert[i : i + chunk_size]
             try:
-                supabase.table("vehicle_matrix_cache").upsert(
+                _get_admin_supabase().table("vehicle_matrix_cache").upsert(
                     chunk,
                     on_conflict="kalkulacja_id,duration_months,annual_mileage",
                 ).execute()

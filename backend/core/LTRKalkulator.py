@@ -1044,8 +1044,7 @@ class LTRKalkulator:
                 )
             else:
                 amort_input = AmortyzacjaInput(
-                    wp_finansowanie=capex_for_financing,
-                    wp_amortyzacja=wp_amortyzacja,
+                    wp=wp_amortyzacja,
                     wr=vr_samar,
                     okres=months,
                 )
