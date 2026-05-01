@@ -257,6 +257,12 @@ Na podstawie daty waznosci oferty, roku modelowego, roku produkcji, daty dokumen
 - False: pojazd wyprodukowany w roku poprzednim (ubiegloroczny).
 - null: brak wystarczajacych danych do oceny.
 
+EKSTRAKCJA VIN (vin):
+Wyciągnij numer VIN pojazdu (17-znakowy ciąg alfanumeryczny). Szukaj etykiet: "VIN", "Nr VIN", "Numer VIN", "Numer nadwozia", "Nr nadwozia", "Chassis No", "Fahrgestellnummer".
+- Przepisuj DOKŁADNIE, bez spacji i myślników.
+- Jeśli VIN pojawia się w wielu miejscach dokumentu, sprawdź czy są zgodne.
+- Jeśli brak VIN w dokumencie → null.
+
 ILOŚĆ MIEJSC (number_of_seats):
 Wyciągnij liczbę miejsc siedzących (łącznie z kierowcą) z danych technicznych, specyfikacji lub homologacji pojazdu.
 - Zwróć jako liczbę całkowitą (np. 5, 7, 3, 9).
