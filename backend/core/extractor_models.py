@@ -522,6 +522,15 @@ class CardSummary(BaseModel):
             "został wyprodukowany w roku poprzednim — False. Null jeśli brak danych."
         ),
     )
+    vin: Optional[str] = Field(
+        None,
+        description=(
+            "Numer VIN pojazdu (Vehicle Identification Number) — 17-znakowy ciąg alfanumeryczny. "
+            "Szukaj etykiet: 'VIN', 'Nr VIN', 'Numer VIN', 'Numer nadwozia', 'Nr nadwozia', "
+            "'Identyfikator pojazdu', 'Chassis No', 'Fahrgestellnummer'. "
+            "Przepisuj DOKŁADNIE bez spacji i myślników. Zwróć null jeśli nie znaleziono."
+        ),
+    )
     suggested_discount_pct: Optional[float] = Field(
         None,
         description="Wyliczony przez AI sugerowany procent rabatu na podstawie dopasowania auta do oficjalnej macierzy rabatowej (np. 12.5). Zostaw puste, jeśli nie dopasowano.",
