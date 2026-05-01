@@ -72,7 +72,7 @@ return (
 
 
 const DRIVE_TYPE_FALLBACK = [
-  "FWD", "RWD", "AWD", "POZOSTAŁE"
+  "FWD", "RWD", "AWD"
 ];
 
 export function DriveTypeTag({ current, onChange, connected, driveTypeOptions }: { current: string; onChange?: (v: string) => void; connected?: boolean; driveTypeOptions?: string[] }) {
@@ -98,8 +98,8 @@ return (
 }
 
 const TRANSMISSION_OPTIONS = [
-  { value: "Automatyczna", label: "Automatyczna" },
-  { value: "Manualna", label: "Manualna" },
+  { value: "AUTOMATYCZNA", label: "AUTOMATYCZNA" },
+  { value: "MANUALNA", label: "MANUALNA" },
 ];
 
 export function TransmissionTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
