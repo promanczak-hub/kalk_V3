@@ -85,7 +85,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <FilterListIcon sx={{ color: '#3b82f6', fontSize: 20 }} />
-          <Box sx={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem', letterSpacing: 0.5 }}>FILTRY I KALKULACJE</Box>
+          <Box sx={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem', letterSpacing: 0.5 }}>FILTRY</Box>
         </Box>
         <Button size="small" variant="text" color="inherit" onClick={handleReset} startIcon={<RestartAltIcon />} sx={{ opacity: 0.6, fontSize: '0.7rem', '&:hover': { opacity: 1 } }}>
           Reset
@@ -124,7 +124,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             '&:hover': { bgcolor: '#f1f5f9' }
           }}
         >
-          Szczegóły i opcje (Level 2)
+          Więcej filtrów
         </Button>
 
         {/* ══ LEVEL 2 ══ */}

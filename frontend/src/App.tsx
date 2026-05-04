@@ -36,7 +36,7 @@ import OfferCartFab from "./components/OfferCart/OfferCartFab";
  */
 const ROUTES = [
   { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" /> },
-  { path: "/search", label: "Wyszukiwarka / Scoring", icon: <SearchOutlinedIcon fontSize="small" /> },
+  { path: "/search", label: "Szukaj Ofert", icon: <SearchOutlinedIcon fontSize="small" /> },
   { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" /> },
 ] as const;
 
