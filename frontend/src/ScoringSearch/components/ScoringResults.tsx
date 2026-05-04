@@ -136,13 +136,32 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
         </Box>
       </Box>
 
-      {/* Results mapped to isolated Card Component */}
-      {sortedResults.map((car) => {
+      {/* Results mapped to isolated Card Component.
+          When a vehicle has pinned calculations (multi-select on Ekstrakcja),
+          we render one card per pinned calc — each fetches its own price.
+          No pins → one default card backed by the batch-prices result. */}
+      {sortedResults.flatMap((car) => {
         const vehicleId = car.vehicle_id as string;
-        
-        return (
-          <VehicleResultCard 
-            key={vehicleId}
+        const pinned = car.selected_kalkulacja_ids ?? [];
+
+        if (pinned.length === 0) {
+          return [
+            <VehicleResultCard
+              key={vehicleId}
+              car={car}
+              searchContext={searchContext}
+              targetDuration={targetDuration}
+              targetAnnualMileage={targetAnnualMileage}
+              priceData={batchPrices[vehicleId]}
+              pricesLoading={batchPricesLoading}
+              similarData={batchSimilar[vehicleId]}
+            />
+          ];
+        }
+
+        return pinned.map((kid) => (
+          <VehicleResultCard
+            key={`${vehicleId}_${kid}`}
             car={car}
             searchContext={searchContext}
             targetDuration={targetDuration}
@@ -150,9 +169,9 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
             priceData={batchPrices[vehicleId]}
             pricesLoading={batchPricesLoading}
             similarData={batchSimilar[vehicleId]}
-            requirements={requirements}
+            pinnedKalkulacjaId={kid}
           />
-        );
+        ));
       })}
     </Box>
   );

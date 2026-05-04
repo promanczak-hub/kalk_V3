@@ -39,6 +39,11 @@ export interface SimilarityReasons {
   payload_kg?: number | null;
   cargo_volume_m3?: number | null;
   body_type?: string | null;
+
+  // ── Apple-to-apple setup check ──
+  setup_match?: boolean | null;          // true = same (tire, service) as source
+  source_tire_class?: string | null;
+  source_service_type?: string | null;
 }
 
 export interface SimilarVehicle {
@@ -59,6 +64,7 @@ export interface SimilarVehicle {
   // Why this vehicle is similar
   similarity_reasons?: SimilarityReasons | null;
   ai_label?: string | null;
+  kalkulacja_id?: string | null;
 }
 
 export function useBatchPrices(
@@ -138,11 +144,11 @@ export function useBatchSimilarVehicles(
         const r = await apiClient.fetch(`/api/scoring-search/cache/batch-similar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            vehicle_ids: vehicleIds, 
-            duration_months: durationMonths, 
+          body: JSON.stringify({
+            vehicle_ids: vehicleIds,
+            duration_months: durationMonths,
             annual_mileage: annualMileage,
-            limit: 5,
+            limit: 8,
             mode: similarityMode,
             requirements: requirements
           }),
@@ -164,53 +170,4 @@ export function useBatchSimilarVehicles(
   }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, similarityMode, requirementsHash]);
 
   return { similarVehicles, loading };
-}
-
-export function useVehicleAlternativesBlend(
-  vehicleId: string,
-  durationMonths: number,
-  annualMileage: number,
-  enabled: boolean,
-  requirements: SelectedFeature[] = []
-): { alternatives: SimilarVehicle[]; loading: boolean } {
-  const [alternatives, setAlternatives] = useState<SimilarVehicle[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const requirementsHash = useMemo(() => JSON.stringify(requirements), [requirements]);
-
-  useEffect(() => {
-    if (!enabled || !vehicleId) {
-      setAlternatives([]);
-      return;
-    }
-    let cancelled = false;
-    const doFetch = async () => {
-      setLoading(true);
-      try {
-        const r = await apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/alternatives-blend`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            duration_months: durationMonths,
-            annual_mileage: annualMileage,
-            requirements
-          })
-        });
-        const data = await r.json();
-        if (!cancelled) setAlternatives(Array.isArray(data) ? data : (data.results || []));
-      } catch {
-        if (!cancelled) setAlternatives([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    doFetch();
-    return () => { 
-      cancelled = true; 
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId, durationMonths, annualMileage, enabled, requirementsHash]);
-
-  return { alternatives, loading };
 }

@@ -198,8 +198,8 @@ function SelectedCellRenderer(
         disabled={isPending}
         title={
           isSelected
-            ? "Domyślna w wyszukiwarce — kliknij, by wyczyścić"
-            : "Ustaw jako domyślną w wyszukiwarce"
+            ? "Przypięta w wyszukiwarce — kliknij, by odpiąć"
+            : "Przypnij w wyszukiwarce (możesz przypiąć kilka)"
         }
         className={cn(
           "p-1.5 rounded transition-colors",
@@ -303,25 +303,26 @@ export function VehicleCalculationsList({
 
   const handleToggleSelected = async (kalkulacjaId: string, makeSelected: boolean) => {
     setPendingSelectId(kalkulacjaId);
-    setItems((prev) =>
-      prev.map((it) => ({
-        ...it,
-        is_selected: makeSelected ? it.id === kalkulacjaId : it.id === kalkulacjaId ? false : it.is_selected,
-      }))
-    );
+    // Optimistically toggle just this row; backend stores the full pinned set.
+    const nextItems = items.map((it) => ({
+      ...it,
+      is_selected: it.id === kalkulacjaId ? makeSelected : it.is_selected,
+    }));
+    setItems(nextItems);
+    const nextIds = nextItems.filter((it) => it.is_selected).map((it) => it.id);
     try {
       const res = await apiClient.fetch(
         `${API_BASE_URL}/api/kalkulacje/vehicle/${vehicleId}/selected-calculation`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kalkulacja_id: makeSelected ? kalkulacjaId : null }),
+          body: JSON.stringify({ kalkulacja_ids: nextIds }),
         }
       );
-      if (!res.ok) throw new Error("Nie udało się zapisać domyślnej kalkulacji");
+      if (!res.ok) throw new Error("Nie udało się zapisać przypiętych kalkulacji");
       window.dispatchEvent(
         new CustomEvent("selectedKalkulacjaChanged", {
-          detail: { vehicleId, kalkulacjaId: makeSelected ? kalkulacjaId : null },
+          detail: { vehicleId, kalkulacjaIds: nextIds },
         })
       );
     } catch (err) {
@@ -343,7 +344,7 @@ export function VehicleCalculationsList({
       cellRendererParams: { onToggleSelected: handleToggleSelected, pendingId: pendingSelectId },
       sortable: false,
       filter: false,
-      headerTooltip: "Domyślna kalkulacja w wyszukiwarce",
+      headerTooltip: "Przypnij kalkulacje (każda przypięta = osobna karta w wyszukiwarce)",
     },
     {
       headerName: "Numer / Data",

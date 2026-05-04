@@ -50,6 +50,49 @@ _TTL_SEARCH = 120  # 2 min   — user results; short enough to stay fresh
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
+def _normalize_transmission(raw: str | None) -> str | None:
+    """Collapse marketing transmission names ("7-biegowa automatyczna", "s-tronic
+    quattro", "MANUALNA, NA TYLNE KOŁA RWD") to one of two clean values:
+    "Automatyczna" or "Manualna". Returns None if input is empty/unrecognized.
+    Used so the search filter chip shows just two options instead of dozens.
+    """
+    if not raw:
+        return None
+    s = str(raw).strip().lower()
+    if not s:
+        return None
+    # Order matters: "automat" before "manual" since some strings contain both
+    if "automat" in s or "s-tronic" in s or "dsg" in s or "tiptronic" in s or "cvt" in s:
+        return "Automatyczna"
+    if "manual" in s:
+        return "Manualna"
+    return None
+
+
+def _normalize_drive_type(raw: str | None) -> str | None:
+    """Collapse drive_type variants ("4X4", "2X4", "Napęd przedni", "Quattro",
+    "xDrive") to the AI mapper's canonical enum: FWD / RWD / AWD.
+    Returns None for ambiguous values like "2X4" (could be FWD or RWD).
+    """
+    if not raw:
+        return None
+    s = str(raw).strip().upper()
+    if not s:
+        return None
+    # AWD synonyms
+    if s in {"AWD", "4WD", "4X4", "4MATIC", "QUATTRO", "XDRIVE", "4MOTION", "ALL4"} \
+       or "AWD" in s or "4X4" in s or "4WD" in s \
+       or "WSZYSTKIE KOŁA" in s or "4MOTION" in s or "QUATTRO" in s:
+        return "AWD"
+    # FWD synonyms
+    if s == "FWD" or "FWD" in s or "PRZEDNI" in s or "FRONT" in s:
+        return "FWD"
+    # RWD synonyms
+    if s == "RWD" or "RWD" in s or "TYLN" in s or "REAR" in s:
+        return "RWD"
+    return None
+
+
 def _redis_get(key: str) -> Any | None:
     """Safe Redis GET — returns None on any error."""
     client = _get_client()
@@ -192,8 +235,12 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
             payload_kg=_opt_int("payload_kg"),
             cargo_volume_m3=_opt_float("cargo_volume_m3"),
             body_type=raw_reasons.get("body_type"),
+            setup_match=raw_reasons.get("setup_match"),
+            source_tire_class=raw_reasons.get("source_tire_class"),
+            source_service_type=raw_reasons.get("source_service_type"),
         )
 
+    raw_price = row.get("best_monthly_price") or row.get("min_price")
     return SimilarVehicleMatch(
         vehicle_id=str(row.get("vehicle_id") or row.get("v_id", "")),
         brand=row.get("brand"),
@@ -202,9 +249,7 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         samar_category=str(row.get("samar_category") or row.get("v_samar") or "N/A"),
         fuel=str(row.get("fuel") or row.get("v_fuel") or "N/A"),
         transmission=str(row.get("transmission") or row.get("v_transmission") or "N/A"),
-        best_monthly_price=float(
-            row.get("best_monthly_price") or row.get("min_price") or 0
-        ),
+        best_monthly_price=float(raw_price) if raw_price is not None else None,
         image_url=str(row.get("image_url") or row.get("v_image") or ""),
         similarity_score_pct=float(row.get("similarity_score_pct") or 0),
         power_hp=int(row.get("power_hp") or 0),
@@ -213,6 +258,7 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         drive_type=str(row.get("drive_type") or "N/A"),
         price_domain=price_domain,
         similarity_reasons=similarity_reasons,
+        kalkulacja_id=row.get("kalkulacja_id"),
     )
 
 
@@ -289,6 +335,46 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             {t.lower() for t in request.trims} if request.trims else None
         )
 
+        # ── Extract spec filters (drive_type, transmission, fuel, body_style)
+        # from requirements[] sent by the frontend chips. These were previously
+        # ignored — search returned all vehicles regardless of which chips were
+        # selected. Normalize values so filter chips ("RWD", "Manualna") match
+        # the normalized row values produced by _normalize_* helpers below.
+        def _extract_req_values(feature_key: str) -> set[str] | None:
+            vals: set[str] = set()
+            for req in request.requirements or []:
+                if not isinstance(req, BaseModel):
+                    req_dict = req if isinstance(req, dict) else {}
+                else:
+                    req_dict = req.model_dump()
+                if req_dict.get("feature_key") != feature_key:
+                    continue
+                v = req_dict.get("value")
+                if isinstance(v, list):
+                    vals.update(str(x) for x in v if x is not None)
+                elif isinstance(v, str):
+                    vals.add(v)
+            return vals or None
+
+        drive_type_filter_raw = _extract_req_values("drive_type")
+        drive_type_filter: set[str] | None = (
+            {_normalize_drive_type(v) for v in drive_type_filter_raw}
+            if drive_type_filter_raw else None
+        )
+        transmission_filter_raw = _extract_req_values("transmission")
+        transmission_filter: set[str] | None = (
+            {_normalize_transmission(v) for v in transmission_filter_raw}
+            if transmission_filter_raw else None
+        )
+        fuel_filter_raw = _extract_req_values("fuel")
+        fuel_filter: set[str] | None = (
+            {v.lower() for v in fuel_filter_raw} if fuel_filter_raw else None
+        )
+        body_style_filter_raw = _extract_req_values("body_style")
+        body_style_filter: set[str] | None = (
+            {v.lower() for v in body_style_filter_raw} if body_style_filter_raw else None
+        )
+
         rows: list[dict] = []
 
         if request.semantic_query:
@@ -347,7 +433,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                         "version": cs.get("trim_level"),
                         "samar_category": mapped.get("samar_category"),
                         "fuel": mapped.get("fuel") or cs.get("fuel"),
-                        "transmission": mapped.get("transmission") or cs.get("transmission"),
+                        "transmission": mapped.get("gearbox") or cs.get("transmission"),
                         "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
                         "body_style": mapped.get("body_style") or cs.get("body_style"),
                         "power_hp": cs.get("power_hp"),
@@ -357,6 +443,13 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 )
 
         # ── 3. Post-filter and map to ScoringSearchMatch ──
+        # Normalize transmission and drive_type across both paths (vector RPC +
+        # fallback SELECT) to canonical enum values, so filter chips collapse to
+        # the small set defined by the AI mapper instead of dozens of variants.
+        for row in rows:
+            row["transmission"] = _normalize_transmission(row.get("transmission"))
+            row["drive_type"] = _normalize_drive_type(row.get("drive_type"))
+
         step = "post_filter_and_map"
         all_matches: list[ScoringSearchMatch] = []
         for row in rows:
@@ -373,6 +466,20 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 continue
             if samar_class_names is not None and samar_cat not in samar_class_names:
                 continue
+            # Spec filters (chips selected in the sidebar) — compare against
+            # normalized values so user-selected "RWD" matches normalized rows.
+            if drive_type_filter is not None and row.get("drive_type") not in drive_type_filter:
+                continue
+            if transmission_filter is not None and row.get("transmission") not in transmission_filter:
+                continue
+            if fuel_filter is not None:
+                row_fuel = (row.get("fuel") or "").lower()
+                if row_fuel not in fuel_filter:
+                    continue
+            if body_style_filter is not None:
+                row_body = (row.get("body_style") or "").lower()
+                if row_body not in body_style_filter:
+                    continue
 
             base_price = row.get("base_price")
             score = row.get("score_total_pct")
@@ -404,6 +511,26 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                     vehicle_class=row.get("samar_category"),
                 )
             )
+
+        # ── 4. Attach user-pinned kalkulacje (multi-select) per vehicle ──
+        # Frontend uses this to render N cards (one per pinned calc) for each vehicle.
+        step = "attach_selected_kalkulacja_ids"
+        vehicle_ids_in_results = [m.vehicle_id for m in all_matches if m.vehicle_id]
+        if vehicle_ids_in_results:
+            try:
+                synth_resp = _supabase_execute_with_retry(
+                    sb.table("vehicle_synthesis")
+                    .select("id, selected_kalkulacja_ids")
+                    .in_("id", vehicle_ids_in_results)
+                )
+                pinned_map: dict[str, list[str]] = {
+                    str(r["id"]): list(r.get("selected_kalkulacja_ids") or [])
+                    for r in (synth_resp.data or [])
+                }
+                for m in all_matches:
+                    m.selected_kalkulacja_ids = pinned_map.get(str(m.vehicle_id), [])
+            except Exception:
+                logger.exception("Failed to attach selected_kalkulacja_ids to search results")
 
         _redis_set(
             cache_key,
@@ -657,218 +784,6 @@ def get_similar_vehicles(
         )
 
 
-class BlendAlternativesRequest(BaseModel):
-    duration_months: int | None = None
-    annual_mileage: int | None = None
-    requirements: List[Any] = []
-
-
-def _filter_semantic_candidates(
-    sb, candidates, must_haves
-) -> list[SimilarVehicleMatch]:
-    if not must_haves:
-        return [
-            _build_similar_vehicle_match(row["similarity_json"]) for row in candidates
-        ]
-
-    candidate_ids = [
-        row["similarity_json"]["vehicle_id"]
-        for row in candidates
-        if "similarity_json" in row
-    ]
-    if not candidate_ids:
-        return []
-
-    # 1. Fetch synthesis data for options check
-    synthesis_resp = _supabase_execute_with_retry(
-        sb.table("vehicle_synthesis")
-        .select("id, synthesis_data")
-        .in_("id", candidate_ids)
-    )
-    synthesis_map = {
-        row["id"]: row["synthesis_data"] for row in (synthesis_resp.data or [])
-    }
-
-    # 2. Fetch features directly using REST URL override to hit reverse_search schema
-    features_resp = _supabase_execute_with_retry(
-        sb.schema("reverse_search")
-        .table("vehicle_features_summary_view")
-        .select(
-            "source_vehicle_id, feature_key, resolved_value_bool, resolved_value_text, resolved_value_num"
-        )
-        .in_("source_vehicle_id", candidate_ids)
-    )
-
-    features_map = {}
-    for row in features_resp.data or []:
-        vid = row["source_vehicle_id"]
-        if vid not in features_map:
-            features_map[vid] = {}
-        features_map[vid][row["feature_key"]] = row
-
-    # Filter logic
-    filtered_results = []
-    for row in candidates:
-        sim_json = row["similarity_json"]
-        vid = sim_json["vehicle_id"]
-        ok = True
-
-        for req in must_haves:
-            fkey = req.get("feature_key")
-            op = req.get("operator")
-            val = req.get("value")
-
-            if fkey in (
-                "dummy",
-                "duration_months",
-                "annual_mileage",
-                "margin_pct",
-                "monthly_price_net",
-            ):
-                continue
-
-            match = False
-            if str(fkey).startswith("opt_std:"):
-                opt_name = fkey[8:]
-                std_opts = (
-                    synthesis_map.get(vid, {})
-                    .get("card_summary", {})
-                    .get("standard_equipment", [])
-                )
-                if opt_name in std_opts:
-                    match = True
-            elif str(fkey).startswith("opt_paid:"):
-                opt_name = fkey[9:]
-                paid_opts = (
-                    synthesis_map.get(vid, {})
-                    .get("card_summary", {})
-                    .get("paid_options", [])
-                )
-                if any(po.get("name") == opt_name for po in paid_opts):
-                    match = True
-            else:
-                feat = features_map.get(vid, {}).get(fkey, {})
-                if op == "eq":
-                    if str(val).lower() == "true":
-                        match = feat.get("resolved_value_bool") is True
-                    elif str(val).lower() == "false":
-                        match = not feat.get("resolved_value_bool")
-                    else:
-                        match = str(feat.get("resolved_value_text")) == str(val)
-                elif op in ("gte", "lte"):
-                    v_num = feat.get("resolved_value_num")
-                    if v_num is not None:
-                        try:
-                            num = float(val)
-                            match = v_num >= num if op == "gte" else v_num <= num
-                        except (ValueError, TypeError):
-                            pass
-                elif op == "in" and isinstance(val, list):
-                    match = feat.get("resolved_value_text") in val
-
-            if not match:
-                ok = False
-                break
-
-        if ok:
-            filtered_results.append(_build_similar_vehicle_match(sim_json))
-
-    return filtered_results
-
-
-@router.post(
-    "/scoring-search/vehicle/{vehicle_id}/alternatives-blend",
-    response_model=list[SimilarVehicleMatch],
-)
-def get_vehicle_alternatives_blend(
-    vehicle_id: str, request: BlendAlternativesRequest
-) -> list[SimilarVehicleMatch]:
-    """Get a blend of 5 distinct alternative vehicles based on AI synthetic vectors."""
-    sb = supabase
-    try:
-        synthetic_queries = {
-            "cheaper": (
-                "✨ AI: Oszczędniejszy wybór",
-                "Budget friendly, affordable, economical, low cost of ownership, high value for money, cheap to maintain, basic standard.",
-            ),
-            "stronger": (
-                "✨ AI: Większa dynamika",
-                "High performance, powerful engine, fast acceleration, sporty driving, huge horsepower, high torque, dynamic.",
-            ),
-            "more_comfortable": (
-                "✨ AI: Wyższy komfort",
-                "Premium comfort, smooth suspension, quiet cabin, ergonomic seats, massage function, luxury interior materials, dual zone climate control, ample legroom.",
-            ),
-            "safer": (
-                "✨ AI: Bezpieczeństwo",
-                "Advanced safety systems, highest NCAP rating, multiple airbags, collision avoidance, blind spot monitoring, lane keep assist, robust structure.",
-            ),
-            "greener": (
-                "✨ AI: Bardziej ekologiczny",
-                "Eco-friendly, full electric, plug-in hybrid, low emissions, green energy, sustainable, low fuel consumption.",
-            ),
-        }
-
-        limit_to_fetch = 10 if request.requirements else 2
-        used_vehicle_ids = {vehicle_id}
-        final_results = []
-
-        must_haves = [
-            req
-            for req in request.requirements
-            if isinstance(req, dict) and req.get("requirement") == "MUST_HAVE"
-        ]
-
-        for cat_key, (ai_label, query_text) in synthetic_queries.items():
-            cache_key_embed = f"{_PREFIX}embed:{_params_hash(query_text)}"
-            synthetic_vector = _redis_get(cache_key_embed)
-
-            if synthetic_vector is None:
-                logger.info("Generating embedding for synthetic query: '%s'", cat_key)
-                synthetic_vector = generate_embedding(query_text)
-                if synthetic_vector:
-                    _redis_set(cache_key_embed, synthetic_vector, 2592000)
-
-            if not synthetic_vector:
-                continue
-
-            resp = _supabase_execute_with_retry(
-                sb.rpc(
-                    "rpc_get_alternatives_semantic",
-                    {
-                        "p_vehicle_id": vehicle_id,
-                        "p_synthetic_vector": synthetic_vector,
-                        "p_limit": limit_to_fetch,
-                        "p_duration_months": request.duration_months,
-                        "p_annual_mileage": request.annual_mileage,
-                    },
-                )
-            )
-
-            candidates = resp.data or []
-            filtered_matches = _filter_semantic_candidates(sb, candidates, must_haves)
-
-            # Find the best match that hasn't been used yet
-            found_match = None
-            for match in filtered_matches:
-                if match.vehicle_id not in used_vehicle_ids:
-                    match.ai_label = ai_label
-                    found_match = match
-                    used_vehicle_ids.add(match.vehicle_id)
-                    break
-
-            if found_match:
-                final_results.append(found_match)
-
-        return final_results
-
-    except Exception as e:
-        logger.exception("Error calling rpc_get_alternatives_semantic blend: %s", e)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch alternatives blend: {e}"
-        )
-
-
 @router.post(
     "/scoring-search/cache/batch-similar",
     response_model=SimilarBatchResponse,
@@ -877,7 +792,7 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
     """Return similar vehicles for multiple vehicle IDs in one DB query. Supports 'rule-based' and 'semantic'."""
 
     params_hash = _params_hash(req.model_dump_json())
-    cache_key = f"{_PREFIX}batch_similar:{params_hash}"
+    cache_key = f"{_PREFIX}batch_similar_v2:{params_hash}"
 
     cached = _redis_get(cache_key)
     if cached is not None:
@@ -1052,11 +967,17 @@ def get_price_for_params(
     margin: float = 0.0,
     discount_mode: str = "catalog",
     custom_discount_pct: float = 0.0,
+    kalkulacja_id: Optional[str] = None,
 ) -> PriceForParamsResponse:
-    """Return the LTR price tile based exclusively on historical cache."""
+    """Return the LTR price tile based exclusively on historical cache.
+
+    When `kalkulacja_id` is provided, the result is constrained to that specific
+    calculation (used by pinned-calculation cards in the search). Otherwise the
+    function falls back to the user-selected calc, then the newest one.
+    """
     sb = supabase
     try:
-        resp = (
+        query = (
             sb.table("vehicle_matrix_cache")
             .select(
                 "duration_months, annual_mileage, monthly_price_net, calculated_at, kalkulacja_id, tire_class, service_type"
@@ -1064,8 +985,10 @@ def get_price_for_params(
             .eq("vehicle_id", vehicle_id)
             .eq("duration_months", duration_months)
             .eq("annual_mileage", annual_mileage)
-            .execute()
         )
+        if kalkulacja_id:
+            query = query.eq("kalkulacja_id", kalkulacja_id)
+        resp = query.execute()
         rows_all = resp.data or []
 
         if not rows_all:
@@ -1165,18 +1088,25 @@ def get_price_for_params(
 def get_price_variants(
     vehicle_id: str,
     annual_mileage: int,
+    kalkulacja_id: Optional[str] = None,
 ) -> list[PriceForParamsResponse]:
-    """Return the LTR price variants for all standard durations at a given annual mileage."""
+    """Return the LTR price variants for all standard durations at a given annual mileage.
+
+    When `kalkulacja_id` is provided, only variants from that specific calculation
+    are returned (used by pinned-calculation cards in the search).
+    """
     sb = supabase
     try:
-        resp = (
+        query = (
             sb.table("vehicle_matrix_cache")
-            .select("duration_months, annual_mileage, monthly_price_net")
+            .select("duration_months, annual_mileage, monthly_price_net, kalkulacja_id")
             .eq("vehicle_id", vehicle_id)
             .eq("annual_mileage", annual_mileage)
             .in_("duration_months", [24, 36, 48, 60])
-            .execute()
         )
+        if kalkulacja_id:
+            query = query.eq("kalkulacja_id", kalkulacja_id)
+        resp = query.execute()
         rows = resp.data or []
 
         grouped_variants = {}
