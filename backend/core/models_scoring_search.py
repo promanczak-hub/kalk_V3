@@ -61,6 +61,9 @@ class ScoringSearchMatch(BaseModel):
     tire_class: Optional[str] = None
     offer_number: Optional[str] = None
     configuration_code: Optional[str] = None
+    # User-pinned calculations (multi-select). Frontend renders one card per id;
+    # empty list → fall back to a single default card.
+    selected_kalkulacja_ids: List[str] = []
 
 
 class ScoringSearchResponse(BaseModel):
@@ -136,6 +139,13 @@ class SimilarityReasons(BaseModel):
     cargo_volume_m3: Optional[float] = None
     body_type: Optional[str] = None  # zabudowa: "Wywrotka" | "Plandeka" | "Izoterma" itp.
 
+    # ── Apple-to-apple setup check ──
+    # True when the candidate has the same (tire_class, service_type) as source
+    # for the requested (duration, mileage). When False, best_monthly_price is null.
+    setup_match: Optional[bool] = None
+    source_tire_class: Optional[str] = None
+    source_service_type: Optional[str] = None
+
 
 class SimilarVehicleMatch(BaseModel):
     vehicle_id: str
@@ -157,6 +167,9 @@ class SimilarVehicleMatch(BaseModel):
     # Similarity breakdown — why this vehicle is similar
     similarity_reasons: Optional[SimilarityReasons] = None
     ai_label: Optional[str] = None
+    # Cache row id matching the source's setup — lets the frontend add the
+    # candidate to the cart with the same kalkulacja anchor as the source row.
+    kalkulacja_id: Optional[str] = None
 
 
 class PriceForParamsResponse(BaseModel):

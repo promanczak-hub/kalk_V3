@@ -14,6 +14,9 @@ interface SimilarVehiclesPanelProps {
   sourceVehicle: Record<string, unknown>;
   title?: string;
   loadingProgress?: { current: number; total: number } | null;
+  marginPct?: number;
+  targetDuration?: number;
+  targetAnnualMileage?: number;
 }
 
 // ── Source-vehicle helpers ──────────────────────────────────────────────────
@@ -312,6 +315,9 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
   sourceVehicle,
   title,
   loadingProgress,
+  marginPct,
+  targetDuration,
+  targetAnnualMileage,
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
@@ -335,18 +341,23 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
 
   const handleAddToCart = (e: React.MouseEvent, v: SimilarVehicle) => {
     e.stopPropagation();
+    if (v.best_monthly_price == null) return; // no comparable setup → button is disabled
+    const dur = targetDuration ?? 0;
+    const mil = targetAnnualMileage ?? 0;
+    const marginFrac = typeof marginPct === 'number' ? Math.min(marginPct, 99) / 100 : 0;
+    const installmentWithMargin = marginFrac > 0 ? v.best_monthly_price / (1 - marginFrac) : v.best_monthly_price;
     addToCart({
-      id: crypto.randomUUID(),
+      id: `${v.vehicle_id}_${dur}_${mil}`,
       brand: v.brand || '',
       model: v.model || '',
       powertrain: v.fuel || '',
-      vin_or_config: `Bliźniacza alternatywa dla: ${sourceVehicle.brand} ${sourceVehicle.model}`,
-      term: 0,
-      mileage: 0,
-      net_installment: v.best_monthly_price || 0,
+      vin_or_config: `Podobny pojazd dla: ${sourceVehicle.brand} ${sourceVehicle.model}`,
+      term: dur,
+      mileage: mil,
+      net_installment: Math.round(installmentWithMargin),
       contribution: 0,
-      margin_pct: 0,
-      calculation_data: v,
+      margin_pct: marginPct ?? 0,
+      calculation_data: { ...v, kalkulacja_id: v.kalkulacja_id },
       standard_equipment: [],
       factory_options: [],
       dealer_options: [],
@@ -377,7 +388,7 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
           }}
         >
           <DirectionsCarIcon sx={{ fontSize: 16, color: '#2563EB' }} />
-          {title || 'Alternatywy okiem AI (rekomendacje)'}
+          {title || 'Podobne pojazdy'}
         </Typography>
 
         {/* Brand filter toggle — pokazuj tylko gdy są kandydaci innej marki */}
@@ -583,19 +594,36 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                       borderColor: 'rgba(0,0,0,0.05)',
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: 700,
-                        fontFamily: '"Geist Mono", "Space Mono", monospace',
-                        color: '#0F172A',
-                        fontSize: '0.7rem',
-                      }}
+                    <Tooltip
+                      title={
+                        v.best_monthly_price == null
+                          ? `Brak oferty dla setup'u źródła (${v.similarity_reasons?.source_tire_class ?? '—'} / ${v.similarity_reasons?.source_service_type ?? '—'})`
+                          : typeof marginPct === 'number' && marginPct > 0
+                            ? `Cena z marżą ${marginPct}% dla ${targetDuration ?? '?'}mc / ${(targetAnnualMileage ?? 0).toLocaleString('pl-PL')} km, opony ${v.similarity_reasons?.source_tire_class ?? '—'}, serwis ${v.similarity_reasons?.source_service_type ?? '—'} (źródło: ${v.best_monthly_price.toLocaleString('pl-PL')} zł netto bez marży)`
+                            : `Rata netto bez marży dla ${targetDuration ?? '?'}mc / ${(targetAnnualMileage ?? 0).toLocaleString('pl-PL')} km`
+                      }
+                      placement="top"
+                      arrow
                     >
-                      {v.best_monthly_price
-                        ? `${v.best_monthly_price.toLocaleString('pl-PL')} zł/mies`
-                        : 'Wycena…'}
-                    </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 700,
+                          fontFamily: '"Geist Mono", "Space Mono", monospace',
+                          color: v.best_monthly_price == null ? '#94A3B8' : '#0F172A',
+                          fontSize: '0.7rem',
+                          cursor: 'help',
+                        }}
+                      >
+                        {v.best_monthly_price == null
+                          ? 'Brak oferty'
+                          : (() => {
+                              const marginFrac = typeof marginPct === 'number' ? Math.min(marginPct, 99) / 100 : 0;
+                              const withMargin = marginFrac > 0 ? v.best_monthly_price / (1 - marginFrac) : v.best_monthly_price;
+                              return `${Math.round(withMargin).toLocaleString('pl-PL')} zł/mies`;
+                            })()}
+                      </Typography>
+                    </Tooltip>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {scoreRounded !== null && (
                         <Tooltip title="Wynik dopasowania cech (zaokrąglony)" placement="top">
@@ -612,20 +640,24 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                           </Typography>
                         </Tooltip>
                       )}
-                      <Tooltip title="Dodaj alternatywę do koszyka">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleAddToCart(e, v)}
-                          sx={{
-                            p: 0.5,
-                            color: '#2563EB',
-                            bgcolor: '#EFF6FF',
-                            borderRadius: '6px',
-                            '&:hover': { bgcolor: '#DBEAFE' }
-                          }}
-                        >
-                          <AddIcon sx={{ fontSize: '1rem' }} />
-                        </IconButton>
+                      <Tooltip title={v.best_monthly_price == null ? 'Brak ceny dla porównywalnego setupu' : 'Dodaj snapshot do koszyka'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={v.best_monthly_price == null}
+                            onClick={(e) => handleAddToCart(e, v)}
+                            sx={{
+                              p: 0.5,
+                              color: '#2563EB',
+                              bgcolor: '#EFF6FF',
+                              borderRadius: '6px',
+                              '&:hover': { bgcolor: '#DBEAFE' },
+                              '&.Mui-disabled': { bgcolor: '#F1F5F9', color: '#CBD5E1' },
+                            }}
+                          >
+                            <AddIcon sx={{ fontSize: '1rem' }} />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     </Box>
                   </Box>

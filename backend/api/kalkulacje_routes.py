@@ -141,7 +141,10 @@ class KalkulacjaListItem(BaseModel):
 
 
 class SelectCalculationRequest(BaseModel):
+    # Legacy single-select (still accepted for backward compatibility).
     kalkulacja_id: Optional[str] = None
+    # Preferred multi-select payload — replaces the entire selection.
+    kalkulacja_ids: Optional[List[str]] = None
 
 
 @router.post("", response_model=KalkulacjaResponse)
@@ -448,21 +451,24 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
         try:
             synth_res = (
                 supabase.table("vehicle_synthesis")
-                .select("selected_kalkulacja_id")
+                .select("selected_kalkulacja_id, selected_kalkulacja_ids")
                 .eq("id", vehicle_id)
                 .limit(1)
                 .execute()
             )
             synth_rows = cast(List[Dict[str, Any]], synth_res.data or [])
-            selected_id = (
-                synth_rows[0].get("selected_kalkulacja_id") if synth_rows else None
-            )
+            synth_row = synth_rows[0] if synth_rows else {}
+            selected_ids: set[str] = set(synth_row.get("selected_kalkulacja_ids") or [])
+            # Fall back to the legacy single column when the array is empty
+            # (e.g. row written before migration backfill ran).
+            if not selected_ids and synth_row.get("selected_kalkulacja_id"):
+                selected_ids = {synth_row["selected_kalkulacja_id"]}
         except Exception:
             # Column may not exist yet (migration pending) — degrade gracefully.
             logger.warning(
-                "vehicle_synthesis.selected_kalkulacja_id unavailable; falling back to no-selection"
+                "vehicle_synthesis.selected_kalkulacja_ids unavailable; falling back to no-selection"
             )
-            selected_id = None
+            selected_ids = set()
 
         step = "build_response"
         return [
@@ -470,7 +476,7 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
                 r,
                 rata_netto=best_rates.get(r["id"]),
                 matrix_count=matrix_counts.get(r["id"], 0),
-                is_selected=(selected_id is not None and r["id"] == selected_id),
+                is_selected=(r["id"] in selected_ids),
             )
             for r in res.data
         ]
@@ -491,34 +497,62 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
 
 @router.patch("/vehicle/{vehicle_id}/selected-calculation")
 def set_selected_calculation(vehicle_id: str, body: SelectCalculationRequest) -> Dict[str, Any]:
-    """Persist the user's preferred default calculation for a vehicle.
+    """Persist the user's pinned calculations for a vehicle.
 
-    Pass `kalkulacja_id=null` to clear the selection and fall back to "newest".
+    Accepts either:
+      • `kalkulacja_ids: [...]` — multi-select, replaces the entire pinned set
+        (empty list clears all pins).
+      • `kalkulacja_id: <uuid|null>` — legacy single-select; null clears.
     """
     try:
-        if body.kalkulacja_id is not None:
+        # Resolve the requested set; multi-select takes precedence.
+        if body.kalkulacja_ids is not None:
+            ids = [k for k in body.kalkulacja_ids if k]
+        elif body.kalkulacja_id is not None:
+            ids = [body.kalkulacja_id]
+        else:
+            ids = []
+
+        # Validate every id belongs to this vehicle.
+        if ids:
             owner = (
                 supabase.table("ltr_kalkulacje")
                 .select("id, stan_json")
-                .eq("id", body.kalkulacja_id)
-                .limit(1)
+                .in_("id", ids)
                 .execute()
             )
             owner_rows = cast(List[Dict[str, Any]], owner.data or [])
-            if not owner_rows:
-                raise HTTPException(status_code=404, detail="Kalkulacja nie istnieje")
-            stan = cast(Dict[str, Any], owner_rows[0].get("stan_json") or {})
-            if stan.get("vehicle_id") and stan["vehicle_id"] != vehicle_id:
+            found_ids = {r["id"] for r in owner_rows}
+            missing = [k for k in ids if k not in found_ids]
+            if missing:
                 raise HTTPException(
-                    status_code=400,
-                    detail="Kalkulacja nie należy do podanego pojazdu",
+                    status_code=404,
+                    detail=f"Kalkulacja(e) nie istnieje: {', '.join(missing)}",
                 )
+            for r in owner_rows:
+                stan = cast(Dict[str, Any], r.get("stan_json") or {})
+                if stan.get("vehicle_id") and stan["vehicle_id"] != vehicle_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Kalkulacja {r['id']} nie należy do podanego pojazdu",
+                    )
 
+        # Primary = first pinned (preserves legacy single-select consumers).
+        primary = ids[0] if ids else None
         supabase.table("vehicle_synthesis").upsert(
-            {"id": vehicle_id, "selected_kalkulacja_id": body.kalkulacja_id},
+            {
+                "id": vehicle_id,
+                "selected_kalkulacja_id": primary,
+                "selected_kalkulacja_ids": ids,
+            },
             on_conflict="id",
         ).execute()
-        return {"ok": True, "vehicle_id": vehicle_id, "selected_kalkulacja_id": body.kalkulacja_id}
+        return {
+            "ok": True,
+            "vehicle_id": vehicle_id,
+            "selected_kalkulacja_id": primary,
+            "selected_kalkulacja_ids": ids,
+        }
     except HTTPException:
         raise
     except Exception as e:

@@ -5,7 +5,7 @@ import type { SearchContext } from '../../types';
 import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
-import type { SelectedFeature, ScoredVehicle } from '../../types';
+import type { ScoredVehicle } from '../../types';
 
 interface VehicleResultCardProps {
   car: ScoredVehicle;
@@ -15,7 +15,9 @@ interface VehicleResultCardProps {
   priceData?: { price_for_params?: PriceForParams; variants?: PriceForParams[] };
   pricesLoading: boolean;
   similarData?: SimilarVehicle[];
-  requirements?: SelectedFeature[];
+  // When set, this card represents a specific pinned calculation for the vehicle.
+  // The card fetches its own price scoped to this kalkulacja_id instead of using priceData.
+  pinnedKalkulacjaId?: string;
 }
 
 const fmtPLN = (n?: number | null, maxFrac = 0): string =>
@@ -37,17 +39,42 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   priceData,
   pricesLoading,
   similarData,
-  requirements = [],
+  pinnedKalkulacjaId,
 }) => {
   const addToCart = useOfferCartStore((s) => s.addItem);
   const vehicleId = car.vehicle_id;
   const isInCart = useOfferCartStore((s) => s.items.some((i) => i.id.startsWith(vehicleId)));
 
+  // For pinned-calc cards, fetch price scoped to the specific kalkulacja_id.
+  // Falls through to the batch priceData when no pin is set.
+  const [pinnedPrice, setPinnedPrice] = useState<PriceForParams | null>(null);
+  const [pinnedPriceLoading, setPinnedPriceLoading] = useState(false);
+  React.useEffect(() => {
+    if (!pinnedKalkulacjaId) {
+      setPinnedPrice(null);
+      return;
+    }
+    let cancelled = false;
+    setPinnedPriceLoading(true);
+    import('../../../lib/apiClient')
+      .then(({ apiClient }) =>
+        apiClient.fetch(
+          `/api/scoring-search/vehicle/${vehicleId}/price-for-params?duration_months=${targetDuration}&annual_mileage=${targetAnnualMileage}&kalkulacja_id=${pinnedKalkulacjaId}`,
+        ),
+      )
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data: PriceForParams) => { if (!cancelled) setPinnedPrice(data); })
+      .catch(() => { if (!cancelled) setPinnedPrice(null); })
+      .finally(() => { if (!cancelled) setPinnedPriceLoading(false); });
+    return () => { cancelled = true; };
+  }, [pinnedKalkulacjaId, vehicleId, targetDuration, targetAnnualMileage]);
+
   const matchedFeatures = car.matched_features || [];
   const missingFeatures = car.missing_features || [];
   const score = car.match_score_pct;
 
-  const price = priceData?.price_for_params;
+  const price = pinnedKalkulacjaId ? (pinnedPrice ?? undefined) : priceData?.price_for_params;
+  const effectivePricesLoading = pinnedKalkulacjaId ? pinnedPriceLoading : pricesLoading;
   const variantsCount = price?.variants_count;
   const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
   const rawMonthly = hasPriceFromAPI ? price!.monthly_price_net : car.best_monthly_price;
@@ -69,8 +96,13 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
     e.stopPropagation();
     const basePrice = car.best_monthly_price ?? 0;
     const finalPrice = usingAppliedMargin ? basePrice : (marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice);
-    const variantPriceData = priceData?.price_for_params;
-    const uniqueId = `${vehicleId}_${variantPriceData?.duration_months ?? targetDuration}_${variantPriceData?.annual_mileage ?? targetAnnualMileage}`;
+    const variantPriceData = price; // pinned price when set, else batch
+    const dur = variantPriceData?.duration_months ?? targetDuration;
+    const mil = variantPriceData?.annual_mileage ?? targetAnnualMileage;
+    // Pinned cards include the kalkulacja_id in their cart id so different
+    // pins of the same vehicle stay distinct entries.
+    const kidForId = pinnedKalkulacjaId ?? variantPriceData?.kalkulacja_id ?? '';
+    const uniqueId = kidForId ? `${vehicleId}_${dur}_${mil}_${kidForId}` : `${vehicleId}_${dur}_${mil}`;
 
     addToCart({
       id: uniqueId,
@@ -78,8 +110,8 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       model: car.model || '',
       powertrain: car.fuel || '',
       vin_or_config: car.configuration_code || car.offer_number || 'Brak',
-      term: variantPriceData?.duration_months || targetDuration,
-      mileage: variantPriceData?.annual_mileage || targetAnnualMileage,
+      term: dur,
+      mileage: mil,
       net_installment: finalPrice,
       contribution: 0,
       margin_pct: displayMarginPct,
@@ -88,7 +120,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       standard_equipment: [],
       factory_options: [],
       dealer_options: [],
-      calculation_data: { ...car, vehicle_id: vehicleId, kalkulacja_id: variantPriceData?.kalkulacja_id },
+      calculation_data: { ...car, vehicle_id: vehicleId, kalkulacja_id: pinnedKalkulacjaId ?? variantPriceData?.kalkulacja_id },
     });
   };
 
@@ -132,7 +164,11 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   return (
     <div
       className={`flex flex-col bg-white rounded-lg border shadow-sm transition-all hover:shadow-md ${
-        isInCart ? 'border-emerald-300' : 'border-slate-200 hover:border-slate-300'
+        isInCart
+          ? 'border-emerald-300'
+          : pinnedKalkulacjaId
+            ? 'border-amber-300 hover:border-amber-400'
+            : 'border-slate-200 hover:border-slate-300'
       }`}
     >
       {/* Header: identification + score */}
@@ -142,6 +178,14 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             <h3 className="text-sm font-semibold text-slate-900 leading-tight">
               {car.brand} {car.model}
             </h3>
+            {pinnedKalkulacjaId && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full"
+                title={`Przypięta kalkulacja${price?.kalkulacja_id ? ` (${price.kalkulacja_id.slice(0, 8)}…)` : ''}`}
+              >
+                <Sparkles className="w-3 h-3" /> przypięta
+              </span>
+            )}
             {isInCart && (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
                 <Check className="w-3 h-3" /> w ofercie
@@ -225,7 +269,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
           )}
         </div>
 
-        {pricesLoading ? (
+        {effectivePricesLoading ? (
           <div className="text-xs text-slate-400">Ładowanie kalkulacji…</div>
         ) : monthlyDisplay != null ? (
           <>
@@ -273,6 +317,9 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               currentMileage={price?.annual_mileage ?? targetAnnualMileage}
               monthlyBudget={searchContext.monthly_budget}
               currentMarginFrac={marginFrac}
+              car={car}
+              displayMarginPct={displayMarginPct}
+              pinnedKalkulacjaId={pinnedKalkulacjaId}
             />
           </>
         ) : (
@@ -344,7 +391,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
         targetDuration={targetDuration}
         targetAnnualMileage={targetAnnualMileage}
         similarData={similarData}
-        requirements={requirements}
+        marginPct={displayMarginPct}
       />
     </div>
   );
@@ -460,6 +507,9 @@ interface VariantsTableProps {
   currentMileage: number | null;
   monthlyBudget: number | null | undefined;
   currentMarginFrac: number; // 0..0.99 — global margin used in main display
+  car: ScoredVehicle;
+  displayMarginPct: number;
+  pinnedKalkulacjaId?: string;
 }
 
 const VariantsTable: React.FC<VariantsTableProps> = ({
@@ -469,7 +519,12 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
   currentMileage,
   monthlyBudget,
   currentMarginFrac,
+  car,
+  displayMarginPct,
+  pinnedKalkulacjaId,
 }) => {
+  const addToCart = useOfferCartStore((s) => s.addItem);
+  const cartItems = useOfferCartStore((s) => s.items);
   const [expanded, setExpanded] = useState(false);
   const [fetchedVariants, setFetchedVariants] = useState<PriceVariant[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -486,7 +541,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
     import('../../../lib/apiClient')
       .then(({ apiClient }) =>
         apiClient.fetch(
-          `/api/scoring-search/vehicle/${vehicleId}/price-variants?annual_mileage=${currentMileage}`,
+          `/api/scoring-search/vehicle/${vehicleId}/price-variants?annual_mileage=${currentMileage}${pinnedKalkulacjaId ? `&kalkulacja_id=${pinnedKalkulacjaId}` : ''}`,
         ),
       )
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
@@ -499,7 +554,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
         setFetchedVariants([]);
       })
       .finally(() => setLoading(false));
-  }, [expanded, vehicleId, currentMileage, fetchedVariants]);
+  }, [expanded, vehicleId, currentMileage, fetchedVariants, pinnedKalkulacjaId]);
 
   // Use lazily-fetched if available, else fall back to passed
   const variants = fetchedVariants ?? passedVariants ?? [];
@@ -601,6 +656,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                   <th className="text-right px-2 py-1.5 font-semibold">Marża</th>
                 )}
                 <th className="text-center px-2 py-1.5 font-semibold">Status</th>
+                <th className="text-center px-2 py-1.5 font-semibold">Akcja</th>
               </tr>
             </thead>
             <tbody>
@@ -659,6 +715,48 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${tierBadge.cls}`}>
                         {tierBadge.text}
                       </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      {(() => {
+                        const dur = row.v.duration_months as number;
+                        const mil = row.v.annual_mileage as number;
+                        const variantId = `${vehicleId}_${dur}_${mil}`;
+                        const inCart = cartItems.some((it) => it.id === variantId);
+                        return (
+                          <button
+                            type="button"
+                            disabled={inCart}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart({
+                                id: variantId,
+                                brand: car.brand || '',
+                                model: car.model || '',
+                                powertrain: car.fuel || '',
+                                vin_or_config: car.configuration_code || car.offer_number || 'Brak',
+                                term: dur,
+                                mileage: mil,
+                                net_installment: row.rate,
+                                contribution: 0,
+                                margin_pct: displayMarginPct,
+                                variants: [],
+                                standard_equipment: [],
+                                factory_options: [],
+                                dealer_options: [],
+                                calculation_data: { ...car, vehicle_id: vehicleId, kalkulacja_id: row.v.kalkulacja_id },
+                              });
+                            }}
+                            title={inCart ? 'Wariant już w ofercie' : 'Dodaj ten wariant do oferty'}
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${
+                              inCart
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-600 cursor-default'
+                                : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-400'
+                            }`}
+                          >
+                            {inCart ? <Check className="w-3 h-3" /> : <ShoppingCart className="w-3 h-3" />}
+                          </button>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );

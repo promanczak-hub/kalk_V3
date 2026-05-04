@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { Box, Typography, CircularProgress } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
-import { useVehicleAlternativesBlend } from '../../hooks/useBatchData';
 import type { SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesPanel } from '../SimilarVehiclesPanel';
-import type { SelectedFeature } from '../../types';
 
 interface SimilarVehiclesSectionProps {
   vehicleId: string;
@@ -13,30 +11,19 @@ interface SimilarVehiclesSectionProps {
   targetDuration: number;
   targetAnnualMileage: number;
   similarData?: SimilarVehicle[];
-  requirements?: SelectedFeature[];
+  marginPct?: number;
 }
 
 export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
-  vehicleId,
   sourceVehicle,
+  similarData,
+  marginPct,
   targetDuration,
   targetAnnualMileage,
-  similarData,
-  requirements = [],
 }) => {
   const [expanded, setExpanded] = useState(false);
 
-  // Only fetch AI alternatives when user expands the section
-  const { alternatives, loading } = useVehicleAlternativesBlend(
-    vehicleId,
-    targetDuration,
-    targetAnnualMileage,
-    expanded, // lazy: only fetch when expanded
-    requirements
-  );
-
   const hasSimilar = similarData && similarData.length > 0;
-  const hasAlternatives = alternatives && alternatives.length > 0;
 
   return (
     <div className="border-t border-slate-200">
@@ -47,52 +34,25 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
       >
         <span className="font-medium inline-flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-violet-500" />
-          {expanded ? 'Ukryj alternatywy' : 'Pokaż alternatywy AI'}
+          {expanded ? 'Ukryj podobne pojazdy' : 'Pokaż podobne pojazdy'}
         </span>
         {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
 
       {expanded && (
         <Box sx={{ px: 2, pb: 2 }}>
-          {hasSimilar && (
+          {hasSimilar ? (
             <SimilarVehiclesPanel
               vehicles={similarData}
               sourceVehicle={sourceVehicle}
-              title="Klasyczne alternatywy (Bliźniaki)"
+              title="Podobne pojazdy"
+              marginPct={marginPct}
+              targetDuration={targetDuration}
+              targetAnnualMileage={targetAnnualMileage}
             />
-          )}
-
-          {loading && (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                mt: 1.5,
-                p: 1.25,
-                bgcolor: '#F8FAFC',
-                borderRadius: '8px',
-                border: '1px dashed #CBD5E1',
-              }}
-            >
-              <CircularProgress size={16} thickness={5} />
-              <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600, fontSize: '0.7rem' }}>
-                AI analizuje alternatywy...
-              </Typography>
-            </Box>
-          )}
-
-          {!loading && hasAlternatives && (
-            <SimilarVehiclesPanel
-              vehicles={alternatives}
-              sourceVehicle={sourceVehicle}
-              title="Rekomendacje AI"
-            />
-          )}
-
-          {!loading && !hasSimilar && !hasAlternatives && (
+          ) : (
             <Typography variant="caption" sx={{ color: '#94A3B8', fontStyle: 'italic', display: 'block', py: 1 }}>
-              Brak alternatyw dla tego pojazdu.
+              Brak podobnych pojazdów dla tego modelu.
             </Typography>
           )}
         </Box>

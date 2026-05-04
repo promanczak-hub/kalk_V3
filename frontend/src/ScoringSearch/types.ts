@@ -140,5 +140,7 @@ export interface ScoredVehicle {
   service_cost_type?: string;
   tire_class?: string;
   vehicle_class?: string;
+  // User-pinned calculations (multi-select). Empty list → render as one default card.
+  selected_kalkulacja_ids?: string[];
 }
 
