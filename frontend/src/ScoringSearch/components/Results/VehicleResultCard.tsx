@@ -93,17 +93,41 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   };
 
   const versionMentionsPower = !!car.version && /\b\d+\s*(KM|kW)\b/i.test(car.version);
-  const specsLine = [
-    car.version,
-    car.power_hp && !versionMentionsPower ? `${car.power_hp} KM` : null,
-    car.transmission,
-    car.drive_type ? car.drive_type.replace(/^Napęd\s*/i, '') : null,
-    car.body_style,
-    car.fuel,
-    car.vehicle_class && car.vehicle_class !== 'Osobowy' ? car.vehicle_class : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+
+  // ── Helper: clean up vehicle_class duplicates like "Średnie dostawcze - ŚREDNIE DOSTAWCZE"
+  const cleanVehicleClass = (raw: string): string => {
+    // Split on " - " and deduplicate (case-insensitive)
+    const parts = raw.split(/\s*-\s*/);
+    const seen = new Set<string>();
+    const unique = parts.filter(p => {
+      const key = p.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    // Title-case the result
+    const cleaned = unique.join(' – ');
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+  };
+
+  // ── Helper: check if drive_type is already embedded in transmission text
+  const transmissionStr = String(car.transmission || '').toUpperCase();
+  const driveTypeStr = String(car.drive_type || '').replace(/^Napęd\s*/i, '').toUpperCase();
+  const driveTypeInTransmission = driveTypeStr.length > 0 && transmissionStr.includes(driveTypeStr);
+
+  // Structured spec badges instead of a single blended line
+  const specBadges: { label: string; color: string }[] = [
+    car.fuel ? { label: car.fuel, color: car.fuel.toLowerCase().includes('diesel') ? 'bg-amber-100 text-amber-800' : car.fuel.toLowerCase().includes('elektr') ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800' } : null,
+    car.power_hp && !versionMentionsPower ? { label: `${car.power_hp} KM`, color: 'bg-slate-100 text-slate-700' } : null,
+    car.transmission ? { label: car.transmission, color: 'bg-violet-100 text-violet-800' } : null,
+    // Skip drive_type if already mentioned in transmission (e.g. "MANUALNA, NA TYLNE KOŁA RWD" + "RWD")
+    car.drive_type && !driveTypeInTransmission ? { label: car.drive_type.replace(/^Napęd\s*/i, ''), color: 'bg-slate-100 text-slate-700' } : null,
+    car.body_style ? { label: car.body_style, color: 'bg-indigo-100 text-indigo-800' } : null,
+    // Clean up vehicle_class: deduplicate "X - X", title-case, skip if "Osobowy" or body_style already shown
+    car.vehicle_class && car.vehicle_class !== 'Osobowy' && !car.body_style
+      ? { label: cleanVehicleClass(car.vehicle_class), color: 'bg-rose-100 text-rose-700' }
+      : null,
+  ].filter((b): b is { label: string; color: string } => b !== null);
 
   return (
     <div
@@ -134,8 +158,17 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               </span>
             )}
           </div>
-          {!!specsLine && (
-            <p className="text-xs text-slate-500 font-mono mt-1.5 truncate">{specsLine}</p>
+          {specBadges.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {specBadges.map((b) => (
+                <span key={b.label} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${b.color}`}>
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {car.version && car.version !== car.trim_level && (
+            <p className="text-[11px] text-slate-400 mt-1 truncate">{car.version}</p>
           )}
         </div>
 
