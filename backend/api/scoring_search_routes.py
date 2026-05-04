@@ -50,6 +50,25 @@ _TTL_SEARCH = 120  # 2 min   — user results; short enough to stay fresh
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
+def _normalize_transmission(raw: str | None) -> str | None:
+    """Collapse marketing transmission names ("7-biegowa automatyczna", "s-tronic
+    quattro", "MANUALNA, NA TYLNE KOŁA RWD") to one of two clean values:
+    "Automatyczna" or "Manualna". Returns None if input is empty/unrecognized.
+    Used so the search filter chip shows just two options instead of dozens.
+    """
+    if not raw:
+        return None
+    s = str(raw).strip().lower()
+    if not s:
+        return None
+    # Order matters: "automat" before "manual" since some strings contain both
+    if "automat" in s or "s-tronic" in s or "dsg" in s or "tiptronic" in s or "cvt" in s:
+        return "Automatyczna"
+    if "manual" in s:
+        return "Manualna"
+    return None
+
+
 def _redis_get(key: str) -> Any | None:
     """Safe Redis GET — returns None on any error."""
     client = _get_client()
@@ -347,7 +366,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                         "version": cs.get("trim_level"),
                         "samar_category": mapped.get("samar_category"),
                         "fuel": mapped.get("fuel") or cs.get("fuel"),
-                        "transmission": mapped.get("transmission") or cs.get("transmission"),
+                        "transmission": mapped.get("gearbox") or cs.get("transmission"),
                         "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
                         "body_style": mapped.get("body_style") or cs.get("body_style"),
                         "power_hp": cs.get("power_hp"),
@@ -357,6 +376,11 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 )
 
         # ── 3. Post-filter and map to ScoringSearchMatch ──
+        # Normalize transmission across both paths (vector RPC + fallback SELECT)
+        # to just "Automatyczna" / "Manualna" so the filter chips collapse to 2 options.
+        for row in rows:
+            row["transmission"] = _normalize_transmission(row.get("transmission"))
+
         step = "post_filter_and_map"
         all_matches: list[ScoringSearchMatch] = []
         for row in rows:
