@@ -332,6 +332,46 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             {t.lower() for t in request.trims} if request.trims else None
         )
 
+        # ── Extract spec filters (drive_type, transmission, fuel, body_style)
+        # from requirements[] sent by the frontend chips. These were previously
+        # ignored — search returned all vehicles regardless of which chips were
+        # selected. Normalize values so filter chips ("RWD", "Manualna") match
+        # the normalized row values produced by _normalize_* helpers below.
+        def _extract_req_values(feature_key: str) -> set[str] | None:
+            vals: set[str] = set()
+            for req in request.requirements or []:
+                if not isinstance(req, BaseModel):
+                    req_dict = req if isinstance(req, dict) else {}
+                else:
+                    req_dict = req.model_dump()
+                if req_dict.get("feature_key") != feature_key:
+                    continue
+                v = req_dict.get("value")
+                if isinstance(v, list):
+                    vals.update(str(x) for x in v if x is not None)
+                elif isinstance(v, str):
+                    vals.add(v)
+            return vals or None
+
+        drive_type_filter_raw = _extract_req_values("drive_type")
+        drive_type_filter: set[str] | None = (
+            {_normalize_drive_type(v) for v in drive_type_filter_raw}
+            if drive_type_filter_raw else None
+        )
+        transmission_filter_raw = _extract_req_values("transmission")
+        transmission_filter: set[str] | None = (
+            {_normalize_transmission(v) for v in transmission_filter_raw}
+            if transmission_filter_raw else None
+        )
+        fuel_filter_raw = _extract_req_values("fuel")
+        fuel_filter: set[str] | None = (
+            {v.lower() for v in fuel_filter_raw} if fuel_filter_raw else None
+        )
+        body_style_filter_raw = _extract_req_values("body_style")
+        body_style_filter: set[str] | None = (
+            {v.lower() for v in body_style_filter_raw} if body_style_filter_raw else None
+        )
+
         rows: list[dict] = []
 
         if request.semantic_query:
@@ -423,6 +463,20 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 continue
             if samar_class_names is not None and samar_cat not in samar_class_names:
                 continue
+            # Spec filters (chips selected in the sidebar) — compare against
+            # normalized values so user-selected "RWD" matches normalized rows.
+            if drive_type_filter is not None and row.get("drive_type") not in drive_type_filter:
+                continue
+            if transmission_filter is not None and row.get("transmission") not in transmission_filter:
+                continue
+            if fuel_filter is not None:
+                row_fuel = (row.get("fuel") or "").lower()
+                if row_fuel not in fuel_filter:
+                    continue
+            if body_style_filter is not None:
+                row_body = (row.get("body_style") or "").lower()
+                if row_body not in body_style_filter:
+                    continue
 
             base_price = row.get("base_price")
             score = row.get("score_total_pct")
