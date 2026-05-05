@@ -462,7 +462,70 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
         else:
             # ── 2b. No-query path: plain SELECT with hard filters, recency ranked ──
             step = "fallback_select_vehicle_synthesis"
+<<<<<<< HEAD
             rows = _fetch_rows_plain_select()
+=======
+            q = (
+                sb.table("vehicle_synthesis")
+                .select("id,brand,model,offer_number,created_at,synthesis_data")
+                .eq("verification_status", "completed")
+                .order("created_at", desc=True)
+                .limit(max(request.limit + request.offset, 100) * 3)
+            )
+            if request.vehicle_ids:
+                q = q.in_("id", request.vehicle_ids)
+            resp = _supabase_execute_with_retry(q)
+            for r in resp.data or []:
+                sd = r.get("synthesis_data") or {}
+                cs = sd.get("card_summary") or {}
+                mapped = sd.get("mapped_ai_data") or {}
+                meta = sd.get("metadata") or {}
+                domain = cs.get("price_domain")
+
+                factory_sum = 0.0
+                service_sum = 0.0
+                for opt in cs.get("paid_options") or []:
+                    cat = (opt.get("category") or "").lower()
+                    val = _parse_price_to_net(
+                        opt.get("price"), opt.get("price_type") or domain
+                    )
+                    if val is None:
+                        continue
+                    if "fabryczn" in cat:
+                        factory_sum += val
+                    elif "serwis" in cat or "akcesori" in cat:
+                        service_sum += val
+                svc_eq = cs.get("service_equipment") or {}
+                svc_eq_net = _parse_price_to_net(svc_eq.get("total_price_net"), "netto")
+                if svc_eq_net:
+                    service_sum += svc_eq_net
+
+                rows.append(
+                    {
+                        "vehicle_id": r["id"],
+                        "brand": r.get("brand"),
+                        "model": r.get("model"),
+                        "version": cs.get("trim_level"),
+                        "samar_category": mapped.get("samar_category"),
+                        "fuel": mapped.get("fuel") or cs.get("fuel"),
+                        "transmission": mapped.get("gearbox") or cs.get("transmission"),
+                        "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
+                        "body_style": mapped.get("body_style") or cs.get("body_style"),
+                        "power_hp": cs.get("power_hp"),
+                        "base_price": _parse_price_to_net(cs.get("base_price"), domain),
+                        "total_price_net": _parse_price_to_net(cs.get("total_price"), domain),
+                        "factory_options_price_net": round(factory_sum, 2) if factory_sum else None,
+                        "service_options_price_net": round(service_sum, 2) if service_sum else None,
+                        "options_price_net": _parse_price_to_net(cs.get("options_price"), domain),
+                        "engine_capacity": cs.get("engine_capacity"),
+                        "engine_designation": cs.get("engine_designation"),
+                        "configuration_code": meta.get("configuration_code") or sd.get("configuration_code"),
+                        "offer_number": r.get("offer_number") or meta.get("offer_number") or sd.get("offer_number"),
+                        "extraction_date": r.get("created_at"),
+                        "score_total_pct": None,
+                    }
+                )
+>>>>>>> ofertaxls
 
         # ── 3. Post-filter and map to ScoringSearchMatch ──
         # Normalize transmission and drive_type across both paths (vector RPC +
@@ -521,6 +584,15 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                     drive_type=row.get("drive_type"),
                     body_style=row.get("body_style"),
                     base_price_net=float(base_price) if base_price else None,
+                    total_price_net=row.get("total_price_net"),
+                    options_price_net=row.get("options_price_net"),
+                    factory_options_price_net=row.get("factory_options_price_net"),
+                    service_options_price_net=row.get("service_options_price_net"),
+                    engine_capacity=row.get("engine_capacity"),
+                    engine_designation=row.get("engine_designation"),
+                    configuration_code=row.get("configuration_code"),
+                    offer_number=row.get("offer_number"),
+                    extraction_date=row.get("extraction_date"),
                     price_domain="netto",
                     semantic_hit_reason=(
                         f"use_case {row.get('score_use_case_pct')}% / "

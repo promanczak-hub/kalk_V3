@@ -317,7 +317,9 @@ export function VehicleSummaryCard({
 
   const formatDim = (val: number | null | undefined, unit: string) => val ? `${val} ${unit}` : EMPTY;
   
-  const dimensionsRows: typeof identityRows = [
+  const isPassengerCar = (mappedData?.vehicle_type ?? vehicle.vehicle_class) === "Osobowy";
+
+  const dimensionsRows: typeof identityRows = isPassengerCar ? [] : [
     { label: "Poj. ładunkowa", value: formatDim(dimensions?.cargo_volume_m3, "m³") },
     { label: "Długość paki", value: formatDim(dimensions?.cargo_length_mm, "mm") },
     { label: "Szerokość paki", value: formatDim(dimensions?.cargo_width_mm, "mm") },

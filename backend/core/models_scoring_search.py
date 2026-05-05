@@ -50,6 +50,8 @@ class ScoringSearchMatch(BaseModel):
     total_price_gross: Optional[str] = None
     base_price_net: Optional[float] = None
     options_price_net: Optional[float] = None
+    factory_options_price_net: Optional[float] = None
+    service_options_price_net: Optional[float] = None
     total_price_net: Optional[float] = None
     price_domain: Optional[str] = "brutto"
     suggested_discount_pct: Optional[float] = None
@@ -61,6 +63,10 @@ class ScoringSearchMatch(BaseModel):
     tire_class: Optional[str] = None
     offer_number: Optional[str] = None
     configuration_code: Optional[str] = None
+    # Engine + provenance metadata (shown on result card)
+    engine_capacity: Optional[str] = None
+    engine_designation: Optional[str] = None
+    extraction_date: Optional[str] = None
     # User-pinned calculations (multi-select). Frontend renders one card per id;
     # empty list → fall back to a single default card.
     selected_kalkulacja_ids: List[str] = []

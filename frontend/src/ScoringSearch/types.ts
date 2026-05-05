@@ -130,6 +130,11 @@ export interface ScoredVehicle {
   base_price_net?: number;
   total_price_net?: number;
   options_price_net?: number;
+  factory_options_price_net?: number;
+  service_options_price_net?: number;
+  engine_capacity?: string;
+  engine_designation?: string;
+  extraction_date?: string;
   match_score_pct?: number;
   matched_features?: string[];
   missing_features?: string[];

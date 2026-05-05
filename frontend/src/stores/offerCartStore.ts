@@ -29,6 +29,9 @@ export interface OfferItem {
   factory_options: string[];
   dealer_options: string[];
   variants?: OfferVariant[];
+  // Per-cart-item editable fields (live only for this offer):
+  notes?: string;
+  overuse_fee?: number; // zł/km — picked from dropdown 0.10..0.80 step 0.01
 }
 
 export interface ClientData {
@@ -44,6 +47,7 @@ interface OfferCartState {
   addItem: (item: OfferItem) => void;
   addItems: (items: OfferItem[]) => void;
   removeItem: (id: string) => void;
+  updateItem: (id: string, patch: Partial<OfferItem>) => void;
   clearCart: () => void;
   setClientData: (data: Partial<ClientData>) => void;
 }
@@ -76,6 +80,10 @@ export const useOfferCartStore = create<OfferCartState>()(
       removeItem: (id) =>
         set((state) => ({
           items: state.items.filter((item) => item.id !== id),
+        })),
+      updateItem: (id, patch) =>
+        set((state) => ({
+          items: state.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
         })),
       clearCart: () =>
         set({

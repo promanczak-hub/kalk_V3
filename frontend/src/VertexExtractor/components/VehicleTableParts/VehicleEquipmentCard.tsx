@@ -84,11 +84,11 @@ export function VehicleEquipmentCard({
                       idx % 2 === 1 ? "bg-slate-50/50" : ""
                     }`}
                   >
-                    <td className="py-2 pr-4">
+                    <td className="py-0.5 pr-4">
                       <div className="flex items-center gap-2">
                          <input
                           type="text"
-                          className="flex-1 px-2 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          className="flex-1 px-2 py-1 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           value={opt.name}
                           onChange={(e) => handleUpdateFactoryOptionName(opt.id, e.target.value)}
                           placeholder="Nazwa opcji"
@@ -100,13 +100,13 @@ export function VehicleEquipmentCard({
                         )}
                       </div>
                     </td>
-                    <td className="py-2" colSpan={3}>
+                    <td className="py-0.5" colSpan={3}>
                       <NetGrossInput
                         netValue={opt.price_net}
                         onChangeNet={(newVal) => handleUpdateFactoryOptionPrice(opt.id, newVal)}
                       />
                     </td>
-                    <td className="py-2 text-center">
+                    <td className="py-0.5 text-center">
                       <div className="flex items-center gap-1">
                         <label
                           className="relative inline-flex items-center cursor-pointer"

@@ -88,6 +88,73 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const monthlyDisplay = usingAppliedMargin
     ? (car.best_monthly_price ?? null)
     : rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
+  // Base monthly rate before any margin markup. When usingAppliedMargin is true,
+  // rawMonthly already contains the applied margin baked in by the RPC.
+  const trueBaseMonthly = usingAppliedMargin
+    ? (rawMonthly != null ? rawMonthly * (1 - marginFrac) : null)
+    : (rawMonthly ?? null);
+  const budget = searchContext.useMatrixFilters && searchContext.monthly_budget && searchContext.monthly_budget > 0
+    ? searchContext.monthly_budget
+    : null;
+  const overBudget = budget != null && monthlyDisplay != null && monthlyDisplay > budget;
+  // Margin at which the rate would equal the budget exactly: budget = base / (1 - m)
+  // → m = 1 - base/budget. If base > budget, this becomes negative (loss territory).
+  const marginToFitPct = budget != null && trueBaseMonthly != null
+    ? (1 - trueBaseMonthly / budget) * 100
+    : null;
+
+  // ── Eager variants fetch for over-budget cards ──────────────────────────
+  // When the current rate exceeds budget, we want the banner to list which
+  // (period × mileage) variants DO fit at the user's expected margin. The
+  // VariantsTable below also lazy-fetches the same endpoint on expand — we
+  // share the result via this state so the table skips its own fetch.
+  const [eagerVariants, setEagerVariants] = useState<PriceForParams[] | null>(null);
+  React.useEffect(() => {
+    if (!overBudget || !budget || !vehicleId || !targetAnnualMileage) {
+      setEagerVariants(null);
+      return;
+    }
+    let cancelled = false;
+    import('../../../lib/apiClient')
+      .then(({ apiClient }) =>
+        apiClient.fetch(
+          `/api/scoring-search/vehicle/${vehicleId}/price-variants?annual_mileage=${targetAnnualMileage}${pinnedKalkulacjaId ? `&kalkulacja_id=${pinnedKalkulacjaId}` : ''}`,
+        ),
+      )
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data: PriceForParams[]) => {
+        if (!cancelled) setEagerVariants(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setEagerVariants([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [overBudget, budget, vehicleId, targetAnnualMileage, pinnedKalkulacjaId]);
+
+  // Variants from this vehicle that DO fit the budget at the user's currently
+  // displayed margin (displayMarginPct). Sorted by rate ascending — cheapest
+  // first, since "fits the budget" is the relevant ordering here.
+  const fittingVariants = React.useMemo(() => {
+    if (!eagerVariants || !budget || marginFrac >= 1) return [];
+    return eagerVariants
+      .filter(
+        (v) =>
+          v.monthly_price_net != null &&
+          v.duration_months != null &&
+          v.annual_mileage != null,
+      )
+      .map((v) => {
+        const base = v.monthly_price_net as number;
+        const rate = base / (1 - marginFrac);
+        const variantMarginToFit = (1 - base / budget) * 100;
+        return { v, rate, variantMarginToFit };
+      })
+      .filter((row) => row.variantMarginToFit >= displayMarginPct)
+      .sort((a, b) => a.rate - b.rate)
+      .slice(0, 3);
+  }, [eagerVariants, budget, marginFrac, displayMarginPct]);
   const calcDate = price?.calculated_at
     ? new Date(price.calculated_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : null;
@@ -102,7 +169,13 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
     // Pinned cards include the kalkulacja_id in their cart id so different
     // pins of the same vehicle stay distinct entries.
     const kidForId = pinnedKalkulacjaId ?? variantPriceData?.kalkulacja_id ?? '';
-    const uniqueId = kidForId ? `${vehicleId}_${dur}_${mil}_${kidForId}` : `${vehicleId}_${dur}_${mil}`;
+    // Margin is part of the cart-entry identity: the same vehicle calculated at
+    // two different margins must produce two distinct cart rows so the user can
+    // compare them in the offer.
+    const marginTag = `m${Math.round((displayMarginPct ?? 0) * 10)}`;
+    const uniqueId = kidForId
+      ? `${vehicleId}_${dur}_${mil}_${kidForId}_${marginTag}`
+      : `${vehicleId}_${dur}_${mil}_${marginTag}`;
 
     addToCart({
       id: uniqueId,
@@ -147,28 +220,25 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const driveTypeStr = String(car.drive_type || '').replace(/^Napęd\s*/i, '').toUpperCase();
   const driveTypeInTransmission = driveTypeStr.length > 0 && transmissionStr.includes(driveTypeStr);
 
-  // Structured spec badges instead of a single blended line
+  // Structured spec badges instead of a single blended line.
+  // power_hp + transmission are rendered inline next to the engine pill above, so they're omitted here.
   const specBadges: { label: string; color: string }[] = [
     car.fuel ? { label: car.fuel, color: car.fuel.toLowerCase().includes('diesel') ? 'bg-amber-100 text-amber-800' : car.fuel.toLowerCase().includes('elektr') ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800' } : null,
-    car.power_hp && !versionMentionsPower ? { label: `${car.power_hp} KM`, color: 'bg-slate-100 text-slate-700' } : null,
-    car.transmission ? { label: car.transmission, color: 'bg-violet-100 text-violet-800' } : null,
     // Skip drive_type if already mentioned in transmission (e.g. "MANUALNA, NA TYLNE KOŁA RWD" + "RWD")
     car.drive_type && !driveTypeInTransmission ? { label: car.drive_type.replace(/^Napęd\s*/i, ''), color: 'bg-slate-100 text-slate-700' } : null,
     car.body_style ? { label: car.body_style, color: 'bg-indigo-100 text-indigo-800' } : null,
-    // Clean up vehicle_class: deduplicate "X - X", title-case, skip if "Osobowy" or body_style already shown
-    car.vehicle_class && car.vehicle_class !== 'Osobowy' && !car.body_style
-      ? { label: cleanVehicleClass(car.vehicle_class), color: 'bg-rose-100 text-rose-700' }
-      : null,
   ].filter((b): b is { label: string; color: string } => b !== null);
 
   return (
     <div
-      className={`flex flex-col bg-white rounded-lg border shadow-sm transition-all hover:shadow-md ${
+      className={`flex flex-col rounded-lg border shadow-sm transition-all hover:shadow-md ${
         isInCart
-          ? 'border-emerald-300'
+          ? 'bg-white border-emerald-300'
           : pinnedKalkulacjaId
-            ? 'border-amber-300 hover:border-amber-400'
-            : 'border-slate-200 hover:border-slate-300'
+            ? 'bg-white border-amber-300 hover:border-amber-400'
+            : overBudget
+              ? 'bg-red-50/40 border-red-200 opacity-75 hover:opacity-95'
+              : 'bg-white border-slate-200 hover:border-slate-300'
       }`}
     >
       {/* Header: identification + score */}
@@ -192,13 +262,54 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <div className="flex items-center gap-x-2 gap-y-0.5 mt-1 flex-wrap text-xs">
             {car.trim_level && car.trim_level !== 'Brak' && (
-              <span className="text-xs text-slate-500 font-medium">{car.trim_level}</span>
+              <span className="text-slate-600 font-medium">{car.trim_level}</span>
             )}
+            {car.version && car.version !== car.trim_level && (
+              <span className="text-slate-500 truncate max-w-[260px]">{car.version}</span>
+            )}
+            {(car.engine_capacity || car.engine_designation || (car.power_hp && !versionMentionsPower)) && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 font-mono text-[11px]">
+                {[
+                  car.engine_capacity ? `${car.engine_capacity}L` : null,
+                  car.engine_designation,
+                  car.power_hp && !versionMentionsPower ? `${car.power_hp}KM` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              </span>
+            )}
+            {car.transmission && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 text-[11px] font-medium">
+                {car.transmission}
+              </span>
+            )}
+            {car.vehicle_class && car.vehicle_class !== 'Brak' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 text-[11px]">
+                {cleanVehicleClass(car.vehicle_class)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-x-2 gap-y-0.5 mt-1 flex-wrap text-[11px]">
             {(car.configuration_code || car.offer_number) && (
-              <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+              <span
+                className="font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md"
+                title="Kod konfiguracji"
+              >
                 {car.configuration_code || car.offer_number}
+              </span>
+            )}
+            {car.extraction_date && (
+              <span className="text-slate-400" title="Data ekstrakcji oferty">
+                Ekstrakcja:{' '}
+                <span className="font-mono text-slate-500">
+                  {new Date(car.extraction_date).toLocaleDateString('pl-PL', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}
+                </span>
               </span>
             )}
           </div>
@@ -210,9 +321,6 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 </span>
               ))}
             </div>
-          )}
-          {car.version && car.version !== car.trim_level && (
-            <p className="text-[11px] text-slate-400 mt-1 truncate">{car.version}</p>
           )}
         </div>
 
@@ -234,11 +342,11 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
         </div>
       </div>
 
-      {/* Catalog price strip */}
+      {/* Catalog price strip — total + breakdown into base, factory options, service options */}
       {(car.base_price_net || car.total_price_net) && (
-        <div className="flex items-baseline justify-between px-4 py-2.5 border-t border-slate-200">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Cena katalogowa</span>
-          <div className="text-right">
+        <div className="px-4 py-2.5 border-t border-slate-200">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Cena katalogowa</span>
             <div className="text-sm font-semibold text-slate-900 font-mono tabular-nums">
               {fmtPLN(car.total_price_net ?? car.base_price_net)}{' '}
               <span className="text-slate-500 font-normal">PLN netto</span>
@@ -246,12 +354,42 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 ({fmtPLN(((car.total_price_net ?? car.base_price_net ?? 0) as number) * 1.23)} brutto)
               </span>
             </div>
-            {car.base_price_net && car.options_price_net != null && (
-              <div className="text-[11px] text-slate-400 font-mono">
-                Podstawa {fmtPLN(car.base_price_net)} + Opcje {fmtPLN(car.options_price_net)}
-              </div>
-            )}
           </div>
+          {(car.base_price_net != null
+            || car.factory_options_price_net != null
+            || car.service_options_price_net != null
+            || car.options_price_net != null) && (
+            <div className="mt-1.5 flex flex-col gap-0.5 text-[11px] font-mono text-slate-500">
+              {car.base_price_net != null && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Cena bazowa</span>
+                  <span className="tabular-nums">{fmtPLN(car.base_price_net)} PLN</span>
+                </div>
+              )}
+              {car.factory_options_price_net != null && car.factory_options_price_net > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Opcje fabryczne</span>
+                  <span className="tabular-nums">+ {fmtPLN(car.factory_options_price_net)} PLN</span>
+                </div>
+              )}
+              {car.service_options_price_net != null && car.service_options_price_net > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Opcje serwisowe</span>
+                  <span className="tabular-nums">+ {fmtPLN(car.service_options_price_net)} PLN</span>
+                </div>
+              )}
+              {/* Fallback when split isn't available but a combined options figure is */}
+              {car.factory_options_price_net == null
+                && car.service_options_price_net == null
+                && car.options_price_net != null
+                && car.options_price_net > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Opcje (łącznie)</span>
+                    <span className="tabular-nums">+ {fmtPLN(car.options_price_net)} PLN</span>
+                  </div>
+                )}
+            </div>
+          )}
         </div>
       )}
 
@@ -279,6 +417,10 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               matrixActive={!!searchContext.useMatrixFilters}
               appliedMarginPct={car.applied_margin_pct}
               monthlyDisplay={monthlyDisplay}
+              overBudget={overBudget}
+              marginToFitPct={marginToFitPct}
+              displayMarginPct={displayMarginPct}
+              fittingVariants={fittingVariants}
             />
 
             <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
@@ -312,7 +454,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             {/* Multi-variant table — shows other (period × mileage) cache combos for this car */}
             <VariantsTable
               vehicleId={vehicleId}
-              variants={priceData?.variants}
+              variants={eagerVariants ?? priceData?.variants}
               currentDuration={price?.duration_months ?? targetDuration}
               currentMileage={price?.annual_mileage ?? targetAnnualMileage}
               monthlyBudget={searchContext.monthly_budget}
@@ -407,11 +549,21 @@ export const VehicleResultCard = React.memo(VehicleResultCardBase);
 //   < 5%  → orange ("niska marża, ostrożnie")
 //   null  → not shown (backend filtered out / no matrix mode)
 
+interface FittingVariant {
+  v: PriceForParams;
+  rate: number;
+  variantMarginToFit: number;
+}
+
 interface BudgetMatchBannerProps {
   monthlyBudget: number | null | undefined;
   matrixActive: boolean;
   appliedMarginPct: number | null | undefined;
   monthlyDisplay: number | null | undefined;
+  overBudget?: boolean;
+  marginToFitPct?: number | null;
+  displayMarginPct?: number;
+  fittingVariants?: FittingVariant[];
 }
 
 const BudgetMatchBanner: React.FC<BudgetMatchBannerProps> = ({
@@ -419,9 +571,94 @@ const BudgetMatchBanner: React.FC<BudgetMatchBannerProps> = ({
   matrixActive,
   appliedMarginPct,
   monthlyDisplay,
+  overBudget,
+  marginToFitPct,
+  displayMarginPct,
+  fittingVariants,
 }) => {
-  // Only show when in budget-match mode AND backend gave us a per-car margin
+  // Only show when in budget-match mode
   if (!matrixActive || !monthlyBudget || monthlyBudget <= 0) return null;
+
+  // OVER-BUDGET banner — replaces the green "fits" banner when rate exceeds budget.
+  // Shows the overshoot and the margin at which the car would fit (or "even at 0%
+  // it doesn't fit" when base price already exceeds budget).
+  if (overBudget && monthlyDisplay != null) {
+    const overshoot = monthlyDisplay - monthlyBudget;
+    const currentMargin = displayMarginPct ?? 0;
+    const fitsAtPositiveMargin = marginToFitPct != null && marginToFitPct > 0;
+    const cannotFit = marginToFitPct != null && marginToFitPct <= 0;
+
+    return (
+      <div className="mb-3 p-3 rounded-md border bg-red-50 border-red-300">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-red-900 uppercase tracking-wider">
+              ⚠ Nad budżet
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">
+              + {fmtPLN(overshoot)} PLN/mc
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3 font-mono tabular-nums text-red-900">
+            <div>
+              <span className="text-[10px] uppercase tracking-wider opacity-75">Rata</span>{' '}
+              <span className="text-base font-bold">{fmtPLN(monthlyDisplay)}</span>
+              <span className="text-[10px] opacity-75 ml-0.5">PLN/mc</span>
+            </div>
+            <div className="text-red-300">·</div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider opacity-75">Budżet</span>{' '}
+              <span className="text-base font-bold">{fmtPLN(monthlyBudget)}</span>
+              <span className="text-[10px] opacity-75 ml-0.5">PLN/mc</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-1.5 text-[11px] text-red-800">
+          {fitsAtPositiveMargin ? (
+            <>
+              Zmieści się w budżecie przy marży{' '}
+              <strong className="text-red-900">{(marginToFitPct as number).toFixed(1)}%</strong>
+              {' '}(obecna marża: {currentMargin}%).
+            </>
+          ) : cannotFit ? (
+            <>
+              Cena bazowa przekracza budżet — auto nie zmieści się nawet bez marży
+              (potrzebna marża {(marginToFitPct as number).toFixed(1)}%).
+            </>
+          ) : (
+            <>Cena przekracza budżet {fmtPLN(monthlyBudget)} PLN/mc.</>
+          )}
+        </div>
+        {fittingVariants && fittingVariants.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-red-200">
+            <div className="text-[11px] font-semibold text-emerald-800 mb-1.5">
+              ✓ Wchodzą w budżet przy marży ≥ {currentMargin}%:
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {fittingVariants.map((row) => (
+                <div
+                  key={`${row.v.duration_months}_${row.v.annual_mileage}`}
+                  className="inline-flex items-baseline gap-1.5 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1 text-[11px]"
+                >
+                  <span className="font-mono tabular-nums text-emerald-900 font-medium">
+                    {row.v.duration_months}mc · {fmtPLN((row.v.annual_mileage as number) / 1000)}k km/rok
+                  </span>
+                  <span className="font-mono tabular-nums font-bold text-emerald-900">
+                    {fmtPLN(row.rate)} PLN/mc
+                  </span>
+                  <span className="text-[10px] text-emerald-700">
+                    (marża do {row.variantMarginToFit.toFixed(1)}%)
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // FITS-BUDGET banner — only when backend actively dialed a per-car margin.
   if (appliedMarginPct == null) return null;
 
   const tier: 'good' | 'warning' | 'loss' =
@@ -575,31 +812,42 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
   // vehicle id or no annual mileage to query against.
   if (!vehicleId || !currentMileage) return null;
 
-  // Per variant: rate at current global margin + (if budget set) margin-to-budget
+  // Per variant: rate at user's current margin + (if budget set) max margin
+  // at which the variant still fits the budget. fitsBudget compares the
+  // achievable margin against the user's expected margin — anything below
+  // it is "tight" or "over budget", not "świetna".
   type Row = {
     v: PriceVariant;
     rate: number;
-    appliedMargin: number | null; // null if no budget
+    marginToFitPct: number | null; // null when no budget set
     fitsBudget: boolean;
     isCurrent: boolean;
   };
 
+  const userMarginPct = currentMarginFrac * 100;
+
   const rows: Row[] = usable.map((v) => {
     const base = v.monthly_price_net as number;
     const rate = currentMarginFrac < 1 ? base / (1 - currentMarginFrac) : base;
-    const appliedMargin = currentMarginFrac * 100;
-    const fitsBudget = monthlyBudget ? base <= monthlyBudget : true;
+    const marginToFitPct = monthlyBudget && monthlyBudget > 0
+      ? (1 - base / monthlyBudget) * 100
+      : null;
+    const fitsBudget = marginToFitPct == null
+      ? true
+      : marginToFitPct >= userMarginPct;
     const isCurrent =
       v.duration_months === currentDuration && v.annual_mileage === currentMileage;
-    return { v, rate, appliedMargin, fitsBudget, isCurrent };
+    return { v, rate, marginToFitPct, fitsBudget, isCurrent };
   });
 
-  // Sort: current first, then by appliedMargin desc (best business), then by rate asc
+  // Sort: current first, then fitting variants by margin-to-fit desc (best
+  // business first), then non-fitting variants by margin-to-fit desc.
   rows.sort((a, b) => {
     if (a.isCurrent && !b.isCurrent) return -1;
     if (b.isCurrent && !a.isCurrent) return 1;
-    if (a.appliedMargin != null && b.appliedMargin != null) {
-      return b.appliedMargin - a.appliedMargin;
+    if (a.fitsBudget !== b.fitsBudget) return a.fitsBudget ? -1 : 1;
+    if (a.marginToFitPct != null && b.marginToFitPct != null) {
+      return b.marginToFitPct - a.marginToFitPct;
     }
     return a.rate - b.rate;
   });
@@ -661,13 +909,22 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
             </thead>
             <tbody>
               {rows.map((row, idx) => {
-                const tier = row.appliedMargin == null
+                // Tier model when budget is set:
+                //   marginToFit < 0          → 'fail'    (nawet bez marży nie wchodzi)
+                //   fitsBudget=false         → 'tight'   (zmieści się tylko przy niższej marży)
+                //   marginToFit ≥ 12         → 'good'    (świetna)
+                //   marginToFit ≥ 5          → 'warning' (graniczna)
+                //   else                     → 'loss'    (niska)
+                // Without budget → 'neutral'.
+                const tier = row.marginToFitPct == null
                   ? 'neutral'
-                  : !row.fitsBudget
+                  : row.marginToFitPct < 0
                   ? 'fail'
-                  : row.appliedMargin >= 12
+                  : !row.fitsBudget
+                  ? 'tight'
+                  : row.marginToFitPct >= 12
                   ? 'good'
-                  : row.appliedMargin >= 5
+                  : row.marginToFitPct >= 5
                   ? 'warning'
                   : 'loss';
 
@@ -679,6 +936,8 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                   ? 'bg-amber-50/40 hover:bg-amber-50'
                   : tier === 'loss'
                   ? 'bg-orange-50/40 hover:bg-orange-50'
+                  : tier === 'tight'
+                  ? 'bg-amber-50/60 hover:bg-amber-100'
                   : tier === 'fail'
                   ? 'bg-red-50/40 hover:bg-red-50 opacity-70'
                   : 'hover:bg-slate-50';
@@ -687,6 +946,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                   good: { text: '✓ świetna', cls: 'bg-emerald-100 text-emerald-800' },
                   warning: { text: '⚠ graniczna', cls: 'bg-amber-100 text-amber-800' },
                   loss: { text: '⚠ niska', cls: 'bg-orange-100 text-orange-800' },
+                  tight: { text: '⚠ obniż marżę', cls: 'bg-amber-100 text-amber-900' },
                   fail: { text: '✗ nad budżet', cls: 'bg-red-100 text-red-800' },
                   neutral: { text: '—', cls: 'bg-slate-100 text-slate-600' },
                 }[tier];
@@ -707,8 +967,25 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                       {fmtPLN(row.rate)}
                     </td>
                     {monthlyBudget && monthlyBudget > 0 && (
-                      <td className="px-2 py-1.5 font-mono tabular-nums text-right font-semibold text-slate-900">
-                        {row.appliedMargin != null ? `${row.appliedMargin.toFixed(1)}%` : '—'}
+                      <td
+                        className={`px-2 py-1.5 font-mono tabular-nums text-right font-semibold ${
+                          row.marginToFitPct == null
+                            ? 'text-slate-900'
+                            : row.marginToFitPct < 0
+                            ? 'text-red-700'
+                            : row.fitsBudget
+                            ? 'text-emerald-700'
+                            : 'text-amber-700'
+                        }`}
+                        title={
+                          row.marginToFitPct != null
+                            ? `Maks. marża, przy której wariant wchodzi w budżet (oczekiwana: ${userMarginPct.toFixed(1)}%)`
+                            : undefined
+                        }
+                      >
+                        {row.marginToFitPct != null
+                          ? `${row.marginToFitPct.toFixed(1)}%`
+                          : '—'}
                       </td>
                     )}
                     <td className="px-2 py-1.5 text-center">
@@ -720,7 +997,10 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                       {(() => {
                         const dur = row.v.duration_months as number;
                         const mil = row.v.annual_mileage as number;
-                        const variantId = `${vehicleId}_${dur}_${mil}`;
+                        const marginTag = `m${Math.round((displayMarginPct ?? 0) * 10)}`;
+                        const variantId = row.v.kalkulacja_id
+                          ? `${vehicleId}_${dur}_${mil}_${row.v.kalkulacja_id}_${marginTag}`
+                          : `${vehicleId}_${dur}_${mil}_${marginTag}`;
                         const inCart = cartItems.some((it) => it.id === variantId);
                         return (
                           <button

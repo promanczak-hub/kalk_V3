@@ -68,8 +68,89 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
 
   return (
     <>
-      {/* Section: Brands */}
+      {/* Section: Matrix calc — first, so user immediately marks they want prices */}
       <Section>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0 }}>
+          <SectionLabel label="Kalkulacje (Matrix)" />
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={!!searchContext.useMatrixFilters}
+                onChange={(e) => onContextChange({ ...searchContext, useMatrixFilters: e.target.checked, exact_mode: true })}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#1e40af' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#3b82f6' },
+                }}
+              />
+            }
+            label={
+              <Typography variant="caption" sx={{ color: searchContext.useMatrixFilters ? '#1e40af' : '#94a3b8', fontWeight: 600, fontSize: '0.68rem' }}>
+                {searchContext.useMatrixFilters ? 'Włączone' : 'Wyłączone'}
+              </Typography>
+            }
+            labelPlacement="start"
+            sx={{ m: 0, gap: 0.5 }}
+          />
+        </Box>
+
+        <Collapse in={!!searchContext.useMatrixFilters} timeout={200}>
+          <Box sx={{ pt: 1.5 }}>
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Okres (m-ce)</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {searchContext.exact_duration_months} mc
+                </Typography>
+              </Box>
+              <Slider
+                value={searchContext.exact_duration_months}
+                onChange={(_, val) => onContextChange({ ...searchContext, exact_duration_months: val as number, exact_mode: true })}
+                min={24} max={60} step={12}
+                marks={[24, 36, 48, 60].map(v => ({ value: v, label: String(v) }))}
+                valueLabelDisplay="auto"
+                sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
+              />
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Łączny przebieg na kontrakt (km)</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {(searchContext.exact_total_mileage / 1000).toFixed(0)}k km
+                </Typography>
+              </Box>
+              <Slider
+                value={searchContext.exact_total_mileage}
+                onChange={(_, val) => onContextChange({ ...searchContext, exact_total_mileage: val as number, exact_mode: true })}
+                min={MATRIX_LIMITS.KM_MIN_CONTRACT} max={MATRIX_LIMITS.KM_MAX_CONTRACT} step={MATRIX_LIMITS.KM_STEP_CONTRACT}
+                marks={[20000, 100000, 200000, 300000].map(v => ({ value: v, label: `${(v / 1000).toFixed(0)}k` }))}
+                valueLabelDisplay="auto" valueLabelFormat={(v) => `${(v / 1000).toFixed(0)}k`}
+                sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
+              />
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 2 }}>
+              <AdaptiveSliderField
+                label="Marża min (%)"
+                min={0}
+                max={100}
+                value={searchContext.margin_pct || 0}
+                onChange={(val) => onContextChange({ ...searchContext, margin_pct: val })}
+              />
+              <TextField
+                label="Max Rata (Netto)" type="number" size="small"
+                value={searchContext.monthly_budget || ''}
+                onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
+                sx={{ flex: 1 }}
+              />
+            </Box>
+          </Box>
+        </Collapse>
+      </Section>
+
+      {/* Section: Brands */}
+      <Section alt>
         <SectionLabel label="Marka" selectedCount={searchContext.brands.length} />
         {loadingInitial ? (
           <CircularProgress size={20} />
@@ -276,86 +357,6 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
         </Section>
       )}
 
-      {/* Section: Matrix calc */}
-      <Section>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0 }}>
-          <SectionLabel label="Kalkulacje (Matrix)" />
-          <FormControlLabel
-            control={
-              <Switch
-                size="small"
-                checked={!!searchContext.useMatrixFilters}
-                onChange={(e) => onContextChange({ ...searchContext, useMatrixFilters: e.target.checked, exact_mode: true })}
-                sx={{
-                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#1e40af' },
-                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#3b82f6' },
-                }}
-              />
-            }
-            label={
-              <Typography variant="caption" sx={{ color: searchContext.useMatrixFilters ? '#1e40af' : '#94a3b8', fontWeight: 600, fontSize: '0.68rem' }}>
-                {searchContext.useMatrixFilters ? 'Włączone' : 'Wyłączone'}
-              </Typography>
-            }
-            labelPlacement="start"
-            sx={{ m: 0, gap: 0.5 }}
-          />
-        </Box>
-
-        <Collapse in={!!searchContext.useMatrixFilters} timeout={200}>
-          <Box sx={{ pt: 1.5 }}>
-            <Box sx={{ mb: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Okres (m-ce)</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  {searchContext.exact_duration_months} mc
-                </Typography>
-              </Box>
-              <Slider
-                value={searchContext.exact_duration_months}
-                onChange={(_, val) => onContextChange({ ...searchContext, exact_duration_months: val as number, exact_mode: true })}
-                min={24} max={60} step={12}
-                marks={[24, 36, 48, 60].map(v => ({ value: v, label: String(v) }))}
-                valueLabelDisplay="auto"
-                sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
-              />
-            </Box>
-
-            <Box sx={{ mb: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: -0.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Łączny przebieg na kontrakt (km)</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  {(searchContext.exact_total_mileage / 1000).toFixed(0)}k km
-                </Typography>
-              </Box>
-              <Slider
-                value={searchContext.exact_total_mileage}
-                onChange={(_, val) => onContextChange({ ...searchContext, exact_total_mileage: val as number, exact_mode: true })}
-                min={MATRIX_LIMITS.KM_MIN_CONTRACT} max={MATRIX_LIMITS.KM_MAX_CONTRACT} step={MATRIX_LIMITS.KM_STEP_CONTRACT}
-                marks={[20000, 100000, 200000, 300000].map(v => ({ value: v, label: `${(v / 1000).toFixed(0)}k` }))}
-                valueLabelDisplay="auto" valueLabelFormat={(v) => `${(v / 1000).toFixed(0)}k`}
-                sx={{ mt: 1, '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
-              />
-            </Box>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 2 }}>
-              <AdaptiveSliderField
-                label="Marża min (%)"
-                min={0}
-                max={100}
-                value={searchContext.margin_pct || 0}
-                onChange={(val) => onContextChange({ ...searchContext, margin_pct: val })}
-              />
-              <TextField
-                label="Max Rata (Netto)" type="number" size="small"
-                value={searchContext.monthly_budget || ''}
-                onChange={(e) => onContextChange({ ...searchContext, monthly_budget: parseInt(e.target.value) || undefined })}
-                sx={{ flex: 1 }}
-              />
-            </Box>
-          </Box>
-        </Collapse>
-      </Section>
     </>
   );
 };
