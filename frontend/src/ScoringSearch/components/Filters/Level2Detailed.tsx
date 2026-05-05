@@ -69,7 +69,7 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
         <Box>
           {loadingFilters ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
-          ) : sortedBooleanGroups.length === 0 ? (
+          ) : sortedBooleanGroups.length === 0 && (data?.range_filters?.length ?? 0) === 0 ? (
             <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 3, color: '#94a3b8' }}>
               Wybierz markę, model lub typ nadwozia, aby załadować cechy uniwersalne.
             </Typography>

@@ -689,6 +689,7 @@ def _percentile(values: list[float], pct: float) -> float:
 
 @router.post("/scoring-search/available-filters")
 def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
+<<<<<<< HEAD
     """Aggregate boolean + numeric range filters from `reverse_search.vehicle_specs_normalized`.
 
     Replaces the dropped `rpc_get_available_filters`. Returns counts/min/max scoped
@@ -709,6 +710,204 @@ def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
         "range_filters": [],
         "boolean_filters": [],
     }
+=======
+    """Return dynamic facets for the scoring-search Level 2 panel.
+
+    Aggregates filterable rows from ``reverse_search.vehicle_features_summary_view``
+    over the vehicles that match the brand/model/body filters. The original
+    ``rpc_get_available_filters`` RPC was dropped on 2026-04-27 — this Python
+    rebuild produces the same response shape the frontend expects:
+      - ``boolean_filters``: rows with ``feature_type='boolean'`` set to true,
+        counted per vehicle, grouped by category.
+      - ``range_filters``: rows with ``feature_type='numeric'``, with min/max.
+      - ``facet_groups``: enum/text rows (kept empty for now — Level 1 already
+        renders the primary enum chips from a separate path).
+    """
+    params_hash = _params_hash(request.model_dump_json())
+    cache_key = f"{_PREFIX}available_filters:{params_hash}"
+
+    cached = _redis_get(cache_key)
+    if cached is not None:
+        logger.debug("Cache HIT: available-filters [%s]", params_hash)
+        return cached
+
+    sb = supabase
+    step = "init"
+    try:
+        # ── 1. Resolve the candidate vehicle ID set ──
+        # Pull only the columns we need for filtering. Body filtering uses the
+        # AI-mapped body_style with a fallback to card_summary.body_style — same
+        # logic as /initial-data so the chips stay consistent.
+        step = "fetch_vehicle_synthesis"
+        synth_resp = _supabase_execute_with_retry(
+            sb.table("vehicle_synthesis")
+            .select("id, brand, model, synthesis_data")
+            .eq("verification_status", "completed")
+        )
+        synth_rows = synth_resp.data or []
+
+        brand_filter = (
+            {b.lower() for b in request.brands} if request.brands else None
+        )
+        model_filter = (
+            {m.lower() for m in request.models} if request.models else None
+        )
+        body_filter = (
+            {b.lower() for b in request.body_types} if request.body_types else None
+        )
+
+        candidate_ids: list[str] = []
+        for r in synth_rows:
+            brand = (r.get("brand") or "").lower()
+            model = (r.get("model") or "").lower()
+            sd = r.get("synthesis_data") or {}
+            cs = sd.get("card_summary") or {}
+            mapped = sd.get("mapped_ai_data") or {}
+            body = (
+                mapped.get("body_style") or cs.get("body_style") or ""
+            ).lower()
+
+            if brand_filter and brand not in brand_filter:
+                continue
+            if model_filter and model not in model_filter:
+                continue
+            if body_filter and body not in body_filter:
+                continue
+            candidate_ids.append(r["id"])
+
+        filters_provided = bool(
+            request.brands or request.models or request.body_types or request.samar_class_ids
+        )
+
+        # No candidates → return well-typed empty shape so the frontend
+        # destructure doesn't blow up.
+        if not candidate_ids:
+            empty = {
+                "filters_provided": filters_provided,
+                "facet_groups": [],
+                "range_filters": [],
+                "boolean_filters": [],
+            }
+            _redis_set(cache_key, empty, _TTL_FILTERS)
+            return empty
+
+        # ── 2. Pull resolved features for those vehicles ──
+        # The summary view has one row per (vehicle, feature) with the resolved
+        # value already typed into the right column. Page through PostgREST's
+        # 1000-row default in chunks of vehicle ids — typical request only hits
+        # a handful of vehicles so this rarely paginates in practice.
+        step = "fetch_features_summary"
+        feature_rows: list[dict[str, Any]] = []
+        chunk_size = 200
+        for i in range(0, len(candidate_ids), chunk_size):
+            chunk = candidate_ids[i : i + chunk_size]
+            resp = _supabase_execute_with_retry(
+                sb.schema("reverse_search")
+                .table("vehicle_features_summary_view")
+                .select(
+                    "source_vehicle_id, feature_key, display_name, category_name, "
+                    "feature_type, resolved_value_bool, resolved_value_num, "
+                    "resolved_value_text, is_filterable"
+                )
+                .in_("source_vehicle_id", chunk)
+                .eq("is_filterable", True)
+            )
+            feature_rows.extend(resp.data or [])
+
+        # ── 3. Aggregate ──
+        step = "aggregate"
+
+        # Boolean filters: only count vehicles where the feature is true.
+        # Grouped by feature_key; the "group_name" is the category display name.
+        bool_agg: dict[str, dict[str, Any]] = {}
+        # Numeric ranges: track min/max across all vehicles that have a value.
+        range_agg: dict[str, dict[str, Any]] = {}
+
+        for row in feature_rows:
+            ftype = row.get("feature_type")
+            fkey = row.get("feature_key")
+            if not fkey:
+                continue
+            display = row.get("display_name") or fkey.replace("_", " ")
+            group = row.get("category_name") or "Inne"
+
+            if ftype == "boolean":
+                if row.get("resolved_value_bool") is not True:
+                    continue
+                entry = bool_agg.setdefault(
+                    fkey,
+                    {
+                        "feature_key": fkey,
+                        "feature_name": display,
+                        "group_name": group,
+                        "parent_feature_key": None,
+                        "facet_level": None,
+                        "is_primary_facet": False,
+                        "_vehicles": set(),
+                    },
+                )
+                vid = row.get("source_vehicle_id")
+                if vid:
+                    entry["_vehicles"].add(vid)
+            elif ftype == "numeric":
+                val = row.get("resolved_value_num")
+                if val is None:
+                    continue
+                try:
+                    num = float(val)
+                except (TypeError, ValueError):
+                    continue
+                entry = range_agg.setdefault(
+                    fkey,
+                    {
+                        "feature_key": fkey,
+                        "feature_name": display,
+                        "group_name": group,
+                        "parent_feature_key": None,
+                        "facet_level": None,
+                        "is_primary_facet": False,
+                        "min_val": num,
+                        "max_val": num,
+                    },
+                )
+                if num < entry["min_val"]:
+                    entry["min_val"] = num
+                if num > entry["max_val"]:
+                    entry["max_val"] = num
+
+        boolean_filters = []
+        for entry in bool_agg.values():
+            cnt = len(entry.pop("_vehicles"))
+            if cnt <= 0:
+                continue
+            entry["cnt"] = cnt
+            boolean_filters.append(entry)
+        boolean_filters.sort(key=lambda e: (-e["cnt"], e["feature_name"]))
+
+        range_filters = [
+            r for r in range_agg.values() if r["min_val"] != r["max_val"]
+        ]
+        range_filters.sort(key=lambda e: e["feature_name"])
+
+        result = {
+            "filters_provided": filters_provided,
+            "facet_groups": [],
+            "range_filters": range_filters,
+            "boolean_filters": boolean_filters,
+        }
+        _redis_set(cache_key, result, _TTL_FILTERS)
+        return result
+    except Exception as e:
+        logger.exception(
+            "POST /scoring-search/available-filters failed at step=%s exc_type=%s",
+            step,
+            type(e).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(e).__name__} at step '{step}': {e}",
+        )
+>>>>>>> feat/multi-vector-embeddings
 
     try:
         vehicle_ids = _resolve_candidate_vehicle_ids(request)
