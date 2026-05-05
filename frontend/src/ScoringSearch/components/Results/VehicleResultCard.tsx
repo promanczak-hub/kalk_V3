@@ -355,7 +355,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               {fmtPLN(car.total_price_net ?? car.base_price_net)}{' '}
               <span className="text-slate-700 font-normal">PLN netto</span>
               <span className="text-xs text-slate-600 font-normal ml-2">
-                ({fmtPLN(((car.total_price_net ?? car.base_price_net ?? 0) as number) * 1.23)} brutto)
+                ({fmtPLN(car.total_price_gross ?? car.base_price_gross ?? ((car.total_price_net ?? car.base_price_net ?? 0) as number) * 1.23)} brutto)
               </span>
             </div>
           </div>
@@ -369,7 +369,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                   <span className="text-slate-600">Cena bazowa</span>
                   <span className="tabular-nums">
                     {fmtPLN(car.base_price_net)} PLN
-                    <span className="text-slate-500 ml-1.5">({fmtPLN(car.base_price_net * 1.23)} brutto)</span>
+                    <span className="text-slate-500 ml-1.5">({fmtPLN(car.base_price_gross ?? car.base_price_net * 1.23)} brutto)</span>
                   </span>
                 </div>
               )}
@@ -392,7 +392,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                       </span>
                       <span className="tabular-nums">
                         + {fmtPLN(car.factory_options_price_net)} PLN
-                        <span className="text-slate-500 ml-1.5">({fmtPLN(car.factory_options_price_net * 1.23)} brutto)</span>
+                        <span className="text-slate-500 ml-1.5">({fmtPLN(car.factory_options_price_gross ?? car.factory_options_price_net * 1.23)} brutto)</span>
                       </span>
                     </button>
                     {expandable && factoryOptionsOpen && (
@@ -404,7 +404,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                               {opt.price_net != null ? (
                                 <>
                                   {fmtPLN(opt.price_net)} PLN
-                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_net * 1.23)} brutto)</span>
+                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_gross ?? opt.price_net * 1.23)} brutto)</span>
                                 </>
                               ) : '—'}
                             </span>
@@ -434,7 +434,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                       </span>
                       <span className="tabular-nums">
                         + {fmtPLN(car.service_options_price_net)} PLN
-                        <span className="text-slate-500 ml-1.5">({fmtPLN(car.service_options_price_net * 1.23)} brutto)</span>
+                        <span className="text-slate-500 ml-1.5">({fmtPLN(car.service_options_price_gross ?? car.service_options_price_net * 1.23)} brutto)</span>
                       </span>
                     </button>
                     {expandable && serviceOptionsOpen && (
@@ -446,7 +446,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                               {opt.price_net != null ? (
                                 <>
                                   {fmtPLN(opt.price_net)} PLN
-                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_net * 1.23)} brutto)</span>
+                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_gross ?? opt.price_net * 1.23)} brutto)</span>
                                 </>
                               ) : '—'}
                             </span>
@@ -466,7 +466,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                     <span className="text-slate-600">Opcje (łącznie)</span>
                     <span className="tabular-nums">
                       + {fmtPLN(car.options_price_net)} PLN
-                      <span className="text-slate-500 ml-1.5">({fmtPLN(car.options_price_net * 1.23)} brutto)</span>
+                      <span className="text-slate-500 ml-1.5">({fmtPLN(car.options_price_gross ?? car.options_price_net * 1.23)} brutto)</span>
                     </span>
                   </div>
                 )}

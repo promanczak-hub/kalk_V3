@@ -44,6 +44,17 @@ export interface SimilarityReasons {
   setup_match?: boolean | null;          // true = same (tire, service) as source
   source_tire_class?: string | null;
   source_service_type?: string | null;
+
+  // ── Matrix params the rate was priced for (echoed RPC inputs) ──
+  matched_duration_months?: number | null;
+  matched_annual_mileage?: number | null;
+}
+
+export interface OptionLineItem {
+  name: string;
+  price_net: number | null;
+  price_gross?: number | null;
+  category: string | null;
 }
 
 export interface SimilarVehicle {
@@ -66,6 +77,18 @@ export interface SimilarVehicle {
   similarity_reasons?: SimilarityReasons | null;
   ai_label?: string | null;
   kalkulacja_id?: string | null;
+
+  // ── Catalog price breakdown (parity with VehicleResultCard) ──
+  base_price_net?: number | null;
+  base_price_gross?: number | null;
+  factory_options_price_net?: number | null;
+  factory_options_price_gross?: number | null;
+  service_options_price_net?: number | null;
+  service_options_price_gross?: number | null;
+  factory_options?: OptionLineItem[];
+  service_options?: OptionLineItem[];
+  total_price_net?: number | null;
+  total_price_gross?: number | null;
 }
 
 export function useBatchPrices(

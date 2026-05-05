@@ -6,6 +6,8 @@ import CheckIcon from '@mui/icons-material/Check';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type { SimilarVehicle, SimilarityReasons } from '../hooks/useBatchData';
 import { useOfferCartStore } from '../../stores/offerCartStore';
 
@@ -271,6 +273,18 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
+  // Per-row, per-options-category expansion state. Key = `${vehicle_id}:${cat}`.
+  const [expandedOptions, setExpandedOptions] = useState<Set<string>>(new Set());
+
+  const toggleOptions = (vehicleId: string, cat: 'factory' | 'service') => {
+    const key = `${vehicleId}:${cat}`;
+    setExpandedOptions((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const sourceContext = useMemo(() => extractSourceContext(sourceVehicle), [sourceVehicle]);
 
@@ -521,51 +535,179 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                   </Box>
                 )}
 
-                {/* Catalog price line ── netto + (brutto) matching source layout + Δ vs źródło */}
-                {(price.candidateNet != null || price.candidateBrutto != null) && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-                    <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#475569' }}>
-                      Cena kat.:{' '}
-                      {price.candidateNet != null && (
-                        <Typography component="span" sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.7rem', fontFamily: '"Geist Mono", monospace' }}>
-                          {price.candidateNet.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN netto
+                {/* Catalog price block ── total + bazowa + opcje fabryczne/serwisowe (parity z VehicleResultCard) */}
+                {(v.base_price_net != null || v.total_price_net != null) && (() => {
+                  const fmt = (n: number) => n.toLocaleString('pl-PL', { maximumFractionDigits: 0 });
+                  const totalNet = v.total_price_net ?? v.base_price_net ?? 0;
+                  const totalBrutto = v.total_price_gross ?? v.base_price_gross ?? Math.round(totalNet * 1.23);
+                  const hasFactory = (v.factory_options_price_net ?? 0) > 0;
+                  const hasService = (v.service_options_price_net ?? 0) > 0;
+                  const factoryItems = v.factory_options ?? [];
+                  const serviceItems = v.service_options ?? [];
+                  const factoryOpen = expandedOptions.has(`${v.vehicle_id}:factory`);
+                  const serviceOpen = expandedOptions.has(`${v.vehicle_id}:service`);
+                  // Δ vs źródło — porównujemy TOTAL (po opcjach) z bazą źródła w brutto
+                  const sourceBrutto = sourceContext.sourceBaseBrutto;
+                  const diffPlnBrutto = sourceBrutto != null ? totalBrutto - sourceBrutto : null;
+                  const diffPctBrutto = diffPlnBrutto != null && sourceBrutto
+                    ? (diffPlnBrutto / sourceBrutto) * 100
+                    : null;
+
+                  return (
+                    <Box sx={{ mb: 0.5, py: 0.75, px: 1, bgcolor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                      {/* Header line */}
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Cena katalogowa
                         </Typography>
-                      )}
-                      {price.candidateBrutto != null && (
-                        <Typography component="span" sx={{ color: '#94A3B8', fontWeight: 400, fontSize: '0.7rem', fontFamily: '"Geist Mono", monospace', ml: 0.75 }}>
-                          ({price.candidateBrutto.toLocaleString('pl-PL')} brutto)
-                        </Typography>
-                      )}
-                    </Typography>
-                    {price.diffPct != null && (
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontSize: '0.7rem',
-                          fontWeight: 600,
-                          fontFamily: '"Geist Mono", monospace',
-                          color:
-                            price.isCheaper === true
-                              ? '#047857'
-                              : price.isCheaper === false
-                                ? '#B91C1C'
-                                : '#64748B',
-                        }}
-                      >
-                        Δ {price.diffPct > 0 ? '+' : ''}
-                        {price.diffPct.toFixed(1)}%
-                        {price.diffAbsBrutto != null && (
-                          <>
-                            {' / '}
-                            {price.diffAbsBrutto > 0 ? '+' : ''}
-                            {price.diffAbsBrutto.toLocaleString('pl-PL')} zł
-                          </>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flexWrap: 'wrap' }}>
+                          <Typography component="span" sx={{ fontWeight: 700, color: '#0F172A', fontSize: '0.75rem', fontFamily: '"Geist Mono", monospace' }}>
+                            {fmt(totalNet)} <Typography component="span" sx={{ fontWeight: 400, fontSize: '0.7rem', color: '#475569' }}>PLN netto</Typography>
+                          </Typography>
+                          <Typography component="span" sx={{ color: '#94A3B8', fontSize: '0.7rem', fontFamily: '"Geist Mono", monospace' }}>
+                            ({fmt(totalBrutto)} brutto)
+                          </Typography>
+                          {diffPctBrutto != null && (
+                            <Typography
+                              component="span"
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                fontFamily: '"Geist Mono", monospace',
+                                color: diffPctBrutto > 0 ? '#B91C1C' : diffPctBrutto < 0 ? '#047857' : '#64748B',
+                              }}
+                            >
+                              Δ {diffPctBrutto > 0 ? '+' : ''}{diffPctBrutto.toFixed(1)}%
+                              {diffPlnBrutto != null && (
+                                <> / {diffPlnBrutto > 0 ? '+' : ''}{fmt(diffPlnBrutto)} zł</>
+                              )}
+                              {' vs źródło'}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+
+                      {/* Breakdown rows */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.125 }}>
+                        {v.base_price_net != null && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontFamily: '"Geist Mono", monospace' }}>
+                            <Typography component="span" sx={{ color: '#475569', fontSize: '0.7rem' }}>Cena bazowa</Typography>
+                            <Typography component="span" sx={{ color: '#0F172A', fontSize: '0.7rem' }}>
+                              {fmt(v.base_price_net)} PLN
+                              <Typography component="span" sx={{ color: '#94A3B8', ml: 0.75, fontSize: '0.7rem' }}>
+                                ({fmt(v.base_price_gross ?? v.base_price_net * 1.23)} brutto)
+                              </Typography>
+                            </Typography>
+                          </Box>
                         )}
-                        {' vs źródło'}
-                      </Typography>
-                    )}
-                  </Box>
-                )}
+
+                        {hasFactory && (
+                          <Box>
+                            <Box
+                              component="button"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); if (factoryItems.length > 0) toggleOptions(v.vehicle_id, 'factory'); }}
+                              sx={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'none',
+                                border: 0,
+                                p: 0,
+                                cursor: factoryItems.length > 0 ? 'pointer' : 'default',
+                                fontFamily: '"Geist Mono", monospace',
+                                fontSize: '0.7rem',
+                                textAlign: 'left',
+                                color: '#475569',
+                                '&:hover': { color: factoryItems.length > 0 ? '#0F172A' : '#475569' },
+                              }}
+                            >
+                              <Typography component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.25, fontSize: '0.7rem' }}>
+                                Opcje fabryczne
+                                {factoryItems.length > 0 && (factoryOpen
+                                  ? <ExpandLessIcon sx={{ fontSize: '0.85rem' }} />
+                                  : <ExpandMoreIcon sx={{ fontSize: '0.85rem' }} />)}
+                              </Typography>
+                              <Typography component="span" sx={{ color: '#0F172A', fontSize: '0.7rem' }}>
+                                + {fmt(v.factory_options_price_net!)} PLN
+                                <Typography component="span" sx={{ color: '#94A3B8', ml: 0.75, fontSize: '0.7rem' }}>
+                                  ({fmt(v.factory_options_price_gross ?? v.factory_options_price_net! * 1.23)} brutto)
+                                </Typography>
+                              </Typography>
+                            </Box>
+                            {factoryOpen && factoryItems.length > 0 && (
+                              <Box component="ul" sx={{ m: 0, mt: 0.25, ml: 1.5, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 0.125 }}>
+                                {factoryItems.map((opt, i) => (
+                                  <Box component="li" key={`fo-${i}-${opt.name}`} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, fontSize: '0.65rem', fontFamily: '"Geist Mono", monospace' }}>
+                                    <Typography component="span" sx={{ color: '#475569', fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {opt.name}</Typography>
+                                    <Typography component="span" sx={{ color: '#475569', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                                      {opt.price_net != null
+                                        ? <>{fmt(opt.price_net)} PLN <Typography component="span" sx={{ color: '#94A3B8', ml: 0.5, fontSize: '0.65rem' }}>({fmt(opt.price_gross ?? opt.price_net * 1.23)} brutto)</Typography></>
+                                        : '—'}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+
+                        {hasService && (
+                          <Box>
+                            <Box
+                              component="button"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); if (serviceItems.length > 0) toggleOptions(v.vehicle_id, 'service'); }}
+                              sx={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'none',
+                                border: 0,
+                                p: 0,
+                                cursor: serviceItems.length > 0 ? 'pointer' : 'default',
+                                fontFamily: '"Geist Mono", monospace',
+                                fontSize: '0.7rem',
+                                textAlign: 'left',
+                                color: '#475569',
+                                '&:hover': { color: serviceItems.length > 0 ? '#0F172A' : '#475569' },
+                              }}
+                            >
+                              <Typography component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.25, fontSize: '0.7rem' }}>
+                                Opcje serwisowe
+                                {serviceItems.length > 0 && (serviceOpen
+                                  ? <ExpandLessIcon sx={{ fontSize: '0.85rem' }} />
+                                  : <ExpandMoreIcon sx={{ fontSize: '0.85rem' }} />)}
+                              </Typography>
+                              <Typography component="span" sx={{ color: '#0F172A', fontSize: '0.7rem' }}>
+                                + {fmt(v.service_options_price_net!)} PLN
+                                <Typography component="span" sx={{ color: '#94A3B8', ml: 0.75, fontSize: '0.7rem' }}>
+                                  ({fmt(v.service_options_price_gross ?? v.service_options_price_net! * 1.23)} brutto)
+                                </Typography>
+                              </Typography>
+                            </Box>
+                            {serviceOpen && serviceItems.length > 0 && (
+                              <Box component="ul" sx={{ m: 0, mt: 0.25, ml: 1.5, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 0.125 }}>
+                                {serviceItems.map((opt, i) => (
+                                  <Box component="li" key={`so-${i}-${opt.name}`} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, fontSize: '0.65rem', fontFamily: '"Geist Mono", monospace' }}>
+                                    <Typography component="span" sx={{ color: '#475569', fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {opt.name}</Typography>
+                                    <Typography component="span" sx={{ color: '#475569', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                                      {opt.price_net != null
+                                        ? <>{fmt(opt.price_net)} PLN <Typography component="span" sx={{ color: '#94A3B8', ml: 0.5, fontSize: '0.65rem' }}>({fmt(opt.price_gross ?? opt.price_net * 1.23)} brutto)</Typography></>
+                                        : '—'}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    </Box>
+                  );
+                })()}
 
                 {/* Reason tags */}
                 {tags.length > 0 && (

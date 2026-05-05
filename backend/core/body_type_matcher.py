@@ -56,6 +56,11 @@ BODY_ALIAS_MAP: dict[str, str] = {
     "DOUBLE CAB": "Pickup",
     "SINGLE CAB": "Pickup",
     "CREW CAB": "Pickup",
+    "KOMBIVAN": "Kombi Dostawczy",
+    "WYWROTKA": "Podwozie Wywrotka",
+    "WYWROTKĄ": "Podwozie Wywrotka",
+    "ZABUDOWA WYWROTKA": "Podwozie Wywrotka",
+    "ZABUDOWĄ WYWROTKĄ": "Podwozie Wywrotka",
 }
 
 # For those aliases we keep the original label in UI, but still resolve to
