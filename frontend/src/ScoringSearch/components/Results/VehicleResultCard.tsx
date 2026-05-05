@@ -399,9 +399,14 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                       <ul className="mt-1 ml-3 flex flex-col gap-0.5">
                         {items.map((opt, i) => (
                           <li key={`fo-${i}-${opt.name}`} className="flex justify-between gap-2">
-                            <span className="text-slate-400 truncate">· {opt.name}</span>
-                            <span className="tabular-nums whitespace-nowrap text-slate-500">
-                              {opt.price_net != null ? `${fmtPLN(opt.price_net)} PLN` : '—'}
+                            <span className="text-slate-600 truncate">· {opt.name}</span>
+                            <span className="tabular-nums whitespace-nowrap text-slate-700">
+                              {opt.price_net != null ? (
+                                <>
+                                  {fmtPLN(opt.price_net)} PLN
+                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_net * 1.23)} brutto)</span>
+                                </>
+                              ) : '—'}
                             </span>
                           </li>
                         ))}
@@ -436,9 +441,14 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                       <ul className="mt-1 ml-3 flex flex-col gap-0.5">
                         {items.map((opt, i) => (
                           <li key={`so-${i}-${opt.name}`} className="flex justify-between gap-2">
-                            <span className="text-slate-400 truncate">· {opt.name}</span>
-                            <span className="tabular-nums whitespace-nowrap text-slate-500">
-                              {opt.price_net != null ? `${fmtPLN(opt.price_net)} PLN` : '—'}
+                            <span className="text-slate-600 truncate">· {opt.name}</span>
+                            <span className="tabular-nums whitespace-nowrap text-slate-700">
+                              {opt.price_net != null ? (
+                                <>
+                                  {fmtPLN(opt.price_net)} PLN
+                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_net * 1.23)} brutto)</span>
+                                </>
+                              ) : '—'}
                             </span>
                           </li>
                         ))}
@@ -453,7 +463,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 && car.options_price_net != null
                 && car.options_price_net > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Opcje (łącznie)</span>
+                    <span className="text-slate-600">Opcje (łącznie)</span>
                     <span className="tabular-nums">
                       + {fmtPLN(car.options_price_net)} PLN
                       <span className="text-slate-500 ml-1.5">({fmtPLN(car.options_price_net * 1.23)} brutto)</span>
@@ -468,7 +478,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       {/* Calculation snapshot */}
       <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+          <span className="text-[11px] uppercase tracking-wider text-slate-700 font-semibold">
             Kalkulacja{calcDate ? ` · ${calcDate}` : ''}
             {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
           </span>
@@ -500,7 +510,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 <div className="text-[11px] uppercase tracking-wider text-slate-600">Czynsz miesięczny</div>
                 <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
                   {fmtPLN(monthlyDisplay)}{' '}
-                  <span className="text-xs font-normal text-slate-500">zł / mc netto</span>
+                  <span className="text-xs font-normal text-slate-700">zł / mc netto</span>
                 </div>
               </div>
               <div className="text-right">
