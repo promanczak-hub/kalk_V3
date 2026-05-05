@@ -1,5 +1,5 @@
-import React from 'react';
-import { Loader2, Sparkles, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronUp, Loader2, Sparkles, X } from 'lucide-react';
 import { Box } from '@mui/material';
 import type { SearchContext, SelectedFeature, InitialDataResponse } from '../types';
 import { useEmailExtraction } from '../hooks/useEmailExtraction';
@@ -23,6 +23,8 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
   const brandModelMap = initialData?.brand_model_map || {};
   const knownBodyTypes = (initialData?.body_types || []).map((bt) => bt.name);
 
+  const [expanded, setExpanded] = useState(true);
+
   const {
     emailText: queryText,
     setEmailText: setQueryText,
@@ -42,50 +44,72 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
 
   return (
     <Box sx={{ p: 2, pb: 1 }}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-          Opisz auto
-        </span>
-      </div>
-      <div className="flex flex-col gap-2">
-        <textarea
-          value={queryText}
-          onChange={(e) => setQueryText(e.target.value)}
-          placeholder={
-            "Opisz czego szukasz — albo wklej email od klienta.\n\n" +
-            "Np. 'czerwony SUV premium z dużą mocą' lub:\n" +
-            "Skoda Kodiaq Drive 2.0 TSI 204KM lub VW Tayron, automat, kamera cofania, " +
-            "podgrzewane szyby (jeśli dostępne). Budżet 670 EUR/mc, limit 90 tys."
-          }
-          className="w-full text-xs p-3 border border-slate-300 hover:border-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 rounded-md outline-none resize-none bg-white transition-colors h-40"
-          disabled={extracting}
-        />
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] text-slate-500">
-            AI rozpozna marki, modele, wersje, budżet, przebieg i wymagania → wstawi do filtrów
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between gap-1.5 mb-2 px-1 py-0.5 -mx-1 rounded hover:bg-slate-50 transition-colors"
+        aria-expanded={expanded}
+        aria-controls="opisz-auto-content"
+      >
+        <span className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+            Opisz auto
           </span>
-          <button
-            type="button"
-            onClick={extract}
-            disabled={extracting || !queryText.trim()}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {extracting ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analizuję...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5" /> Analizuj
-              </>
+          {!expanded && queryText.trim() && (
+            <span className="text-[10px] text-slate-400 font-normal normal-case truncate max-w-[160px]">
+              · {queryText.trim().slice(0, 40)}{queryText.trim().length > 40 ? '…' : ''}
+            </span>
+          )}
+        </span>
+        {expanded ? (
+          <ChevronUp className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+        )}
+      </button>
+      <div id="opisz-auto-content" className="flex flex-col gap-2">
+        {expanded && (
+          <>
+            <textarea
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+              placeholder={
+                "Opisz czego szukasz — albo wklej email od klienta.\n\n" +
+                "Np. 'czerwony SUV premium z dużą mocą' lub:\n" +
+                "Skoda Kodiaq Drive 2.0 TSI 204KM lub VW Tayron, automat, kamera cofania, " +
+                "podgrzewane szyby (jeśli dostępne). Budżet 670 EUR/mc, limit 90 tys."
+              }
+              className="w-full text-xs p-3 border border-slate-300 hover:border-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 rounded-md outline-none resize-none bg-white transition-colors h-40"
+              disabled={extracting}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-slate-500">
+                AI rozpozna marki, modele, wersje, budżet, przebieg i wymagania → wstawi do filtrów
+              </span>
+              <button
+                type="button"
+                onClick={extract}
+                disabled={extracting || !queryText.trim()}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {extracting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analizuję...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" /> Analizuj
+                  </>
+                )}
+              </button>
+            </div>
+            {extractError && (
+              <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-md">
+                Błąd: {extractError}
+              </div>
             )}
-          </button>
-        </div>
-        {extractError && (
-          <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-md">
-            Błąd: {extractError}
-          </div>
+          </>
         )}
         {lastSummary && (
           <div className="relative text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-md pr-7">

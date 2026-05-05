@@ -288,6 +288,18 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                   {fmtPLN(monthlyDisplay)}{' '}
                   <span className="text-xs font-normal text-slate-500">zł / mc netto</span>
                 </div>
+                {searchContext.monthly_budget != null
+                  && searchContext.monthly_budget > 0
+                  && monthlyDisplay != null
+                  && monthlyDisplay > searchContext.monthly_budget && (
+                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-tight">
+                      <span aria-hidden="true">⚠</span>
+                      <span>
+                        +{fmtPLN(monthlyDisplay - searchContext.monthly_budget)} zł nad budżet
+                        <span className="text-amber-600 font-normal"> ({fmtPLN(searchContext.monthly_budget)} zł)</span>
+                      </span>
+                    </div>
+                  )}
               </div>
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-wider text-slate-400">Marża</div>
@@ -320,6 +332,12 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               car={car}
               displayMarginPct={displayMarginPct}
               pinnedKalkulacjaId={pinnedKalkulacjaId}
+              currentOverBudget={
+                searchContext.monthly_budget != null
+                && searchContext.monthly_budget > 0
+                && monthlyDisplay != null
+                && monthlyDisplay > searchContext.monthly_budget
+              }
             />
           </>
         ) : (
@@ -510,6 +528,7 @@ interface VariantsTableProps {
   car: ScoredVehicle;
   displayMarginPct: number;
   pinnedKalkulacjaId?: string;
+  currentOverBudget?: boolean; // true gdy bieżący wariant przekracza monthly_budget
 }
 
 const VariantsTable: React.FC<VariantsTableProps> = ({
@@ -522,6 +541,7 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
   car,
   displayMarginPct,
   pinnedKalkulacjaId,
+  currentOverBudget = false,
 }) => {
   const addToCart = useOfferCartStore((s) => s.addItem);
   const cartItems = useOfferCartStore((s) => s.items);
@@ -614,12 +634,17 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
         }}
         className="w-full text-left flex items-center justify-between gap-2 text-xs text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded-md transition-colors"
       >
-        <span className="font-medium inline-flex items-center gap-1.5">
+        <span className="font-medium inline-flex items-center gap-1.5 flex-wrap">
           <Sparkles className="w-3.5 h-3.5" />
           {expanded
             ? 'Ukryj warianty cenowe'
             : `Pokaż warianty (24 / 36 / 48 / 60 mc dla ${(currentMileage / 1000).toFixed(0)}k km/rok)`}
-          {monthlyBudget && monthlyBudget > 0 && (
+          {!expanded && currentOverBudget && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold ml-1">
+              💡 może któryś zmieści się w budżecie
+            </span>
+          )}
+          {monthlyBudget && monthlyBudget > 0 && !currentOverBudget && (
             <span className="text-slate-500 font-normal ml-1">
               (sortowane po marży dopasowanej do budżetu)
             </span>
