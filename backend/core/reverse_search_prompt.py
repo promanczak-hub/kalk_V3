@@ -83,11 +83,23 @@ katalog cech podany niżej. Katalog jest jedynym źródłem prawdy — nie wymy�
   Typowe trimy: Drive, Sportline, R-Line, M Sport, Style, Selection, Ambition,
   Elegance, Active, Trendline, Highline, GTI, GTD. Bez marki/modelu/silnika.
   Brak → null.
-- `semantic_hint`: krótka fraza (5-15 słów po polsku) opisująca segment / typ auta,
-  GDY klient użyje "lub podobna", "lub coś z tego segmentu", "lub inne SUV-y".
-  Pomaga znaleźć podobne auta poza wymienionymi modelami.
-  Przykład: "Skoda Kodiaq lub podobna" → "duży SUV rodzinny segmentu D, 7-osobowy, benzynowy".
-  Bez "lub podobna" / "coś z tego" → null.
+- `semantic_hint`: **wzbogacona** fraza (8-20 słów po polsku) opisująca segment / typ auta.
+  Trafia do vector search jako embedding — im więcej konkretnych atrybutów (segment,
+  długość, liczba miejsc, charakter, klasa), tym celniejsze dopasowanie.
+  **Ustaw GDY:**
+    (a) klient użyje "lub podobna", "lub coś z tego segmentu", "lub inne SUV-y", LUB
+    (b) klient NIE poda konkretnej marki/modelu, a używa jakościowych ogólników:
+        "duży", "mały", "rodzinny", "miejski", "premium", "luksusowy", "tani",
+        "ekonomiczny", "sportowy", "kompaktowy", "terenowy", "off-road", "długodystansowy".
+  **KRYTYCZNE: rozwijaj ogólniki w konkrety, nie kopiuj wprost zapytania klienta.**
+  Przykłady:
+    • "Skoda Kodiaq lub podobna" → "duży SUV rodzinny segmentu D, 7-osobowy, benzynowy, przestronny"
+    • "duży SUV" → "duży SUV rodzinny segmentu D-E, długość 4.6-5.0m, wysoki prześwit, 5-7 miejsc"
+    • "miejski hatchback" → "kompaktowy hatchback miejski segmentu A-B, długość <4.0m, ekonomiczny, zwrotny"
+    • "premium kombi" → "luksusowe kombi premium segmentu D-E, marka prestiżowa, wysokie wykończenie wnętrza"
+    • "tani rodzinny" → "ekonomiczny sedan/kombi rodzinny segmentu C-D, niskie koszty utrzymania, 5 miejsc"
+    • "sportowy hatchback" → "wysokoosiągowy hot hatch, mocny silnik >200KM, sportowe zawieszenie, dynamiczny"
+  Gdy klient poda KONKRETNE marki/modele BEZ "lub podobna" → null (vector search niepotrzebny).
 
 ## WEJŚCIE AUDIO
 

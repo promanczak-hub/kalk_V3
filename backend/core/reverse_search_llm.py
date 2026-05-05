@@ -134,10 +134,16 @@ class ExtractedReverseSearchFeatures(BaseModel):
     semantic_hint: str | None = Field(
         default=None,
         description=(
-            "Krótka fraza (5-15 słów po polsku) opisująca segment / typ samochodu, GDY klient "
-            "użyje sformułowań typu 'lub podobna', 'lub coś z tego segmentu', 'lub inne SUV-y'. "
-            "Pomaga semantic search znaleźć podobne auta poza wymienionymi modelami. "
-            "Przykład: 'Skoda Kodiaq lub podobna' → 'duży SUV rodzinny segmentu D, 7-osobowy, benzynowy'. "
-            "Jeśli klient nie użył 'lub podobna' / 'coś z tego' / 'inne X' → null."
+            "Wzbogacona fraza (8-20 słów po polsku) opisująca segment / typ samochodu. "
+            "Trafia do vector search jako embedding — im więcej konkretnych atrybutów "
+            "(segment, długość, liczba miejsc, charakter), tym lepsze dopasowanie. "
+            "Ustaw GDY: (a) klient użyje 'lub podobna' / 'inne X' / 'coś z tego', LUB "
+            "(b) klient nie poda konkretnej marki/modelu i używa ogólników (duży, mały, "
+            "rodzinny, miejski, premium, tani, sportowy, luksusowy, kompaktowy, terenowy). "
+            "WAŻNE: rozwijaj ogólniki w konkrety, nie kopiuj wprost zapytania. "
+            "'Skoda Kodiaq lub podobna' → 'duży SUV rodzinny segmentu D, 7-osobowy, benzynowy, przestronny'. "
+            "'duży SUV' → 'duży SUV rodzinny segmentu D-E, długość 4.6-5.0m, wysoki prześwit, 5-7 miejsc'. "
+            "'premium kombi' → 'luksusowe kombi premium segmentu D-E, marka prestiżowa, wysokie wykończenie'. "
+            "Gdy klient poda KONKRETNE marki/modele bez 'lub podobna' → null."
         ),
     )
