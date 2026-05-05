@@ -67,6 +67,25 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   );
 
   const sortedResults = useMemo(() => {
+    // Compute the rate the user actually sees on the card, mirroring the
+    // logic in VehicleResultCard so the sort and the displayed banner agree.
+    // Cards with pinned calculations fetch their own price per kalkulacja_id
+    // inside the card, so the parent has no visibility into that rate — we
+    // skip them and let them stay in the fits-bucket (rank 0).
+    const computeMonthlyDisplay = (car: ScoredVehicle): number | null => {
+      if ((car.selected_kalkulacja_ids ?? []).length > 0) return null;
+      const priceData = batchPrices[car.vehicle_id as string];
+      const price = priceData?.price_for_params;
+      const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
+      const rawMonthly = hasPriceFromAPI ? (price!.monthly_price_net as number) : (car.best_monthly_price ?? null);
+      const usingAppliedMargin = !hasPriceFromAPI && car.applied_margin_pct != null;
+      const displayMarginPct = car.applied_margin_pct ?? (searchContext.margin_pct ?? 0);
+      const marginFrac = Math.min(displayMarginPct, 99) / 100;
+      if (usingAppliedMargin) return car.best_monthly_price ?? null;
+      if (rawMonthly == null || marginFrac >= 1) return null;
+      return rawMonthly / (1 - marginFrac);
+    };
+
     const sorted = [...results];
     switch (sortBy) {
       case 'budget_margin_desc':
@@ -99,8 +118,26 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
         sorted.sort((a, b) => ((a.brand as string) || '').localeCompare((b.brand as string) || '', 'pl'));
         break;
     }
+
+    // When matrix+budget is active, lift cars that fit the budget to the top.
+    // Within each bucket the previously-applied sort order is preserved
+    // (Array.prototype.sort is stable). Cars whose rate isn't yet known stay
+    // in the fits-bucket so they don't flicker to the bottom while batch
+    // prices stream in.
+    const budget = searchContext.useMatrixFilters && searchContext.monthly_budget && searchContext.monthly_budget > 0
+      ? searchContext.monthly_budget
+      : null;
+    if (budget != null) {
+      const overBudgetRank = (car: ScoredVehicle): number => {
+        const md = computeMonthlyDisplay(car);
+        if (md == null) return 0;
+        return md > budget ? 1 : 0;
+      };
+      sorted.sort((a, b) => overBudgetRank(a) - overBudgetRank(b));
+    }
+
     return sorted;
-  }, [results, sortBy]);
+  }, [results, sortBy, batchPrices, searchContext.monthly_budget, searchContext.useMatrixFilters, searchContext.margin_pct]);
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Wyszukiwanie najlepszych ofert...</Typography>;
