@@ -1,12 +1,15 @@
+import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.database import supabase
 from core.offer_generator import ExcelOfferGenerator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -137,6 +140,48 @@ def _build_in_rate(stan: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _compute_fin_tech_split(
+    stan: Dict[str, Any],
+    term: int,
+    annual_mileage: int,
+    applied_margin_pct: Optional[float],
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    """Re-run LTRKalkulator from stan_json and return (czynsz_finansowy, czynsz_techniczny, laczna_stawka)
+    for the (term, annual_mileage) cell. Returns (None, None, None) on any failure."""
+    if not stan or not term or not annual_mileage:
+        return None, None, None
+    try:
+        from api.schemas.calculator import CalculatorInput
+        from core.LTRKalkulator import LTRKalkulator
+        from core.models import ControlCenterSettings
+
+        settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
+        if not settings_res.data:
+            return None, None, None
+        settings = ControlCenterSettings(**cast(Dict[str, Any], settings_res.data[0]))
+
+        calc_input = CalculatorInput(**stan)
+        if applied_margin_pct is not None:
+            calc_input.pricing_margin_pct = float(applied_margin_pct)
+
+        engine = LTRKalkulator(input_data=calc_input, settings=settings, trace_id="offer-gen")
+        # build_matrix() returns full cells with CzynszFinansowy/Techniczny;
+        # build_reverse_search_matrix() returns slim cells with only LacznaStawka.
+        cells = engine.build_matrix()
+        for cell in cells:
+            if int(cell.get("Okres", 0)) == int(term) and int(cell.get("Przebieg", 0)) == int(annual_mileage):
+                fin_raw = cell.get("CzynszFinansowy")
+                tech_raw = cell.get("CzynszTechniczny")
+                stawka_raw = cell.get("LacznaStawka")
+                fin = float(fin_raw) if fin_raw is not None else None
+                tech = float(tech_raw) if tech_raw is not None else None
+                stawka = float(stawka_raw) if stawka_raw is not None else None
+                return fin, tech, stawka
+    except Exception as e:
+        logger.info("fin/tech split skipped: %s", str(e)[:200])
+    return None, None, None
+
+
 def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """Pull stan_json + numer_kalkulacji + matrix breakdown for a single offer item."""
     calc_data = item.get("calculation_data") or {}
@@ -204,6 +249,13 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
 
     marketing_name = _build_marketing_name(stan, cs) or item.get("powertrain") or "—"
 
+    fin, tech, stawka_recalc = _compute_fin_tech_split(
+        stan,
+        term=int(item.get("term") or 0),
+        annual_mileage=int(item.get("mileage") or 0),
+        applied_margin_pct=item.get("margin_pct"),
+    )
+
     enriched = {
         **item,
         "kalk_numer": numer,
@@ -229,10 +281,11 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "contribution_pct": contribution_pct,
         "cost_type": stan.get("service_cost_type") or "ASO",
         "in_rate": in_rate,
-        # Fin/tech split is not cached in vehicle_matrix_cache — leave empty,
-        # generator falls back to showing only the total rata.
-        "financial": None,
-        "technical": None,
+        # Re-run calculator to get the fin/tech split — vehicle_matrix_cache
+        # only stores LacznaStawka, so we recompute from stan_json with the
+        # user's applied margin.
+        "financial": fin,
+        "technical": tech,
         "overuse_fee": _f(item.get("overuse_fee")) or _f(calc_data.get("opłata_nadprzebieg")) or 0.50,
         "notes": (item.get("notes") or "").strip(),
     }
