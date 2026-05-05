@@ -6,11 +6,18 @@ Pojazd / Warunki finansowania / W cenie raty / Wyposażenie standardowe oraz
 dolne sekcje Notatki + Opcje fabryczne/dealerskie z cenami.
 """
 import io
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.worksheet.datavalidation import DataValidation
+
+logger = logging.getLogger(__name__)
 
 
 NAVY = "003366"
@@ -23,6 +30,13 @@ ZEBRA = "F5F9FC"
 LINK_BLUE = "0563C1"
 GREEN_OK = "2E7D32"
 RED_NO = "C62828"
+RED_BG = "FFC7CE"  # Excel "Bad" light red — used for missing fin/tech split
+RED_BORDER = "C00000"
+
+# Mirror of frontend OVERUSE_FEE_OPTIONS (OfferCartDrawer.tsx) — values shown
+# in the dropdown on column M in the main sheet. 71 values, 0.10..0.80 step 0.01.
+OVERUSE_FEE_OPTIONS: list[float] = [round(0.10 + i * 0.01, 2) for i in range(71)]
+_OVERUSE_HELPER_SHEET = "_overuse_options"
 
 _INVALID_SHEET_CHARS = set(":\\/?*[]")
 
@@ -166,22 +180,25 @@ class ExcelOfferGenerator:
 
         ws.row_dimensions[9].height = 10
 
-        # Headers row 10
+        # Headers row 10 — column N (Rodzaj kosztów) widened to fit a list of
+        # active categories (e.g. "Serwis ASO • Opony (Medium) • OC/AC"); new
+        # column O holds tire class + set count.
         headers = [
             ("A", "↗", 4),
             ("B", "Numer kalk.\nVIN\nKonfiguracja", 22),
             ("C", "Model", 38),
             ("D", "Cena katalogowa\nnetto", 14),
-            ("E", "Cena opcji\nfabrycznych", 13),
-            ("F", "Cena opcji\nserwisowych", 13),
+            ("E", "Cena opcji\nfabrycznych netto", 13),
+            ("F", "Cena opcji\nserwisowych netto", 13),
             ("G", "Okres\numowny", 9),
             ("H", "Limit\nkm/rok", 10),
-            ("I", "Czynsz\ninicjalny", 11),
-            ("J", "Miesięczna\ncena netto", 13),
+            ("I", "Czynsz\ninicjalny netto", 11),
+            ("J", "Łączny czynsz\nnetto (K+L)", 14),
             ("K", "Część\nfinansowa", 11),
             ("L", "Część\ntechniczna", 11),
             ("M", "Opłata za\nnadprzebieg", 12),
-            ("N", "Rodzaj\nkosztów", 11),
+            ("N", "Rodzaj kosztów", 28),
+            ("O", "Ogumienie\n(klasa • ilość)", 22),
         ]
         for col, label, width in headers:
             ws.column_dimensions[col].width = width
@@ -192,6 +209,13 @@ class ExcelOfferGenerator:
             c.alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
             c.border = _thin_border(NAVY)
         ws.row_dimensions[10].height = 40
+
+        red_border = Border(
+            left=Side(style="thin", color=RED_BORDER),
+            right=Side(style="thin", color=RED_BORDER),
+            top=Side(style="thin", color=RED_BORDER),
+            bottom=Side(style="thin", color=RED_BORDER),
+        )
 
         for i, item in enumerate(items):
             row = 11 + i
@@ -204,12 +228,17 @@ class ExcelOfferGenerator:
             a.alignment = Alignment(vertical="center", horizontal="center")
             a.fill = PatternFill("solid", fgColor=zebra)
 
-            id_lines = [item.get("kalk_numer") or "—"]
-            id_lines.append(f"VIN: {item.get('vin') or '—'}")
-            cfg = item.get("config_code") or item.get("offer_number")
-            id_lines.append(f"Konf: {cfg}" if cfg else "Konf: —")
-            b = ws.cell(row=row, column=2, value="\n".join(id_lines))
-            b.font = Font(name="Calibri", size=9, color=DARK_GRAY)
+            kalk_numer = item.get("kalk_numer") or "—"
+            vin = item.get("vin") or "—"
+            cfg = item.get("config_code") or item.get("offer_number") or "—"
+            # Rich text: kalk_numer prominent (bold NAVY 11pt), VIN/Konf small grey.
+            kalk_font = InlineFont(rFont="Calibri", sz=11, b=True, color=NAVY)
+            sub_font = InlineFont(rFont="Calibri", sz=9, color=DARK_GRAY)
+            b = ws.cell(row=row, column=2)
+            b.value = CellRichText(
+                TextBlock(kalk_font, str(kalk_numer)),
+                TextBlock(sub_font, f"\nVIN: {vin}\nKonf: {cfg}"),
+            )
             b.alignment = Alignment(vertical="center", wrap_text=True, indent=1)
             b.fill = PatternFill("solid", fgColor=zebra)
 
@@ -224,13 +253,44 @@ class ExcelOfferGenerator:
             ws.cell(row=row, column=7, value=f"{item.get('term') or 0} miesięcy")
             ws.cell(row=row, column=8, value=item.get("mileage") or 0)
             ws.cell(row=row, column=9, value=item.get("contribution") or 0)
-            rata = ws.cell(row=row, column=10, value=item.get("net_installment") or 0)
-            ws.cell(row=row, column=11, value=item.get("financial"))
-            ws.cell(row=row, column=12, value=item.get("technical"))
-            ws.cell(row=row, column=13, value=item.get("overuse_fee") or 0.50)
-            ws.cell(row=row, column=14, value=item.get("cost_type") or "ASO")
 
-            for col_idx in range(4, 15):
+            financial = item.get("financial")
+            technical = item.get("technical")
+            split_missing = financial is None or technical is None
+            rata = ws.cell(row=row, column=10)
+            k_cell = ws.cell(row=row, column=11)
+            l_cell = ws.cell(row=row, column=12)
+            if split_missing:
+                # Recompute failed — leave K, L, J empty and flag in red. Don't
+                # invent numbers that the customer might quote back to us.
+                rata.value = None
+                k_cell.value = None
+                l_cell.value = None
+                logger.warning(
+                    "fin/tech split missing for kalk_numer=%s — K/L/J left blank",
+                    item.get("kalk_numer") or item.get("id") or "?",
+                )
+                _comment = Comment(
+                    "Brak podziału finansowo-technicznego dla tej kalkulacji.",
+                    "system",
+                )
+                k_cell.comment = _comment
+                l_cell.comment = Comment(
+                    "Brak podziału finansowo-technicznego dla tej kalkulacji.",
+                    "system",
+                )
+            else:
+                k_cell.value = financial
+                l_cell.value = technical
+                # Łączny czynsz wyrażony formułą — wymusza spójność z K i L,
+                # nawet jeśli ktoś ręcznie zmieni jedną z tych wartości.
+                rata.value = f"=K{row}+L{row}"
+
+            ws.cell(row=row, column=13, value=item.get("overuse_fee") or 0.50)
+            ws.cell(row=row, column=14, value=item.get("cost_breakdown") or item.get("cost_type") or "—")
+            ws.cell(row=row, column=15, value=item.get("tire_display") or "—")
+
+            for col_idx in range(4, 16):
                 cell = ws.cell(row=row, column=col_idx)
                 cell.font = Font(name="Calibri", size=11)
                 cell.alignment = Alignment(vertical="center", horizontal="center")
@@ -241,27 +301,40 @@ class ExcelOfferGenerator:
                     cell.number_format = "#,##0"
                 elif col_idx == 13:
                     cell.number_format = '0.00 "zł/km"'
+                elif col_idx in (14, 15):
+                    cell.alignment = Alignment(
+                        vertical="center", horizontal="left", wrap_text=True, indent=1
+                    )
+                    cell.font = Font(name="Calibri", size=9)
 
             rata.font = Font(name="Calibri", size=12, bold=True, color=NAVY)
             rata.fill = PatternFill("solid", fgColor=YELLOW)
 
-            for col_idx in range(1, 15):
+            for col_idx in range(1, 16):
                 ws.cell(row=row, column=col_idx).border = _thin_border()
+
+            if split_missing:
+                red_fill = PatternFill("solid", fgColor=RED_BG)
+                for col_idx in (10, 11, 12):
+                    cell = ws.cell(row=row, column=col_idx)
+                    cell.fill = red_fill
+                    cell.border = red_border
 
             ws.row_dimensions[row].height = 50
 
-        # Filter + freeze
+        # Freeze header row (no autofilter — those dropdowns confuse users).
         last_row = 10 + len(items)
-        if items:
-            ws.auto_filter.ref = f"A10:N{last_row}"
         ws.freeze_panes = "A11"
+
+        if items:
+            self._add_overuse_validation(wb, ws, last_row)
 
         # Footer
         footer_row = last_row + 2
         ws.cell(row=footer_row, column=1, value="Informacje dodatkowe:").font = Font(
             name="Calibri", size=10, bold=True, color=GRAY
         )
-        ws.merge_cells(start_row=footer_row + 1, start_column=1, end_row=footer_row + 1, end_column=14)
+        ws.merge_cells(start_row=footer_row + 1, start_column=1, end_row=footer_row + 1, end_column=15)
         foot = ws.cell(row=footer_row + 1, column=1)
         foot.value = (
             "1) Wszystkie ceny podane w kalkulacji są cenami netto.\n"
@@ -280,15 +353,37 @@ class ExcelOfferGenerator:
         ws.print_options.horizontalCentered = True
         ws.page_margins = ws.page_margins.__class__(left=0.3, right=0.3, top=0.4, bottom=0.4)
 
+    # ───────────────────────────── helpers ─────────────────────────────
+    def _add_overuse_validation(self, wb: Workbook, ws, last_row: int) -> None:
+        """Attach a list-style data validation to column M (overuse fee) on rows
+        11..last_row. The dropdown values come from a hidden helper sheet so we
+        avoid openpyxl's 255-char limit on inline list formulas (71 values × ~5
+        chars ≈ 355 chars)."""
+        helper = wb.create_sheet(_OVERUSE_HELPER_SHEET)
+        for idx, value in enumerate(OVERUSE_FEE_OPTIONS, start=1):
+            helper.cell(row=idx, column=1, value=value).number_format = "0.00"
+        helper.column_dimensions["A"].width = 8
+        helper.sheet_state = "hidden"
+
+        formula = f"={_OVERUSE_HELPER_SHEET}!$A$1:$A${len(OVERUSE_FEE_OPTIONS)}"
+        dv = DataValidation(type="list", formula1=formula, allow_blank=False)
+        dv.error = "Wybierz wartość z listy 0.10–0.80 zł/km"
+        dv.errorTitle = "Niepoprawna stawka"
+        dv.prompt = "Stawka za każdy km ponad limit"
+        dv.promptTitle = "Opłata za nadprzebieg"
+        dv.showErrorMessage = True
+        ws.add_data_validation(dv)
+        dv.add(f"M11:M{last_row}")
+
     # ───────────────────────────── per-vehicle sheet ─────────────────────────────
     def _write_vehicle_sheet(self, wb: Workbook, item: dict[str, Any]) -> None:
         ws = wb.create_sheet(item["_sheet_name"])
 
         widths = {
-            "A": 18, "B": 18, "C": 4,
-            "D": 16, "E": 14, "F": 4,
-            "G": 16, "H": 14, "I": 4,
-            "J": 16, "K": 22, "L": 4,
+            "A": 20, "B": 22, "C": 3,
+            "D": 22, "E": 20, "F": 3,
+            "G": 20, "H": 32, "I": 3,
+            "J": 18, "K": 26, "L": 3,
         }
         for col, w in widths.items():
             ws.column_dimensions[col].width = w
@@ -352,13 +447,15 @@ class ExcelOfferGenerator:
             ("Skrzynia", item.get("transmission") or "—"),
             ("Napęd", item.get("drive") or "—"),
             ("Typ nadwozia", item.get("body_style") or "—"),
-            ("Lakier metalik", "Tak" if item.get("paint_metallic") else "Nie"),
-            ("Klasa SAMAR", item.get("samar_category") or "—"),
         ]
 
+        term_months = int(item.get("term") or 0)
+        annual_mileage = int(item.get("mileage") or 0)
+        contract_mileage = int(round(annual_mileage * term_months / 12)) if term_months and annual_mileage else 0
         warunki_rows: list[tuple[str, str]] = [
-            ("Okres umowy", f"{item.get('term') or 0} miesięcy"),
-            ("Limit km/rok", _format_int(item.get("mileage"))),
+            ("Okres umowy", f"{term_months} miesięcy"),
+            ("Przebieg w kontrakcie", _format_int(contract_mileage) + " km" if contract_mileage else "—"),
+            ("Limit km/rok", _format_int(annual_mileage) + " km" if annual_mileage else "—"),
             (
                 "Czynsz inicjalny",
                 f"{_format_pln_int(item.get('contribution'))}"
@@ -366,20 +463,27 @@ class ExcelOfferGenerator:
             ),
             ("Rata miesięczna netto", _format_pln_int(item.get("net_installment"))),
             ("Opłata za nadprzebieg", f"{(item.get('overuse_fee') or 0.50):.2f} zł/km"),
-            ("Rodzaj kosztów", item.get("cost_type") or "ASO"),
+            ("Rodzaj kosztów", item.get("cost_breakdown") or item.get("cost_type") or "—"),
         ]
 
         ir = item.get("in_rate") or {}
+        opony_label_parts = []
+        if ir.get("opony"):
+            klasa = (ir.get("opony_klasa") or "").strip()
+            rozmiar = (ir.get("opony_rozmiar") or "").strip()
+            ilosc = ir.get("opony_zestawy")
+            if klasa:
+                opony_label_parts.append(klasa)
+            if rozmiar:
+                opony_label_parts.append(rozmiar)
+            if ilosc:
+                opony_label_parts.append(f"{ilosc} kpl")
+        opony_value = " • ".join(opony_label_parts) if opony_label_parts else (True if ir.get("opony") else False)
+
         in_rate_rows: list[tuple[str, Any]] = [
             ("Ubezpieczenie OC/AC", ir.get("ubezp_oc_ac")),
             ("Serwis", ir.get("serwis_typ") if ir.get("serwis") else False),
-            (
-                "Opony",
-                f"{ir.get('opony_klasa', '')} • {ir.get('opony_rozmiar', '')}".strip(" •")
-                if ir.get("opony")
-                else False,
-            ),
-            ("Liczba zestawów opon", str(ir["opony_zestawy"]) if ir.get("opony") and ir.get("opony_zestawy") else False),
+            ("Opony", opony_value),
             ("Auto zastępcze", ir.get("auto_zastepcze")),
             ("GPS", ir.get("gps")),
         ]
@@ -425,11 +529,11 @@ class ExcelOfferGenerator:
                 va = ws.cell(row=r, column=8)
                 if val is True or (isinstance(val, str) and val and val not in ("Brak", "—")):
                     va.value = f"✓ {val}" if isinstance(val, str) else "✓"
-                    va.font = Font(name="Calibri", size=10, bold=True, color=GREEN_OK)
+                    va.font = Font(name="Calibri", size=10, bold=True, color=NAVY)
                 else:
-                    va.value = "✗"
-                    va.font = Font(name="Calibri", size=10, bold=True, color=RED_NO)
-                va.alignment = Alignment(vertical="center", indent=1)
+                    va.value = "—"
+                    va.font = Font(name="Calibri", size=10, color=GRAY)
+                va.alignment = Alignment(vertical="center", indent=1, wrap_text=True)
                 va.fill = PatternFill("solid", fgColor=zebra)
                 va.border = _thin_border()
 
@@ -441,83 +545,121 @@ class ExcelOfferGenerator:
                 la.fill = PatternFill("solid", fgColor=zebra)
                 la.border = _thin_border()
 
-            ws.row_dimensions[r].height = 20
+            # Bump row height when the in_rate value (col H) is a long wrapped
+            # string (e.g. "Wielosezon Wzmocnione Premium • 4 kpl") so it isn't
+            # clipped by the 20pt default.
+            row_height = 20
+            if i < len(in_rate_rows):
+                _, val = in_rate_rows[i]
+                if isinstance(val, str) and len(val) > 18:
+                    row_height = 32
+            ws.row_dimensions[r].height = row_height
 
         bottom_start = 7 + max_section_rows + 1
         ws.row_dimensions[bottom_start - 1].height = 8
 
-        ws.merge_cells(start_row=bottom_start, start_column=1, end_row=bottom_start, end_column=5)
+        # NOTATKI band — pełna szerokość, krótkie pole nad opcjami.
+        ws.merge_cells(start_row=bottom_start, start_column=1, end_row=bottom_start, end_column=11)
         nh = ws.cell(row=bottom_start, column=1, value="NOTATKI")
         nh.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
         nh.fill = PatternFill("solid", fgColor=NAVY)
         nh.alignment = Alignment(vertical="center", horizontal="center")
-
-        ws.merge_cells(start_row=bottom_start, start_column=7, end_row=bottom_start, end_column=11)
-        oh = ws.cell(row=bottom_start, column=7, value="OPCJE — CENY NETTO")
-        oh.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
-        oh.fill = PatternFill("solid", fgColor=NAVY)
-        oh.alignment = Alignment(vertical="center", horizontal="center")
         ws.row_dimensions[bottom_start].height = 22
 
-        factory = item.get("factory_options_priced") or []
-        dealer = item.get("dealer_options_priced") or []
-        notes_rows_count = max(4, len(factory) + len(dealer) + 3)
-
+        notes_rows_count = 3
         ws.merge_cells(
             start_row=bottom_start + 1, start_column=1,
-            end_row=bottom_start + notes_rows_count, end_column=5,
+            end_row=bottom_start + notes_rows_count, end_column=11,
         )
         nb = ws.cell(row=bottom_start + 1, column=1, value=item.get("notes") or "—")
         nb.font = Font(name="Calibri", size=10, color=DARK_GRAY)
         nb.alignment = Alignment(vertical="top", wrap_text=True, indent=1)
         nb.fill = PatternFill("solid", fgColor=ZEBRA)
         nb.border = _thin_border()
+        for nr in range(bottom_start + 1, bottom_start + 1 + notes_rows_count):
+            ws.row_dimensions[nr].height = 22
 
-        r = bottom_start + 1
-        ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=10)
-        cell = ws.cell(row=r, column=7, value="Opcje fabryczne")
+        # OPCJE — pełna szerokość, długie nazwy mieszczą się bez ręcznego rozszerzania.
+        opcje_row = bottom_start + notes_rows_count + 2
+        ws.row_dimensions[opcje_row - 1].height = 8
+        ws.merge_cells(start_row=opcje_row, start_column=1, end_row=opcje_row, end_column=11)
+        oh = ws.cell(row=opcje_row, column=1, value="OPCJE — CENY NETTO")
+        oh.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
+        oh.fill = PatternFill("solid", fgColor=NAVY)
+        oh.alignment = Alignment(vertical="center", horizontal="center")
+        ws.row_dimensions[opcje_row].height = 22
+
+        factory = item.get("factory_options_priced") or []
+        dealer = item.get("dealer_options_priced") or []
+
+        r = opcje_row + 1
+        # Header: name spans A:I (wide), price in J:K.
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=9)
+        cell = ws.cell(row=r, column=1, value="Opcje fabryczne")
         cell.font = Font(name="Calibri", size=10, bold=True, color=NAVY)
         cell.alignment = Alignment(vertical="center", indent=1)
-        price_hdr = ws.cell(row=r, column=11, value="cena netto")
+        cell.fill = PatternFill("solid", fgColor=SOFT_BLUE)
+        ws.merge_cells(start_row=r, start_column=10, end_row=r, end_column=11)
+        price_hdr = ws.cell(row=r, column=10, value="cena netto")
         price_hdr.font = Font(name="Calibri", size=10, bold=True, color=NAVY)
         price_hdr.alignment = Alignment(vertical="center", horizontal="right", indent=1)
+        price_hdr.fill = PatternFill("solid", fgColor=SOFT_BLUE)
         r += 1
 
-        for name, price in factory:
-            ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=10)
-            nm = ws.cell(row=r, column=7, value=name)
-            nm.font = Font(name="Calibri", size=10)
-            nm.alignment = Alignment(vertical="center", indent=1, wrap_text=True)
-            nm.border = _thin_border()
-            pr = ws.cell(row=r, column=11, value=price)
-            pr.font = Font(name="Calibri", size=10)
-            pr.alignment = Alignment(vertical="center", horizontal="right", indent=1)
-            pr.number_format = '#,##0 "zł"'
-            pr.border = _thin_border()
-            r += 1
-
-        if dealer:
-            ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=11)
-            sep = ws.cell(row=r, column=7, value="Opcje dealerskie / serwisowe")
-            sep.font = Font(name="Calibri", size=10, bold=True, color=NAVY)
-            sep.alignment = Alignment(vertical="center", indent=1)
-            sep.fill = PatternFill("solid", fgColor=SOFT_BLUE)
-            r += 1
-
-            for name, price in dealer:
-                ws.merge_cells(start_row=r, start_column=7, end_row=r, end_column=10)
-                nm = ws.cell(row=r, column=7, value=name)
+        if factory:
+            for name, price in factory:
+                ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=9)
+                nm = ws.cell(row=r, column=1, value=name)
                 nm.font = Font(name="Calibri", size=10)
                 nm.alignment = Alignment(vertical="center", indent=1, wrap_text=True)
                 nm.border = _thin_border()
-                pr = ws.cell(row=r, column=11, value=price)
+                ws.merge_cells(start_row=r, start_column=10, end_row=r, end_column=11)
+                pr = ws.cell(row=r, column=10, value=price)
                 pr.font = Font(name="Calibri", size=10)
                 pr.alignment = Alignment(vertical="center", horizontal="right", indent=1)
                 pr.number_format = '#,##0 "zł"'
                 pr.border = _thin_border()
+                ws.row_dimensions[r].height = 24
                 r += 1
+        else:
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=11)
+            empty = ws.cell(row=r, column=1, value="Brak opcji fabrycznych w tej ofercie.")
+            empty.font = Font(name="Calibri", size=10, italic=True, color=GRAY)
+            empty.alignment = Alignment(vertical="center", indent=1)
+            empty.border = _thin_border()
+            r += 1
 
-        footer_row = max(r + 2, bottom_start + notes_rows_count + 2)
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=11)
+        sep = ws.cell(row=r, column=1, value="Opcje dealerskie / serwisowe")
+        sep.font = Font(name="Calibri", size=10, bold=True, color=NAVY)
+        sep.alignment = Alignment(vertical="center", indent=1)
+        sep.fill = PatternFill("solid", fgColor=SOFT_BLUE)
+        r += 1
+
+        if dealer:
+            for name, price in dealer:
+                ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=9)
+                nm = ws.cell(row=r, column=1, value=name)
+                nm.font = Font(name="Calibri", size=10)
+                nm.alignment = Alignment(vertical="center", indent=1, wrap_text=True)
+                nm.border = _thin_border()
+                ws.merge_cells(start_row=r, start_column=10, end_row=r, end_column=11)
+                pr = ws.cell(row=r, column=10, value=price)
+                pr.font = Font(name="Calibri", size=10)
+                pr.alignment = Alignment(vertical="center", horizontal="right", indent=1)
+                pr.number_format = '#,##0 "zł"'
+                pr.border = _thin_border()
+                ws.row_dimensions[r].height = 24
+                r += 1
+        else:
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=11)
+            empty = ws.cell(row=r, column=1, value="Brak opcji dealerskich / serwisowych w tej ofercie.")
+            empty.font = Font(name="Calibri", size=10, italic=True, color=GRAY)
+            empty.alignment = Alignment(vertical="center", indent=1)
+            empty.border = _thin_border()
+            r += 1
+
+        footer_row = r + 1
         ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=11)
         f = ws.cell(row=footer_row, column=1)
         f.value = "Ceny netto. Oferta ważna 30 dni od daty sporządzenia.    |    Express Sp. z o.o. Sp.k."

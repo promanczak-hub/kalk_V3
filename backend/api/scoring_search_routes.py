@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from celery.result import AsyncResult
 
 from core.database import supabase
+from core.body_type_matcher import BODY_ALIAS_MAP, match_body_type
 from core.celery_app import celery_app
 from core.models_scoring_search import (
     AvailableFiltersRequest,
@@ -216,7 +217,52 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
     raise last_exc
 
 
+VAT_RATE = 1.23
+
+
+def _resolve_price_domain(price_str: str, domain_hint: str | None) -> str | None:
+    """Inline `netto`/`brutto` suffix in the price string beats the passed
+    domain hint. Some extractor outputs have card_summary.price_domain="brutto"
+    but per-option strings already use "X PLN netto" (extractor pre-converted).
+    The string sufiks is closer to the actual value, so it wins.
+    """
+    s = price_str.lower()
+    if "netto" in s:
+        return "netto"
+    if "brutto" in s:
+        return "brutto"
+    return domain_hint
+
+
+def _parse_price_numeric(price_str: str) -> float | None:
+    """Strip suffix tokens + whitespace and parse the numeric portion."""
+    cleaned = (
+        price_str.lower()
+        .replace("netto", "")
+        .replace("brutto", "")
+        .replace(" ", "")
+        .replace("\xa0", "")
+        .replace("pln", "")
+        .replace("zł", "")
+    )
+    if "," in cleaned and "." in cleaned:
+        cleaned = cleaned.replace(".", "").replace(",", ".")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
+    elif cleaned.count(".") > 1:
+        cleaned = cleaned.replace(".", "")
+
+    cleaned = "".join(c for c in cleaned if c.isdigit() or c == ".")
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return None
+
+
 def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | None:
+<<<<<<< HEAD
     """Helper to convert raw price string to a netto float.
     Default VAT is 23%. If domain is 'netto', returns as-is.
     If 'brutto' or unknown, divides by 1.23.
@@ -255,7 +301,41 @@ def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | No
             return round(val, 2)
         return round(val / 1.23, 2)
     except (ValueError, TypeError):
+=======
+    """Convert raw price string to a netto float.
+    Suffix in the string ("PLN netto" / "PLN brutto") wins over `domain` arg.
+    If neither present, falls back to `domain`; default brutto → /1.23.
+    """
+    if not price_str:
         return None
+    s = str(price_str)
+    val = _parse_price_numeric(s)
+    if val is None:
+>>>>>>> ofertaxls
+        return None
+    effective = _resolve_price_domain(s, domain)
+    if effective == "netto":
+        return round(val, 2)
+    return round(val / VAT_RATE, 2)
+
+
+def _parse_price_pair(
+    price_str: str | None, domain: str | None
+) -> tuple[float | None, float | None]:
+    """Return (net, gross). Whichever side is original (per string suffix or
+    `domain`) is preserved verbatim; the other is derived once via VAT_RATE.
+    Avoids the lossy round-trip of net→gross multiplications on the frontend.
+    """
+    if not price_str:
+        return None, None
+    s = str(price_str)
+    val = _parse_price_numeric(s)
+    if val is None:
+        return None, None
+    effective = _resolve_price_domain(s, domain)
+    if effective == "netto":
+        return round(val, 2), round(val * VAT_RATE, 2)
+    return round(val / VAT_RATE, 2), round(val, 2)
 
 
 def _extract_option_line_items(
@@ -263,9 +343,14 @@ def _extract_option_line_items(
 ) -> tuple[list[OptionLineItem], list[OptionLineItem]]:
     """Split paid_options + service_equipment into factory/service line lists.
 
-    Mirrors the aggregation rules used to compute factory_options_price_net /
-    service_options_price_net so totals shown in the card match the sum of
-    expanded items 1:1.
+    Each line item carries BOTH price_net and price_gross — derived once at
+    parse time from the catalog string. The frontend renders them verbatim,
+    avoiding lossy net→gross multiplication round-trips.
+
+    The service-equipment block is the same data as the matching aggregate
+    paid_option (e.g. "Pakiety serwisowe i gwarancyjne") shipped two ways by
+    the AI extractor. To avoid double-counting, we prefer service_equipment's
+    detailed `components[]` and drop the matching paid_options aggregate.
     """
     if not card_summary:
         return [], []
@@ -281,19 +366,29 @@ def _extract_option_line_items(
         if not name:
             continue
         cat = (opt.get("category") or "").lower()
+<<<<<<< HEAD
         # "Zabudowa / Wyposażenie serwisowe" entries summarise service_equipment
         # — skip them when service_equipment will be added below to avoid
         # double-counting.
         if "zabudowa" in cat and svc_eq_net:
             continue
         price_net = _parse_price_to_net(
+=======
+        price_net, price_gross = _parse_price_pair(
+>>>>>>> ofertaxls
             opt.get("price"), opt.get("price_type") or domain
         )
-        item = OptionLineItem(name=name, price_net=price_net, category=opt.get("category"))
+        item = OptionLineItem(
+            name=name,
+            price_net=price_net,
+            price_gross=price_gross,
+            category=opt.get("category"),
+        )
         if "fabryczn" in cat:
             factory.append(item)
         elif "serwis" in cat or "akcesori" in cat or "zabudowa" in cat:
             service.append(item)
+<<<<<<< HEAD
     if svc_eq_net:
         # Prefer per-component breakdown when available — that's how the
         # source PDF lists the package (e.g. "Pakiet pogwarancyjny 1200 zł"
@@ -322,6 +417,50 @@ def _extract_option_line_items(
                     category="Serwisowa",
                 )
             )
+=======
+
+    svc_eq = card_summary.get("service_equipment") or {}
+    agg_name = (svc_eq.get("name") or "").strip().lower()
+    components = svc_eq.get("components") or []
+
+    if agg_name and components:
+        # Replace any aggregate-row with the detailed components.
+        service = [s for s in service if (s.name or "").strip().lower() != agg_name]
+        for c in components:
+            if not isinstance(c, dict):
+                continue
+            cname = (c.get("name") or "").strip()
+            if not cname:
+                continue
+            net, gross = _parse_price_pair(
+                c.get("price_net") or c.get("price_gross") or c.get("price"),
+                "netto" if c.get("price_net") else None,
+            )
+            if net is None and gross is None:
+                continue
+            service.append(
+                OptionLineItem(
+                    name=cname,
+                    price_net=net,
+                    price_gross=gross,
+                    category=svc_eq.get("name") or "Pakiet serwisowy",
+                )
+            )
+    elif svc_eq.get("total_price_net") and not any(
+        (s.name or "").strip().lower() == agg_name for s in service if agg_name
+    ):
+        net, gross = _parse_price_pair(svc_eq.get("total_price_net"), "netto")
+        if net is not None or gross is not None:
+            service.append(
+                OptionLineItem(
+                    name=svc_eq.get("name") or "Pakiet serwisowy",
+                    price_net=net,
+                    price_gross=gross,
+                    category="Serwisowa",
+                )
+            )
+
+>>>>>>> ofertaxls
     return factory, service
 
 
@@ -335,13 +474,14 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
     similarity_reasons: SimilarityReasons | None = None
     price_domain = row.get("price_domain", "brutto")
 
+    base_price_val: Optional[float] = None
+    base_price_gross_val: Optional[float] = None
     if isinstance(raw_reasons, dict):
         base_price_raw = raw_reasons.get("base_price")
-        base_price_val = float(base_price_raw) if base_price_raw is not None else None
-
-        # Convert base_price to net if needed
-        if base_price_val is not None and price_domain == "brutto":
-            base_price_val = round(base_price_val / 1.23, 2)
+        if base_price_raw is not None:
+            base_price_val, base_price_gross_val = _parse_price_pair(
+                str(base_price_raw), price_domain
+            )
 
         def _opt_float(key: str) -> Optional[float]:
             v = raw_reasons.get(key)
@@ -383,6 +523,53 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
             setup_match=raw_reasons.get("setup_match"),
             source_tire_class=raw_reasons.get("source_tire_class"),
             source_service_type=raw_reasons.get("source_service_type"),
+            matched_duration_months=_opt_int("matched_duration_months"),
+            matched_annual_mileage=_opt_int("matched_annual_mileage"),
+        )
+
+    # ── Catalog price breakdown — mirrors what ScoringSearchMatch surfaces ──
+    # The RPC ships raw paid_options + service_equipment in similarity_reasons;
+    # we reuse the same _extract_option_line_items() the main results path uses
+    # so totals across both views agree to the cent.
+    factory_options: list[OptionLineItem] = []
+    service_options: list[OptionLineItem] = []
+    factory_total_net: Optional[float] = None
+    factory_total_gross: Optional[float] = None
+    service_total_net: Optional[float] = None
+    service_total_gross: Optional[float] = None
+    total_price_net: Optional[float] = None
+    total_price_gross: Optional[float] = None
+    if isinstance(raw_reasons, dict) and (
+        raw_reasons.get("paid_options") is not None
+        or raw_reasons.get("service_equipment") is not None
+    ):
+        synthetic_summary = {
+            "paid_options": raw_reasons.get("paid_options") or [],
+            "service_equipment": raw_reasons.get("service_equipment"),
+            "price_domain": raw_reasons.get("price_domain") or price_domain,
+        }
+        factory_options, service_options = _extract_option_line_items(synthetic_summary)
+        if factory_options:
+            factory_total_net = round(
+                sum(o.price_net for o in factory_options if o.price_net is not None), 2
+            )
+            factory_total_gross = round(
+                sum(o.price_gross for o in factory_options if o.price_gross is not None), 2
+            ) or None
+        if service_options:
+            service_total_net = round(
+                sum(o.price_net for o in service_options if o.price_net is not None), 2
+            )
+            service_total_gross = round(
+                sum(o.price_gross for o in service_options if o.price_gross is not None), 2
+            ) or None
+    if base_price_val is not None:
+        total_price_net = round(
+            base_price_val + (factory_total_net or 0) + (service_total_net or 0), 2
+        )
+    if base_price_gross_val is not None:
+        total_price_gross = round(
+            base_price_gross_val + (factory_total_gross or 0) + (service_total_gross or 0), 2
         )
 
     raw_price = row.get("best_monthly_price") or row.get("min_price")
@@ -405,6 +592,16 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         price_domain=price_domain,
         similarity_reasons=similarity_reasons,
         kalkulacja_id=row.get("kalkulacja_id"),
+        base_price_net=base_price_val,
+        base_price_gross=base_price_gross_val,
+        factory_options_price_net=factory_total_net,
+        factory_options_price_gross=factory_total_gross,
+        service_options_price_net=service_total_net,
+        service_options_price_gross=service_total_gross,
+        factory_options=factory_options,
+        service_options=service_options,
+        total_price_net=total_price_net,
+        total_price_gross=total_price_gross,
     )
 
 
@@ -969,6 +1166,9 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
         # Single roundtrip pulls both (a) selected_kalkulacja_ids for the
         # multi-card render and (b) the synthesis_data blob we parse for
         # paid_options breakdown shown by inline expand in the result card.
+        # We also recompute every catalog total (net + gross) here from the
+        # line items so the displayed sub-totals always add up to the displayed
+        # catalog total — eliminating drift from earlier extractor stages.
         step = "attach_selected_kalkulacja_ids"
         vehicle_ids_in_results = [m.vehicle_id for m in all_matches if m.vehicle_id]
         if vehicle_ids_in_results:
@@ -979,18 +1179,54 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                     .in_("id", vehicle_ids_in_results)
                 )
                 pinned_map: dict[str, list[str]] = {}
-                options_map: dict[str, tuple[list[OptionLineItem], list[OptionLineItem]]] = {}
+                synth_map: dict[str, dict[str, Any]] = {}
                 for r in synth_resp.data or []:
                     rid = str(r["id"])
                     pinned_map[rid] = list(r.get("selected_kalkulacja_ids") or [])
-                    sd = r.get("synthesis_data") or {}
-                    options_map[rid] = _extract_option_line_items(sd.get("card_summary"))
+                    synth_map[rid] = r.get("synthesis_data") or {}
                 for m in all_matches:
                     key = str(m.vehicle_id)
                     m.selected_kalkulacja_ids = pinned_map.get(key, [])
-                    factory, service = options_map.get(key, ([], []))
+                    sd = synth_map.get(key, {})
+                    cs = sd.get("card_summary") or {}
+                    factory, service = _extract_option_line_items(cs)
                     m.factory_options = factory
                     m.service_options = service
+
+                    base_net, base_gross = _parse_price_pair(
+                        cs.get("base_price"), cs.get("price_domain")
+                    )
+                    factory_net = round(
+                        sum(o.price_net for o in factory if o.price_net is not None), 2
+                    ) if factory else None
+                    factory_gross = round(
+                        sum(o.price_gross for o in factory if o.price_gross is not None), 2
+                    ) if factory else None
+                    service_net = round(
+                        sum(o.price_net for o in service if o.price_net is not None), 2
+                    ) if service else None
+                    service_gross = round(
+                        sum(o.price_gross for o in service if o.price_gross is not None), 2
+                    ) if service else None
+
+                    if base_net is not None:
+                        m.base_price_net = base_net
+                    m.base_price_gross = base_gross
+                    m.factory_options_price_net = factory_net
+                    m.factory_options_price_gross = factory_gross
+                    m.service_options_price_net = service_net
+                    m.service_options_price_gross = service_gross
+                    options_net_sum = (factory_net or 0) + (service_net or 0)
+                    options_gross_sum = (factory_gross or 0) + (service_gross or 0)
+                    m.options_price_net = round(options_net_sum, 2) or None
+                    m.options_price_gross = round(options_gross_sum, 2) or None
+                    m.total_price_net = round(
+                        (base_net or 0) + options_net_sum, 2
+                    ) or None
+                    m.total_price_gross = round(
+                        (base_gross or 0) + options_gross_sum, 2
+                    ) or None
+                    m.price_domain = "netto"
             except Exception:
                 logger.exception("Failed to attach selected_kalkulacja_ids to search results")
 
@@ -1213,7 +1449,22 @@ def get_initial_data() -> InitialDataResponse:
                 mapped.get("body_style") or cs.get("body_style") or ""
             ).strip()
             if body_style:
-                body_counts[body_style] = body_counts.get(body_style, 0) + 1
+                # Normalize against canonical body_types (SOT). Alias map is
+                # checked BEFORE match_body_type so explicit overrides
+                # (KOMBIVAN→Kombi Dostawczy, WYWROTKĄ→Podwozie Wywrotka) win
+                # over the matcher's greedy substring step. Falls back to raw
+                # so unknown labels surface in the UI rather than getting hidden.
+                normalized = body_style.upper()
+                key: str | None = BODY_ALIAS_MAP.get(normalized)
+                if key is None:
+                    for alias_key, alias_val in BODY_ALIAS_MAP.items():
+                        if alias_key in normalized:
+                            key = alias_val
+                            break
+                if key is None:
+                    bt = match_body_type(body_style)
+                    key = bt.matched_name or body_style
+                body_counts[key] = body_counts.get(key, 0) + 1
 
         result = InitialDataResponse(
             brands=sorted(brand_set),

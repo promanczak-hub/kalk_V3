@@ -41,6 +41,7 @@ class ScoringSearchRequest(BaseModel):
 class OptionLineItem(BaseModel):
     name: str
     price_net: Optional[float] = None
+    price_gross: Optional[float] = None
     category: Optional[str] = None
 
 
@@ -109,16 +110,18 @@ class ScoringSearchMatch(BaseModel):
     drive_type: Optional[str] = None
     semantic_hit_reason: Optional[str] = None
     # Business / pricing badges
-    base_price_gross: Optional[str] = None
-    options_price_gross: Optional[str] = None
-    total_price_gross: Optional[str] = None
     base_price_net: Optional[float] = None
+    base_price_gross: Optional[float] = None
     options_price_net: Optional[float] = None
+    options_price_gross: Optional[float] = None
     factory_options_price_net: Optional[float] = None
+    factory_options_price_gross: Optional[float] = None
     service_options_price_net: Optional[float] = None
+    service_options_price_gross: Optional[float] = None
     factory_options: List[OptionLineItem] = []
     service_options: List[OptionLineItem] = []
     total_price_net: Optional[float] = None
+    total_price_gross: Optional[float] = None
     price_domain: Optional[str] = "brutto"
     suggested_discount_pct: Optional[float] = None
     trim_level: Optional[str] = None
@@ -220,6 +223,10 @@ class SimilarityReasons(BaseModel):
     source_tire_class: Optional[str] = None
     source_service_type: Optional[str] = None
 
+    # ── Matrix params the rate was priced for (echoed RPC inputs) ──
+    matched_duration_months: Optional[int] = None
+    matched_annual_mileage: Optional[int] = None
+
 
 class SimilarVehicleMatch(BaseModel):
     vehicle_id: str
@@ -245,6 +252,21 @@ class SimilarVehicleMatch(BaseModel):
     # Cache row id matching the source's setup — lets the frontend add the
     # candidate to the cart with the same kalkulacja anchor as the source row.
     kalkulacja_id: Optional[str] = None
+    # ── Catalog price breakdown (parity with ScoringSearchMatch / source card) ──
+    # Populated by _build_similar_vehicle_match from raw paid_options +
+    # service_equipment shipped via similarity_reasons. Lets the frontend
+    # render the same Cena bazowa / Opcje fabryczne / Opcje serwisowe sections
+    # the main result card shows.
+    base_price_net: Optional[float] = None
+    base_price_gross: Optional[float] = None
+    factory_options_price_net: Optional[float] = None
+    factory_options_price_gross: Optional[float] = None
+    service_options_price_net: Optional[float] = None
+    service_options_price_gross: Optional[float] = None
+    factory_options: List[OptionLineItem] = []
+    service_options: List[OptionLineItem] = []
+    total_price_net: Optional[float] = None
+    total_price_gross: Optional[float] = None
 
 
 class PriceForParamsResponse(BaseModel):

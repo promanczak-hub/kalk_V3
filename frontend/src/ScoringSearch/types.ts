@@ -121,6 +121,7 @@ export interface SearchContext {
 export interface OptionLineItem {
   name: string;
   price_net?: number | null;
+  price_gross?: number | null;
   category?: string | null;
 }
 
@@ -166,10 +167,15 @@ export interface ScoredVehicle {
   configuration_code?: string;
   offer_number?: string;
   base_price_net?: number;
+  base_price_gross?: number;
   total_price_net?: number;
+  total_price_gross?: number;
   options_price_net?: number;
+  options_price_gross?: number;
   factory_options_price_net?: number;
+  factory_options_price_gross?: number;
   service_options_price_net?: number;
+  service_options_price_gross?: number;
   factory_options?: OptionLineItem[];
   service_options?: OptionLineItem[];
   engine_capacity?: string;

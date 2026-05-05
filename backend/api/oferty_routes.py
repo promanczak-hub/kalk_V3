@@ -183,16 +183,22 @@ def _build_in_rate(stan: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _compute_fin_tech_split(
+def _compute_matrix_breakdown(
     stan: Dict[str, Any],
     term: int,
     annual_mileage: int,
     applied_margin_pct: Optional[float],
-) -> tuple[Optional[float], Optional[float], Optional[float]]:
-    """Re-run LTRKalkulator from stan_json and return (czynsz_finansowy, czynsz_techniczny, laczna_stawka)
-    for the (term, annual_mileage) cell. Returns (None, None, None) on any failure."""
+) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    """Re-run LTRKalkulator from stan_json and return
+    (czynsz_finansowy, czynsz_techniczny, laczna_stawka, marginal_per_km) for the
+    (term, annual_mileage) cell.
+
+    marginal_per_km = (rate(next_higher_mileage) - rate(current)) * 12 / km_diff
+    — the cost of one additional kilometer when stepping from the chosen mileage
+    tier to the next higher one in the matrix. Used to suggest overuse fees.
+    Returns Nones on any failure or when no higher tier is available."""
     if not stan or not term or not annual_mileage:
-        return None, None, None
+        return None, None, None, None
     try:
         from api.schemas.calculator import CalculatorInput
         from core.LTRKalkulator import LTRKalkulator
@@ -200,10 +206,19 @@ def _compute_fin_tech_split(
 
         settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not settings_res.data:
-            return None, None, None
+            return None, None, None, None
         settings = ControlCenterSettings(**cast(Dict[str, Any], settings_res.data[0]))
 
-        calc_input = CalculatorInput(**stan)
+        # Older stan_json rows have None for fields that the schema now types as
+        # required-with-default (e.g. inne_koszty_serwisowania_netto: float = 0.0).
+        # Pydantic v2 rejects None for those even when a default exists; drop the
+        # nulls so Pydantic falls back to the field default.
+        stan_clean = {k: v for k, v in stan.items() if v is not None}
+        try:
+            calc_input = CalculatorInput(**stan_clean)
+        except Exception as ve:
+            logger.info("CalculatorInput validation failed: %s", str(ve)[:300])
+            return None, None, None, None
         if applied_margin_pct is not None:
             calc_input.pricing_margin_pct = float(applied_margin_pct)
 
@@ -211,18 +226,84 @@ def _compute_fin_tech_split(
         # build_matrix() returns full cells with CzynszFinansowy/Techniczny;
         # build_reverse_search_matrix() returns slim cells with only LacznaStawka.
         cells = engine.build_matrix()
-        for cell in cells:
-            if int(cell.get("Okres", 0)) == int(term) and int(cell.get("Przebieg", 0)) == int(annual_mileage):
-                fin_raw = cell.get("CzynszFinansowy")
-                tech_raw = cell.get("CzynszTechniczny")
-                stawka_raw = cell.get("LacznaStawka")
-                fin = float(fin_raw) if fin_raw is not None else None
-                tech = float(tech_raw) if tech_raw is not None else None
-                stawka = float(stawka_raw) if stawka_raw is not None else None
-                return fin, tech, stawka
+        same_term = sorted(
+            (c for c in cells if int(c.get("Okres", 0)) == int(term)),
+            key=lambda c: int(c.get("Przebieg", 0)),
+        )
+        current = next(
+            (c for c in same_term if int(c.get("Przebieg", 0)) == int(annual_mileage)),
+            None,
+        )
+        if not current:
+            return None, None, None, None
+
+        fin_raw = current.get("CzynszFinansowy")
+        tech_raw = current.get("CzynszTechniczny")
+        stawka_raw = current.get("LacznaStawka")
+        fin = float(fin_raw) if fin_raw is not None else None
+        tech = float(tech_raw) if tech_raw is not None else None
+        stawka = float(stawka_raw) if stawka_raw is not None else None
+
+        marginal: Optional[float] = None
+        higher = [c for c in same_term if int(c.get("Przebieg", 0)) > int(annual_mileage)]
+        if higher and stawka is not None:
+            nxt = higher[0]
+            rate_next_raw = nxt.get("LacznaStawka")
+            if rate_next_raw is not None:
+                rate_next = float(rate_next_raw)
+                km_now = int(current.get("Przebieg", 0))
+                km_next = int(nxt.get("Przebieg", 0))
+                if km_next > km_now and rate_next > stawka:
+                    marginal = (rate_next - stawka) * 12.0 / (km_next - km_now)
+
+        return fin, tech, stawka, marginal
     except Exception as e:
-        logger.info("fin/tech split skipped: %s", str(e)[:200])
-    return None, None, None
+        logger.info("matrix breakdown skipped: %s", str(e)[:200])
+    return None, None, None, None
+
+
+def _suggest_overuse_fee(marginal_per_km: Optional[float]) -> float:
+    """Suggest overuse fee = marginal per-km cost +65%, snapped to the
+    OVERUSE_FEE_OPTIONS grid (0.10..0.80 step 0.01). Falls back to 0.50 zł/km
+    when the marginal can't be derived (e.g. customer chose the highest mileage
+    tier in the matrix)."""
+    if marginal_per_km is None or marginal_per_km <= 0:
+        return 0.50
+    suggested = round(marginal_per_km * 1.65, 2)
+    return max(0.10, min(0.80, suggested))
+
+
+def _format_cost_breakdown(in_rate: Dict[str, Any]) -> str:
+    """Build 'Rodzaj kosztów' string from the active toggles in the calculation."""
+    parts: List[str] = []
+    if in_rate.get("serwis"):
+        typ = in_rate.get("serwis_typ") or "?"
+        parts.append(f"Serwis {typ}")
+    if in_rate.get("opony"):
+        klasa = (in_rate.get("opony_klasa") or "").strip()
+        parts.append(f"Opony ({klasa})" if klasa else "Opony")
+    if in_rate.get("ubezp_oc_ac"):
+        parts.append("OC/AC")
+    if in_rate.get("auto_zastepcze"):
+        parts.append("Auto zastępcze")
+    if in_rate.get("gps"):
+        parts.append("GPS")
+    return " • ".join(parts) if parts else "—"
+
+
+def _format_tire_display(in_rate: Dict[str, Any]) -> str:
+    """Build 'Ogumienie' cell value: '<klasa> • <ilość> kpl' / 'Bez opon' / '—'."""
+    if not in_rate.get("opony"):
+        return "Bez opon"
+    klasa = (in_rate.get("opony_klasa") or "").strip()
+    ilosc = in_rate.get("opony_zestawy")
+    if klasa and ilosc:
+        return f"{klasa} • {ilosc} kpl"
+    if klasa:
+        return klasa
+    if ilosc:
+        return f"{ilosc} kpl"
+    return "—"
 
 
 def _load_synthesis_fallback(vehicle_id: Optional[str]) -> Dict[str, Any]:
@@ -257,11 +338,69 @@ def _load_synthesis_fallback(vehicle_id: Optional[str]) -> Dict[str, Any]:
             "configuration_code": synth.get("configuration_code"),
             "card_summary": cs,
             "mapped_ai_data": mai,
-            "_synthetic": True,  # tag — skip _compute_fin_tech_split for non-CalculatorInput shapes
+            "_synthetic": True,  # tag — skip _compute_matrix_breakdown for non-CalculatorInput shapes
         }
     except Exception as e:
         logger.info("vehicle_synthesis fallback skipped: %s", str(e)[:200])
         return {}
+
+
+def _resolve_vehicle_id_from_calc_data(calc_data: Dict[str, Any]) -> Optional[str]:
+    """Cart items from search spread the car into calculation_data — vehicle_id
+    can hide under different keys depending on the source (vehicle_id, id,
+    car_id) or be derivable from configuration_code via vehicle_synthesis."""
+    vid = calc_data.get("vehicle_id") or calc_data.get("car_id")
+    if vid:
+        return vid
+    raw_id = calc_data.get("id")
+    if raw_id and isinstance(raw_id, str) and len(raw_id) == 36 and raw_id.count("-") == 4:
+        # Looks like a UUID — likely the vehicle_synthesis primary key.
+        return raw_id
+    cfg = calc_data.get("configuration_code")
+    if cfg:
+        try:
+            res = (
+                supabase.table("vehicle_synthesis")
+                .select("id")
+                .filter("synthesis_data->>configuration_code", "eq", cfg)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return res.data[0].get("id")
+        except Exception as e:
+            logger.info("vehicle_synthesis lookup by config failed: %s", str(e)[:200])
+    return None
+
+
+def _resolve_kalk_id_via_matrix_cache(
+    vehicle_id: Optional[str],
+    term: Optional[int],
+    annual_mileage: Optional[int],
+) -> Optional[str]:
+    """Recover the kalkulacja_id that produced a given (vehicle, term, mileage)
+    matrix cell. Used when the cart item didn't include kalkulacja_id (e.g.
+    legacy cart entries, or search responses where the field was null), but the
+    matrix cache row clearly points at a real kalkulacja."""
+    if not vehicle_id or not term or not annual_mileage:
+        return None
+    try:
+        res = (
+            supabase.table("vehicle_matrix_cache")
+            .select("kalkulacja_id, calculated_at")
+            .eq("vehicle_id", vehicle_id)
+            .eq("duration_months", int(term))
+            .eq("annual_mileage", int(annual_mileage))
+            .not_.is_("kalkulacja_id", "null")
+            .order("calculated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return res.data[0].get("kalkulacja_id")
+    except Exception as e:
+        logger.info("matrix cache lookup failed: %s", str(e)[:200])
+    return None
 
 
 def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -270,23 +409,23 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     kalk_id = (
         calc_data.get("kalkulacja_id")
         or item.get("kalkulacja_id")
-        or calc_data.get("kalkulacja_id")
     )
     vehicle_id = (
         item.get("vehicle_id")
-        or calc_data.get("vehicle_id")
-        or calc_data.get("id")
+        or _resolve_vehicle_id_from_calc_data(calc_data)
     )
 
     stan: Dict[str, Any] = {}
     numer = None
     stan_loaded = False
-    if kalk_id:
+
+    def _load_stan(kid: str) -> bool:
+        nonlocal stan, numer, stan_loaded
         try:
             res = (
                 supabase.table("ltr_kalkulacje")
                 .select("numer_kalkulacji, stan_json")
-                .eq("id", kalk_id)
+                .eq("id", kid)
                 .limit(1)
                 .execute()
             )
@@ -295,8 +434,31 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
                 numer = row.get("numer_kalkulacji")
                 stan = row.get("stan_json") or {}
                 stan_loaded = bool(stan)
+                return stan_loaded
         except Exception:
             pass
+        return False
+
+    if kalk_id:
+        _load_stan(kalk_id)
+
+    # Recovery path: cart item came from search results but didn't carry a
+    # kalkulacja_id (or the one it carried is stale). The matrix cache row for
+    # this (vehicle, term, mileage) cell knows which kalkulacja produced it —
+    # use that to load stan_json and enable fin/tech split + cost breakdown.
+    if not stan_loaded:
+        recovered = _resolve_kalk_id_via_matrix_cache(
+            vehicle_id,
+            int(item.get("term") or 0),
+            int(item.get("mileage") or 0),
+        )
+        if recovered and recovered != kalk_id:
+            logger.info(
+                "Recovered kalk_id=%s via matrix cache (cart had %r, vehicle=%s, term=%s, mileage=%s)",
+                recovered, kalk_id, vehicle_id, item.get("term"), item.get("mileage"),
+            )
+            kalk_id = recovered
+            _load_stan(kalk_id)
 
     if not stan_loaded:
         stan = _load_synthesis_fallback(vehicle_id)
@@ -359,14 +521,19 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         sheet_label = numer or "Pojazd"
 
     if stan_loaded and not stan.get("_synthetic"):
-        fin, tech, stawka_recalc = _compute_fin_tech_split(
+        fin, tech, stawka_recalc, marginal_per_km = _compute_matrix_breakdown(
             stan,
             term=int(item.get("term") or 0),
             annual_mileage=int(item.get("mileage") or 0),
             applied_margin_pct=item.get("margin_pct"),
         )
     else:
-        fin, tech, stawka_recalc = None, None, None
+        fin, tech, stawka_recalc, marginal_per_km = None, None, None, None
+
+    # Treat 0.0 as "unset" — the dropdown grid starts at 0.10, so a 0 means the
+    # user never picked anything and we should suggest based on marginal cost.
+    user_overuse_fee = _f(item.get("overuse_fee")) or _f(calc_data.get("opłata_nadprzebieg"))
+    overuse_fee = user_overuse_fee or _suggest_overuse_fee(marginal_per_km)
 
     def _pick(*vals: Any) -> str:
         for v in vals:
@@ -429,13 +596,16 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "contribution": contribution_pln,
         "contribution_pct": contribution_pct,
         "cost_type": stan.get("service_cost_type") or "ASO",
+        "cost_breakdown": _format_cost_breakdown(in_rate),
+        "tire_display": _format_tire_display(in_rate),
         "in_rate": in_rate,
         # Re-run calculator to get the fin/tech split — vehicle_matrix_cache
         # only stores LacznaStawka, so we recompute from stan_json with the
         # user's applied margin.
         "financial": fin,
         "technical": tech,
-        "overuse_fee": _f(item.get("overuse_fee")) or _f(calc_data.get("opłata_nadprzebieg")) or 0.50,
+        "marginal_per_km": marginal_per_km,
+        "overuse_fee": overuse_fee,
         "notes": (item.get("notes") or "").strip(),
     }
     return enriched
