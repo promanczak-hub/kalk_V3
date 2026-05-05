@@ -346,8 +346,12 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
     const mil = targetAnnualMileage ?? 0;
     const marginFrac = typeof marginPct === 'number' ? Math.min(marginPct, 99) / 100 : 0;
     const installmentWithMargin = marginFrac > 0 ? v.best_monthly_price / (1 - marginFrac) : v.best_monthly_price;
+    const marginTag = `m${Math.round((marginPct ?? 0) * 10)}`;
+    const cartId = v.kalkulacja_id
+      ? `${v.vehicle_id}_${dur}_${mil}_${v.kalkulacja_id}_${marginTag}`
+      : `${v.vehicle_id}_${dur}_${mil}_${marginTag}`;
     addToCart({
-      id: `${v.vehicle_id}_${dur}_${mil}`,
+      id: cartId,
       brand: v.brand || '',
       model: v.model || '',
       powertrain: v.fuel || '',

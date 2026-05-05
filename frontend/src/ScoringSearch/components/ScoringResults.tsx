@@ -66,6 +66,21 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     requirements
   );
 
+  // Compute the rate the user actually sees on the card, mirroring the logic
+  // in VehicleResultCard so the sort and the displayed banner agree.
+  const computeMonthlyDisplay = (car: ScoredVehicle): number | null => {
+    const priceData = batchPrices[car.vehicle_id as string];
+    const price = priceData?.price_for_params;
+    const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
+    const rawMonthly = hasPriceFromAPI ? (price!.monthly_price_net as number) : (car.best_monthly_price ?? null);
+    const usingAppliedMargin = !hasPriceFromAPI && car.applied_margin_pct != null;
+    const displayMarginPct = car.applied_margin_pct ?? (searchContext.margin_pct ?? 0);
+    const marginFrac = Math.min(displayMarginPct, 99) / 100;
+    if (usingAppliedMargin) return car.best_monthly_price ?? null;
+    if (rawMonthly == null || marginFrac >= 1) return null;
+    return rawMonthly / (1 - marginFrac);
+  };
+
   const sortedResults = useMemo(() => {
     const sorted = [...results];
     switch (sortBy) {
@@ -99,8 +114,27 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
         sorted.sort((a, b) => ((a.brand as string) || '').localeCompare((b.brand as string) || '', 'pl'));
         break;
     }
+
+    // When matrix+budget is active, lift all cars that fit the budget to the
+    // top. Within each bucket the previously-applied sort order is preserved
+    // (Array.prototype.sort is stable). Cars whose rate isn't yet known
+    // (price still loading) keep their position with the in-budget bucket so
+    // they don't flicker to the bottom while batch prices stream in.
+    const budget = searchContext.useMatrixFilters && searchContext.monthly_budget && searchContext.monthly_budget > 0
+      ? searchContext.monthly_budget
+      : null;
+    if (budget != null) {
+      const overBudgetRank = (car: ScoredVehicle): number => {
+        const md = computeMonthlyDisplay(car);
+        if (md == null) return 0; // unknown — treat as fits to avoid layout flicker
+        return md > budget ? 1 : 0;
+      };
+      sorted.sort((a, b) => overBudgetRank(a) - overBudgetRank(b));
+    }
+
     return sorted;
-  }, [results, sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, sortBy, batchPrices, searchContext.monthly_budget, searchContext.useMatrixFilters, searchContext.margin_pct]);
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Wyszukiwanie najlepszych ofert...</Typography>;

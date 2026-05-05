@@ -38,10 +38,10 @@ export function VehicleServiceOptionsCard({
     >
       <div className="space-y-4">
         {customServiceOptions.length > 0 ? (
-          <ul className="space-y-3">
+          <ul className="space-y-1">
             {customServiceOptions.map((opt) => (
-              <li key={opt.id} className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-[11px] pb-3 border-b border-slate-50 last:border-0 last:pb-0">
-                <input type="text" className="flex-1 px-3 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value={opt.name} onChange={(e) => handleUpdateServiceOptionName(opt.id, e.target.value)} placeholder="Nazwa Usługi" />
+              <li key={opt.id} className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 text-[11px] pb-1 border-b border-slate-50 last:border-0 last:pb-0">
+                <input type="text" className="flex-1 px-3 py-1 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value={opt.name} onChange={(e) => handleUpdateServiceOptionName(opt.id, e.target.value)} placeholder="Nazwa Usługi" />
                 <div className="flex items-center gap-2 mt-2 xl:mt-0 xl:w-auto w-full justify-between xl:justify-end">
                   <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-500 hover:text-slate-700 mr-2 border border-slate-100 px-2 py-1 rounded bg-slate-50/50">
                     <input type="checkbox" checked={opt.include_in_wr || false} onChange={(e) => handleUpdateServiceOptionIncludeInWr(opt.id, e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3" />

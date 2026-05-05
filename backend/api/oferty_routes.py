@@ -249,6 +249,22 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
 
     marketing_name = _build_marketing_name(stan, cs) or item.get("powertrain") or "—"
 
+    config_code = (stan.get("configuration_code") or item.get("vin_or_config") or "").strip()
+    brand_str = (stan.get("brand") or item.get("brand") or "").strip()
+    model_str = (stan.get("model") or item.get("model") or "").strip()
+    base_price_for_label = _f(stan.get("base_price_net")) or _f(calc_data.get("base_price_net"))
+    if config_code and config_code.lower() not in ("brak", "—", "none"):
+        sheet_label = config_code
+    elif brand_str or model_str:
+        price_token = (
+            f" {int(round(base_price_for_label / 1000))}k"
+            if base_price_for_label and base_price_for_label > 0
+            else ""
+        )
+        sheet_label = f"{brand_str} {model_str}{price_token}".strip()
+    else:
+        sheet_label = numer or "Pojazd"
+
     fin, tech, stawka_recalc = _compute_fin_tech_split(
         stan,
         term=int(item.get("term") or 0),
@@ -259,6 +275,7 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     enriched = {
         **item,
         "kalk_numer": numer,
+        "sheet_label": sheet_label,
         "vin": stan.get("vin") or mai.get("vin") or cs.get("vin"),
         "config_code": stan.get("configuration_code") or item.get("vin_or_config") or "",
         "offer_number": stan.get("offer_number"),

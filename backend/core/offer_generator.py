@@ -91,7 +91,7 @@ class ExcelOfferGenerator:
         taken_sheet_names: set[str] = set()
         for item in items:
             item["_sheet_name"] = _safe_sheet_name(
-                item.get("kalk_numer") or item.get("id") or "Pojazd",
+                item.get("sheet_label") or item.get("kalk_numer") or item.get("id") or "Pojazd",
                 taken_sheet_names,
             )
 
