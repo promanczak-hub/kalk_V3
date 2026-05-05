@@ -377,6 +377,44 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
 
         rows: list[dict] = []
 
+        def _fetch_rows_plain_select() -> list[dict]:
+            """Plain SELECT from vehicle_synthesis (no semantic ranking).
+            Used both when no semantic_query is given AND as a safety fallback
+            when multi-vector RPC returns 0 rows (e.g. embeddings not backfilled
+            for completed vehicles)."""
+            q = (
+                sb.table("vehicle_synthesis")
+                .select("id,brand,model,synthesis_data")
+                .eq("verification_status", "completed")
+                .order("created_at", desc=True)
+                .limit(max(request.limit + request.offset, 100) * 3)
+            )
+            if request.vehicle_ids:
+                q = q.in_("id", request.vehicle_ids)
+            resp_local = _supabase_execute_with_retry(q)
+            out: list[dict] = []
+            for r in resp_local.data or []:
+                sd = r.get("synthesis_data") or {}
+                cs = sd.get("card_summary") or {}
+                mapped = sd.get("mapped_ai_data") or {}
+                out.append(
+                    {
+                        "vehicle_id": r["id"],
+                        "brand": r.get("brand"),
+                        "model": r.get("model"),
+                        "version": cs.get("trim_level"),
+                        "samar_category": mapped.get("samar_category"),
+                        "fuel": mapped.get("fuel") or cs.get("fuel"),
+                        "transmission": mapped.get("gearbox") or cs.get("transmission"),
+                        "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
+                        "body_style": mapped.get("body_style") or cs.get("body_style"),
+                        "power_hp": cs.get("power_hp"),
+                        "base_price": _parse_numeric(cs.get("base_price")),
+                        "score_total_pct": None,
+                    }
+                )
+            return out
+
         if request.semantic_query:
             # ── 2a. Vector path: embed query → multi-vector RPC ──
             step = "generate_embedding"
@@ -408,39 +446,23 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 )
             )
             rows = resp.data or []
+            if not rows:
+                # Vector search returned nothing — most likely target vehicles
+                # don't have multi-vector embeddings populated yet. Fall back to
+                # plain SELECT so hard filters (body_style, brand, model) still
+                # surface matches. Semantic ranking is lost; that's acceptable
+                # while the embedding backfill catches up.
+                logger.warning(
+                    "rpc_search_vehicles_multi_vector returned 0 rows for query=%r; "
+                    "falling back to plain SELECT (semantic ranking degraded)",
+                    request.semantic_query,
+                )
+                step = "fallback_after_empty_vector"
+                rows = _fetch_rows_plain_select()
         else:
             # ── 2b. No-query path: plain SELECT with hard filters, recency ranked ──
             step = "fallback_select_vehicle_synthesis"
-            q = (
-                sb.table("vehicle_synthesis")
-                .select("id,brand,model,synthesis_data")
-                .eq("verification_status", "completed")
-                .order("created_at", desc=True)
-                .limit(max(request.limit + request.offset, 100) * 3)
-            )
-            if request.vehicle_ids:
-                q = q.in_("id", request.vehicle_ids)
-            resp = _supabase_execute_with_retry(q)
-            for r in resp.data or []:
-                sd = r.get("synthesis_data") or {}
-                cs = sd.get("card_summary") or {}
-                mapped = sd.get("mapped_ai_data") or {}
-                rows.append(
-                    {
-                        "vehicle_id": r["id"],
-                        "brand": r.get("brand"),
-                        "model": r.get("model"),
-                        "version": cs.get("trim_level"),
-                        "samar_category": mapped.get("samar_category"),
-                        "fuel": mapped.get("fuel") or cs.get("fuel"),
-                        "transmission": mapped.get("gearbox") or cs.get("transmission"),
-                        "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
-                        "body_style": mapped.get("body_style") or cs.get("body_style"),
-                        "power_hp": cs.get("power_hp"),
-                        "base_price": _parse_numeric(cs.get("base_price")),
-                        "score_total_pct": None,
-                    }
-                )
+            rows = _fetch_rows_plain_select()
 
         # ── 3. Post-filter and map to ScoringSearchMatch ──
         # Normalize transmission and drive_type across both paths (vector RPC +
