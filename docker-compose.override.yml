@@ -1,0 +1,21 @@
+# Dev-only overrides applied automatically when running `docker compose up`.
+# Keeps docker-compose.yml prod-ish; this file gives you live code reload + readable logs.
+# In prod use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+# (override is not picked up when -f is passed explicitly).
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+    environment:
+      - APP_ENV=development
+      - PYTHONDONTWRITEBYTECODE=1  # don't litter ./backend with .pyc
+    # Single worker + --reload so saving a .py file restarts uvicorn within ~1s
+    command:
+      - uvicorn
+      - main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
