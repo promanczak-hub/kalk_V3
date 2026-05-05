@@ -32,6 +32,7 @@ interface VehicleTableProps {
   bodyTypes?: { id: number; name: string; vehicle_class: string; }[];
   paintTypes?: { id: number; name: string; [key: string]: unknown; }[];
   driveTypes?: string[];
+  transmissionTypes?: string[];
 }
 
 export function VehicleTable({
@@ -52,6 +53,7 @@ export function VehicleTable({
   bodyTypes,
   paintTypes,
   driveTypes,
+  transmissionTypes,
 }: VehicleTableProps) {
   const {
     filters,
@@ -354,6 +356,7 @@ export function VehicleTable({
                   bodyTypes={bodyTypes}
                   paintTypes={paintTypes}
                   driveTypes={driveTypes}
+                  transmissionTypes={transmissionTypes}
                   isHighlighted={vehicle.id === highlightVehicleId}
                 />
               ))

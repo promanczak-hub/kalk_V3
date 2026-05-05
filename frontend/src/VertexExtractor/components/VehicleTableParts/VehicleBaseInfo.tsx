@@ -10,6 +10,7 @@ fuel: string;
 vehicle_type: string;
 trim_level: string;
 transmission: string;
+transmission_type?: string;
 samar_category?: string;
 engine_class?: string;
 drive_type?: string;
@@ -97,12 +98,10 @@ return (
 );
 }
 
-const TRANSMISSION_OPTIONS = [
-  { value: "AUTOMATYCZNA", label: "AUTOMATYCZNA" },
-  { value: "MANUALNA", label: "MANUALNA" },
-];
+/** Fallback transmission options — used only when DB data hasn't loaded yet */
+const TRANSMISSION_FALLBACK = ["Manualna", "Automatyczna"];
 
-export function TransmissionTag({ current, onChange, connected }: { current: string; onChange?: (v: string) => void; connected?: boolean }) {
+export function TransmissionTag({ current, onChange, connected, transmissionOptions }: { current: string; onChange?: (v: string) => void; connected?: boolean; transmissionOptions?: string[] }) {
   if (!onChange) {
       return current ? <Tag connected={connected}>{current}</Tag> : null;
   }
@@ -116,8 +115,8 @@ export function TransmissionTag({ current, onChange, connected }: { current: str
           onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
         >
           <option value="" disabled>Skrzynia...</option>
-          {TRANSMISSION_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+          {(transmissionOptions && transmissionOptions.length > 0 ? transmissionOptions : TRANSMISSION_FALLBACK).map((o) => (
+            <option key={o} value={o}>{o}</option>
           ))}
         </select>
       </span>

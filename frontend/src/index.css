@@ -32,6 +32,17 @@ body {
   min-height: 100vh;
 }
 
+/* Default weight for monospace numeric/code text — Geist Mono looks too thin
+   at 400 on Windows fallbacks (Consolas) and is hard to read for prices/codes.
+   Placed in @layer base + :where() so any explicit Tailwind weight utility
+   (font-bold, font-semibold, etc.) still wins via cascade layer order. */
+@layer base {
+  :where(.font-mono),
+  :where(.tabular-nums) {
+    font-weight: 600;
+  }
+}
+
 
 /* ── Entrance animations ── */
 @keyframes fadeUp {

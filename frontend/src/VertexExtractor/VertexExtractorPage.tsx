@@ -67,6 +67,7 @@ export default function VertexExtractorPage() {
   const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
   const [paintTypes, setPaintTypes] = useState<PaintTypeOption[]>([]);
   const [driveTypes, setDriveTypes] = useState<string[]>([]);
+  const [transmissionTypes, setTransmissionTypes] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -103,10 +104,11 @@ export default function VertexExtractorPage() {
 
     const fetchLookupData = async () => {
       try {
-        const [{ data: bodies }, { data: paints }, { data: drives }] = await Promise.all([
+        const [{ data: bodies }, { data: paints }, { data: drives }, { data: transmissions }] = await Promise.all([
           supabase.from("body_types").select("*").order("nazwa_nadwozia"),
           supabase.from("paint_types").select("*").order("id"),
-          supabase.from("samar_service_drive_multipliers").select("drive_normalized")
+          supabase.from("samar_service_drive_multipliers").select("drive_normalized"),
+          supabase.from("transmission_types").select("name").order("id")
         ]);
         if (bodies) {
           // Normalizacja pól bazy (nazwa_nadwozia, typ_pojazdu) → kształt oczekiwany przez BodyTypeTag (name, vehicle_class)
@@ -121,6 +123,9 @@ export default function VertexExtractorPage() {
         if (drives) {
           const validDrives = Array.from(new Set(drives.map(d => d.drive_normalized).filter(Boolean)));
           setDriveTypes(validDrives);
+        }
+        if (transmissions) {
+          setTransmissionTypes(transmissions.map((t: { name: string }) => t.name).filter(Boolean));
         }
       } catch (e) {
         console.error("Failed to fetch lookup data", e);
@@ -168,6 +173,7 @@ export default function VertexExtractorPage() {
               bodyTypes={bodyTypes}
               paintTypes={paintTypes}
               driveTypes={driveTypes}
+              transmissionTypes={transmissionTypes}
               page={page}
               setPage={setPage}
               pageSize={pageSize}

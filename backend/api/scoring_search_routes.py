@@ -718,9 +718,6 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
         else:
             # ── 2b. No-query path: plain SELECT with hard filters, recency ranked ──
             step = "fallback_select_vehicle_synthesis"
-<<<<<<< HEAD
-            rows = _fetch_rows_plain_select()
-=======
             q = (
                 sb.table("vehicle_synthesis")
                 .select("id,brand,model,offer_number,created_at,synthesis_data")
@@ -781,7 +778,6 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                         "score_total_pct": None,
                     }
                 )
->>>>>>> ofertaxls
 
         # ── 3. Post-filter and map to ScoringSearchMatch ──
         # Normalize transmission and drive_type across both paths (vector RPC +

@@ -181,6 +181,14 @@ class NapedRodzaj(str, Enum):
     AWD = "AWD"
 
 
+class TransmissionTyp(str, Enum):
+    """Znormalizowany rodzaj skrzyni biegów. SOT: tabela `public.transmission_types`
+    (synced z Google Sheet 'transmission_dict')."""
+
+    MANUALNA = "Manualna"
+    AUTOMATYCZNA = "Automatyczna"
+
+
 class PrzedzialMocy(str, Enum):
     LOW = "LOW (do 130 KM)"
     MID = "MID (131 - 200 KM)"

@@ -95,6 +95,7 @@ interface VehicleRowCardProps {
   bodyTypes?: { id: number; name: string; vehicle_class: string }[];
   paintTypes?: { id: number; name: string; [key: string]: unknown }[];
   driveTypes?: string[];
+  transmissionTypes?: string[];
 
 }
 
@@ -110,6 +111,7 @@ export function VehicleRowCard({
   bodyTypes,
   paintTypes,
   driveTypes,
+  transmissionTypes,
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const scrolledToMatrixRef = useRef(false);
@@ -674,17 +676,20 @@ export function VehicleRowCard({
   const engineCandidates: { klasa: string; confidence: number }[] =
     ((vehicle.synthesis_data?.mapped_ai_data as MappedData & { engine_candidates?: { klasa: string; confidence: number }[] })?.engine_candidates) || [];
 
-  // Map transmission to dictionary values
+  // Header keeps the raw descriptive text (e.g. "6-biegowa manualna") for detail.
+  // Dropdown uses the normalized SOT enum value from `transmission_type` (Manualna /
+  // Automatyczna), with keyword detection on the raw text as a fallback.
   const rawTransmission = localMappedData?.transmission || mappedData?.transmission || vehicle.transmission || "";
   const tLower = rawTransmission.toLowerCase();
   const isAuto = tLower.includes("automat") || tLower.includes("dsg") || tLower.includes("s-tronic") || tLower.includes("tiptronic") || tLower.includes("steptronic");
   const isMan = tLower.includes("manual") || tLower.includes("ręczna");
-  
-  let detectedTransmission = rawTransmission;
-  if (isAuto) detectedTransmission = "Automatyczna";
-  else if (isMan) detectedTransmission = "Manualna";
-  
-  const transmission = localMappedData?.transmission || mappedData?.transmission || detectedTransmission;
+
+  let detectedTransmissionType = "";
+  if (isAuto) detectedTransmissionType = "Automatyczna";
+  else if (isMan) detectedTransmissionType = "Manualna";
+
+  const transmission = rawTransmission || detectedTransmissionType;
+  const transmissionType = localMappedData?.transmission_type || mappedData?.transmission_type || detectedTransmissionType;
 
   const vehicleTypeHint = localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class;
   
@@ -822,7 +827,8 @@ export function VehicleRowCard({
                   driveType={driveType}
                   driveTypes={driveTypes}
                   onDriveTypeChange={handleDriveTypeChange}
-                  transmission={transmission}
+                  transmission={transmissionType}
+                  transmissionTypes={transmissionTypes}
                   onTransmissionChange={handleTransmissionChange}
                   bodyType={resolvedBodyType}
                   onBodyTypeChange={handleBodyTypeChange}

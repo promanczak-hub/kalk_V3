@@ -2,6 +2,7 @@ import logging
 from supabase import Client
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.engine_mapper import map_to_engine_class
+from core.extractor_models import TransmissionTyp
 from core.samar_mapper import map_to_samar_class
 from core.feature_enrichment import enrich_vehicle_features
 from core.feature_cross_reference import rank_catalogs_for_vehicle
@@ -15,6 +16,26 @@ from core.model_normalizer import normalize_model_trim_body
 from tasks.enrichment_tasks import generate_embedding_for_vehicle
 
 logger = logging.getLogger(__name__)
+
+
+_AUTOMATIC_KEYWORDS = ("automat", "dsg", "s-tronic", "s tronic", "tiptronic", "steptronic", "cvt", "edc", "powershift", "multitronic", "pdk")
+_MANUAL_KEYWORDS = ("manual", "ręczna", "reczna", "manualna")
+
+
+def normalize_transmission(raw: str | None) -> str | None:
+    """Mapuje surowy tekst skrzyni biegów (np. '6-biegowa manualna', 'DSG7') do
+    znormalizowanej wartości ze słownika `transmission_types` (Manualna /
+    Automatyczna). Zwraca None gdy nie da się jednoznacznie sklasyfikować."""
+    if not raw:
+        return None
+    text = raw.strip().lower()
+    if not text or text in {"brak", "-"}:
+        return None
+    if any(kw in text for kw in _AUTOMATIC_KEYWORDS):
+        return TransmissionTyp.AUTOMATYCZNA.value
+    if any(kw in text for kw in _MANUAL_KEYWORDS):
+        return TransmissionTyp.MANUALNA.value
+    return None
 
 
 def finalize_vehicle_pipeline(
@@ -120,6 +141,15 @@ def finalize_vehicle_pipeline(
         )
         mapped_data["samar_category"] = samar_name
         mapped_data["samar_candidates"] = samar_candidates
+
+        # Normalize transmission to SOT enum (Manualna / Automatyczna).
+        # Source priority: AI-mapped value (already cleaned) → raw OCR text.
+        normalized_transmission = (
+            normalize_transmission(mapped_data.get("transmission"))
+            or normalize_transmission(card_summary.get("transmission"))
+        )
+        if normalized_transmission:
+            mapped_data["transmission_type"] = normalized_transmission
 
         # ── READINESS CHECK (Soft-Fail dla ręcznej edycji z UI) ──
         if samar_name == "INNE - WYMAGA RĘCZNEGO MAPOWANIA" or not samar_name:

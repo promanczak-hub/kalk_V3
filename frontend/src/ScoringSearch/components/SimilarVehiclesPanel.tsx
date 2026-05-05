@@ -505,6 +505,7 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                           variant="caption"
                           sx={{
                             fontSize: '0.7rem',
+                            fontWeight: 600,
                             color: '#475569',
                             fontFamily: '"Geist Mono", monospace',
                             bgcolor: '#F8FAFC',
