@@ -71,3 +71,17 @@ backend/diag_*.txt
 backend/*.log
 backend/*_out.txt
 backend/*_output.txt
+
+# Backups — never commit
+*.zip
+*.tar.gz
+*.bak
+
+# Local dev config (per-machine, not for repo)
+docker-compose.override.yml
+
+# Generated audit/test reports
+frontend/audit-output/
+
+# Claude Code local config
+.claude/
