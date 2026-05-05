@@ -9,13 +9,22 @@ import {
   Divider,
   TextField,
   Paper,
-  Chip
+  Chip,
+  MenuItem
 } from '@mui/material';
 import { X, Trash2, FileOutput } from 'lucide-react';
 import { useOfferCartStore, type OfferItem, type OfferVariant } from '../../stores/offerCartStore';
 
-const CartItemRecord: React.FC<{ item: OfferItem; onRemove: (id: string) => void }> = ({ item, onRemove }) => {
+const OVERUSE_FEE_OPTIONS: number[] = Array.from({ length: 71 }, (_, i) => Math.round((0.10 + i * 0.01) * 100) / 100);
+const DEFAULT_OVERUSE_FEE = 0.50;
+
+const CartItemRecord: React.FC<{
+  item: OfferItem;
+  onRemove: (id: string) => void;
+  onPatch: (id: string, patch: Partial<OfferItem>) => void;
+}> = ({ item, onRemove, onPatch }) => {
   const [expanded, setExpanded] = useState(false);
+  const overuseFee = item.overuse_fee ?? DEFAULT_OVERUSE_FEE;
 
   return (
     <Paper sx={{ mb: 2, p: 2, position: 'relative' }} variant="outlined">
@@ -56,6 +65,32 @@ const CartItemRecord: React.FC<{ item: OfferItem; onRemove: (id: string) => void
             {expanded ? 'Ukryj warianty' : 'Pokaż warianty'}
           </Button>
         )}
+      </Box>
+
+      <Box sx={{ mt: 2, pt: 1, borderTop: '1px dashed', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <TextField
+          select
+          size="small"
+          label="Opłata za nadprzebieg (zł/km)"
+          value={overuseFee}
+          onChange={(e) => onPatch(item.id, { overuse_fee: Number(e.target.value) })}
+          SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 280 } } } }}
+        >
+          {OVERUSE_FEE_OPTIONS.map((v) => (
+            <MenuItem key={v} value={v}>
+              {v.toFixed(2)} zł/km
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          size="small"
+          label="Notatka do tej oferty (np. dostawa za pół roku)"
+          multiline
+          minRows={2}
+          maxRows={4}
+          value={item.notes ?? ''}
+          onChange={(e) => onPatch(item.id, { notes: e.target.value })}
+        />
       </Box>
 
       {expanded && item.variants && item.variants.length > 0 && (
@@ -100,7 +135,7 @@ const CartItemRecord: React.FC<{ item: OfferItem; onRemove: (id: string) => void
 };
 
 const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
-  const { items, clientData, removeItem, clearCart, setClientData } = useOfferCartStore();
+  const { items, clientData, removeItem, updateItem, clearCart, setClientData } = useOfferCartStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -113,9 +148,13 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
       const payload = {
         client_name: clientData.companyName || "Klient Indywidualny",
         client_nip: clientData.nip || "0000000000",
+        client_address: clientData.address || "",
+        representative: clientData.representative || "",
         items: items.map(item => ({
           ...item,
-          id: item.id
+          id: item.id,
+          notes: item.notes ?? "",
+          overuse_fee: item.overuse_fee ?? DEFAULT_OVERUSE_FEE,
         }))
       };
       
@@ -171,7 +210,7 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
           ) : (
             <List>
               {items.map((item) => (
-                <CartItemRecord key={item.id} item={item} onRemove={removeItem} />
+                <CartItemRecord key={item.id} item={item} onRemove={removeItem} onPatch={updateItem} />
               ))}
             </List>
           )}

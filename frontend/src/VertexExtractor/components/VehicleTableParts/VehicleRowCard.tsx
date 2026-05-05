@@ -9,6 +9,7 @@ import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
+import { VehicleServiceOptionsCard } from "./VehicleServiceOptionsCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import { DiscountAuditCard } from "./DiscountAuditCard";
 import type { DiscountBreakdown } from "../../types";
@@ -857,6 +858,18 @@ export function VehicleRowCard({
                   handleAddManualFactoryOption={handleAddManualFactoryOption}
                   activeDiscountPct={activeDiscountPct}
                 />
+                <VehicleServiceOptionsCard
+                  vehicle={vehicle}
+                  customServiceOptions={customServiceOptions}
+                  handleUpdateServiceOptionName={handleUpdateServiceOptionName}
+                  handleUpdateServiceOptionPrice={handleUpdateServiceOptionPrice}
+                  handleUpdateServiceOptionIncludeInWr={handleUpdateServiceOptionIncludeInWr}
+                  handleRemoveServiceOption={handleRemoveServiceOption}
+                  handleAddManualServiceOption={handleAddManualServiceOption}
+                  handleRestoreAllOptions={handleRestoreAllOptions}
+                  handleSaveAllOptions={handleSaveAllOptions}
+                  isSavingServices={isSavingServices}
+                />
                 <VehicleFeaturesCard
                   vehicleId={vehicle.id}
                   vehicleTypeHint={localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class}
@@ -881,15 +894,6 @@ export function VehicleRowCard({
                  offerDiscountPercentage={offerDiscountPercentage}
                  suggestedDiscountPct={suggestedDiscountPct}
                  activeDiscountPct={activeDiscountPct}
-                 customServiceOptions={customServiceOptions}
-                 handleUpdateServiceOptionName={handleUpdateServiceOptionName}
-                 handleUpdateServiceOptionPrice={handleUpdateServiceOptionPrice}
-                 handleUpdateServiceOptionIncludeInWr={handleUpdateServiceOptionIncludeInWr}
-                 handleRemoveServiceOption={handleRemoveServiceOption}
-                 handleAddManualServiceOption={handleAddManualServiceOption}
-                 handleRestoreAllOptions={handleRestoreAllOptions}
-                 handleSaveAllOptions={handleSaveAllOptions}
-                 isSavingServices={isSavingServices}
                  // Financial parameters
                  wiborPct={wiborPct || 0}
                  setWiborPct={setWiborPct}
