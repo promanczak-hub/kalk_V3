@@ -60,6 +60,33 @@ def _f(v: Any) -> Optional[float]:
         return None
 
 
+VAT_RATE = 1.23
+
+
+def _to_net(value: Optional[float], price_type: str) -> Optional[float]:
+    """Convert to net if the source explicitly says brutto."""
+    if value is None:
+        return None
+    if (price_type or "").strip().lower() in ("brutto", "gross"):
+        return round(value / VAT_RATE, 2)
+    return value
+
+
+def _option_price_net(entry: Dict[str, Any]) -> float:
+    """Resolve a per-option net price from a dict that may carry price_net / price_gross / price + price_type."""
+    pn = _f(entry.get("price_net"))
+    if pn is not None:
+        return pn
+    pg = _f(entry.get("price_gross"))
+    if pg is not None:
+        return round(pg / VAT_RATE, 2)
+    raw = _f(entry.get("price"))
+    if raw is None:
+        return 0.0
+    converted = _to_net(raw, entry.get("price_type") or "")
+    return converted if converted is not None else 0.0
+
+
 def _normalize_options(raw: Any) -> List[tuple[str, float]]:
     """Return [(name, price_net), ...] from heterogeneous shapes (list of dicts/strings)."""
     out: List[tuple[str, float]] = []
@@ -67,26 +94,42 @@ def _normalize_options(raw: Any) -> List[tuple[str, float]]:
         for entry in raw:
             if isinstance(entry, dict):
                 name = (entry.get("name") or entry.get("description") or "").strip()
-                price = _f(entry.get("price_net"))
-                if price is None:
-                    price = _f(entry.get("price")) or 0.0
                 if name:
-                    out.append((name, price or 0.0))
+                    out.append((name, _option_price_net(entry)))
             elif isinstance(entry, str) and entry.strip():
                 out.append((entry.strip(), 0.0))
     elif isinstance(raw, dict):
-        # service_equipment is a single object with optional components
-        name = (raw.get("name") or "").strip()
-        price = _f(raw.get("price_net")) or _f(raw.get("price")) or 0.0
-        if name:
-            out.append((name, price))
-        for comp in raw.get("components") or []:
+        # service_equipment is a single object with optional components.
+        # When components exist, prefer them — the wrapper holds totals only.
+        components = raw.get("components") or []
+        if not components:
+            name = (raw.get("name") or "").strip()
+            if name:
+                out.append((name, _option_price_net(raw)))
+        for comp in components:
             if isinstance(comp, dict):
                 cname = (comp.get("name") or "").strip()
-                cprice = _f(comp.get("price_net")) or _f(comp.get("price")) or 0.0
                 if cname:
-                    out.append((cname, cprice))
+                    out.append((cname, _option_price_net(comp)))
     return out
+
+
+def _split_paid_options(paid_options: Any) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Split card_summary.paid_options into (factory, service) by `category` field.
+    'Serwisowa/Akcesoria' (and similar) → service; everything else → factory."""
+    factory: List[Dict[str, Any]] = []
+    service: List[Dict[str, Any]] = []
+    if not isinstance(paid_options, list):
+        return factory, service
+    for opt in paid_options:
+        if not isinstance(opt, dict):
+            continue
+        cat = (opt.get("category") or "").lower()
+        if "serwis" in cat or "akcesor" in cat or "dealer" in cat:
+            service.append(opt)
+        else:
+            factory.append(opt)
+    return factory, service
 
 
 def _build_marketing_name(stan: Dict[str, Any], cs: Dict[str, Any]) -> str:
@@ -182,6 +225,45 @@ def _compute_fin_tech_split(
     return None, None, None
 
 
+def _load_synthesis_fallback(vehicle_id: Optional[str]) -> Dict[str, Any]:
+    """Fetch vehicle_synthesis row and shape it into a stan-like dict.
+
+    Used when no kalkulacja exists for the cart item — gives the offer XLSX
+    enough vehicle context (spec, options, standard equipment, SAMAR) without
+    requiring the user to first run a full LTR calculation.
+    Returns {} on miss or any error.
+    """
+    if not vehicle_id:
+        return {}
+    try:
+        res = (
+            supabase.table("vehicle_synthesis")
+            .select("brand, model, offer_number, synthesis_data")
+            .eq("id", vehicle_id)
+            .limit(1)
+            .execute()
+        )
+        if not res.data:
+            return {}
+        row = res.data[0]
+        synth = row.get("synthesis_data") or {}
+        cs = synth.get("card_summary") or {}
+        mai = synth.get("mapped_ai_data") or {}
+        return {
+            "brand": row.get("brand") or synth.get("brand") or mai.get("brand"),
+            "model": row.get("model") or synth.get("model") or mai.get("model"),
+            "trim_level": synth.get("trim_level") or cs.get("trim_level") or mai.get("trim_level"),
+            "offer_number": row.get("offer_number") or synth.get("offer_number"),
+            "configuration_code": synth.get("configuration_code"),
+            "card_summary": cs,
+            "mapped_ai_data": mai,
+            "_synthetic": True,  # tag — skip _compute_fin_tech_split for non-CalculatorInput shapes
+        }
+    except Exception as e:
+        logger.info("vehicle_synthesis fallback skipped: %s", str(e)[:200])
+        return {}
+
+
 def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """Pull stan_json + numer_kalkulacji + matrix breakdown for a single offer item."""
     calc_data = item.get("calculation_data") or {}
@@ -190,10 +272,15 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         or item.get("kalkulacja_id")
         or calc_data.get("kalkulacja_id")
     )
-    vehicle_id = item.get("vehicle_id") or calc_data.get("vehicle_id")
+    vehicle_id = (
+        item.get("vehicle_id")
+        or calc_data.get("vehicle_id")
+        or calc_data.get("id")
+    )
 
     stan: Dict[str, Any] = {}
     numer = None
+    stan_loaded = False
     if kalk_id:
         try:
             res = (
@@ -207,18 +294,24 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
                 row = res.data[0]
                 numer = row.get("numer_kalkulacji")
                 stan = row.get("stan_json") or {}
+                stan_loaded = bool(stan)
         except Exception:
             pass
+
+    if not stan_loaded:
+        stan = _load_synthesis_fallback(vehicle_id)
 
     cs: Dict[str, Any] = stan.get("card_summary") or {}
     mai: Dict[str, Any] = stan.get("mapped_ai_data") or {}
 
+    factory_raw, service_raw_from_paid = _split_paid_options(cs.get("paid_options"))
+
     factory = _normalize_options(stan.get("factory_options"))
     if not factory:
-        factory = _normalize_options(cs.get("paid_options"))
+        factory = _normalize_options(factory_raw)
     service = _normalize_options(stan.get("service_options"))
     if not service:
-        service = _normalize_options(cs.get("service_equipment"))
+        service = _normalize_options(service_raw_from_paid) + _normalize_options(cs.get("service_equipment"))
 
     standard = (
         stan.get("standard_equipment")
@@ -265,29 +358,68 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     else:
         sheet_label = numer or "Pojazd"
 
-    fin, tech, stawka_recalc = _compute_fin_tech_split(
-        stan,
-        term=int(item.get("term") or 0),
-        annual_mileage=int(item.get("mileage") or 0),
-        applied_margin_pct=item.get("margin_pct"),
-    )
+    if stan_loaded and not stan.get("_synthetic"):
+        fin, tech, stawka_recalc = _compute_fin_tech_split(
+            stan,
+            term=int(item.get("term") or 0),
+            annual_mileage=int(item.get("mileage") or 0),
+            applied_margin_pct=item.get("margin_pct"),
+        )
+    else:
+        fin, tech, stawka_recalc = None, None, None
+
+    def _pick(*vals: Any) -> str:
+        for v in vals:
+            if v is None:
+                continue
+            s = str(v).strip()
+            if s and s.lower() not in ("brak", "—", "none", "null"):
+                return s
+        return ""
 
     enriched = {
         **item,
         "kalk_numer": numer,
         "sheet_label": sheet_label,
-        "vin": stan.get("vin") or mai.get("vin") or cs.get("vin"),
-        "config_code": stan.get("configuration_code") or item.get("vin_or_config") or "",
-        "offer_number": stan.get("offer_number"),
+        "vin": _pick(stan.get("vin"), mai.get("vin"), cs.get("vin"), calc_data.get("vin")) or None,
+        "config_code": _pick(
+            stan.get("configuration_code"),
+            calc_data.get("configuration_code"),
+            item.get("vin_or_config"),
+        ),
+        "offer_number": stan.get("offer_number") or calc_data.get("offer_number"),
         "marketing_name": marketing_name,
-        "trim": cs.get("trim_level") or stan.get("trim_level") or "",
-        "transmission": cs.get("transmission") or stan.get("gearbox_name") or "",
-        "drive": cs.get("drive_type") or stan.get("drive_type") or "",
-        "fuel": cs.get("fuel") or stan.get("fuel") or item.get("powertrain") or "",
-        "engine_power_hp": _f(cs.get("power_hp")) or _f(stan.get("power_hp")),
-        "body_style": cs.get("body_style") or stan.get("body_type_name") or "",
-        "paint_metallic": bool(stan.get("is_metalic", cs.get("is_metalic_paint", False))),
-        "samar_category": stan.get("samar_category") or mai.get("samar_category") or "",
+        "trim": _pick(
+            cs.get("trim_level"), stan.get("trim_level"),
+            calc_data.get("trim_level"), calc_data.get("version"),
+        ),
+        "transmission": _pick(
+            cs.get("transmission"), stan.get("gearbox_name"),
+            mai.get("transmission"), mai.get("gearbox"),
+            calc_data.get("transmission"),
+        ),
+        "drive": _pick(
+            cs.get("drive_type"), stan.get("drive_type"),
+            mai.get("drive_type"), calc_data.get("drive_type"),
+        ),
+        "fuel": _pick(
+            cs.get("fuel"), stan.get("fuel"),
+            mai.get("fuel"),
+            calc_data.get("fuel_type"), calc_data.get("fuel"),
+            item.get("powertrain"),
+        ),
+        "engine_power_hp": _f(cs.get("power_hp")) or _f(stan.get("power_hp")) or _f(calc_data.get("power_hp")),
+        "body_style": _pick(
+            cs.get("body_style"), stan.get("body_type_name"),
+            mai.get("body_type"), calc_data.get("body_style"),
+        ),
+        "paint_metallic": bool(
+            stan.get("is_metalic", cs.get("is_metalic_paint", calc_data.get("is_metalic_paint", False)))
+        ),
+        "samar_category": _pick(
+            stan.get("samar_category"), mai.get("samar_category"),
+            calc_data.get("vehicle_class"),
+        ),
         "base_price_net": base_price_net,
         "factory_options_total": factory_total,
         "service_options_total": service_total,

@@ -1,3 +1,4 @@
+import { Database, Loader2 } from "lucide-react";
 import type { FleetVehicleView } from "../../types";
 import { NetGrossInput } from "./NetGrossInput";
 import { AccordionCard } from "./AccordionCard";
@@ -11,6 +12,8 @@ interface VehicleEquipmentCardProps {
   handleUpdateFactoryOptionNoDiscount: (id: string, noDiscount: boolean) => void;
   handleRemoveFactoryOption: (id: string) => void;
   handleAddManualFactoryOption: () => void;
+  handleSaveAllOptions: () => Promise<void>;
+  isSavingServices: boolean;
   activeDiscountPct: number;
 }
 
@@ -34,6 +37,8 @@ export function VehicleEquipmentCard({
   handleUpdateFactoryOptionNoDiscount,
   handleRemoveFactoryOption,
   handleAddManualFactoryOption,
+  handleSaveAllOptions,
+  isSavingServices,
   activeDiscountPct,
 }: VehicleEquipmentCardProps) {
   const standardEquipment = vehicle.standard_equipment ?? [];
@@ -167,14 +172,23 @@ export function VehicleEquipmentCard({
           </div>
         )}
 
-        {/* Add button */}
-        <div className="flex items-center justify-between pt-1">
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <button
             onClick={handleAddManualFactoryOption}
             className="flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 transition-all shadow-sm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             Dodaj ręcznie
+          </button>
+          <button
+            onClick={handleSaveAllOptions}
+            disabled={isSavingServices}
+            className="flex items-center justify-center text-xs font-semibold px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+            title="Zapisuje opcje fabryczne i serwisowe do bazy"
+          >
+            {isSavingServices ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
+            {isSavingServices ? "Zapisywanie..." : "Zapisz zmiany"}
           </button>
         </div>
 

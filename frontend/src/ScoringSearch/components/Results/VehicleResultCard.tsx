@@ -363,19 +363,28 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               {car.base_price_net != null && (
                 <div className="flex justify-between">
                   <span className="text-slate-400">Cena bazowa</span>
-                  <span className="tabular-nums">{fmtPLN(car.base_price_net)} PLN</span>
+                  <span className="tabular-nums">
+                    {fmtPLN(car.base_price_net)} PLN
+                    <span className="text-slate-300 ml-1.5">({fmtPLN(car.base_price_net * 1.23)} brutto)</span>
+                  </span>
                 </div>
               )}
               {car.factory_options_price_net != null && car.factory_options_price_net > 0 && (
                 <div className="flex justify-between">
                   <span className="text-slate-400">Opcje fabryczne</span>
-                  <span className="tabular-nums">+ {fmtPLN(car.factory_options_price_net)} PLN</span>
+                  <span className="tabular-nums">
+                    + {fmtPLN(car.factory_options_price_net)} PLN
+                    <span className="text-slate-300 ml-1.5">({fmtPLN(car.factory_options_price_net * 1.23)} brutto)</span>
+                  </span>
                 </div>
               )}
               {car.service_options_price_net != null && car.service_options_price_net > 0 && (
                 <div className="flex justify-between">
                   <span className="text-slate-400">Opcje serwisowe</span>
-                  <span className="tabular-nums">+ {fmtPLN(car.service_options_price_net)} PLN</span>
+                  <span className="tabular-nums">
+                    + {fmtPLN(car.service_options_price_net)} PLN
+                    <span className="text-slate-300 ml-1.5">({fmtPLN(car.service_options_price_net * 1.23)} brutto)</span>
+                  </span>
                 </div>
               )}
               {/* Fallback when split isn't available but a combined options figure is */}
@@ -385,7 +394,10 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 && car.options_price_net > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-400">Opcje (łącznie)</span>
-                    <span className="tabular-nums">+ {fmtPLN(car.options_price_net)} PLN</span>
+                    <span className="tabular-nums">
+                      + {fmtPLN(car.options_price_net)} PLN
+                      <span className="text-slate-300 ml-1.5">({fmtPLN(car.options_price_net * 1.23)} brutto)</span>
+                    </span>
                   </div>
                 )}
             </div>

@@ -85,8 +85,7 @@ export const AdaptiveSliderField: React.FC<AdaptiveSliderFieldProps> = ({
         let next = prev + accumulatorRef.current;
         if (min !== undefined) next = Math.max(min, next);
         if (max !== undefined) next = Math.min(max, next);
-        // Round to 1 decimal
-        next = Math.round(next * 10) / 10;
+        next = Math.round(next * 100) / 100;
         setInputValue(next.toString());
         return next;
       });

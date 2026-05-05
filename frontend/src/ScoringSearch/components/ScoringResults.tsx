@@ -68,7 +68,11 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
 
   // Compute the rate the user actually sees on the card, mirroring the logic
   // in VehicleResultCard so the sort and the displayed banner agree.
+  // Cards with pinned calculations fetch their own price per kalkulacja_id
+  // inside the card, so the parent has no visibility into that rate — we
+  // skip them and let them stay in the fits-bucket (rank 0).
   const computeMonthlyDisplay = (car: ScoredVehicle): number | null => {
+    if ((car.selected_kalkulacja_ids ?? []).length > 0) return null;
     const priceData = batchPrices[car.vehicle_id as string];
     const price = priceData?.price_for_params;
     const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;

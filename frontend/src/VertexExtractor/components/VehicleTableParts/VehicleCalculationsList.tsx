@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings, Star } from "lucide-react";
+import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings, Star, ShoppingCart } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { apiClient } from "../../../lib/apiClient";
 import { fmtPLN } from "./calculations/calculations.utils";
 import { API_BASE_URL } from "../../../config/env";
+import { useOfferCartStore } from "../../../stores/offerCartStore";
 
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, type ColDef, type ICellRendererParams, ModuleRegistry, type RowClassRules } from "ag-grid-community";
@@ -215,15 +216,28 @@ function SelectedCellRenderer(
   );
 }
 
-function ActionsCellRenderer(params: ICellRendererParams<HistoricalCalculation> & { activeKalkulacjaId?: string | null, onClone?: (id: string) => void }) {
+function ActionsCellRenderer(params: ICellRendererParams<HistoricalCalculation> & {
+  activeKalkulacjaId?: string | null,
+  onClone?: (id: string) => void,
+  onAddToCart?: (id: string) => void,
+  cartPendingId?: string | null,
+}) {
   const item = params.data;
   if (!item) return null;
   const isActive = params.activeKalkulacjaId === item.id;
+  const isCartPending = params.cartPendingId === item.id;
 
   const handleCloneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (params.onClone) {
       params.onClone(item.id);
+    }
+  };
+
+  const handleCartClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isCartPending && params.onAddToCart) {
+      params.onAddToCart(item.id);
     }
   };
 
@@ -238,7 +252,24 @@ function ActionsCellRenderer(params: ICellRendererParams<HistoricalCalculation> 
           Wybierz <ChevronRight className="w-3 h-3 inline -mt-0.5" />
         </span>
       )}
-      
+
+      {params.onAddToCart && (
+        <button
+          onClick={handleCartClick}
+          disabled={isCartPending}
+          className={cn(
+            "cart-btn",
+            "inline-flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-md transition-colors",
+            "text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
+            isCartPending && "opacity-50 cursor-wait"
+          )}
+          title="Dodaj 3 warianty (Smart Advisor) do koszyka ofertowego"
+        >
+          {isCartPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShoppingCart className="w-3 h-3" />}
+          Do koszyka
+        </button>
+      )}
+
       {params.onClone && (
         <button
           onClick={handleCloneClick}
@@ -269,6 +300,9 @@ export function VehicleCalculationsList({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
+  const [cartPendingId, setCartPendingId] = useState<string | null>(null);
+  const [cartFlashMessage, setCartFlashMessage] = useState<string | null>(null);
+  const addItemsToCart = useOfferCartStore((s) => s.addItems);
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -300,6 +334,48 @@ export function VehicleCalculationsList({
     window.addEventListener('kalkulacjaCreated', handleNewCalc);
     return () => window.removeEventListener('kalkulacjaCreated', handleNewCalc);
   }, [vehicleId, activeKalkulacjaId]);
+
+  const handleAddToCart = async (kalkulacjaId: string) => {
+    setCartPendingId(kalkulacjaId);
+    setError(null);
+    try {
+      const res = await apiClient.fetch(`${API_BASE_URL}/api/kalkulacje/${kalkulacjaId}/smart-advisor`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`Smart Advisor zwrócił ${res.status}`);
+      const data = await res.json();
+      const variants: unknown[] = Array.isArray(data) ? data : (data?.variants ?? []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cartItems = variants.filter(Boolean).map((raw: any) => ({
+        id: raw.id || `${kalkulacjaId}_${raw.term}_${raw.mileage}`,
+        brand: raw.brand || "",
+        model: raw.model || "",
+        powertrain: raw.powertrain || "",
+        vin_or_config: raw.vin_or_config || "",
+        term: raw.term || 0,
+        mileage: raw.mileage || 0,
+        net_installment: raw.net_installment || 0,
+        contribution: raw.contribution || 0,
+        margin_pct: raw.margin_pct,
+        system_recommendation: raw.system_recommendation || "Smart Advisor",
+        standard_equipment: raw.standard_equipment || [],
+        factory_options: raw.factory_options || [],
+        dealer_options: raw.dealer_options || [],
+        calculation_data: raw.calculation_data || { kalkulacja_id: kalkulacjaId },
+      }));
+      if (cartItems.length === 0) {
+        setError("Smart Advisor nie zwrócił żadnych wariantów dla tej kalkulacji.");
+        return;
+      }
+      addItemsToCart(cartItems);
+      setCartFlashMessage(`Dodano ${cartItems.length} ${cartItems.length === 1 ? "wariant" : "wariantów"} do koszyka.`);
+      window.setTimeout(() => setCartFlashMessage(null), 3500);
+    } catch (err) {
+      setError((err as Error).message || "Nie udało się dodać do koszyka");
+    } finally {
+      setCartPendingId(null);
+    }
+  };
 
   const handleToggleSelected = async (kalkulacjaId: string, makeSelected: boolean) => {
     setPendingSelectId(kalkulacjaId);
@@ -378,14 +454,14 @@ export function VehicleCalculationsList({
     },
     {
       headerName: "Akcje",
-      width: 130,
+      width: 230,
       type: "rightAligned",
       cellRenderer: ActionsCellRenderer,
-      cellRendererParams: { activeKalkulacjaId, onClone },
+      cellRendererParams: { activeKalkulacjaId, onClone, onAddToCart: handleAddToCart, cartPendingId },
       sortable: false,
       filter: false,
     }
-  ], [activeKalkulacjaId, onClone, pendingSelectId]);
+  ], [activeKalkulacjaId, onClone, pendingSelectId, cartPendingId]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true,
@@ -439,6 +515,11 @@ export function VehicleCalculationsList({
           {items.length}
         </span>
         {loading && <Loader2 className="w-3 h-3 animate-spin text-slate-400 ml-2" />}
+        {cartFlashMessage && (
+          <span className="ml-auto text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+            {cartFlashMessage}
+          </span>
+        )}
       </div>
 
       <div className="ag-theme-quartz border border-slate-200 rounded-lg shadow-sm w-full overflow-hidden" style={{ height: Math.min(items.length, 5) * 60 + 45 }}>
