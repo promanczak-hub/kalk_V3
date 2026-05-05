@@ -51,6 +51,149 @@ def generate_embedding(text: str) -> list[float] | None:
     return None
 
 
+def _safe_str(v: object) -> str:
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
+def build_use_case_text(brand: str, model: str, synthesis_data: dict) -> str:
+    """What the vehicle IS — segment, type, character. Embedded as `vector_use_case`.
+    Optimized for queries like 'duży SUV rodzinny', 'miejski hatchback', 'premium kombi'."""
+    cs = synthesis_data.get("card_summary") or {}
+    mapped = synthesis_data.get("mapped_ai_data") or {}
+    parts: list[str] = []
+
+    head = " ".join(filter(None, [_safe_str(brand), _safe_str(model), _safe_str(cs.get("trim_level"))]))
+    if head:
+        parts.append(f"Pojazd: {head}")
+
+    body = _safe_str(mapped.get("body_style") or cs.get("body_style"))
+    vclass = _safe_str(cs.get("vehicle_class") or mapped.get("vehicle_type"))
+    if body or vclass:
+        parts.append(f"Typ nadwozia: {body or '—'} ({vclass or '—'})")
+
+    samar = _safe_str(mapped.get("samar_category"))
+    if samar:
+        parts.append(f"Klasa SAMAR: {samar}")
+
+    drive = _safe_str(mapped.get("drive_type") or cs.get("drive_type"))
+    if drive:
+        parts.append(f"Napęd: {drive}")
+
+    fuel = _safe_str(mapped.get("fuel") or cs.get("fuel"))
+    fam = _safe_str(mapped.get("powertrain_family"))
+    if fuel or fam:
+        parts.append(f"Paliwo/silnik: {fuel or '—'} ({fam or '—'})")
+
+    pwr_range = _safe_str(cs.get("power_range"))
+    if pwr_range:
+        parts.append(f"Zakres mocy: {pwr_range}")
+
+    return "\n".join(parts)
+
+
+def build_specs_text(brand: str, model: str, synthesis_data: dict) -> str:
+    """Concrete technical parameters. Embedded as `vector_specs`.
+    Optimized for queries like 'diesel z automatem', 'moc >200 KM', 'długość 4.7m'."""
+    cs = synthesis_data.get("card_summary") or {}
+    mapped = synthesis_data.get("mapped_ai_data") or {}
+    dims = cs.get("dimensions") or {}
+    parts: list[str] = []
+
+    head = " ".join(filter(None, [_safe_str(brand), _safe_str(model)])) or "Pojazd"
+    powertrain = _safe_str(cs.get("powertrain") or cs.get("powertrain_raw_legacy"))
+    fuel = _safe_str(mapped.get("fuel") or cs.get("fuel"))
+    pwr_hp = cs.get("power_hp")
+    pwr_kw = cs.get("power_kw")
+    pwr_str = ""
+    if pwr_hp is not None:
+        pwr_str = f"{pwr_hp} KM"
+        if pwr_kw is not None:
+            pwr_str += f" / {pwr_kw} kW"
+    transmission = _safe_str(mapped.get("transmission") or cs.get("transmission"))
+    drive = _safe_str(mapped.get("drive_type") or cs.get("drive_type"))
+
+    engine_line = ", ".join(filter(None, [
+        powertrain, fuel, pwr_str,
+        f"skrzynia {transmission}" if transmission else "",
+        f"napęd {drive}" if drive else "",
+    ]))
+    if engine_line:
+        parts.append(f"{head}: {engine_line}")
+
+    cap = _safe_str(cs.get("engine_capacity"))
+    desig = _safe_str(cs.get("engine_designation"))
+    if cap or desig:
+        parts.append(f"Pojemność/oznaczenie silnika: {cap or '—'} {desig}".strip())
+
+    dim_bits: list[str] = []
+    if dims.get("length_mm") and dims.get("width_mm") and dims.get("height_mm"):
+        dim_bits.append(f"{dims['length_mm']}×{dims['width_mm']}×{dims['height_mm']} mm")
+    if dims.get("wheelbase_mm"):
+        dim_bits.append(f"rozstaw osi {dims['wheelbase_mm']} mm")
+    if dims.get("curb_weight_kg"):
+        dim_bits.append(f"masa własna {dims['curb_weight_kg']} kg")
+    if dims.get("payload_kg"):
+        dim_bits.append(f"ładowność {dims['payload_kg']} kg")
+    if dims.get("gross_vehicle_weight_kg"):
+        dim_bits.append(f"DMC {dims['gross_vehicle_weight_kg']} kg")
+    if dims.get("fuel_tank_capacity_l"):
+        dim_bits.append(f"zbiornik {dims['fuel_tank_capacity_l']} l")
+    if dims.get("cargo_volume_m3"):
+        dim_bits.append(f"objętość ładunkowa {dims['cargo_volume_m3']} m³")
+    if dim_bits:
+        parts.append("Wymiary: " + ", ".join(dim_bits))
+
+    emissions = _safe_str(cs.get("emissions"))
+    if emissions:
+        parts.append(f"Emisje/zużycie: {emissions}")
+
+    wheels = _safe_str(cs.get("wheels"))
+    if wheels:
+        parts.append(f"Felgi: {wheels}\"")
+
+    seats = cs.get("number_of_seats")
+    if seats:
+        parts.append(f"Liczba miejsc: {seats}")
+
+    return "\n".join(parts)
+
+
+def build_equipment_text(brand: str, model: str, synthesis_data: dict) -> str:
+    """What's installed/included. Embedded as `vector_equipment`.
+    Optimized for queries like 'z hakiem', 'kamera cofania', 'adaptive cruise'."""
+    cs = synthesis_data.get("card_summary") or {}
+    parts: list[str] = []
+    head = " ".join(filter(None, [_safe_str(brand), _safe_str(model)])) or "Pojazd"
+    parts.append(head)
+
+    std = cs.get("standard_equipment") or []
+    std_names = [_safe_str(x) for x in std if _safe_str(x)]
+    if std_names:
+        parts.append("Wyposażenie standardowe: " + "; ".join(std_names))
+
+    paid = cs.get("paid_options") or []
+    paid_names = [
+        _safe_str(o.get("name"))
+        for o in paid
+        if isinstance(o, dict) and _safe_str(o.get("name"))
+    ]
+    if paid_names:
+        parts.append("Opcje płatne: " + "; ".join(paid_names))
+
+    if cs.get("has_tow_hook"):
+        parts.append("Hak holowniczy: tak")
+    if cs.get("has_automatic_ac"):
+        parts.append("Klimatyzacja automatyczna: tak")
+
+    color = _safe_str(cs.get("exterior_color"))
+    if color:
+        parts.append(f"Kolor: {color}")
+
+    return "\n".join(parts)
+
+
 def build_vehicle_document(brand: str, model: str, synthesis_data: dict) -> str:
     """Compile a rich text document for a vehicle to be vectorized.
 

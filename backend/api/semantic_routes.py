@@ -4,8 +4,9 @@ from typing import Any
 import logging
 
 from core.database import get_fresh_client
-from core.embeddings import generate_embedding, build_vehicle_document
+from core.embeddings import generate_embedding
 from core.celery_app import celery_app
+from tasks.enrichment_tasks import generate_embedding_for_vehicle
 
 logger = logging.getLogger(__name__)
 
@@ -75,18 +76,25 @@ async def search_vehicles_semantic(request: SemanticSearchRequest) -> dict[str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+_MISSING_EMBEDDINGS_OR_FILTER = (
+    "semantic_embedding.is.null,"
+    "vector_use_case.is.null,"
+    "vector_specs.is.null,"
+    "vector_equipment.is.null"
+)
+
+
 @celery_app.task(name="background_sync_semantic_task")
 def background_sync_task(batch_size: int, force_all: bool):
-    """Zadanie w tle przetwarzające pojazdy i wyznaczające ich wektory semantyczne. Odpalane przez Celery."""
+    """Background task: regenerate semantic + multi-vector embeddings for a batch.
+    Delegates per-vehicle work to `generate_embedding_for_vehicle` so all four
+    vector columns stay in sync."""
     try:
         client = get_fresh_client()
 
-        # Pobierz auta do aktualizacji
-        query = client.table("vehicle_synthesis").select(
-            "id, brand, model, synthesis_data"
-        )
+        query = client.table("vehicle_synthesis").select("id")
         if not force_all:
-            query = query.is_("semantic_embedding", "null")
+            query = query.or_(_MISSING_EMBEDDINGS_OR_FILTER)
 
         response = query.limit(batch_size).execute()
         vehicles = response.data
@@ -96,33 +104,15 @@ def background_sync_task(batch_size: int, force_all: bool):
             return
 
         success_count = 0
-        updates_batch = []
-
         for v in vehicles:
             try:
-                # Zbuduj tekst wejściowy
-                doc_text = build_vehicle_document(
-                    brand=v.get("brand", ""),
-                    model=v.get("model", ""),
-                    synthesis_data=v.get("synthesis_data", {}),
-                )
-
-                # Wygeneruj wektor
-                embedding = generate_embedding(doc_text)
-                if embedding:
-                    vector_str = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
-                    updates_batch.append(
-                        {"id": v["id"], "semantic_embedding": vector_str}
-                    )
+                res = generate_embedding_for_vehicle(v["id"])
+                if res.get("status") == "success":
                     success_count += 1
             except Exception as inner_e:
                 logger.error(
                     f"Błąd podczas wektoryzacji pojazdu {v.get('id')}: {inner_e}"
                 )
-
-        if updates_batch:
-            # Bulk upsert for vehicles to update them simultaneously instead of one by one N+1
-            client.table("vehicle_synthesis").upsert(updates_batch).execute()
 
         logger.info(
             f"Zakończono synchronizację semantyczną: {success_count}/{len(vehicles)} udanych wektoryzacji."
@@ -142,10 +132,10 @@ async def sync_all_semantic_embeddings(
     """
     try:
         db_client = get_fresh_client()
-        # Sprawdzamy ile w sumie jest do zrobienia (dla informacji)
+        # Liczymy ile pojazdów ma jakikolwiek brakujący wektor (semantic LUB którykolwiek z 3 multi).
         query = db_client.table("vehicle_synthesis").select("id", count="exact")
         if not request.force_all:
-            query = query.is_("semantic_embedding", "null")
+            query = query.or_(_MISSING_EMBEDDINGS_OR_FILTER)
 
         response = query.execute()
         total_remaining = response.count if response.count is not None else 0
