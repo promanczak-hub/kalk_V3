@@ -159,6 +159,39 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
             )}
           </div>
         )}
+        {/* "Niekompletne dane" chip — shows the UI defaults that fill in for
+            anything the AI didn't extract, plus an explicit signal that
+            auto-fit will pick the best matrix variant per vehicle if budget
+            is set but duration/mileage aren't. */}
+        {lastSummary && (() => {
+          const missing: string[] = [];
+          if (!lastSummary.durationMonths) missing.push(`${searchContext.exact_duration_months} mc`);
+          if (!lastSummary.annualMileage) {
+            const annual = Math.round((searchContext.exact_total_mileage * 12) / Math.max(searchContext.exact_duration_months, 1));
+            missing.push(`${formatPLN(annual)} km/rok`);
+          }
+          if (!searchContext.ai_supplied_margin) missing.push(`marża ${searchContext.margin_pct ?? 10}%`);
+          if (missing.length === 0) return null;
+          const autoFitOn = !!searchContext.fit_to_budget;
+          return (
+            <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-md">
+              <div className="font-semibold mb-0.5">⚠️ Niekompletne dane — założono:</div>
+              <div className="font-mono text-[11px] leading-snug">
+                {missing.join(' · ')}
+              </div>
+              {autoFitOn ? (
+                <div className="mt-1 text-[10px] text-emerald-800 italic">
+                  ✨ Auto-fit aktywny: dla każdego pojazdu serwer wybierze najtańszy wariant matrix i marżę
+                  maksymalizującą zysk w budżecie {formatPLN(lastSummary.budget ?? 0)} PLN/mc.
+                </div>
+              ) : (
+                <div className="mt-1 text-[10px] text-amber-800 italic">
+                  Zmień suwakami w sekcji KALKULACJE (MATRIX) jeśli inne wartości.
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </Box>
   );

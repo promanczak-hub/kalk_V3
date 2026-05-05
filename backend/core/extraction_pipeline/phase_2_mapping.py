@@ -18,8 +18,8 @@ from tasks.enrichment_tasks import generate_embedding_for_vehicle
 logger = logging.getLogger(__name__)
 
 
-_AUTOMATIC_KEYWORDS = ("automat", "dsg", "s-tronic", "s tronic", "tiptronic", "steptronic", "cvt", "edc", "powershift", "multitronic", "pdk")
-_MANUAL_KEYWORDS = ("manual", "ręczna", "reczna", "manualna")
+_AUTOMATIC_KEYWORDS = ("automat", "dsg", "tronic", "cvt", "edc", "powershift", "multitronic", "pdk")
+_MANUAL_KEYWORDS = ("manual", "ręczna", "reczna")
 
 
 def normalize_transmission(raw: str | None) -> str | None:

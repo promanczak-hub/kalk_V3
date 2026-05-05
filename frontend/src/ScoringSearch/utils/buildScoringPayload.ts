@@ -59,6 +59,12 @@ export const buildScoringPayload = (searchContext: SearchContext, selectedFeatur
     trims: searchContext.trims.length > 0 ? searchContext.trims : null,
     samar_class_ids: searchContext.samarClassIds.length > 0 ? searchContext.samarClassIds : null,
     requirements: requirements,
-    semantic_query: searchContext.semanticQuery || null
+    semantic_query: searchContext.semanticQuery || null,
+    // Auto-fit: when the user gave a budget and didn't pin duration/mileage/margin,
+    // ask the backend to sweep matrix cache and pick best variant + auto-margin
+    // per candidate. Result lands in best_fit_variant on each match.
+    fit_to_budget: !!searchContext.fit_to_budget && !!searchContext.monthly_budget,
+    monthly_budget: searchContext.monthly_budget ?? null,
+    auto_margin_cap_pct: searchContext.auto_margin_cap_pct ?? 30,
   };
 };

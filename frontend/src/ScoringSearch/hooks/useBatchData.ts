@@ -12,6 +12,16 @@ export interface PriceForParams {
   tire_class?: string;
   service_type?: string;
   kalkulacja_id?: string;
+  // Snapshot of the kalkulacja's pricing toggles + financing knobs. Same for
+  // every variant under the same kalkulacja_id.
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
 }
 
 export interface SimilarityReasons {
@@ -44,6 +54,10 @@ export interface SimilarityReasons {
   setup_match?: boolean | null;          // true = same (tire, service) as source
   source_tire_class?: string | null;
   source_service_type?: string | null;
+
+  // ── Matrix params the rate was priced for (echoed RPC inputs) ──
+  matched_duration_months?: number | null;
+  matched_annual_mileage?: number | null;
 }
 
 export interface SimilarVehicle {

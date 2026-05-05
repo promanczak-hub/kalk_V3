@@ -260,13 +260,13 @@ export function useVehicleMetaManager(
     }
   };
 
-  const handleTransmissionChange = async (newTransmission: string) => {
+  const handleTransmissionChange = async (newTransmissionType: string) => {
     try {
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
       if (!updatedJson.mapped_ai_data) updatedJson.mapped_ai_data = {};
-      updatedJson.mapped_ai_data.transmission = newTransmission;
+      updatedJson.mapped_ai_data.transmission_type = newTransmissionType;
 
       const { error } = await supabase
         .from("vehicle_synthesis")
@@ -277,7 +277,7 @@ export function useVehicleMetaManager(
 
       setLocalMappedData((prev) => ({
         ...(prev || serverMappedData || { brand: "", model: "", fuel: "", vehicle_type: "", trim_level: "", transmission: "" }),
-        transmission: newTransmission,
+        transmission_type: newTransmissionType,
       }));
 
     } catch (err) {

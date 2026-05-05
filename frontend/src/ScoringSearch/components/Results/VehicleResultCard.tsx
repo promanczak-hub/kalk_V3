@@ -77,9 +77,16 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const missingFeatures = car.missing_features || [];
   const score = car.match_score_pct;
 
+  // Auto-fit snapshot from server-side matrix sweep — populated when the
+  // search request had fit_to_budget=true. When present, its (duration ×
+  // mileage × margin) replaces the UI-default snapshot driven by the sliders.
+  const bestFit = car.best_fit_variant;
+  const effectiveDuration = bestFit?.duration_months ?? targetDuration;
+  const effectiveAnnualMileage = bestFit?.annual_mileage ?? targetAnnualMileage;
+
   const price = pinnedKalkulacjaId ? (pinnedPrice ?? undefined) : priceData?.price_for_params;
   const effectivePricesLoading = pinnedKalkulacjaId ? pinnedPriceLoading : pricesLoading;
-  const variantsCount = price?.variants_count;
+  const variantsCount = bestFit?.variants_count ?? price?.variants_count;
   const hasPriceFromAPI = price?.found === true && price?.monthly_price_net != null;
   const rawMonthly = hasPriceFromAPI ? price!.monthly_price_net : car.best_monthly_price;
   // When applied_margin_pct is available and we're using best_monthly_price (not per-params batch),
@@ -87,20 +94,26 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const usingAppliedMargin = !hasPriceFromAPI && car.applied_margin_pct != null;
   // Always prefer per-vehicle applied_margin_pct (backend's budget-matched margin)
   // over the global searchContext.margin_pct, so banner and grid show the same number.
-  const displayMarginPct = car.applied_margin_pct ?? (searchContext.margin_pct ?? 0);
+  const baseDisplayMarginPct = car.applied_margin_pct ?? (searchContext.margin_pct ?? 0);
+  const displayMarginPct = bestFit ? bestFit.applied_margin_pct : baseDisplayMarginPct;
   const marginFrac = Math.min(displayMarginPct, 99) / 100;
-  const monthlyDisplay = usingAppliedMargin
+  const monthlyDisplayBase = usingAppliedMargin
     ? (car.best_monthly_price ?? null)
     : rawMonthly != null && marginFrac < 1 ? rawMonthly / (1 - marginFrac) : null;
+  const monthlyDisplay = bestFit?.monthly_price_net ?? monthlyDisplayBase;
   // Base monthly rate before any margin markup. When usingAppliedMargin is true,
   // rawMonthly already contains the applied margin baked in by the RPC.
-  const trueBaseMonthly = usingAppliedMargin
-    ? (rawMonthly != null ? rawMonthly * (1 - marginFrac) : null)
-    : (rawMonthly ?? null);
+  const trueBaseMonthly = bestFit
+    ? bestFit.base_price_net
+    : usingAppliedMargin
+      ? (rawMonthly != null ? rawMonthly * (1 - marginFrac) : null)
+      : (rawMonthly ?? null);
   const budget = searchContext.useMatrixFilters && searchContext.monthly_budget && searchContext.monthly_budget > 0
     ? searchContext.monthly_budget
     : null;
-  const overBudget = budget != null && monthlyDisplay != null && monthlyDisplay > budget;
+  const overBudget = bestFit
+    ? !bestFit.fits_budget
+    : budget != null && monthlyDisplay != null && monthlyDisplay > budget;
   // Margin at which the rate would equal the budget exactly: budget = base / (1 - m)
   // → m = 1 - base/budget. If base > budget, this becomes negative (loss territory).
   const marginToFitPct = budget != null && trueBaseMonthly != null
@@ -168,8 +181,8 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
     const basePrice = car.best_monthly_price ?? 0;
     const finalPrice = usingAppliedMargin ? basePrice : (marginFrac < 1 ? basePrice / (1 - marginFrac) : basePrice);
     const variantPriceData = price; // pinned price when set, else batch
-    const dur = variantPriceData?.duration_months ?? targetDuration;
-    const mil = variantPriceData?.annual_mileage ?? targetAnnualMileage;
+    const dur = variantPriceData?.duration_months ?? effectiveDuration;
+    const mil = variantPriceData?.annual_mileage ?? effectiveAnnualMileage;
     // Pinned cards include the kalkulacja_id in their cart id so different
     // pins of the same vehicle stay distinct entries.
     const kidForId = pinnedKalkulacjaId ?? variantPriceData?.kalkulacja_id ?? '';
@@ -477,11 +490,34 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
 
       {/* Calculation snapshot */}
       <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
           <span className="text-[11px] uppercase tracking-wider text-slate-700 font-semibold">
             Kalkulacja{calcDate ? ` · ${calcDate}` : ''}
-            {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
+            {variantsCount && variantsCount > 1
+              ? bestFit
+                ? ` · najtańszy z ${variantsCount} wariantów`
+                : ` · 1 z ${variantsCount} wariantów`
+              : ''}
           </span>
+          {bestFit && (
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                bestFit.fits_budget
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-amber-100 text-amber-800'
+              }`}
+              title={
+                bestFit.fits_budget
+                  ? 'Auto-dopasowane do budżetu: najtańszy wariant z marżą maksymalizującą zysk'
+                  : 'Auto-dopasowanie nie zmieściło się w budżecie nawet przy 0% marży'
+              }
+            >
+              <Sparkles className="w-3 h-3" />
+              {bestFit.fits_budget
+                ? `Auto-fit · marża ${bestFit.applied_margin_pct}%`
+                : `Nad budżet · brak wariantu`}
+            </span>
+          )}
           {!!car.applied_discount_pct && car.applied_discount_pct > 0 && (
             <span className="text-[11px] uppercase tracking-wider text-slate-600 font-mono" title="Rabat dealerski zastosowany w kalkulacji">
               BD <span className="font-semibold text-slate-700">{car.applied_discount_pct}%</span>
@@ -522,23 +558,37 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-slate-600">Okres × Przebieg</div>
                 <div className="text-xs text-slate-700 font-mono tabular-nums">
-                  {targetDuration} mc · {fmtPLN(Math.round(targetAnnualMileage * targetDuration / 12))} km
+                  {effectiveDuration} mc · {fmtPLN(Math.round(effectiveAnnualMileage * effectiveDuration / 12))} km
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-[11px] uppercase tracking-wider text-slate-600">Opony · Serwis</div>
                 <div className="text-xs text-slate-700 font-mono">
-                  {[car.tire_class, car.service_cost_type].filter(Boolean).join(' · ') || '—'}
+                  {[
+                    price?.tire_class ?? bestFit?.tire_class ?? car.tire_class,
+                    price?.service_type ?? bestFit?.service_type ?? car.service_cost_type,
+                  ].filter(Boolean).join(' · ') || '—'}
                 </div>
               </div>
             </div>
+
+            {/* Snapshot of the calculation params (rabat / opony / ubezpieczenie /
+                auto zastępcze / serwis / WIBOR / marża bankowa). Wherever a price
+                is shown, these need to be visible so the salesperson can tell at
+                a glance what was assumed when this rate was computed. */}
+            <KalkulacjaParamsRow
+              snapshot={bestFit ?? price}
+              fallbackTireClass={car.tire_class}
+              fallbackServiceType={car.service_cost_type}
+              fallbackDiscountPct={car.applied_discount_pct}
+            />
 
             {/* Multi-variant table — shows other (period × mileage) cache combos for this car */}
             <VariantsTable
               vehicleId={vehicleId}
               variants={eagerVariants ?? priceData?.variants}
-              currentDuration={price?.duration_months ?? targetDuration}
-              currentMileage={price?.annual_mileage ?? targetAnnualMileage}
+              currentDuration={price?.duration_months ?? effectiveDuration}
+              currentMileage={price?.annual_mileage ?? effectiveAnnualMileage}
               monthlyBudget={searchContext.monthly_budget}
               currentMarginFrac={marginFrac}
               car={car}
@@ -623,6 +673,116 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
 };
 
 export const VehicleResultCard = React.memo(VehicleResultCardBase);
+
+// ── Kalkulacja Params Row ──────────────────────────────────────────────────
+// Renders the snapshot of toggles + financing knobs that produced the rate
+// shown in the parent block. Two lines:
+//   "W cenie: ✓ Opony Premium · ✓ Ubezpieczenie · ✓ Auto zastępcze · ✓ Serwis ASO · Rabat 24%"
+//   "Finansowanie: marża bankowa 2.2% · WIBOR 3.81%"
+// A toggle that's `null/undefined` (unknown) is hidden; one explicitly set to
+// `false` is shown with a strikethrough so the user can tell "off" from "n/a".
+
+interface KalkulacjaSnapshotShape {
+  tire_class?: string | null;
+  service_type?: string | null;
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
+}
+
+interface KalkulacjaParamsRowProps {
+  snapshot: KalkulacjaSnapshotShape | null | undefined;
+  fallbackTireClass?: string;
+  fallbackServiceType?: string;
+  fallbackDiscountPct?: number;
+}
+
+const Toggle: React.FC<{ on: boolean | null | undefined; label: string; suffix?: string | null }> =
+  ({ on, label, suffix }) => {
+    if (on == null) return null;
+    const text = suffix ? `${label} ${suffix}` : label;
+    return on ? (
+      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+        <Check className="w-3 h-3" /> {text}
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5 line-through opacity-70">
+        {text}
+      </span>
+    );
+  };
+
+const KalkulacjaParamsRow: React.FC<KalkulacjaParamsRowProps> = ({
+  snapshot,
+  fallbackTireClass,
+  fallbackServiceType,
+  fallbackDiscountPct,
+}) => {
+  const s = snapshot || {};
+  const tireClass = s.tire_class ?? fallbackTireClass ?? null;
+  const serviceType = s.service_type ?? fallbackServiceType ?? null;
+  const discount = s.discount_pct ?? fallbackDiscountPct ?? null;
+  const bankMargin = s.bank_margin_pct ?? null;
+  const wibor = s.wibor_pct ?? null;
+
+  // Tire label folds the boolean flag with the class — when tires are included
+  // and we know the class, render "Opony Premium"; otherwise just "Opony".
+  const tiresLabel = tireClass ? `Opony ${tireClass}` : 'Opony';
+  const serviceLabel = serviceType ? `Serwis ${serviceType}` : 'Serwis';
+
+  const hasAnyToggle =
+    s.tires_included != null ||
+    s.insurance_included != null ||
+    s.replacement_car != null ||
+    s.service_included != null ||
+    discount != null;
+  const hasFinancing = bankMargin != null || wibor != null;
+
+  if (!hasAnyToggle && !hasFinancing) return null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-1 text-[11px]">
+      {hasAnyToggle && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-slate-600 font-semibold mr-0.5">
+            W cenie
+          </span>
+          <Toggle on={s.tires_included} label={tiresLabel} />
+          <Toggle on={s.insurance_included} label="Ubezpieczenie" />
+          <Toggle on={s.replacement_car} label="Auto zastępcze" />
+          <Toggle on={s.service_included} label={serviceLabel} />
+          {discount != null && discount > 0 && (
+            <span className="inline-flex items-center gap-1 text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 font-mono tabular-nums">
+              Rabat {discount.toFixed(discount % 1 === 0 ? 0 : 1)}%
+            </span>
+          )}
+        </div>
+      )}
+      {hasFinancing && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-600">
+          <span className="text-[10px] uppercase tracking-wider text-slate-600 font-semibold">
+            Finansowanie
+          </span>
+          {bankMargin != null && (
+            <span className="font-mono tabular-nums" title="Marża banku zaszyta w racie">
+              marża bankowa <strong className="text-slate-800">{bankMargin.toFixed(bankMargin % 1 === 0 ? 0 : 2)}%</strong>
+            </span>
+          )}
+          {wibor != null && (
+            <span className="font-mono tabular-nums" title="Stawka WIBOR użyta w kalkulacji">
+              WIBOR <strong className="text-slate-800">{wibor.toFixed(wibor % 1 === 0 ? 0 : 2)}%</strong>
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ── Budget Match Banner ─────────────────────────────────────────────────────
 // Highlights the per-vehicle margin computed by the backend to fit the

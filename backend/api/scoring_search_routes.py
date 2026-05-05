@@ -16,6 +16,7 @@ from core.database import supabase
 from core.celery_app import celery_app
 from core.models_scoring_search import (
     AvailableFiltersRequest,
+    BestFitVariant,
     ScoringSearchRequest,
     ScoringSearchResponse,
     ScoringSearchMatch,
@@ -122,6 +123,72 @@ def _params_hash(payload: str) -> str:
     return hashlib.md5(payload.encode(), usedforsecurity=False).hexdigest()
 
 
+def _coerce_float(val: Any) -> float | None:
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_bool(val: Any) -> bool | None:
+    """Parse a stan_json toggle value into bool. Treats string 'true'/'false'
+    case-insensitively and bare 1/0 the same way as native bool. Returns None
+    only when the field is missing or unparseable, so the UI can distinguish
+    'set to off' from 'unknown'."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    s = str(val).strip().lower()
+    if s in {"true", "1", "yes", "tak", "t"}:
+        return True
+    if s in {"false", "0", "no", "nie", "f"}:
+        return False
+    return None
+
+
+def _fetch_kalkulacja_snapshot_params(
+    kalk_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Batch-fetch the pricing-toggle + financing-knob snapshot for a list of
+    kalkulacja_ids. Reads `ltr_kalkulacje.stan_json` (the JSONB blob holding the
+    full calculator state) and projects the subset that the UI needs to render
+    next to a price (rabat, marża bankowa, WIBOR, opony/ubezpieczenie/auto
+    zastępcze/serwis flags). Returns a map keyed by str(kalkulacja_id) → dict
+    of fields suitable for splatting into PriceForParamsResponse."""
+    out: dict[str, dict[str, Any]] = {}
+    ids = [k for k in {str(x) for x in kalk_ids if x} if k]
+    if not ids:
+        return out
+    try:
+        resp = supabase.table("ltr_kalkulacje").select("id, stan_json").in_("id", ids).execute()
+    except Exception:
+        logger.exception("ltr_kalkulacje snapshot fetch failed for ids=%s", ids[:5])
+        return out
+    for row in resp.data or []:
+        kid = str(row.get("id") or "")
+        stan = row.get("stan_json") or {}
+        if not isinstance(stan, dict):
+            continue
+        out[kid] = {
+            "discount_pct": _coerce_float(stan.get("discount_pct")),
+            # `margin_pct` in stan_json is the BANK margin (financing). The
+            # client/sales margin is derived per-variant from the matrix grid.
+            "bank_margin_pct": _coerce_float(stan.get("margin_pct")),
+            "wibor_pct": _coerce_float(stan.get("wibor_pct")),
+            "tires_included": _coerce_bool(stan.get("z_oponami")),
+            "tire_buyback": _coerce_bool(stan.get("odkup_opon_enabled")),
+            "insurance_included": _coerce_bool(stan.get("express_pays_insurance")),
+            "replacement_car": _coerce_bool(stan.get("replacement_car_enabled")),
+            "service_included": _coerce_bool(stan.get("include_servicing")),
+        }
+    return out
+
+
 def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
     """Execute a Supabase query resolving known httpx 'Server disconnected' or timeout issues."""
     last_exc = None
@@ -153,10 +220,21 @@ def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | No
     """Helper to convert raw price string to a netto float.
     Default VAT is 23%. If domain is 'netto', returns as-is.
     If 'brutto' or unknown, divides by 1.23.
+
+    A "netto"/"brutto" suffix inside the price string itself takes precedence
+    over the domain hint — some cards mix domains (e.g. card-level price_domain
+    is "brutto" while individual paid_options carry "X PLN netto" labels). Without
+    this check we'd divide already-net values by 1.23 a second time.
     """
     if not price_str:
         return None
     try:
+        ps_lower = price_str.lower()
+        if "netto" in ps_lower:
+            domain = "netto"
+        elif "brutto" in ps_lower:
+            domain = "brutto"
+
         cleaned = (
             price_str.replace(" ", "")
             .replace("\xa0", "")
@@ -175,7 +253,6 @@ def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | No
         val = float(cleaned)
         if domain == "netto":
             return round(val, 2)
-        # Default to brutto -> netto conversion (1.23)
         return round(val / 1.23, 2)
     except (ValueError, TypeError):
         return None
@@ -193,6 +270,8 @@ def _extract_option_line_items(
     if not card_summary:
         return [], []
     domain = card_summary.get("price_domain")
+    svc_eq = card_summary.get("service_equipment") or {}
+    svc_eq_net = _parse_price_to_net(svc_eq.get("total_price_net"), "netto")
     factory: list[OptionLineItem] = []
     service: list[OptionLineItem] = []
     for opt in card_summary.get("paid_options") or []:
@@ -202,24 +281,47 @@ def _extract_option_line_items(
         if not name:
             continue
         cat = (opt.get("category") or "").lower()
+        # "Zabudowa / Wyposażenie serwisowe" entries summarise service_equipment
+        # — skip them when service_equipment will be added below to avoid
+        # double-counting.
+        if "zabudowa" in cat and svc_eq_net:
+            continue
         price_net = _parse_price_to_net(
             opt.get("price"), opt.get("price_type") or domain
         )
         item = OptionLineItem(name=name, price_net=price_net, category=opt.get("category"))
         if "fabryczn" in cat:
             factory.append(item)
-        elif "serwis" in cat or "akcesori" in cat:
+        elif "serwis" in cat or "akcesori" in cat or "zabudowa" in cat:
             service.append(item)
-    svc_eq = card_summary.get("service_equipment") or {}
-    svc_eq_net = _parse_price_to_net(svc_eq.get("total_price_net"), "netto")
     if svc_eq_net:
-        service.append(
-            OptionLineItem(
-                name=svc_eq.get("name") or "Pakiet serwisowy",
-                price_net=svc_eq_net,
-                category="Serwisowa",
+        # Prefer per-component breakdown when available — that's how the
+        # source PDF lists the package (e.g. "Pakiet pogwarancyjny 1200 zł"
+        # + "Pakiet przeglądów 3399 zł" instead of one lumped row).
+        components = svc_eq.get("components") if isinstance(svc_eq, dict) else None
+        if isinstance(components, list) and components:
+            for comp in components:
+                if not isinstance(comp, dict):
+                    continue
+                cname = (comp.get("name") or "").strip()
+                if not cname:
+                    continue
+                cval = _parse_price_to_net(
+                    comp.get("price_net") or comp.get("price"), "netto"
+                )
+                if cval is None:
+                    cval = _parse_price_to_net(comp.get("price_gross"), "brutto")
+                service.append(
+                    OptionLineItem(name=cname, price_net=cval, category="Serwisowa")
+                )
+        else:
+            service.append(
+                OptionLineItem(
+                    name=svc_eq.get("name") or "Pakiet serwisowy",
+                    price_net=svc_eq_net,
+                    category="Serwisowa",
+                )
             )
-        )
     return factory, service
 
 
@@ -735,10 +837,17 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 meta = sd.get("metadata") or {}
                 domain = cs.get("price_domain")
 
+                svc_eq = cs.get("service_equipment") or {}
+                svc_eq_net = _parse_price_to_net(svc_eq.get("total_price_net"), "netto")
                 factory_sum = 0.0
                 service_sum = 0.0
                 for opt in cs.get("paid_options") or []:
                     cat = (opt.get("category") or "").lower()
+                    # See _extract_option_line_items — skip the "Zabudowa /
+                    # Wyposażenie serwisowe" summary when service_equipment
+                    # will contribute the same package below.
+                    if "zabudowa" in cat and svc_eq_net:
+                        continue
                     val = _parse_price_to_net(
                         opt.get("price"), opt.get("price_type") or domain
                     )
@@ -746,10 +855,8 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                         continue
                     if "fabryczn" in cat:
                         factory_sum += val
-                    elif "serwis" in cat or "akcesori" in cat:
+                    elif "serwis" in cat or "akcesori" in cat or "zabudowa" in cat:
                         service_sum += val
-                svc_eq = cs.get("service_equipment") or {}
-                svc_eq_net = _parse_price_to_net(svc_eq.get("total_price_net"), "netto")
                 if svc_eq_net:
                     service_sum += svc_eq_net
 
@@ -886,6 +993,115 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                     m.service_options = service
             except Exception:
                 logger.exception("Failed to attach selected_kalkulacja_ids to search results")
+
+        # ── 5. Auto-fit best variant per vehicle (server-side sweep) ──
+        # When the user gave a budget but didn't pin duration/mileage/margin,
+        # the result card otherwise shows a snapshot driven by UI defaults
+        # (48mc / 80k km / margin 10%) — which has nothing to do with the
+        # budget. Here we sweep `vehicle_matrix_cache` for each candidate,
+        # pick the cheapest variant of the latest kalkulacja, and compute the
+        # max margin that still fits the budget (clamped to auto_margin_cap_pct).
+        if (
+            request.fit_to_budget
+            and request.monthly_budget
+            and request.monthly_budget > 0
+            and vehicle_ids_in_results
+        ):
+            step = "fit_to_budget_sweep"
+            try:
+                budget = float(request.monthly_budget)
+                cap = max(0.0, min(float(request.auto_margin_cap_pct), 99.0))
+                sweep_resp = _supabase_execute_with_retry(
+                    sb.table("vehicle_matrix_cache")
+                    .select(
+                        "vehicle_id,duration_months,annual_mileage,monthly_price_net,"
+                        "kalkulacja_id,tire_class,service_type,calculated_at"
+                    )
+                    .in_("vehicle_id", vehicle_ids_in_results)
+                )
+                rows_by_vehicle: dict[str, list[dict]] = {}
+                all_kalk_ids: set[str] = set()
+                for r in sweep_resp.data or []:
+                    vid = str(r.get("vehicle_id") or "")
+                    if not vid:
+                        continue
+                    rows_by_vehicle.setdefault(vid, []).append(r)
+                    kid = r.get("kalkulacja_id")
+                    if kid:
+                        all_kalk_ids.add(str(kid))
+
+                snapshot_by_kid = _fetch_kalkulacja_snapshot_params(list(all_kalk_ids))
+
+                for m in all_matches:
+                    rows = rows_by_vehicle.get(str(m.vehicle_id))
+                    if not rows:
+                        continue
+                    # Latest kalkulacja for this vehicle (max calculated_at).
+                    kalk_times: dict[str, datetime] = {}
+                    for r in rows:
+                        kid = r.get("kalkulacja_id") or ""
+                        ca = r.get("calculated_at")
+                        if not ca:
+                            continue
+                        try:
+                            dt = datetime.fromisoformat(str(ca).replace("Z", "+00:00"))
+                        except Exception:
+                            continue
+                        if kid not in kalk_times or dt > kalk_times[kid]:
+                            kalk_times[kid] = dt
+                    latest_kid = (
+                        max(kalk_times, key=kalk_times.get) if kalk_times else None
+                    )
+                    latest_rows = (
+                        [r for r in rows if (r.get("kalkulacja_id") or "") == (latest_kid or "")]
+                        if latest_kid is not None
+                        else rows
+                    )
+                    if not latest_rows:
+                        latest_rows = rows
+                    valid = [
+                        r for r in latest_rows if r.get("monthly_price_net") is not None
+                    ]
+                    if not valid:
+                        continue
+                    best = min(valid, key=lambda r: float(r["monthly_price_net"]))
+                    base = float(best["monthly_price_net"])
+
+                    if base >= budget:
+                        applied = 0.0
+                        final = base
+                        fits = False
+                        over: Optional[float] = round(base - budget, 2)
+                    else:
+                        max_m = (1.0 - base / budget) * 100.0
+                        applied = round(min(max_m, cap), 2)
+                        final = round(base / (1.0 - applied / 100.0), 2)
+                        fits = final <= budget + 0.01
+                        over = None if fits else round(final - budget, 2)
+
+                    best_kid = best.get("kalkulacja_id")
+                    snap = snapshot_by_kid.get(str(best_kid)) if best_kid else None
+                    m.best_fit_variant = BestFitVariant(
+                        duration_months=int(best["duration_months"]),
+                        annual_mileage=int(best["annual_mileage"]),
+                        base_price_net=round(base, 2),
+                        applied_margin_pct=applied,
+                        monthly_price_net=round(final, 2),
+                        fits_budget=fits,
+                        over_budget_pln=over,
+                        kalkulacja_id=best_kid,
+                        tire_class=best.get("tire_class"),
+                        service_type=best.get("service_type"),
+                        variants_count=len(latest_rows),
+                        **(snap or {}),
+                    )
+                    # Surface the auto-fit price + margin via the existing fields
+                    # too, so older UI paths that don't yet read best_fit_variant
+                    # still display sensible numbers.
+                    m.best_monthly_price = round(final, 2)
+                    m.applied_margin_pct = applied
+            except Exception:
+                logger.exception("fit_to_budget sweep failed; leaving best_fit_variant=None")
 
         _redis_set(
             cache_key,
@@ -1302,6 +1518,11 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
         )
 
         rows = resp.data or []
+        # Pull the per-kalkulacja snapshot (rabat/marża bankowa/WIBOR/toggles)
+        # in a single round-trip and merge it into each price below.
+        snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
+            [r.get("kalkulacja_id") for r in rows if r.get("kalkulacja_id")]
+        )
         results: dict[str, VehiclePrices] = {}
 
         for row in rows:
@@ -1318,6 +1539,8 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                 )
                 continue
 
+            kid = row.get("kalkulacja_id")
+            snap = snapshot_by_kid.get(str(kid)) if kid else None
             # Map the best match returned by RPC
             best_match = PriceForParamsResponse(
                 vehicle_id=vid,
@@ -1329,7 +1552,8 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                 variants_count=variants_count,
                 tire_class=row.get("tire_class"),
                 service_type=row.get("service_type"),
-                kalkulacja_id=row.get("kalkulacja_id"),
+                kalkulacja_id=kid,
+                **(snap or {}),
             )
 
             # For batch search, we primarily care about the main price.
@@ -1452,6 +1676,13 @@ def get_price_for_params(
         )
         display_price_best = base_price_best / (1.0 - (margin / 100.0))
 
+        kid_best = best_match.get("kalkulacja_id")
+        snap = (
+            _fetch_kalkulacja_snapshot_params([str(kid_best)]).get(str(kid_best))
+            if kid_best
+            else None
+        )
+
         return PriceForParamsResponse(
             vehicle_id=vehicle_id,
             duration_months=best_match["duration_months"],
@@ -1462,7 +1693,8 @@ def get_price_for_params(
             variants_count=variants_count,
             tire_class=best_match.get("tire_class"),
             service_type=best_match.get("service_type"),
-            kalkulacja_id=best_match.get("kalkulacja_id"),
+            kalkulacja_id=kid_best,
+            **(snap or {}),
         )
     except Exception as e:
         logger.exception("Error in get_price_for_params [%s]: %s", vehicle_id, e)
@@ -1489,7 +1721,10 @@ def get_price_variants(
     try:
         query = (
             sb.table("vehicle_matrix_cache")
-            .select("duration_months, annual_mileage, monthly_price_net, kalkulacja_id")
+            .select(
+                "duration_months, annual_mileage, monthly_price_net, "
+                "kalkulacja_id, tire_class, service_type, calculated_at"
+            )
             .eq("vehicle_id", vehicle_id)
             .eq("annual_mileage", annual_mileage)
             .in_("duration_months", [24, 36, 48, 60])
@@ -1512,7 +1747,15 @@ def get_price_variants(
                         "duration_months": dur,
                         "annual_mileage": row["annual_mileage"],
                         "monthly_price_net": price,
+                        "kalkulacja_id": row.get("kalkulacja_id"),
+                        "tire_class": row.get("tire_class"),
+                        "service_type": row.get("service_type"),
+                        "calculated_at": row.get("calculated_at"),
                     }
+
+        snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
+            [v["kalkulacja_id"] for v in grouped_variants.values() if v.get("kalkulacja_id")]
+        )
 
         variants = [
             PriceForParamsResponse(
@@ -1521,6 +1764,11 @@ def get_price_variants(
                 annual_mileage=v["annual_mileage"],
                 monthly_price_net=v["monthly_price_net"],
                 found=True,
+                kalkulacja_id=v.get("kalkulacja_id"),
+                tire_class=v.get("tire_class"),
+                service_type=v.get("service_type"),
+                calculated_at=v.get("calculated_at"),
+                **(snapshot_by_kid.get(str(v.get("kalkulacja_id") or "")) or {}),
             )
             for v in grouped_variants.values()
         ]

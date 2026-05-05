@@ -107,12 +107,44 @@ export interface SearchContext {
   exact_total_mileage: number;
   margin_pct?: number;
   semanticQuery?: string;
+  // Auto-fit: when true and monthly_budget is set, the backend sweeps the
+  // matrix cache per candidate and returns best_fit_variant on each match.
+  fit_to_budget?: boolean;
+  auto_margin_cap_pct?: number;
+  // Track which inputs the AI extracted vs. left to UI defaults — used by the
+  // "Niekompletne dane" chip and by useEmailExtraction to flip fit_to_budget on.
+  ai_supplied_duration?: boolean;
+  ai_supplied_mileage?: boolean;
+  ai_supplied_margin?: boolean;
 }
 
 export interface OptionLineItem {
   name: string;
   price_net?: number | null;
   category?: string | null;
+}
+
+export interface BestFitVariant {
+  duration_months: number;
+  annual_mileage: number;
+  base_price_net: number;
+  applied_margin_pct: number;
+  monthly_price_net: number;
+  fits_budget: boolean;
+  over_budget_pln?: number | null;
+  kalkulacja_id?: string | null;
+  tire_class?: string | null;
+  service_type?: string | null;
+  variants_count?: number | null;
+  // Snapshot of the kalkulacja's pricing toggles + financing knobs.
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
 }
 
 export interface ScoredVehicle {
@@ -155,5 +187,7 @@ export interface ScoredVehicle {
   vehicle_class?: string;
   // User-pinned calculations (multi-select). Empty list → render as one default card.
   selected_kalkulacja_ids?: string[];
+  // Auto-fit snapshot — populated when search request had fit_to_budget=true.
+  best_fit_variant?: BestFitVariant;
 }
 

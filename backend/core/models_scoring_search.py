@@ -25,12 +25,70 @@ class ScoringSearchRequest(BaseModel):
     semantic_query: Optional[str] = None
     limit: int = 50
     offset: int = 0
+    # Auto-fit: when true and `monthly_budget` is present in requirements, the
+    # backend sweeps `vehicle_matrix_cache` per candidate, picks the cheapest
+    # variant of the latest kalkulacja, and computes the maximum margin that
+    # still fits the budget. Result lands in `best_fit_variant` on each match.
+    # Frontend sets this true after AI extraction when budget came out of the
+    # user query but duration/mileage/margin were not explicitly stated.
+    fit_to_budget: bool = False
+    monthly_budget: Optional[float] = None
+    # Cap on the auto-fitted margin so absurdly cheap base prices don't yield
+    # 90%+ margins. Backend clamps `applied_margin_pct` to this when sweeping.
+    auto_margin_cap_pct: float = 30.0
 
 
 class OptionLineItem(BaseModel):
     name: str
     price_net: Optional[float] = None
     category: Optional[str] = None
+
+
+class KalkulacjaSnapshotParams(BaseModel):
+    """Calculation parameters carried alongside any price coming out of
+    `vehicle_matrix_cache`. These come from the parent `ltr_kalkulacje.stan_json`
+    and let the UI show what was assumed when the rate was computed: discount,
+    bank margin, WIBOR, and the toggle-set (tyres/insurance/replacement car/
+    service). All variants of the same `kalkulacja_id` share these values, so
+    they're attached at the kalkulacja level, not per matrix row.
+    """
+
+    discount_pct: Optional[float] = None       # rabat dealerski %
+    bank_margin_pct: Optional[float] = None    # marża bankowa % (financing)
+    wibor_pct: Optional[float] = None          # WIBOR rate %
+    tires_included: Optional[bool] = None      # z_oponami
+    tire_buyback: Optional[bool] = None        # odkup_opon_enabled
+    insurance_included: Optional[bool] = None  # express_pays_insurance
+    replacement_car: Optional[bool] = None     # replacement_car_enabled
+    service_included: Optional[bool] = None    # include_servicing
+
+
+class BestFitVariant(BaseModel):
+    """Auto-fit snapshot — cheapest matrix variant of the latest kalkulacja,
+    with margin maximized to just fit `monthly_budget`. Populated only when
+    request.fit_to_budget=True and the vehicle has at least one matrix row."""
+
+    duration_months: int
+    annual_mileage: int
+    base_price_net: float            # cache row's monthly_price_net (margin 0%)
+    applied_margin_pct: float        # auto-fitted margin, clamped to cap
+    monthly_price_net: float         # final rate = base / (1 - margin/100)
+    fits_budget: bool                # True if monthly_price_net <= budget
+    over_budget_pln: Optional[float] = None  # set when fits_budget=False
+    kalkulacja_id: Optional[str] = None
+    tire_class: Optional[str] = None
+    service_type: Optional[str] = None
+    variants_count: Optional[int] = None  # how many cache rows the sweep saw
+    # Snapshot of the kalkulacja's pricing toggles + financing knobs (rabat,
+    # marża bankowa, WIBOR, opony/ubezpieczenie/auto zastępcze/serwis).
+    discount_pct: Optional[float] = None
+    bank_margin_pct: Optional[float] = None
+    wibor_pct: Optional[float] = None
+    tires_included: Optional[bool] = None
+    tire_buyback: Optional[bool] = None
+    insurance_included: Optional[bool] = None
+    replacement_car: Optional[bool] = None
+    service_included: Optional[bool] = None
 
 
 class ScoringSearchMatch(BaseModel):
@@ -78,6 +136,8 @@ class ScoringSearchMatch(BaseModel):
     # User-pinned calculations (multi-select). Frontend renders one card per id;
     # empty list → fall back to a single default card.
     selected_kalkulacja_ids: List[str] = []
+    # Auto-fit snapshot — populated only when request.fit_to_budget=True.
+    best_fit_variant: Optional[BestFitVariant] = None
 
 
 class ScoringSearchResponse(BaseModel):
@@ -198,6 +258,17 @@ class PriceForParamsResponse(BaseModel):
     tire_class: Optional[str] = None
     service_type: Optional[str] = None
     kalkulacja_id: Optional[str] = None
+    # Snapshot of the kalkulacja's pricing toggles + financing knobs (rabat,
+    # marża bankowa, WIBOR, opony/ubezpieczenie/auto zastępcze/serwis). Same
+    # for every matrix variant under the same kalkulacja_id.
+    discount_pct: Optional[float] = None
+    bank_margin_pct: Optional[float] = None
+    wibor_pct: Optional[float] = None
+    tires_included: Optional[bool] = None
+    tire_buyback: Optional[bool] = None
+    insurance_included: Optional[bool] = None
+    replacement_car: Optional[bool] = None
+    service_included: Optional[bool] = None
 
 
 class SimilarBatchRequest(BaseModel):

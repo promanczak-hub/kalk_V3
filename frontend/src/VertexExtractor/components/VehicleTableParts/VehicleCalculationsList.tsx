@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings, Star, ShoppingCart } from "lucide-react";
+import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings, Star, ShoppingCart, Pin } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { apiClient } from "../../../lib/apiClient";
 import { fmtPLN } from "./calculations/calculations.utils";
@@ -192,7 +192,7 @@ function SelectedCellRenderer(
   };
 
   return (
-    <div className="flex items-center justify-center h-full">
+    <div className="flex items-center justify-center h-full px-1">
       <button
         type="button"
         onClick={handleClick}
@@ -200,17 +200,24 @@ function SelectedCellRenderer(
         title={
           isSelected
             ? "Przypięta w wyszukiwarce — kliknij, by odpiąć"
-            : "Przypnij w wyszukiwarce (możesz przypiąć kilka)"
+            : "Przypnij tę kalkulację w wyszukiwarce (każda przypięta tworzy osobną kartę w wynikach)"
         }
         className={cn(
-          "p-1.5 rounded transition-colors",
+          "pin-btn inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-md border transition-colors whitespace-nowrap",
           isSelected
-            ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
-            : "text-slate-300 hover:text-amber-400 hover:bg-slate-50",
-          isPending && "opacity-40 cursor-wait"
+            ? "text-amber-800 bg-amber-50 border-amber-300 hover:bg-amber-100"
+            : "text-slate-600 bg-white border-slate-300 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700",
+          isPending && "opacity-50 cursor-wait"
         )}
       >
-        <Star className={cn("w-4 h-4", isSelected && "fill-current")} />
+        {isPending ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : isSelected ? (
+          <Star className="w-3 h-3 fill-current" />
+        ) : (
+          <Pin className="w-3 h-3" />
+        )}
+        {isSelected ? "Przypięta" : "Przypnij"}
       </button>
     </div>
   );
@@ -413,14 +420,14 @@ export function VehicleCalculationsList({
 
   const columnDefs = useMemo<ColDef<HistoricalCalculation>[]>(() => [
     {
-      headerName: "★",
+      headerName: "Wyszukiwarka",
       field: "is_selected",
-      width: 56,
+      width: 130,
       cellRenderer: SelectedCellRenderer,
       cellRendererParams: { onToggleSelected: handleToggleSelected, pendingId: pendingSelectId },
       sortable: false,
       filter: false,
-      headerTooltip: "Przypnij kalkulacje (każda przypięta = osobna karta w wyszukiwarce)",
+      headerTooltip: "Przypnij kalkulacje do wyszukiwarki — każda przypięta tworzy osobną kartę w wynikach",
     },
     {
       headerName: "Numer / Data",
@@ -533,8 +540,11 @@ export function VehicleCalculationsList({
           rowClassRules={rowClassRules}
           getRowId={(params) => params.data.id}
           onRowClicked={(e) => {
-            // Prevent selection if Klonuj was clicked
-            if ((e.event?.target as HTMLElement)?.closest('.clone-btn')) return;
+            // Prevent selection if Klonuj / Do koszyka / Przypnij was clicked
+            const target = e.event?.target as HTMLElement | undefined;
+            if (target?.closest('.clone-btn')) return;
+            if (target?.closest('.cart-btn')) return;
+            if (target?.closest('.pin-btn')) return;
             if (e.data) {
                 onSelect(e.data.id, e.data.numer_kalkulacji);
             }

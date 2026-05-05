@@ -170,6 +170,13 @@ export function useEmailExtraction({
         newCtx.monthly_budget = fin.price_max;
         matrixTouched = true;
       }
+      // Track which knobs the AI actually populated (vs. left at UI defaults).
+      // Used by the "Niekompletne dane" chip and to decide whether to flip
+      // fit_to_budget on (auto-fit only makes sense when duration/mileage are
+      // not pinned by the user).
+      newCtx.ai_supplied_duration = !!durationMonths;
+      newCtx.ai_supplied_mileage = !!annualMileage;
+      newCtx.ai_supplied_margin = false; // AI doesn't extract margin yet
       if (durationMonths) {
         newCtx.exact_duration_months = durationMonths;
         newCtx.exact_mode = true;
@@ -184,6 +191,17 @@ export function useEmailExtraction({
       }
       if (matrixTouched) {
         newCtx.useMatrixFilters = true;
+      }
+      // Auto-fit budget: turn on when AI extracted a budget but at least one of
+      // duration/mileage is missing — that's the case where the UI default
+      // snapshot (48mc/80k/10%) is misleading. Backend will sweep matrix cache
+      // and return best_fit_variant per candidate.
+      const hasBudget = !!(fin.price_max && fin.price_max > 0);
+      const missingDuration = !durationMonths;
+      const missingMileage = !annualMileage;
+      newCtx.fit_to_budget = hasBudget && (missingDuration || missingMileage);
+      if (newCtx.fit_to_budget && newCtx.auto_margin_cap_pct === undefined) {
+        newCtx.auto_margin_cap_pct = 30;
       }
 
       // VECTOR-FIRST: extracted features become soft preferences (NICE_TO_HAVE)

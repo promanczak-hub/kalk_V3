@@ -38,13 +38,19 @@ export const ScoringSearchPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <SearchInputPanel
-            searchContext={searchContext}
-            onContextChange={setSearchContext}
-            setSelectedFeatures={setSelectedFeatures}
-            initialData={initialData}
-          />
+          {/* Shared scroll container: input panel + filters scroll together so
+              the slider section at the bottom stays reachable even when the
+              "Wstawiono do filtrów" / "Niekompletne dane" chips push content
+              down. Previously SearchInputPanel had no flex-shrink, so it ate
+              all the vertical space and left ScoringFilters with ~1cm of
+              scroll. */}
           <div className="flex-grow overflow-y-auto">
+            <SearchInputPanel
+              searchContext={searchContext}
+              onContextChange={setSearchContext}
+              setSelectedFeatures={setSelectedFeatures}
+              initialData={initialData}
+            />
             <ScoringFilters
               searchContext={searchContext}
               onContextChange={setSearchContext}

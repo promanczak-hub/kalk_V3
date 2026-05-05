@@ -73,6 +73,8 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
     // inside the card, so the parent has no visibility into that rate — we
     // skip them and let them stay in the fits-bucket (rank 0).
     const computeMonthlyDisplay = (car: ScoredVehicle): number | null => {
+      // Auto-fit snapshot wins when present — the card displays exactly this rate.
+      if (car.best_fit_variant) return car.best_fit_variant.monthly_price_net;
       if ((car.selected_kalkulacja_ids ?? []).length > 0) return null;
       const priceData = batchPrices[car.vehicle_id as string];
       const price = priceData?.price_for_params;
@@ -129,6 +131,8 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
       : null;
     if (budget != null) {
       const overBudgetRank = (car: ScoredVehicle): number => {
+        // Trust the server's auto-fit verdict when it ran the matrix sweep.
+        if (car.best_fit_variant) return car.best_fit_variant.fits_budget ? 0 : 1;
         const md = computeMonthlyDisplay(car);
         if (md == null) return 0;
         return md > budget ? 1 : 0;

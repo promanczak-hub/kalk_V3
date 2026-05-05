@@ -6,6 +6,8 @@ import CheckIcon from '@mui/icons-material/Check';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type { SimilarVehicle, SimilarityReasons } from '../hooks/useBatchData';
 import { useOfferCartStore } from '../../stores/offerCartStore';
 
@@ -81,52 +83,65 @@ function extractSourceContext(source: Record<string, unknown>): SourceContext {
   return { brand, isDelivery, discountPct, finalPriceNet, sourceBaseBrutto };
 }
 
-// ── Similarity Category Logic ────────────────────────────────────────────────
+// ── Headline chip ────────────────────────────────────────────────────────────
+// Only emitted for genuinely informative cases. The right-side score% already
+// conveys "how similar" — a chip on top of that should add information the
+// score alone can't: cross-brand matches, true twins, etc. For the common case
+// (same brand, same model, decent score) we emit nothing and let the score
+// number + reason tags speak.
 
 interface SimilarityCategory {
   label: string;
   color: 'success' | 'primary' | 'info' | 'secondary' | 'warning' | 'default';
 }
 
-function getSimilarityCategory(v: SimilarVehicle, rank: number): SimilarityCategory {
+function getHeadlineChip(v: SimilarVehicle): SimilarityCategory | null {
   const reasons = v.similarity_reasons;
-  if (!reasons) return { label: `#${rank} Podobny`, color: 'default' };
+  if (!reasons) return null;
 
-  const { samar_match, body_match, price_pct_diff, is_cheaper, equipment_match, is_same_brand } = reasons;
-  const isSignificantlyCheaper = Boolean(is_cheaper) && price_pct_diff !== null && price_pct_diff >= 15;
-  const isSignificantlyMoreExpensive = is_cheaper === false && price_pct_diff !== null && price_pct_diff >= 15;
+  const score = v.similarity_score_pct ?? 0;
+  const {
+    samar_match,
+    body_match,
+    fuel_match,
+    drive_match,
+    is_same_brand,
+    equipment_match,
+    price_pct_diff,
+  } = reasons;
 
-  if (equipment_match && !is_same_brand) {
+  // Cross-brand technology twin: very high equipment overlap, different brand
+  if (equipment_match && !is_same_brand && score >= 80) {
     return { label: 'Technologiczny Bliźniak', color: 'success' };
   }
-  if (samar_match && body_match && price_pct_diff !== null && price_pct_diff <= 5) {
+
+  // Strict twin: every core dimension lines up AND price is within ~5%
+  const allCoreMatch = samar_match && body_match && fuel_match && drive_match;
+  const priceVeryClose = price_pct_diff !== null && price_pct_diff <= 5;
+  if (allCoreMatch && priceVeryClose && score >= 92) {
     return { label: 'Bliźniak', color: 'success' };
   }
-  if (isSignificantlyCheaper) {
-    return { label: `Tańszy o ${Math.round(price_pct_diff!)}%`, color: 'success' };
-  }
-  if (isSignificantlyMoreExpensive && samar_match) {
-    return { label: 'Klasa wyżej w budżecie', color: 'warning' };
-  }
-  if (samar_match && body_match) {
-    return { label: 'Ta sama klasa i typ', color: 'primary' };
-  }
-  if (samar_match && !body_match) {
-    return { label: 'Ta sama klasa', color: 'primary' };
-  }
-  if (body_match) {
-    return { label: 'Ten sam typ nadwozia', color: 'info' };
+
+  // Genuinely competitive cross-brand alternative
+  if (!is_same_brand && score >= 85) {
+    return { label: 'Inna marka', color: 'primary' };
   }
 
-  return { label: `#${rank} Podobny`, color: 'default' };
+  return null;
 }
 
 // ── Reason Tags ───────────────────────────────────────────────────────────────
+// Each match tag carries a `weight` reflecting how much signal it adds; we
+// sort and take the top N so cluttered rows show only the most informative
+// reasons. Warnings (mismatches the dealer must see) are always rendered.
 
 interface ReasonTag {
   kind: 'match' | 'approx' | 'warn' | 'positive' | 'negative';
   label: string;
+  weight?: number;
 }
+
+const MAX_MATCH_TAGS = 4;
 
 function buildReasonTags(
   reasons: SimilarityReasons | null | undefined,
@@ -134,15 +149,41 @@ function buildReasonTags(
 ): ReasonTag[] {
   if (!reasons) return [];
 
-  const tags: ReasonTag[] = [];
+  const matches: ReasonTag[] = [];
+  const warnings: ReasonTag[] = [];
 
-  if (reasons.equipment_match && reasons.equipment_similarity_pct) {
-    tags.push({
-      kind: 'match',
-      label: `Zbieżne opcje (${Math.round(reasons.equipment_similarity_pct)}%)`,
-    });
+  // Equipment overlap — most concrete "are these the same kind of car" signal
+  if (reasons.equipment_similarity_pct != null) {
+    const pct = Math.round(reasons.equipment_similarity_pct);
+    if (pct >= 60) {
+      matches.push({ kind: 'match', label: `Zbieżne opcje (${pct}%)`, weight: pct });
+    }
   }
 
+  // SAMAR class — most specific identification of segment
+  if (reasons.samar_match && reasons.samar_category && reasons.samar_category !== 'N/A') {
+    matches.push({ kind: 'match', label: `Klasa ${reasons.samar_category}`, weight: 95 });
+  }
+
+  // Body style match
+  if (reasons.body_match && reasons.body_style && reasons.body_style !== 'N/A') {
+    matches.push({ kind: 'match', label: `Nadwozie: ${reasons.body_style}`, weight: 80 });
+  }
+
+  // Fuel/drive matches — only emit as ✓ when worth saying; warnings handled below
+  if (reasons.fuel_match) {
+    matches.push({ kind: 'match', label: 'Ten sam silnik / paliwo', weight: 65 });
+  }
+  if (reasons.drive_match) {
+    matches.push({ kind: 'match', label: 'Ten sam typ napędu', weight: 55 });
+  }
+
+  // Price proximity — apple-to-apple
+  if (reasons.price_pct_diff !== null && reasons.price_pct_diff <= 5) {
+    matches.push({ kind: 'match', label: `Cena ±${reasons.price_pct_diff.toFixed(1)}%`, weight: 75 });
+  }
+
+  // Discount diff — positional (always relevant when meaningful)
   if (
     typeof reasons.discount_pct_diff === 'number' &&
     typeof source.discountPct === 'number' &&
@@ -150,40 +191,35 @@ function buildReasonTags(
   ) {
     const better = reasons.discount_pct_diff > 0;
     const sign = better ? '+' : '';
-    tags.push({
+    matches.push({
       kind: better ? 'positive' : 'negative',
       label: `${better ? 'Lepszy' : 'Słabszy'} rabat (${sign}${reasons.discount_pct_diff.toFixed(1)} pp.)`,
+      weight: 90,
     });
   }
 
-  if (reasons.samar_match && reasons.samar_category && reasons.samar_category !== 'N/A') {
-    tags.push({ kind: 'match', label: `Klasa ${reasons.samar_category}` });
-  }
-
-  if (reasons.body_match && reasons.body_style && reasons.body_style !== 'N/A') {
-    tags.push({ kind: 'match', label: `Nadwozie: ${reasons.body_style}` });
-  }
-
+  // Delivery-vehicle specifics — domain-critical, always near the top
   if (source.isDelivery) {
     if (typeof reasons.payload_kg === 'number') {
-      tags.unshift({ kind: 'match', label: `Ładowność ${reasons.payload_kg} kg` });
+      matches.push({ kind: 'match', label: `Ładowność ${reasons.payload_kg} kg`, weight: 100 });
     }
     if (typeof reasons.cargo_volume_m3 === 'number') {
-      tags.unshift({ kind: 'match', label: `Pojemność ${reasons.cargo_volume_m3} m³` });
+      matches.push({ kind: 'match', label: `Pojemność ${reasons.cargo_volume_m3} m³`, weight: 100 });
     }
     if (reasons.body_type && reasons.body_type !== 'N/A') {
-      tags.unshift({ kind: 'match', label: `Zabudowa: ${reasons.body_type}` });
+      matches.push({ kind: 'match', label: `Zabudowa: ${reasons.body_type}`, weight: 100 });
     }
   }
 
   if (!reasons.fuel_match) {
-    tags.push({ kind: 'warn', label: 'Inny rodzaj napędu' });
+    warnings.push({ kind: 'warn', label: 'Inny rodzaj napędu' });
   }
   if (!reasons.drive_match) {
-    tags.push({ kind: 'warn', label: 'Inny typ napędu (FWD/AWD)' });
+    warnings.push({ kind: 'warn', label: 'Inny typ napędu (FWD/AWD)' });
   }
 
-  return tags.slice(0, 5);
+  matches.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
+  return [...matches.slice(0, MAX_MATCH_TAGS), ...warnings];
 }
 
 function TagIcon({ kind }: { kind: ReasonTag['kind'] }) {
@@ -255,6 +291,158 @@ function computeCatalogPriceInfo(
   return { candidateNet, candidateBrutto, diffPct, diffAbsBrutto, isCheaper };
 }
 
+// ── Expandable details block ─────────────────────────────────────────────────
+// Surfaces pricing context that the row summary doesn't show: catalog price &
+// Δ vs source, applied discount & Δ vs source, derived offer price after
+// discount, the matrix the rate was priced for, and whether the candidate
+// really has the same setup as the source (apple-to-apple) or is a fallback.
+
+interface DetailsBlockProps {
+  v: SimilarVehicle;
+  source: SourceContext;
+  fallbackDuration?: number;
+  fallbackAnnualMileage?: number;
+}
+
+const fmtPLN = (n: number) => n.toLocaleString('pl-PL', { maximumFractionDigits: 0 });
+
+const DetailsBlock: React.FC<DetailsBlockProps> = ({ v, source, fallbackDuration, fallbackAnnualMileage }) => {
+  const r = v.similarity_reasons;
+  if (!r) return null;
+
+  const candNet = r.base_price ?? null;
+  const candBrutto = candNet != null ? Math.round(candNet * 1.23) : null;
+  const discountPct = r.discount_pct ?? null;
+  const discountDiff = r.discount_pct_diff ?? null;
+  const finalNet = candNet != null && discountPct != null
+    ? Math.round(candNet * (1 - discountPct / 100))
+    : null;
+
+  // Matrix the rate was priced for
+  const dur = r.matched_duration_months ?? fallbackDuration ?? null;
+  const annual = r.matched_annual_mileage ?? fallbackAnnualMileage ?? null;
+  const contractKm = dur != null && annual != null ? Math.round((dur * annual) / 12) : null;
+  const tire = r.source_tire_class || null;
+  const service = r.source_service_type || null;
+  const setupOk = r.setup_match === true;
+
+  // Δ vs source — computed in brutto to align with the existing Cena kat. line
+  const diffPlnBrutto = candBrutto != null && source.sourceBaseBrutto != null
+    ? candBrutto - source.sourceBaseBrutto
+    : null;
+  const diffPctBrutto = diffPlnBrutto != null && source.sourceBaseBrutto
+    ? (diffPlnBrutto / source.sourceBaseBrutto) * 100
+    : null;
+
+  const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+    <Box sx={{ display: 'flex', gap: 1, fontSize: '0.7rem', lineHeight: 1.5 }}>
+      <Typography component="span" sx={{ color: '#64748B', fontWeight: 500, minWidth: 110, fontSize: '0.7rem' }}>
+        {label}
+      </Typography>
+      <Typography component="span" sx={{ color: '#0F172A', fontFamily: '"Geist Mono", monospace', fontSize: '0.7rem' }}>
+        {children}
+      </Typography>
+    </Box>
+  );
+
+  return (
+    <Box
+      sx={{
+        gridColumn: '1 / -1',
+        mt: 1,
+        pt: 1,
+        borderTop: '1px dashed #E2E8F0',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.25,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {candNet != null && (
+        <Row label="Cena katalogowa">
+          <strong>{fmtPLN(candNet)} PLN</strong> netto{' '}
+          {candBrutto != null && (
+            <Typography component="span" sx={{ color: '#94A3B8', fontSize: '0.7rem', fontFamily: 'inherit' }}>
+              ({fmtPLN(candBrutto)} brutto)
+            </Typography>
+          )}
+          {diffPctBrutto != null && (
+            <Typography
+              component="span"
+              sx={{
+                ml: 0.75,
+                fontSize: '0.7rem',
+                fontFamily: 'inherit',
+                color: diffPctBrutto > 0 ? '#B91C1C' : diffPctBrutto < 0 ? '#047857' : '#64748B',
+              }}
+            >
+              Δ {diffPctBrutto > 0 ? '+' : ''}{diffPctBrutto.toFixed(1)}%
+              {diffPlnBrutto != null && (
+                <> / {diffPlnBrutto > 0 ? '+' : ''}{fmtPLN(diffPlnBrutto)} zł vs źródło</>
+              )}
+            </Typography>
+          )}
+        </Row>
+      )}
+
+      {discountPct != null && (
+        <Row label="Rabat oferty">
+          <strong>{discountPct.toFixed(1)}%</strong>
+          {discountDiff != null && Math.abs(discountDiff) >= 0.1 && (
+            <Typography
+              component="span"
+              sx={{
+                ml: 0.75,
+                fontSize: '0.7rem',
+                fontFamily: 'inherit',
+                color: discountDiff > 0 ? '#047857' : '#B91C1C',
+              }}
+            >
+              ({discountDiff > 0 ? '+' : ''}{discountDiff.toFixed(1)} pp vs źródło)
+            </Typography>
+          )}
+        </Row>
+      )}
+
+      {finalNet != null && (
+        <Row label="Cena ofertowa">
+          <strong>{fmtPLN(finalNet)} PLN</strong> netto{' '}
+          <Typography component="span" sx={{ color: '#94A3B8', fontSize: '0.7rem', fontFamily: 'inherit' }}>
+            (po rabacie)
+          </Typography>
+        </Row>
+      )}
+
+      <Row label="Matrix raty">
+        {dur != null ? `${dur} mc` : '? mc'}
+        {contractKm != null && (
+          <>
+            {' · '}
+            <strong>{fmtPLN(contractKm)} km</strong>
+            <Typography component="span" sx={{ color: '#94A3B8', fontSize: '0.7rem', fontFamily: 'inherit' }}>
+              {' '}kontrakt
+            </Typography>
+          </>
+        )}
+        {tire && <> · opony <strong>{tire}</strong></>}
+        {service && <> · serwis <strong>{service}</strong></>}
+      </Row>
+
+      <Row label="Setup">
+        {setupOk ? (
+          <Typography component="span" sx={{ color: '#047857', fontSize: '0.7rem', fontFamily: 'inherit' }}>
+            ✓ Apple-to-apple (ten sam matrix co źródło)
+          </Typography>
+        ) : (
+          <Typography component="span" sx={{ color: '#C2410C', fontSize: '0.7rem', fontFamily: 'inherit' }}>
+            ⚠ Brak ceny dla matrixa źródła — fallback / brak oferty
+          </Typography>
+        )}
+      </Row>
+    </Box>
+  );
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 type BrandFilter = 'all' | 'others';
@@ -271,6 +459,16 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const sourceContext = useMemo(() => extractSourceContext(sourceVehicle), [sourceVehicle]);
 
@@ -384,7 +582,7 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {filteredVehicles.map((v, idx) => {
           const rank = idx + 1;
-          const category = getSimilarityCategory(v, rank);
+          const headlineChip = getHeadlineChip(v);
           const tags = buildReasonTags(v.similarity_reasons, sourceContext);
           const scoreRounded = v.similarity_score_pct ? Math.round(v.similarity_score_pct) : null;
           const specs = buildSpecChips(v);
@@ -441,29 +639,31 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                   >
                     #{rank}
                   </Typography>
-                  <Tooltip
-                    title={
-                      tags.length > 0
-                        ? tags.map((t) => t.label).join('  •  ')
-                        : 'Brak szczegółów podobieństwa'
-                    }
-                    placement="top"
-                    arrow
-                  >
-                    <Chip
-                      size="small"
-                      label={category.label}
-                      color={category.color}
-                      sx={{
-                        height: 20,
-                        fontSize: '0.65rem',
-                        fontWeight: 600,
-                        borderRadius: '9999px',
-                        cursor: 'help',
-                        '& .MuiChip-label': { px: 1.25 },
-                      }}
-                    />
-                  </Tooltip>
+                  {headlineChip && (
+                    <Tooltip
+                      title={
+                        tags.length > 0
+                          ? tags.map((t) => t.label).join('  •  ')
+                          : 'Brak szczegółów podobieństwa'
+                      }
+                      placement="top"
+                      arrow
+                    >
+                      <Chip
+                        size="small"
+                        label={headlineChip.label}
+                        color={headlineChip.color}
+                        sx={{
+                          height: 20,
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          borderRadius: '9999px',
+                          cursor: 'help',
+                          '& .MuiChip-label': { px: 1.25 },
+                        }}
+                      />
+                    </Tooltip>
+                  )}
                   {v.ai_label && (
                     <Chip
                       size="small"
@@ -680,7 +880,37 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                     </IconButton>
                   </span>
                 </Tooltip>
+
+                <Tooltip title={expandedIds.has(v.vehicle_id) ? 'Zwiń szczegóły' : 'Rozwiń szczegóły (cena, rabat, matrix)'}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpanded(v.vehicle_id);
+                    }}
+                    sx={{
+                      p: 0.5,
+                      color: '#64748B',
+                      bgcolor: '#F1F5F9',
+                      borderRadius: '6px',
+                      '&:hover': { bgcolor: '#E2E8F0' },
+                    }}
+                  >
+                    {expandedIds.has(v.vehicle_id)
+                      ? <ExpandLessIcon sx={{ fontSize: '1.1rem' }} />
+                      : <ExpandMoreIcon sx={{ fontSize: '1.1rem' }} />}
+                  </IconButton>
+                </Tooltip>
               </Box>
+              )}
+
+              {expandedIds.has(v.vehicle_id) && (
+                <DetailsBlock
+                  v={v}
+                  source={sourceContext}
+                  fallbackDuration={targetDuration}
+                  fallbackAnnualMileage={targetAnnualMileage}
+                />
               )}
             </Box>
           );

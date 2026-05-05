@@ -21,6 +21,7 @@ export interface VehicleSummaryCardProps {
   driveTypes?: string[];
   onDriveTypeChange?: (v: string) => Promise<void> | void;
   transmission?: string;
+  transmissionTypes?: string[];
   onTransmissionChange?: (v: string) => Promise<void> | void;
   bodyType?: string;
   onBodyTypeChange?: (v: string) => Promise<void> | void;
@@ -120,6 +121,7 @@ export function VehicleSummaryCard({
   driveTypes,
   onDriveTypeChange,
   transmission,
+  transmissionTypes,
   onTransmissionChange,
   bodyType,
   onBodyTypeChange,
@@ -353,7 +355,7 @@ export function VehicleSummaryCard({
     },
     { 
       label: "Skrzynia biegów", 
-      value: <TransmissionTag current={transmission || ""} onChange={onTransmissionChange} connected={false} />,
+      value: <TransmissionTag current={transmission || ""} onChange={onTransmissionChange} connected={false} transmissionOptions={transmissionTypes} />,
       type: "custom"
     },
     { 

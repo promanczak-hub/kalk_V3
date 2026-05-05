@@ -413,6 +413,73 @@ def export_to_sheet() -> int:
 
 
 # ---------------------------------------------------------------------------
+# DICTIONARIES: simple `id, name` lookup tables
+# ---------------------------------------------------------------------------
+
+# Shape: gsheet tab → (DB table, header → column).
+# Each tab is a 2-column dictionary (ID + label) seeded into a public table
+# that the frontend reads directly via supabase-js. Idempotent upsert by id.
+DICT_SYNCS: dict[str, tuple[str, dict[str, str]]] = {
+    "transmission_dict": (
+        "transmission_types",
+        {"ID": "id", "Nazwa Skrzyni": "name"},
+    ),
+}
+
+
+def import_dictionary(sheet_name: str) -> dict[str, int]:
+    """Read a 2-column dictionary tab and upsert into its public table."""
+    if sheet_name not in DICT_SYNCS:
+        raise ValueError(f"Unknown dictionary sheet '{sheet_name}'. Known: {list(DICT_SYNCS)}")
+
+    table_name, header_map = DICT_SYNCS[sheet_name]
+
+    gc = _get_gspread_client()
+    ss = gc.open_by_key(SPREADSHEET_ID)
+    ws = ss.worksheet(sheet_name)
+    data = ws.get_all_values()
+
+    if len(data) < 2:
+        logger.warning("Sheet '%s' is empty or has no data rows", sheet_name)
+        return {"upserted": 0, "skipped": 0, "errors": 0}
+
+    headers = [h.strip() for h in data[0]]
+    col_idx = {h: i for i, h in enumerate(headers) if h in header_map}
+    missing = [h for h in header_map if h not in col_idx]
+    if missing:
+        msg = f"Sheet '{sheet_name}' missing required columns: {missing}. Found: {headers}"
+        raise ValueError(msg)
+
+    rows = []
+    stats = {"upserted": 0, "skipped": 0, "errors": 0}
+    for row in data[1:]:
+        try:
+            payload: dict[str, object] = {}
+            for sheet_col, db_col in header_map.items():
+                idx = col_idx[sheet_col]
+                if idx >= len(row):
+                    continue
+                raw = row[idx].strip()
+                if not raw:
+                    continue
+                payload[db_col] = int(raw) if db_col == "id" else raw
+            if "id" not in payload or "name" not in payload:
+                stats["skipped"] += 1
+                continue
+            rows.append(payload)
+        except Exception:
+            logger.exception("Error parsing row in sheet '%s'", sheet_name)
+            stats["errors"] += 1
+
+    if rows:
+        supabase.table(table_name).upsert(rows, on_conflict="id").execute()
+        stats["upserted"] = len(rows)
+
+    logger.info("Dictionary sync '%s' → %s: %s", sheet_name, table_name, stats)
+    return stats
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -426,7 +493,11 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "import":
         stats = import_from_sheet()
         print(f"Import results: {stats}")
+    elif len(sys.argv) > 2 and sys.argv[1] == "import-dict":
+        stats = import_dictionary(sys.argv[2])
+        print(f"Dictionary import results: {stats}")
     else:
-        print("Usage: python mdm_sync.py [export|import]")
-        print("  export - DB → Google Sheet (backfill all features)")
-        print("  import - Google Sheet → DB (sync MDM changes)")
+        print("Usage: python mdm_sync.py [export|import|import-dict <sheet_name>]")
+        print("  export                       - DB → Google Sheet (backfill all features)")
+        print("  import                       - Google Sheet 'cechy' → DB universal_features")
+        print(f"  import-dict <sheet_name>     - Dictionary tab → DB. Available: {list(DICT_SYNCS)}")
