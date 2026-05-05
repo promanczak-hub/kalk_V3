@@ -45,6 +45,10 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const vehicleId = car.vehicle_id;
   const isInCart = useOfferCartStore((s) => s.items.some((i) => i.id.startsWith(vehicleId)));
 
+  // Inline expand/collapse for "Opcje fabryczne" / "Opcje serwisowe" rows.
+  const [factoryOptionsOpen, setFactoryOptionsOpen] = useState(false);
+  const [serviceOptionsOpen, setServiceOptionsOpen] = useState(false);
+
   // For pinned-calc cards, fetch price scoped to the specific kalkulacja_id.
   // Falls through to the batch priceData when no pin is set.
   const [pinnedPrice, setPinnedPrice] = useState<PriceForParams | null>(null);
@@ -301,9 +305,9 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               </span>
             )}
             {car.extraction_date && (
-              <span className="text-slate-400" title="Data ekstrakcji oferty">
+              <span className="text-slate-600" title="Data ekstrakcji oferty">
                 Ekstrakcja:{' '}
-                <span className="font-mono text-slate-500">
+                <span className="font-mono text-slate-700">
                   {new Date(car.extraction_date).toLocaleDateString('pl-PL', {
                     day: '2-digit',
                     month: '2-digit',
@@ -327,7 +331,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
         <div className="flex-shrink-0 flex items-start gap-3">
           <div className="text-right">
             <div className={`text-lg font-semibold tabular-nums ${scoreColorClass(score)}`}>{score ?? 0}%</div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-400">dopasowanie</div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-600">dopasowanie</div>
           </div>
           <a
             href={`/?highlight=${vehicleId}`}
@@ -346,11 +350,11 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       {(car.base_price_net || car.total_price_net) && (
         <div className="px-4 py-2.5 border-t border-slate-200">
           <div className="flex items-baseline justify-between">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Cena katalogowa</span>
+            <span className="text-[11px] uppercase tracking-wider text-slate-600 font-semibold">Cena katalogowa</span>
             <div className="text-sm font-semibold text-slate-900 font-mono tabular-nums">
               {fmtPLN(car.total_price_net ?? car.base_price_net)}{' '}
-              <span className="text-slate-500 font-normal">PLN netto</span>
-              <span className="text-[11px] text-slate-400 font-normal ml-2">
+              <span className="text-slate-700 font-normal">PLN netto</span>
+              <span className="text-xs text-slate-600 font-normal ml-2">
                 ({fmtPLN(((car.total_price_net ?? car.base_price_net ?? 0) as number) * 1.23)} brutto)
               </span>
             </div>
@@ -359,34 +363,90 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             || car.factory_options_price_net != null
             || car.service_options_price_net != null
             || car.options_price_net != null) && (
-            <div className="mt-1.5 flex flex-col gap-0.5 text-[11px] font-mono text-slate-500">
+            <div className="mt-1.5 flex flex-col gap-0.5 text-xs font-mono text-slate-700">
               {car.base_price_net != null && (
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Cena bazowa</span>
+                  <span className="text-slate-600">Cena bazowa</span>
                   <span className="tabular-nums">
                     {fmtPLN(car.base_price_net)} PLN
-                    <span className="text-slate-300 ml-1.5">({fmtPLN(car.base_price_net * 1.23)} brutto)</span>
+                    <span className="text-slate-500 ml-1.5">({fmtPLN(car.base_price_net * 1.23)} brutto)</span>
                   </span>
                 </div>
               )}
-              {car.factory_options_price_net != null && car.factory_options_price_net > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Opcje fabryczne</span>
-                  <span className="tabular-nums">
-                    + {fmtPLN(car.factory_options_price_net)} PLN
-                    <span className="text-slate-300 ml-1.5">({fmtPLN(car.factory_options_price_net * 1.23)} brutto)</span>
-                  </span>
-                </div>
-              )}
-              {car.service_options_price_net != null && car.service_options_price_net > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Opcje serwisowe</span>
-                  <span className="tabular-nums">
-                    + {fmtPLN(car.service_options_price_net)} PLN
-                    <span className="text-slate-300 ml-1.5">({fmtPLN(car.service_options_price_net * 1.23)} brutto)</span>
-                  </span>
-                </div>
-              )}
+              {car.factory_options_price_net != null && car.factory_options_price_net > 0 && (() => {
+                const items = car.factory_options ?? [];
+                const expandable = items.length > 0;
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      disabled={!expandable}
+                      onClick={() => expandable && setFactoryOptionsOpen((v) => !v)}
+                      className={`w-full flex justify-between items-center text-left ${expandable ? 'hover:text-slate-700 cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <span className="text-slate-600 flex items-center gap-1">
+                        Opcje fabryczne
+                        {expandable && (factoryOptionsOpen
+                          ? <ChevronUp className="w-3 h-3" />
+                          : <ChevronDown className="w-3 h-3" />)}
+                      </span>
+                      <span className="tabular-nums">
+                        + {fmtPLN(car.factory_options_price_net)} PLN
+                        <span className="text-slate-500 ml-1.5">({fmtPLN(car.factory_options_price_net * 1.23)} brutto)</span>
+                      </span>
+                    </button>
+                    {expandable && factoryOptionsOpen && (
+                      <ul className="mt-1 ml-3 flex flex-col gap-0.5">
+                        {items.map((opt, i) => (
+                          <li key={`fo-${i}-${opt.name}`} className="flex justify-between gap-2">
+                            <span className="text-slate-400 truncate">· {opt.name}</span>
+                            <span className="tabular-nums whitespace-nowrap text-slate-500">
+                              {opt.price_net != null ? `${fmtPLN(opt.price_net)} PLN` : '—'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
+              {car.service_options_price_net != null && car.service_options_price_net > 0 && (() => {
+                const items = car.service_options ?? [];
+                const expandable = items.length > 0;
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      disabled={!expandable}
+                      onClick={() => expandable && setServiceOptionsOpen((v) => !v)}
+                      className={`w-full flex justify-between items-center text-left ${expandable ? 'hover:text-slate-700 cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <span className="text-slate-600 flex items-center gap-1">
+                        Opcje serwisowe
+                        {expandable && (serviceOptionsOpen
+                          ? <ChevronUp className="w-3 h-3" />
+                          : <ChevronDown className="w-3 h-3" />)}
+                      </span>
+                      <span className="tabular-nums">
+                        + {fmtPLN(car.service_options_price_net)} PLN
+                        <span className="text-slate-500 ml-1.5">({fmtPLN(car.service_options_price_net * 1.23)} brutto)</span>
+                      </span>
+                    </button>
+                    {expandable && serviceOptionsOpen && (
+                      <ul className="mt-1 ml-3 flex flex-col gap-0.5">
+                        {items.map((opt, i) => (
+                          <li key={`so-${i}-${opt.name}`} className="flex justify-between gap-2">
+                            <span className="text-slate-400 truncate">· {opt.name}</span>
+                            <span className="tabular-nums whitespace-nowrap text-slate-500">
+                              {opt.price_net != null ? `${fmtPLN(opt.price_net)} PLN` : '—'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
               {/* Fallback when split isn't available but a combined options figure is */}
               {car.factory_options_price_net == null
                 && car.service_options_price_net == null
@@ -396,7 +456,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                     <span className="text-slate-400">Opcje (łącznie)</span>
                     <span className="tabular-nums">
                       + {fmtPLN(car.options_price_net)} PLN
-                      <span className="text-slate-300 ml-1.5">({fmtPLN(car.options_price_net * 1.23)} brutto)</span>
+                      <span className="text-slate-500 ml-1.5">({fmtPLN(car.options_price_net * 1.23)} brutto)</span>
                     </span>
                   </div>
                 )}
@@ -413,7 +473,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
             {variantsCount && variantsCount > 1 ? ` · 1 z ${variantsCount} wariantów` : ''}
           </span>
           {!!car.applied_discount_pct && car.applied_discount_pct > 0 && (
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono" title="Rabat dealerski zastosowany w kalkulacji">
+            <span className="text-[11px] uppercase tracking-wider text-slate-600 font-mono" title="Rabat dealerski zastosowany w kalkulacji">
               BD <span className="font-semibold text-slate-700">{car.applied_discount_pct}%</span>
             </span>
           )}
@@ -437,26 +497,26 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
 
             <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Czynsz miesięczny</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-600">Czynsz miesięczny</div>
                 <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
                   {fmtPLN(monthlyDisplay)}{' '}
                   <span className="text-xs font-normal text-slate-500">zł / mc netto</span>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Marża</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-600">Marża</div>
                 <div className="text-base font-bold text-slate-900 font-mono tabular-nums">
                   {displayMarginPct}%
                 </div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Okres × Przebieg</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-600">Okres × Przebieg</div>
                 <div className="text-xs text-slate-700 font-mono tabular-nums">
                   {targetDuration} mc · {fmtPLN(Math.round(targetAnnualMileage * targetDuration / 12))} km
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Opony · Serwis</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-600">Opony · Serwis</div>
                 <div className="text-xs text-slate-700 font-mono">
                   {[car.tire_class, car.service_cost_type].filter(Boolean).join(' · ') || '—'}
                 </div>
@@ -546,6 +606,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
         targetAnnualMileage={targetAnnualMileage}
         similarData={similarData}
         marginPct={displayMarginPct}
+        matrixActive={!!searchContext.useMatrixFilters}
       />
     </div>
   );

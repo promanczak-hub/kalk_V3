@@ -27,6 +27,12 @@ class ScoringSearchRequest(BaseModel):
     offset: int = 0
 
 
+class OptionLineItem(BaseModel):
+    name: str
+    price_net: Optional[float] = None
+    category: Optional[str] = None
+
+
 class ScoringSearchMatch(BaseModel):
     vehicle_id: str
     brand: Optional[str] = None
@@ -52,6 +58,8 @@ class ScoringSearchMatch(BaseModel):
     options_price_net: Optional[float] = None
     factory_options_price_net: Optional[float] = None
     service_options_price_net: Optional[float] = None
+    factory_options: List[OptionLineItem] = []
+    service_options: List[OptionLineItem] = []
     total_price_net: Optional[float] = None
     price_domain: Optional[str] = "brutto"
     suggested_discount_pct: Optional[float] = None
@@ -166,6 +174,7 @@ class SimilarVehicleMatch(BaseModel):
     similarity_score_pct: Optional[float] = None
     # Extended categorization metadata
     power_hp: Optional[int] = None
+    engine_label: Optional[str] = None
     body_style: Optional[str] = None
     vehicle_class: Optional[str] = None
     drive_type: Optional[str] = None

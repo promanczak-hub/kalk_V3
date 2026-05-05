@@ -25,6 +25,7 @@ from core.models_scoring_search import (
     TrimsAndOptionsRequest,
     TrimsAndOptionsResponse,
     OptionItem,
+    OptionLineItem,
     PriceForParamsResponse,
     SimilarBatchRequest,
     SimilarBatchResponse,
@@ -180,6 +181,48 @@ def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | No
         return None
 
 
+def _extract_option_line_items(
+    card_summary: dict[str, Any] | None,
+) -> tuple[list[OptionLineItem], list[OptionLineItem]]:
+    """Split paid_options + service_equipment into factory/service line lists.
+
+    Mirrors the aggregation rules used to compute factory_options_price_net /
+    service_options_price_net so totals shown in the card match the sum of
+    expanded items 1:1.
+    """
+    if not card_summary:
+        return [], []
+    domain = card_summary.get("price_domain")
+    factory: list[OptionLineItem] = []
+    service: list[OptionLineItem] = []
+    for opt in card_summary.get("paid_options") or []:
+        if not isinstance(opt, dict):
+            continue
+        name = (opt.get("name") or "").strip()
+        if not name:
+            continue
+        cat = (opt.get("category") or "").lower()
+        price_net = _parse_price_to_net(
+            opt.get("price"), opt.get("price_type") or domain
+        )
+        item = OptionLineItem(name=name, price_net=price_net, category=opt.get("category"))
+        if "fabryczn" in cat:
+            factory.append(item)
+        elif "serwis" in cat or "akcesori" in cat:
+            service.append(item)
+    svc_eq = card_summary.get("service_equipment") or {}
+    svc_eq_net = _parse_price_to_net(svc_eq.get("total_price_net"), "netto")
+    if svc_eq_net:
+        service.append(
+            OptionLineItem(
+                name=svc_eq.get("name") or "Pakiet serwisowy",
+                price_net=svc_eq_net,
+                category="Serwisowa",
+            )
+        )
+    return factory, service
+
+
 def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
     """Build a SimilarVehicleMatch from a raw RPC row dict.
 
@@ -252,7 +295,8 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         best_monthly_price=float(raw_price) if raw_price is not None else None,
         image_url=str(row.get("image_url") or row.get("v_image") or ""),
         similarity_score_pct=float(row.get("similarity_score_pct") or 0),
-        power_hp=int(row.get("power_hp") or 0),
+        power_hp=int(row.get("power_hp") or 0) or None,
+        engine_label=row.get("engine_label") or None,
         body_style=str(row.get("body_style") or "N/A"),
         vehicle_class=str(row.get("vehicle_class") or "N/A"),
         drive_type=str(row.get("drive_type") or "N/A"),
@@ -551,23 +595,32 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 )
             )
 
-        # ── 4. Attach user-pinned kalkulacje (multi-select) per vehicle ──
-        # Frontend uses this to render N cards (one per pinned calc) for each vehicle.
+        # ── 4. Attach pinned kalkulacje + factory/service option line items ──
+        # Single roundtrip pulls both (a) selected_kalkulacja_ids for the
+        # multi-card render and (b) the synthesis_data blob we parse for
+        # paid_options breakdown shown by inline expand in the result card.
         step = "attach_selected_kalkulacja_ids"
         vehicle_ids_in_results = [m.vehicle_id for m in all_matches if m.vehicle_id]
         if vehicle_ids_in_results:
             try:
                 synth_resp = _supabase_execute_with_retry(
                     sb.table("vehicle_synthesis")
-                    .select("id, selected_kalkulacja_ids")
+                    .select("id, selected_kalkulacja_ids, synthesis_data")
                     .in_("id", vehicle_ids_in_results)
                 )
-                pinned_map: dict[str, list[str]] = {
-                    str(r["id"]): list(r.get("selected_kalkulacja_ids") or [])
-                    for r in (synth_resp.data or [])
-                }
+                pinned_map: dict[str, list[str]] = {}
+                options_map: dict[str, tuple[list[OptionLineItem], list[OptionLineItem]]] = {}
+                for r in synth_resp.data or []:
+                    rid = str(r["id"])
+                    pinned_map[rid] = list(r.get("selected_kalkulacja_ids") or [])
+                    sd = r.get("synthesis_data") or {}
+                    options_map[rid] = _extract_option_line_items(sd.get("card_summary"))
                 for m in all_matches:
-                    m.selected_kalkulacja_ids = pinned_map.get(str(m.vehicle_id), [])
+                    key = str(m.vehicle_id)
+                    m.selected_kalkulacja_ids = pinned_map.get(key, [])
+                    factory, service = options_map.get(key, ([], []))
+                    m.factory_options = factory
+                    m.service_options = service
             except Exception:
                 logger.exception("Failed to attach selected_kalkulacja_ids to search results")
 
@@ -878,7 +931,42 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
             from typing import cast, Any
 
             rows = cast(list[dict[str, Any]], response.data)
+
+            # Fallback: RPC reads drive_type from card_summary.drivetrain (often null).
+            # Bulk-fetch mapped_ai_data.drive_type for candidates that came back "N/A"
+            # so the spec chip ("FWD" / "AWD" / "RWD") shows up next to body/engine/gearbox.
+            missing_drive_ids = {
+                str(r.get("vehicle_id"))
+                for r in rows
+                if not r.get("drive_type") or str(r.get("drive_type")).upper() in {"N/A", "NULL", ""}
+            }
+            drive_lookup: dict[str, str] = {}
+            if missing_drive_ids:
+                try:
+                    drive_resp = _supabase_execute_with_retry(
+                        sb.table("vehicle_synthesis")
+                        .select("id,synthesis_data")
+                        .in_("id", list(missing_drive_ids))
+                    )
+                    for v_row in (drive_resp.data or []):
+                        sd = v_row.get("synthesis_data") or {}
+                        m = sd.get("mapped_ai_data") or {}
+                        raw = m.get("drive_type")
+                        normalized = _normalize_drive_type(raw) or (str(raw).strip() if raw else None)
+                        if normalized:
+                            drive_lookup[str(v_row["id"])] = normalized
+                except Exception as exc:
+                    logger.debug("drive_type fallback lookup failed: %s", exc)
+
             for row in rows:
+                vid = str(row.get("vehicle_id"))
+                if vid in drive_lookup:
+                    row["drive_type"] = drive_lookup[vid]
+                else:
+                    # Normalize whatever the RPC returned (e.g. "Quattro" → "AWD").
+                    norm = _normalize_drive_type(row.get("drive_type"))
+                    if norm:
+                        row["drive_type"] = norm
                 source_id = str(row.pop("source_vehicle_id"))
                 match = _build_similar_vehicle_match(row)
                 if source_id in results:
