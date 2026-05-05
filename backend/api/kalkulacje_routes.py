@@ -887,8 +887,11 @@ def get_smart_variants(kalk_id: str):
                 "mileage": cell.get("PrzebiegKontrakt"),
                 "net_installment": cell.get("RataNetto"),
                 "contribution": calc_input.initial_deposit_pct,
+                "margin_pct": getattr(calc_input, "pricing_margin_pct", None),
                 "system_recommendation": reco,
-                "calculation_data": cell,
+                # Inject kalkulacja_id so the offer generator can dehydrate the
+                # full stan_json (VIN, options, in-rate toggles, fin/tech split).
+                "calculation_data": {**cell, "kalkulacja_id": kalk_id},
                 "standard_equipment": [],
                 "factory_options": [o.name for o in calc_input.factory_options]
                 if calc_input.factory_options

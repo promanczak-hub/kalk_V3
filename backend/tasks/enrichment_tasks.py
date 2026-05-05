@@ -111,12 +111,28 @@ def enrich_vehicle_features_from_catalog(vehicle_id: str) -> dict:
     }
 
 
+def _vec_to_pg_literal(vec: list[float]) -> str:
+    return "[" + ",".join(str(v) for v in vec) + "]"
+
+
 @celery_app.task
 def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
-    """Generates and saves a semantic embedding vector for a vehicle."""
-    logger.info(f"Generating embedding for vehicle {vehicle_id}")
+    """Generate semantic + multi-vector embeddings for a vehicle.
+
+    Writes 4 columns: `semantic_embedding` (used by similar_vehicles RPCs and
+    `rpc_reverse_search`) and `vector_use_case`/`vector_specs`/`vector_equipment`
+    (used by `rpc_search_vehicles_multi_vector`). Each embedding is generated
+    independently — partial success still saves what worked.
+    """
+    logger.info(f"Generating embeddings for vehicle {vehicle_id}")
     sb = supabase
-    from core.embeddings import generate_embedding, build_vehicle_document
+    from core.embeddings import (
+        build_equipment_text,
+        build_specs_text,
+        build_use_case_text,
+        build_vehicle_document,
+        generate_embedding,
+    )
 
     v_resp = (
         sb.table("vehicle_synthesis")
@@ -132,45 +148,82 @@ def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
     model = row.get("model") or ""
     synthesis = row.get("synthesis_data") or {}
 
-    doc_text = build_vehicle_document(brand, model, synthesis)
-    vector = generate_embedding(doc_text)
+    texts = {
+        "semantic_embedding": build_vehicle_document(brand, model, synthesis),
+        "vector_use_case": build_use_case_text(brand, model, synthesis),
+        "vector_specs": build_specs_text(brand, model, synthesis),
+        "vector_equipment": build_equipment_text(brand, model, synthesis),
+    }
 
-    if not vector:
-        logger.error(f"Failed to generate embedding for vehicle {vehicle_id}")
-        return {"status": "error", "message": "Embedding generation returned None"}
+    update_payload: dict[str, str] = {}
+    failures: list[str] = []
+    for column, text in texts.items():
+        if not text or not text.strip():
+            failures.append(f"{column}:empty_text")
+            continue
+        try:
+            vec = generate_embedding(text)
+        except Exception as exc:
+            logger.exception(f"Embedding error for {vehicle_id} {column}: {exc}")
+            failures.append(f"{column}:exception")
+            continue
+        if not vec:
+            failures.append(f"{column}:none")
+            continue
+        update_payload[column] = _vec_to_pg_literal(vec)
 
-    # Format vector for Postgres literal e.g., '[0.1, 0.2, ...]'
-    vec_str = f"[{','.join(str(v) for v in vector)}]"
+    if not update_payload:
+        logger.error(
+            f"Failed to generate ANY embedding for vehicle {vehicle_id}: {failures}"
+        )
+        return {
+            "status": "error",
+            "message": "All embeddings failed",
+            "failures": failures,
+        }
 
-    # Update the vehicle_synthesis table with the new vector
+    if any(k.startswith("vector_") for k in update_payload):
+        update_payload["multi_vectors_at"] = "now()"
+
     try:
-        sb.table("vehicle_synthesis").update({"semantic_embedding": vec_str}).eq(
+        sb.table("vehicle_synthesis").update(update_payload).eq(
             "id", vehicle_id
         ).execute()
-        logger.info(f"Successfully saved embedding for vehicle {vehicle_id}")
-        return {"status": "success", "vehicle_id": vehicle_id}
+        logger.info(
+            f"Saved {sorted(update_payload)} for vehicle {vehicle_id}"
+            + (f" (failures: {failures})" if failures else "")
+        )
+        return {
+            "status": "success",
+            "vehicle_id": vehicle_id,
+            "saved_columns": sorted(update_payload),
+            "failures": failures,
+        }
     except Exception as e:
-        logger.exception(f"DB Error saving embedding for {vehicle_id}")
+        logger.exception(f"DB Error saving embeddings for {vehicle_id}")
         return {"status": "error", "message": str(e)}
 
 
 @celery_app.task
 def backfill_vehicle_embeddings() -> dict:
-    """Fills the semantic_embedding column for all vehicles that don't have one."""
+    """Backfill embeddings for vehicles missing semantic OR any multi-vector column."""
     logger.info("Starting vehicle embedding backfill process")
     sb = supabase
 
-    # Fetch vehicles lacking an embedding
-    # Note: is.null is Supabase python syntax for IS NULL
     v_resp = (
         sb.table("vehicle_synthesis")
         .select("id")
-        .is_("semantic_embedding", "null")
+        .or_(
+            "semantic_embedding.is.null,"
+            "vector_use_case.is.null,"
+            "vector_specs.is.null,"
+            "vector_equipment.is.null"
+        )
         .execute()
     )
 
     vehicles = v_resp.data or []
-    logger.info(f"Found {len(vehicles)} vehicles missing embeddings.")
+    logger.info(f"Found {len(vehicles)} vehicles missing one or more embeddings.")
 
     success_count = 0
     for v in vehicles:
@@ -179,7 +232,7 @@ def backfill_vehicle_embeddings() -> dict:
             success_count += 1
 
     logger.info(
-        f"Backfill complete: generated {success_count}/{len(vehicles)} embeddings."
+        f"Backfill complete: regenerated {success_count}/{len(vehicles)} vehicles."
     )
     return {
         "status": "success",

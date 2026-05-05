@@ -49,11 +49,14 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
     setIsLoadingSmart(true);
     try {
       const res = await apiClient.fetch(`/api/kalkulacje/${item.id}/smart-advisor`, { method: 'POST' });
-      const variants = await res.json();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      variants.forEach((v: any) => {
+      const data = await res.json();
+      const variants: unknown[] = Array.isArray(data) ? data : (data?.variants ?? []);
+      variants.forEach((raw) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const v = raw as any;
+        if (!v) return;
         addToCart({
-          id: crypto.randomUUID(),
+          id: v.id || crypto.randomUUID(),
           brand: v.brand || item.dane_pojazdu?.split(' ')[0] || 'Nieznane',
           model: v.model || '',
           powertrain: v.powertrain || item.fuel_type || '',
@@ -61,12 +64,13 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
           term: v.term || 0,
           mileage: v.mileage || 0,
           net_installment: v.net_installment || 0,
-          contribution: 0,
-          system_recommendation: `Smart Advisor: ${v.variant_type}`,
-          standard_equipment: [],
-          factory_options: [],
-          dealer_options: [],
-          calculation_data: v.calculation_data || {},
+          contribution: v.contribution || 0,
+          margin_pct: v.margin_pct,
+          system_recommendation: v.system_recommendation || `Smart Advisor`,
+          standard_equipment: v.standard_equipment || [],
+          factory_options: v.factory_options || [],
+          dealer_options: v.dealer_options || [],
+          calculation_data: v.calculation_data || { kalkulacja_id: item.id },
         });
       });
     } catch (error) {

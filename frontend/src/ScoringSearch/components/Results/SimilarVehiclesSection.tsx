@@ -12,6 +12,7 @@ interface SimilarVehiclesSectionProps {
   targetAnnualMileage: number;
   similarData?: SimilarVehicle[];
   marginPct?: number;
+  matrixActive?: boolean;
 }
 
 export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
@@ -20,6 +21,7 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
   marginPct,
   targetDuration,
   targetAnnualMileage,
+  matrixActive,
 }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -49,6 +51,7 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
               marginPct={marginPct}
               targetDuration={targetDuration}
               targetAnnualMileage={targetAnnualMileage}
+              matrixActive={matrixActive}
             />
           ) : (
             <Typography variant="caption" sx={{ color: '#94A3B8', fontStyle: 'italic', display: 'block', py: 1 }}>

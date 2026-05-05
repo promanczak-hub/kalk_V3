@@ -109,6 +109,12 @@ export interface SearchContext {
   semanticQuery?: string;
 }
 
+export interface OptionLineItem {
+  name: string;
+  price_net?: number | null;
+  category?: string | null;
+}
+
 export interface ScoredVehicle {
   vehicle_id: string;
   brand: string;
@@ -132,6 +138,8 @@ export interface ScoredVehicle {
   options_price_net?: number;
   factory_options_price_net?: number;
   service_options_price_net?: number;
+  factory_options?: OptionLineItem[];
+  service_options?: OptionLineItem[];
   engine_capacity?: string;
   engine_designation?: string;
   extraction_date?: string;

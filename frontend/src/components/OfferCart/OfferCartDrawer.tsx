@@ -12,8 +12,13 @@ import {
   Chip,
   MenuItem
 } from '@mui/material';
-import { X, Trash2, FileOutput } from 'lucide-react';
+import { X, Trash2, FileOutput, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useOfferCartStore, type OfferItem, type OfferVariant } from '../../stores/offerCartStore';
+
+const hasFullCalc = (item: OfferItem): boolean => {
+  const cd = item.calculation_data as { kalkulacja_id?: string | null } | null | undefined;
+  return !!(cd && cd.kalkulacja_id);
+};
 
 const OVERUSE_FEE_OPTIONS: number[] = Array.from({ length: 71 }, (_, i) => Math.round((0.10 + i * 0.01) * 100) / 100);
 const DEFAULT_OVERUSE_FEE = 0.50;
@@ -52,6 +57,25 @@ const CartItemRecord: React.FC<{
         )}
         {item.system_recommendation && (
           <Chip size="small" color="success" label={item.system_recommendation} />
+        )}
+        {hasFullCalc(item) ? (
+          <Chip
+            size="small"
+            color="success"
+            variant="outlined"
+            icon={<CheckCircle2 size={14} />}
+            label="Pełna kalkulacja"
+            title="Oferta zawiera VIN, opcje, OC/AC/serwis i podział finansowo-techniczny"
+          />
+        ) : (
+          <Chip
+            size="small"
+            color="warning"
+            variant="outlined"
+            icon={<AlertTriangle size={14} />}
+            label="Spec z bazy pojazdów"
+            title="Pojazd dodano bez wykonanej kalkulacji LTR. Oferta będzie zawierała specyfikację, ale bez VIN, opłaty OC/AC, serwisu, czynszu finansowego/technicznego."
+          />
         )}
       </Box>
       

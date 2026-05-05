@@ -856,6 +856,8 @@ export function VehicleRowCard({
                   handleUpdateFactoryOptionNoDiscount={handleUpdateFactoryOptionNoDiscount}
                   handleRemoveFactoryOption={handleRemoveFactoryOption}
                   handleAddManualFactoryOption={handleAddManualFactoryOption}
+                  handleSaveAllOptions={handleSaveAllOptions}
+                  isSavingServices={isSavingServices}
                   activeDiscountPct={activeDiscountPct}
                 />
                 <VehicleServiceOptionsCard

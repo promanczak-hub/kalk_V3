@@ -58,6 +58,7 @@ export interface SimilarVehicle {
   image_url?: string;
   // Technical metadata
   power_hp: number | null;
+  engine_label?: string | null;
   body_style: string | null;
   vehicle_class: string | null;
   drive_type: string | null;
