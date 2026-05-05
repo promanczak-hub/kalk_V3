@@ -209,7 +209,16 @@ def _compute_matrix_breakdown(
             return None, None, None, None
         settings = ControlCenterSettings(**cast(Dict[str, Any], settings_res.data[0]))
 
-        calc_input = CalculatorInput(**stan)
+        # Older stan_json rows have None for fields that the schema now types as
+        # required-with-default (e.g. inne_koszty_serwisowania_netto: float = 0.0).
+        # Pydantic v2 rejects None for those even when a default exists; drop the
+        # nulls so Pydantic falls back to the field default.
+        stan_clean = {k: v for k, v in stan.items() if v is not None}
+        try:
+            calc_input = CalculatorInput(**stan_clean)
+        except Exception as ve:
+            logger.info("CalculatorInput validation failed: %s", str(ve)[:300])
+            return None, None, None, None
         if applied_margin_pct is not None:
             calc_input.pricing_margin_pct = float(applied_margin_pct)
 
@@ -336,6 +345,34 @@ def _load_synthesis_fallback(vehicle_id: Optional[str]) -> Dict[str, Any]:
         return {}
 
 
+def _resolve_vehicle_id_from_calc_data(calc_data: Dict[str, Any]) -> Optional[str]:
+    """Cart items from search spread the car into calculation_data — vehicle_id
+    can hide under different keys depending on the source (vehicle_id, id,
+    car_id) or be derivable from configuration_code via vehicle_synthesis."""
+    vid = calc_data.get("vehicle_id") or calc_data.get("car_id")
+    if vid:
+        return vid
+    raw_id = calc_data.get("id")
+    if raw_id and isinstance(raw_id, str) and len(raw_id) == 36 and raw_id.count("-") == 4:
+        # Looks like a UUID — likely the vehicle_synthesis primary key.
+        return raw_id
+    cfg = calc_data.get("configuration_code")
+    if cfg:
+        try:
+            res = (
+                supabase.table("vehicle_synthesis")
+                .select("id")
+                .filter("synthesis_data->>configuration_code", "eq", cfg)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return res.data[0].get("id")
+        except Exception as e:
+            logger.info("vehicle_synthesis lookup by config failed: %s", str(e)[:200])
+    return None
+
+
 def _resolve_kalk_id_via_matrix_cache(
     vehicle_id: Optional[str],
     term: Optional[int],
@@ -375,8 +412,7 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     )
     vehicle_id = (
         item.get("vehicle_id")
-        or calc_data.get("vehicle_id")
-        or calc_data.get("id")
+        or _resolve_vehicle_id_from_calc_data(calc_data)
     )
 
     stan: Dict[str, Any] = {}
