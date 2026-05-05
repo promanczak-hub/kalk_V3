@@ -309,28 +309,240 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
+_BODY_TYPE_FIELDS = (
+    ("card_summary", "body_style"),
+    ("mapped_ai_data", "body_style"),
+    ("__root__", "nadwozie"),
+    ("__root__", "samar_body_type"),
+    ("__root__", "samar_body_style"),
+    ("__root__", "rodzaj_zabudowy"),
+)
+
+# Resolved-status values that count as "vehicle has this feature".
+_PRESENT_STATUSES = (
+    "present_confirmed_primary",
+    "present_confirmed_secondary",
+    "present_inferred",
+)
+
+
+def _vehicle_body_styles(synthesis_data: dict[str, Any] | None) -> list[str]:
+    """Pull every plausible body-style label out of a vehicle's synthesis_data.
+    Mirrors the lookup done in features_routes.reverse_search_vehicles so the
+    same body_types filter behaves consistently across endpoints.
+    """
+    if not isinstance(synthesis_data, dict):
+        return []
+    out: list[str] = []
+    for parent_key, leaf in _BODY_TYPE_FIELDS:
+        parent = synthesis_data if parent_key == "__root__" else synthesis_data.get(parent_key)
+        if not isinstance(parent, dict):
+            continue
+        v = parent.get(leaf)
+        if isinstance(v, str) and v.strip():
+            out.append(v.strip())
+    return out
+
+
+def _resolve_candidate_vehicle_ids(
+    request: AvailableFiltersRequest,
+) -> list[str]:
+    """Find the vehicle_synthesis IDs that match the brand/model/body_type filter.
+    Empty filters → all `verification_status='completed'` vehicles.
+    """
+    sb = supabase
+    q = (
+        sb.table("vehicle_synthesis")
+        .select("id, brand, model, synthesis_data")
+        .eq("verification_status", "completed")
+    )
+    if request.brands:
+        q = q.in_("brand", request.brands)
+    if request.models:
+        q = q.in_("model", request.models)
+    resp = _supabase_execute_with_retry(q)
+    rows = resp.data or []
+
+    if not request.body_types:
+        return [str(r["id"]) for r in rows if r.get("id")]
+
+    wanted = {bt.upper() for bt in request.body_types}
+    out: list[str] = []
+    for r in rows:
+        styles = _vehicle_body_styles(r.get("synthesis_data"))
+        if any(any(w in s.upper() for s in styles) for w in wanted):
+            out.append(str(r["id"]))
+    return out
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    """Linear-interpolated percentile (no scipy dep). 0 ≤ pct ≤ 1."""
+    if not values:
+        return 0.0
+    s = sorted(values)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * pct
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+
+
 @router.post("/scoring-search/available-filters")
 def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
-    """Return dynamic facets (enums, ranges).
+    """Aggregate boolean + numeric range filters from `reverse_search.vehicle_specs_normalized`.
 
-    The original `rpc_get_available_filters` was dropped on 2026-04-27 along with the
-    rest of `reverse_search.*`. Until we rebuild facet aggregation in Python, return
-    an empty shape so the frontend doesn't 500 — it will simply render no facets.
+    Replaces the dropped `rpc_get_available_filters`. Returns counts/min/max scoped
+    to the brand/model/body_type filter on the request. Numeric ranges are clipped
+    at the 5th/95th percentile to keep sliders usable when source data has outliers.
     """
-    # Empty but well-typed shape - matches roughly what the old RPC returned, so
-    # frontend code that destructures keys won't crash on undefined.
-    return {
-        "brands": [],
-        "models": [],
-        "body_types": [],
-        "fuels": [],
-        "transmissions": [],
-        "drive_types": [],
-        "samar_classes": [],
-        "trim_levels": [],
-        "ranges": {},
-        "_notice": "facets temporarily unavailable - rpc_get_available_filters dropped 2026-04-27",
+    payload_hash = _params_hash(request.model_dump_json())
+    cache_key = f"{_PREFIX}available_filters:{payload_hash}"
+
+    cached = _redis_get(cache_key)
+    if cached is not None:
+        return cached
+
+    sb = supabase
+    empty_response: dict[str, Any] = {
+        "filters_provided": True,
+        "facet_groups": [],
+        "range_filters": [],
+        "boolean_filters": [],
     }
+
+    try:
+        vehicle_ids = _resolve_candidate_vehicle_ids(request)
+        if not vehicle_ids:
+            return empty_response
+
+        # ── Feature catalog (small — 330 rows). Index by feature_id for fast lookup. ──
+        feat_resp = _supabase_execute_with_retry(
+            sb.schema("reverse_search")
+            .table("universal_features")
+            .select("id, feature_key, display_name, feature_type, category, category_id, sort_order")
+            .eq("is_filterable", True)
+            .eq("is_active", True)
+        )
+        cat_resp = _supabase_execute_with_retry(
+            sb.schema("reverse_search")
+            .table("universal_feature_categories")
+            .select("id, display_name")
+            .eq("is_active", True)
+        )
+        cat_name_by_id = {c["id"]: c.get("display_name") for c in (cat_resp.data or [])}
+        feat_by_id: dict[str, dict[str, Any]] = {}
+        for f in feat_resp.data or []:
+            feat_by_id[f["id"]] = {
+                "feature_key": f["feature_key"],
+                "display_name": f.get("display_name") or f["feature_key"],
+                "feature_type": f.get("feature_type") or f.get("data_type") or "boolean",
+                "group_name": cat_name_by_id.get(f.get("category_id"))
+                or f.get("category")
+                or "Inne",
+                "sort_order": f.get("sort_order") or 100,
+            }
+
+        # ── Resolved values for these vehicles (paginated to avoid PostgREST 1000-row cap) ──
+        all_specs: list[dict[str, Any]] = []
+        chunk_size = 200  # vehicle ids per IN clause; PostgREST default cap is 1000 rows total
+        for i in range(0, len(vehicle_ids), chunk_size):
+            chunk = vehicle_ids[i : i + chunk_size]
+            page = 0
+            while True:
+                resp = _supabase_execute_with_retry(
+                    sb.schema("reverse_search")
+                    .table("vehicle_specs_normalized")
+                    .select("vehicle_id, feature_id, value_bool, value_numeric, resolved_status")
+                    .in_("vehicle_id", chunk)
+                    .in_("resolved_status", list(_PRESENT_STATUSES))
+                    .range(page * 1000, page * 1000 + 999)
+                )
+                rows = resp.data or []
+                all_specs.extend(rows)
+                if len(rows) < 1000:
+                    break
+                page += 1
+
+        # ── Aggregate booleans: count distinct vehicles per feature where value_bool=true ──
+        bool_vehicle_sets: dict[str, set[str]] = {}
+        numeric_values: dict[str, list[float]] = {}
+        for row in all_specs:
+            feat = feat_by_id.get(row.get("feature_id"))
+            if not feat:
+                continue
+            ftype = feat["feature_type"]
+            vid = str(row.get("vehicle_id"))
+            if ftype == "boolean":
+                if row.get("value_bool") is True:
+                    bool_vehicle_sets.setdefault(feat["feature_key"], set()).add(vid)
+            elif ftype == "numeric":
+                v = row.get("value_numeric")
+                if v is None:
+                    continue
+                try:
+                    numeric_values.setdefault(feat["feature_key"], []).append(float(v))
+                except (TypeError, ValueError):
+                    continue
+
+        boolean_filters: list[dict[str, Any]] = []
+        for feat in feat_by_id.values():
+            if feat["feature_type"] != "boolean":
+                continue
+            cnt = len(bool_vehicle_sets.get(feat["feature_key"], ()))
+            if cnt == 0:
+                continue
+            boolean_filters.append(
+                {
+                    "feature_key": feat["feature_key"],
+                    "feature_name": feat["display_name"],
+                    "group_name": feat["group_name"],
+                    "parent_feature_key": None,
+                    "facet_level": 0,
+                    "is_primary_facet": False,
+                    "cnt": cnt,
+                }
+            )
+        boolean_filters.sort(key=lambda x: (-x["cnt"], x["feature_name"]))
+
+        range_filters: list[dict[str, Any]] = []
+        for feat in feat_by_id.values():
+            if feat["feature_type"] != "numeric":
+                continue
+            vals = numeric_values.get(feat["feature_key"]) or []
+            if len(vals) < 2:
+                continue
+            # Clip outliers (data has spurious entries like 19843 cm³). Round so
+            # the slider snaps to clean integers.
+            lo = round(_percentile(vals, 0.05))
+            hi = round(_percentile(vals, 0.95))
+            if hi <= lo:
+                continue
+            range_filters.append(
+                {
+                    "feature_key": feat["feature_key"],
+                    "feature_name": feat["display_name"],
+                    "group_name": feat["group_name"],
+                    "parent_feature_key": None,
+                    "facet_level": 0,
+                    "is_primary_facet": False,
+                    "min_val": lo,
+                    "max_val": hi,
+                }
+            )
+        range_filters.sort(key=lambda x: (x["group_name"], x["feature_name"]))
+
+        response: dict[str, Any] = {
+            "filters_provided": True,
+            "facet_groups": [],
+            "range_filters": range_filters,
+            "boolean_filters": boolean_filters,
+        }
+        _redis_set(cache_key, response, _TTL_FILTERS)
+        return response
+    except Exception as exc:
+        logger.exception("get_available_filters failed: %s", exc)
+        return empty_response
 
 
 @router.post("/scoring-search/search")
