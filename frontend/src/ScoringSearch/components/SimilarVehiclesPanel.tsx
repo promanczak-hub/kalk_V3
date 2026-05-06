@@ -516,7 +516,7 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
       brand: v.brand || '',
       model: v.model || '',
       powertrain: v.fuel || '',
-      vin_or_config: `Podobny pojazd dla: ${sourceVehicle.brand} ${sourceVehicle.model}`,
+      vin_or_config: v.configuration_code || '',
       term: dur,
       mileage: mil,
       net_installment: Math.round(installmentWithMargin),
