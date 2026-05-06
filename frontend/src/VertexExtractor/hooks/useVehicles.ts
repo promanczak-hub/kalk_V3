@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from '../../lib/apiClient';
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 import type { FleetVehicleView } from "../types";
 
 export function useVehicles() {
