@@ -63,6 +63,8 @@ frontend/.env.local
 
 # Temp/debug scripts (should be in /tmp or scripts/)
 backend/check_*.py
+backend/_check_*.py
+backend/scratch_*.py
 backend/tmp_*.py
 backend/tmp_*.txt
 backend/get_*.py
@@ -71,6 +73,20 @@ backend/diag_*.txt
 backend/*.log
 backend/*_out.txt
 backend/*_output.txt
+backend/dbg.*
+
+# One-off diagnostic dumps (don't commit; *.json + *.csv blanket
+# ignores below already cover most, but these recur often enough to
+# warrant explicit entries)
+backend/chunks.txt
+backend/excel_dump.csv
+backend/git_diff_export.txt
+backend/celery_logs*.txt
+backend/routes.txt
+
+# Frontend diagnostic dumps
+frontend/diff.txt
+frontend/tsc_errors.txt
 
 # Backups — never commit
 *.zip
