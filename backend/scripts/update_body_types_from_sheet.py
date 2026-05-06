@@ -12,29 +12,57 @@ def update_body_types():
     print(f"Pobieranie danych z Google Sheets: {url}")
     df = pd.read_csv(url)
 
-    updates_count = 0
+    # Snapshot DB BEFORE sync so we can categorize rows as added/updated/unchanged.
+    existing = (
+        supabase.table("body_types")
+        .select("id,nazwa_nadwozia,vehicle_class")
+        .execute()
+        .data
+        or []
+    )
+    db_idx = {r["id"]: r for r in existing}
+
+    added = 0
+    updated = 0
+    unchanged = 0
 
     print("Rozpoczynam synchronizacje nadwozi...")
-    for index, row in df.iterrows():
-        b_id = row["ID"]
-        b_name = row["Nazwa_Nadwozia"]
-        b_type = row["Typ_Pojazdu"]
+    for _, row in df.iterrows():
+        b_id = int(row["ID"])
+        b_name = str(row["Nazwa_Nadwozia"]).strip()
+        b_type = str(row["Typ_Pojazdu"]).strip()
 
-        # update the db
-        res = (
-            supabase.table("body_types")
-            .update({"vehicle_class": b_type})
-            .eq("id", b_id)
-            .execute()
-        )
+        prior = db_idx.get(b_id)
+        payload = {"id": b_id, "nazwa_nadwozia": b_name, "vehicle_class": b_type}
+        supabase.table("body_types").upsert(payload).execute()
 
-        if res.data:
-            print(f"Zaktualizowano ID {b_id} ({b_name}) -> {b_type}")
-            updates_count += 1
+        if prior is None:
+            added += 1
+            print(f"+ Dodano ID {b_id}: {b_name} -> {b_type}")
+        elif (
+            (prior.get("nazwa_nadwozia") or "").strip() != b_name
+            or (prior.get("vehicle_class") or "").strip() != b_type
+        ):
+            updated += 1
+            print(
+                f"~ Zaktualizowano ID {b_id}: "
+                f"name={prior.get('nazwa_nadwozia')!r}->{b_name!r}, "
+                f"class={prior.get('vehicle_class')!r}->{b_type!r}"
+            )
         else:
-            print(f"Nie znaleziono ID {b_id} w bazie.")
+            unchanged += 1
 
-    print(f"\nGotowe! Zaktualizowano {updates_count} rekordów w tabeli body_types.")
+    sot_ids = {int(r["ID"]) for _, r in df.iterrows()}
+    orphans = [r for r in existing if r["id"] not in sot_ids]
+
+    print(
+        f"\nGotowe! added={added}, updated={updated}, unchanged={unchanged}, "
+        f"in_db_not_in_sot={len(orphans)}"
+    )
+    if orphans:
+        print("Wiersze w DB poza SOT (kandydaci do usunięcia ręcznego):")
+        for r in orphans:
+            print(f"  - id={r['id']}: {r.get('nazwa_nadwozia')!r} / {r.get('vehicle_class')!r}")
 
 
 if __name__ == "__main__":

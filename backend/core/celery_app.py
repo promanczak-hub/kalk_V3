@@ -14,7 +14,6 @@ celery_app = Celery(
         "tasks.matrix_tasks",
         "tasks.matrix_watchdog",
         "core.celery_tasks",
-        "core.pdf_pipeline.tasks",
     ],
 )
 
@@ -31,7 +30,6 @@ celery_app.conf.update(
     task_routes={
         "process_document_task": {"queue": "uploads"},
         "process_document_task_from_storage": {"queue": "uploads"},
-        "extract_pdf_pricelist_task": {"queue": "uploads"},
     },
     beat_schedule={
         "prewarm-global-filters-every-15-mins": {
@@ -41,6 +39,14 @@ celery_app.conf.update(
         "matrix-watchdog-every-5-mins": {
             "task": "matrix_watchdog_task",
             "schedule": 300.0,  # 5 minutes in seconds
+        },
+        # Safety net: catch vehicles whose phase_2 extraction skipped or
+        # failed the embedding step (e.g. Celery hiccup, empty embedding
+        # text, transient API error). Without this, missing vehicles stay
+        # invisible to semantic search until someone notices.
+        "backfill-vehicle-embeddings-every-6h": {
+            "task": "tasks.enrichment_tasks.backfill_vehicle_embeddings",
+            "schedule": 21600.0,  # 6 hours
         },
     },
 )

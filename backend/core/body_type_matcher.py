@@ -194,3 +194,29 @@ def match_body_type(raw_body_style: str) -> BodyTypeMatch:
         match_method="none",
         raw_input=raw_body_style,
     )
+
+
+def normalize_body_style_for_display(raw: Optional[str]) -> Optional[str]:
+    """Resolve a free-text body_style to its canonical SOT name for display.
+
+    Three-tier lookup: BODY_ALIAS_MAP exact → BODY_ALIAS_MAP substring →
+    match_body_type (fuzzy match against body_types table). Falls back to the
+    raw input so unknown labels surface in the UI rather than getting hidden.
+    Used by scoring search endpoints so the card label matches the filter chip.
+    """
+    if not raw:
+        return raw
+    body_style = raw.strip()
+    if not body_style:
+        return raw
+    normalized = body_style.upper()
+    key: Optional[str] = BODY_ALIAS_MAP.get(normalized)
+    if key is None:
+        for alias_key, alias_val in BODY_ALIAS_MAP.items():
+            if alias_key in normalized:
+                key = alias_val
+                break
+    if key is not None:
+        return key
+    bt = match_body_type(body_style)
+    return bt.matched_name or body_style

@@ -197,14 +197,24 @@ class LTRKalkulator:
                 if inferred_zabudowa:
                     self.vehicle.zabudowa_type_id = int(inferred_zabudowa)
 
-        input_paint = str(getattr(self.input_data, "paint_type_name", "") or "").strip()
-        if input_paint:
-            resolved_paint_id = _resolve_paint_type_id_from_name(input_paint)
-            if not resolved_paint_id:
-                raise ValueError(
-                    f"Nie rozpoznano typu lakieru z dropdownu: '{input_paint}'."
-                )
-            self.vehicle.paint_type_id = int(resolved_paint_id)
+        # Preferuj kanoniczne ID; fall‑back na nazwę z fuzzy resolverem.
+        input_paint_id = getattr(self.input_data, "paint_type_id", None)
+        if input_paint_id is not None:
+            try:
+                pid = int(input_paint_id)
+                if pid > 0:
+                    self.vehicle.paint_type_id = pid
+            except (TypeError, ValueError):
+                pass
+        else:
+            input_paint = str(getattr(self.input_data, "paint_type_name", "") or "").strip()
+            if input_paint:
+                resolved_paint_id = _resolve_paint_type_id_from_name(input_paint)
+                if not resolved_paint_id:
+                    raise ValueError(
+                        f"Nie rozpoznano typu lakieru z dropdownu: '{input_paint}'."
+                    )
+                self.vehicle.paint_type_id = int(resolved_paint_id)
 
         input_drive = str(getattr(self.input_data, "drive_type", "") or "").strip()
         if input_drive:
@@ -509,7 +519,7 @@ class LTRKalkulator:
                 MarzaFinansowaProcent=float(
                     self.input_data.margin_pct
                     if getattr(self.input_data, "margin_pct", None) is not None
-                    else getattr(self.settings, "default_ltr_margin", 2.0)
+                    else getattr(self.settings, "bank_spread", 2.0)
                 ),
             )
             finance_calc = FinanseCalculator(finance_input)
@@ -945,7 +955,7 @@ class LTRKalkulator:
                 MarzaFinansowaProcent=float(
                     self.input_data.margin_pct
                     if getattr(self.input_data, "margin_pct", None) is not None
-                    else getattr(self.settings, "default_ltr_margin", 2.0)
+                    else getattr(self.settings, "bank_spread", 2.0)
                 ),
             )
             finance_calc = FinanseCalculator(finance_input)

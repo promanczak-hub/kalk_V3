@@ -6,6 +6,7 @@ import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
 import type { ScoredVehicle } from '../../types';
+import { KalkulacjaParamsRow } from './KalkulacjaParamsRow';
 
 interface VehicleResultCardProps {
   car: ScoredVehicle;
@@ -194,6 +195,22 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       ? `${vehicleId}_${dur}_${mil}_${kidForId}_${marginTag}`
       : `${vehicleId}_${dur}_${mil}_${marginTag}`;
 
+    // Freeze the kalkulacja's params at add-to-cart time so the printout
+    // shows what the user actually quoted, even if the vehicle's kalkulacja
+    // is later re-priced.
+    const snapshot = {
+      tire_class: variantPriceData?.tire_class ?? car.tire_class ?? null,
+      service_type: variantPriceData?.service_type ?? car.service_cost_type ?? null,
+      discount_pct: variantPriceData?.discount_pct ?? car.applied_discount_pct ?? null,
+      bank_margin_pct: variantPriceData?.bank_margin_pct ?? null,
+      wibor_pct: variantPriceData?.wibor_pct ?? null,
+      tires_included: variantPriceData?.tires_included ?? null,
+      tire_buyback: variantPriceData?.tire_buyback ?? null,
+      insurance_included: variantPriceData?.insurance_included ?? null,
+      replacement_car: variantPriceData?.replacement_car ?? null,
+      service_included: variantPriceData?.service_included ?? null,
+    };
+
     addToCart({
       id: uniqueId,
       brand: car.brand || '',
@@ -211,6 +228,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       factory_options: [],
       dealer_options: [],
       calculation_data: { ...car, vehicle_id: vehicleId, kalkulacja_id: pinnedKalkulacjaId ?? variantPriceData?.kalkulacja_id },
+      kalkulacja_snapshot: snapshot,
     });
   };
 
@@ -588,12 +606,14 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 auto zastępcze / serwis / WIBOR / marża bankowa). Wherever a price
                 is shown, these need to be visible so the salesperson can tell at
                 a glance what was assumed when this rate was computed. */}
-            <KalkulacjaParamsRow
-              snapshot={bestFit ?? price}
-              fallbackTireClass={car.tire_class}
-              fallbackServiceType={car.service_cost_type}
-              fallbackDiscountPct={car.applied_discount_pct}
-            />
+            <div className="mt-2">
+              <KalkulacjaParamsRow
+                snapshot={bestFit ?? price}
+                fallbackTireClass={car.tire_class}
+                fallbackServiceType={car.service_cost_type}
+                fallbackDiscountPct={car.applied_discount_pct}
+              />
+            </div>
 
             {/* Multi-variant table — shows other (period × mileage) cache combos for this car */}
             <VariantsTable
@@ -996,6 +1016,16 @@ interface PriceVariant {
   tire_class?: string;
   service_type?: string;
   kalkulacja_id?: string;
+  // Kalkulacja-level snapshot — propagated through so a variant added straight
+  // from the table inherits the same params row as the parent card.
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
 }
 
 interface VariantsTableProps {
@@ -1292,6 +1322,21 @@ const VariantsTable: React.FC<VariantsTableProps> = ({
                                 factory_options: [],
                                 dealer_options: [],
                                 calculation_data: { ...car, vehicle_id: vehicleId, kalkulacja_id: row.v.kalkulacja_id },
+                                // Same kalkulacja_id → identical snapshot params,
+                                // so we can pull straight off the PriceForParams
+                                // row that the table received from the backend.
+                                kalkulacja_snapshot: {
+                                  tire_class: row.v.tire_class ?? car.tire_class ?? null,
+                                  service_type: row.v.service_type ?? car.service_cost_type ?? null,
+                                  discount_pct: row.v.discount_pct ?? car.applied_discount_pct ?? null,
+                                  bank_margin_pct: row.v.bank_margin_pct ?? null,
+                                  wibor_pct: row.v.wibor_pct ?? null,
+                                  tires_included: row.v.tires_included ?? null,
+                                  tire_buyback: row.v.tire_buyback ?? null,
+                                  insurance_included: row.v.insurance_included ?? null,
+                                  replacement_car: row.v.replacement_car ?? null,
+                                  service_included: row.v.service_included ?? null,
+                                },
                               });
                             }}
                             title={inCart ? 'Wariant już w ofercie' : 'Dodaj ten wariant do oferty'}

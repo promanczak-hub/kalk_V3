@@ -12,8 +12,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from celery.result import AsyncResult
 
-from core.database import supabase
-from core.body_type_matcher import BODY_ALIAS_MAP, match_body_type
+from core.database import supabase, get_admin_client
+from core.body_type_matcher import normalize_body_style_for_display
 from core.celery_app import celery_app
 from core.models_scoring_search import (
     AvailableFiltersRequest,
@@ -125,6 +125,8 @@ def _params_hash(payload: str) -> str:
 
 
 def _coerce_float(val: Any) -> float | None:
+    """Best-effort parse of a stan_json scalar into float. Returns None for
+    empty/None/non-numeric so missing toggle values don't get pinned to 0."""
     if val is None or val == "":
         return None
     try:
@@ -135,7 +137,7 @@ def _coerce_float(val: Any) -> float | None:
 
 def _coerce_bool(val: Any) -> bool | None:
     """Parse a stan_json toggle value into bool. Treats string 'true'/'false'
-    case-insensitively and bare 1/0 the same way as native bool. Returns None
+    case-insensitively (and bare 1/0) the same as native bool. Returns None
     only when the field is missing or unparseable, so the UI can distinguish
     'set to off' from 'unknown'."""
     if val is None:
@@ -153,16 +155,18 @@ def _coerce_bool(val: Any) -> bool | None:
 
 
 def _fetch_kalkulacja_snapshot_params(
-    kalk_ids: list[str],
+    kalk_ids: list[Any],
 ) -> dict[str, dict[str, Any]]:
     """Batch-fetch the pricing-toggle + financing-knob snapshot for a list of
-    kalkulacja_ids. Reads `ltr_kalkulacje.stan_json` (the JSONB blob holding the
-    full calculator state) and projects the subset that the UI needs to render
-    next to a price (rabat, marża bankowa, WIBOR, opony/ubezpieczenie/auto
-    zastępcze/serwis flags). Returns a map keyed by str(kalkulacja_id) → dict
-    of fields suitable for splatting into PriceForParamsResponse."""
+    kalkulacja_ids. Reads `ltr_kalkulacje.stan_json` (the JSONB blob holding
+    the full calculator state) and projects the subset that the UI needs to
+    render next to a price (rabat, marża bankowa, WIBOR, opony / ubezpieczenie
+    / auto zastępcze / serwis flags). Returns a map keyed by str(kalkulacja_id)
+    → dict suitable for splatting into PriceForParamsResponse / SimilarVehicleMatch.
+    Silent-fails to an empty dict on RPC error so a snapshot fetch glitch
+    never breaks the price endpoint."""
     out: dict[str, dict[str, Any]] = {}
-    ids = [k for k in {str(x) for x in kalk_ids if x} if k]
+    ids = sorted({str(x) for x in kalk_ids if x})
     if not ids:
         return out
     try:
@@ -188,6 +192,34 @@ def _fetch_kalkulacja_snapshot_params(
             "service_included": _coerce_bool(stan.get("include_servicing")),
         }
     return out
+
+
+def _attach_kalkulacja_snapshot_to_matches(matches: list[SimilarVehicleMatch]) -> None:
+    """Mutate-in-place: for a list of SimilarVehicleMatch, batch-fetch each
+    one's candidate kalkulacja snapshot and copy the fields onto the model.
+    No-op for matches without a kalkulacja_id (silent — those are typically
+    fallback matches with no cache hit). The snapshot is keyed by str(id) so
+    UUID/uuid.UUID round-trips are tolerated."""
+    if not matches:
+        return
+    snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
+        [m.kalkulacja_id for m in matches if m.kalkulacja_id]
+    )
+    if not snapshot_by_kid:
+        return
+    for m in matches:
+        if not m.kalkulacja_id:
+            continue
+        snap = snapshot_by_kid.get(str(m.kalkulacja_id))
+        if not snap:
+            continue
+        for k, v in snap.items():
+            # Only set when the model field is currently None — preserves
+            # anything the RPC explicitly populated (e.g. similarity_reasons
+            # discount_pct already on the row from the V2 path).
+            if getattr(m, k, None) is None:
+                setattr(m, k, v)
+
 
 
 def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
@@ -262,46 +294,6 @@ def _parse_price_numeric(price_str: str) -> float | None:
 
 
 def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | None:
-<<<<<<< HEAD
-    """Helper to convert raw price string to a netto float.
-    Default VAT is 23%. If domain is 'netto', returns as-is.
-    If 'brutto' or unknown, divides by 1.23.
-
-    A "netto"/"brutto" suffix inside the price string itself takes precedence
-    over the domain hint — some cards mix domains (e.g. card-level price_domain
-    is "brutto" while individual paid_options carry "X PLN netto" labels). Without
-    this check we'd divide already-net values by 1.23 a second time.
-    """
-    if not price_str:
-        return None
-    try:
-        ps_lower = price_str.lower()
-        if "netto" in ps_lower:
-            domain = "netto"
-        elif "brutto" in ps_lower:
-            domain = "brutto"
-
-        cleaned = (
-            price_str.replace(" ", "")
-            .replace("\xa0", "")
-            .replace("PLN", "")
-            .replace("zł", "")
-        )
-        if "," in cleaned and "." in cleaned:
-            cleaned = cleaned.replace(".", "").replace(",", ".")
-        elif "," in cleaned:
-            cleaned = cleaned.replace(",", ".")
-        elif cleaned.count(".") > 1:
-            cleaned = cleaned.replace(".", "")
-
-        cleaned = "".join(c for c in cleaned if c.isdigit() or c == ".")
-
-        val = float(cleaned)
-        if domain == "netto":
-            return round(val, 2)
-        return round(val / 1.23, 2)
-    except (ValueError, TypeError):
-=======
     """Convert raw price string to a netto float.
     Suffix in the string ("PLN netto" / "PLN brutto") wins over `domain` arg.
     If neither present, falls back to `domain`; default brutto → /1.23.
@@ -311,7 +303,6 @@ def _parse_price_to_net(price_str: str | None, domain: str | None) -> float | No
     s = str(price_str)
     val = _parse_price_numeric(s)
     if val is None:
->>>>>>> ofertaxls
         return None
     effective = _resolve_price_domain(s, domain)
     if effective == "netto":
@@ -366,16 +357,7 @@ def _extract_option_line_items(
         if not name:
             continue
         cat = (opt.get("category") or "").lower()
-<<<<<<< HEAD
-        # "Zabudowa / Wyposażenie serwisowe" entries summarise service_equipment
-        # — skip them when service_equipment will be added below to avoid
-        # double-counting.
-        if "zabudowa" in cat and svc_eq_net:
-            continue
-        price_net = _parse_price_to_net(
-=======
         price_net, price_gross = _parse_price_pair(
->>>>>>> ofertaxls
             opt.get("price"), opt.get("price_type") or domain
         )
         item = OptionLineItem(
@@ -388,36 +370,6 @@ def _extract_option_line_items(
             factory.append(item)
         elif "serwis" in cat or "akcesori" in cat or "zabudowa" in cat:
             service.append(item)
-<<<<<<< HEAD
-    if svc_eq_net:
-        # Prefer per-component breakdown when available — that's how the
-        # source PDF lists the package (e.g. "Pakiet pogwarancyjny 1200 zł"
-        # + "Pakiet przeglądów 3399 zł" instead of one lumped row).
-        components = svc_eq.get("components") if isinstance(svc_eq, dict) else None
-        if isinstance(components, list) and components:
-            for comp in components:
-                if not isinstance(comp, dict):
-                    continue
-                cname = (comp.get("name") or "").strip()
-                if not cname:
-                    continue
-                cval = _parse_price_to_net(
-                    comp.get("price_net") or comp.get("price"), "netto"
-                )
-                if cval is None:
-                    cval = _parse_price_to_net(comp.get("price_gross"), "brutto")
-                service.append(
-                    OptionLineItem(name=cname, price_net=cval, category="Serwisowa")
-                )
-        else:
-            service.append(
-                OptionLineItem(
-                    name=svc_eq.get("name") or "Pakiet serwisowy",
-                    price_net=svc_eq_net,
-                    category="Serwisowa",
-                )
-            )
-=======
 
     svc_eq = card_summary.get("service_equipment") or {}
     agg_name = (svc_eq.get("name") or "").strip().lower()
@@ -460,7 +412,6 @@ def _extract_option_line_items(
                 )
             )
 
->>>>>>> ofertaxls
     return factory, service
 
 
@@ -586,7 +537,7 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         similarity_score_pct=float(row.get("similarity_score_pct") or 0),
         power_hp=int(row.get("power_hp") or 0) or None,
         engine_label=row.get("engine_label") or None,
-        body_style=str(row.get("body_style") or "N/A"),
+        body_style=str(normalize_body_style_for_display(row.get("body_style")) or "N/A"),
         vehicle_class=str(row.get("vehicle_class") or "N/A"),
         drive_type=str(row.get("drive_type") or "N/A"),
         price_domain=price_domain,
@@ -689,7 +640,6 @@ def _percentile(values: list[float], pct: float) -> float:
 
 @router.post("/scoring-search/available-filters")
 def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
-<<<<<<< HEAD
     """Aggregate boolean + numeric range filters from `reverse_search.vehicle_specs_normalized`.
 
     Replaces the dropped `rpc_get_available_filters`. Returns counts/min/max scoped
@@ -710,204 +660,6 @@ def get_available_filters(request: AvailableFiltersRequest) -> dict[str, Any]:
         "range_filters": [],
         "boolean_filters": [],
     }
-=======
-    """Return dynamic facets for the scoring-search Level 2 panel.
-
-    Aggregates filterable rows from ``reverse_search.vehicle_features_summary_view``
-    over the vehicles that match the brand/model/body filters. The original
-    ``rpc_get_available_filters`` RPC was dropped on 2026-04-27 — this Python
-    rebuild produces the same response shape the frontend expects:
-      - ``boolean_filters``: rows with ``feature_type='boolean'`` set to true,
-        counted per vehicle, grouped by category.
-      - ``range_filters``: rows with ``feature_type='numeric'``, with min/max.
-      - ``facet_groups``: enum/text rows (kept empty for now — Level 1 already
-        renders the primary enum chips from a separate path).
-    """
-    params_hash = _params_hash(request.model_dump_json())
-    cache_key = f"{_PREFIX}available_filters:{params_hash}"
-
-    cached = _redis_get(cache_key)
-    if cached is not None:
-        logger.debug("Cache HIT: available-filters [%s]", params_hash)
-        return cached
-
-    sb = supabase
-    step = "init"
-    try:
-        # ── 1. Resolve the candidate vehicle ID set ──
-        # Pull only the columns we need for filtering. Body filtering uses the
-        # AI-mapped body_style with a fallback to card_summary.body_style — same
-        # logic as /initial-data so the chips stay consistent.
-        step = "fetch_vehicle_synthesis"
-        synth_resp = _supabase_execute_with_retry(
-            sb.table("vehicle_synthesis")
-            .select("id, brand, model, synthesis_data")
-            .eq("verification_status", "completed")
-        )
-        synth_rows = synth_resp.data or []
-
-        brand_filter = (
-            {b.lower() for b in request.brands} if request.brands else None
-        )
-        model_filter = (
-            {m.lower() for m in request.models} if request.models else None
-        )
-        body_filter = (
-            {b.lower() for b in request.body_types} if request.body_types else None
-        )
-
-        candidate_ids: list[str] = []
-        for r in synth_rows:
-            brand = (r.get("brand") or "").lower()
-            model = (r.get("model") or "").lower()
-            sd = r.get("synthesis_data") or {}
-            cs = sd.get("card_summary") or {}
-            mapped = sd.get("mapped_ai_data") or {}
-            body = (
-                mapped.get("body_style") or cs.get("body_style") or ""
-            ).lower()
-
-            if brand_filter and brand not in brand_filter:
-                continue
-            if model_filter and model not in model_filter:
-                continue
-            if body_filter and body not in body_filter:
-                continue
-            candidate_ids.append(r["id"])
-
-        filters_provided = bool(
-            request.brands or request.models or request.body_types or request.samar_class_ids
-        )
-
-        # No candidates → return well-typed empty shape so the frontend
-        # destructure doesn't blow up.
-        if not candidate_ids:
-            empty = {
-                "filters_provided": filters_provided,
-                "facet_groups": [],
-                "range_filters": [],
-                "boolean_filters": [],
-            }
-            _redis_set(cache_key, empty, _TTL_FILTERS)
-            return empty
-
-        # ── 2. Pull resolved features for those vehicles ──
-        # The summary view has one row per (vehicle, feature) with the resolved
-        # value already typed into the right column. Page through PostgREST's
-        # 1000-row default in chunks of vehicle ids — typical request only hits
-        # a handful of vehicles so this rarely paginates in practice.
-        step = "fetch_features_summary"
-        feature_rows: list[dict[str, Any]] = []
-        chunk_size = 200
-        for i in range(0, len(candidate_ids), chunk_size):
-            chunk = candidate_ids[i : i + chunk_size]
-            resp = _supabase_execute_with_retry(
-                sb.schema("reverse_search")
-                .table("vehicle_features_summary_view")
-                .select(
-                    "source_vehicle_id, feature_key, display_name, category_name, "
-                    "feature_type, resolved_value_bool, resolved_value_num, "
-                    "resolved_value_text, is_filterable"
-                )
-                .in_("source_vehicle_id", chunk)
-                .eq("is_filterable", True)
-            )
-            feature_rows.extend(resp.data or [])
-
-        # ── 3. Aggregate ──
-        step = "aggregate"
-
-        # Boolean filters: only count vehicles where the feature is true.
-        # Grouped by feature_key; the "group_name" is the category display name.
-        bool_agg: dict[str, dict[str, Any]] = {}
-        # Numeric ranges: track min/max across all vehicles that have a value.
-        range_agg: dict[str, dict[str, Any]] = {}
-
-        for row in feature_rows:
-            ftype = row.get("feature_type")
-            fkey = row.get("feature_key")
-            if not fkey:
-                continue
-            display = row.get("display_name") or fkey.replace("_", " ")
-            group = row.get("category_name") or "Inne"
-
-            if ftype == "boolean":
-                if row.get("resolved_value_bool") is not True:
-                    continue
-                entry = bool_agg.setdefault(
-                    fkey,
-                    {
-                        "feature_key": fkey,
-                        "feature_name": display,
-                        "group_name": group,
-                        "parent_feature_key": None,
-                        "facet_level": None,
-                        "is_primary_facet": False,
-                        "_vehicles": set(),
-                    },
-                )
-                vid = row.get("source_vehicle_id")
-                if vid:
-                    entry["_vehicles"].add(vid)
-            elif ftype == "numeric":
-                val = row.get("resolved_value_num")
-                if val is None:
-                    continue
-                try:
-                    num = float(val)
-                except (TypeError, ValueError):
-                    continue
-                entry = range_agg.setdefault(
-                    fkey,
-                    {
-                        "feature_key": fkey,
-                        "feature_name": display,
-                        "group_name": group,
-                        "parent_feature_key": None,
-                        "facet_level": None,
-                        "is_primary_facet": False,
-                        "min_val": num,
-                        "max_val": num,
-                    },
-                )
-                if num < entry["min_val"]:
-                    entry["min_val"] = num
-                if num > entry["max_val"]:
-                    entry["max_val"] = num
-
-        boolean_filters = []
-        for entry in bool_agg.values():
-            cnt = len(entry.pop("_vehicles"))
-            if cnt <= 0:
-                continue
-            entry["cnt"] = cnt
-            boolean_filters.append(entry)
-        boolean_filters.sort(key=lambda e: (-e["cnt"], e["feature_name"]))
-
-        range_filters = [
-            r for r in range_agg.values() if r["min_val"] != r["max_val"]
-        ]
-        range_filters.sort(key=lambda e: e["feature_name"])
-
-        result = {
-            "filters_provided": filters_provided,
-            "facet_groups": [],
-            "range_filters": range_filters,
-            "boolean_filters": boolean_filters,
-        }
-        _redis_set(cache_key, result, _TTL_FILTERS)
-        return result
-    except Exception as e:
-        logger.exception(
-            "POST /scoring-search/available-filters failed at step=%s exc_type=%s",
-            step,
-            type(e).__name__,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"{type(e).__name__} at step '{step}': {e}",
-        )
->>>>>>> feat/multi-vector-embeddings
 
     try:
         vehicle_ids = _resolve_candidate_vehicle_ids(request)
@@ -1266,7 +1018,9 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                         "fuel": mapped.get("fuel") or cs.get("fuel"),
                         "transmission": mapped.get("gearbox") or cs.get("transmission"),
                         "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
-                        "body_style": mapped.get("body_style") or cs.get("body_style"),
+                        "body_style": normalize_body_style_for_display(
+                            mapped.get("body_style") or cs.get("body_style")
+                        ),
                         "power_hp": cs.get("power_hp"),
                         "base_price": _parse_price_to_net(cs.get("base_price"), domain),
                         "total_price_net": _parse_price_to_net(cs.get("total_price"), domain),
@@ -1644,25 +1398,9 @@ def get_initial_data() -> InitialDataResponse:
             if trim:
                 trim_levels.setdefault(f"{brand}|{model}", set()).add(trim)
 
-            body_style = (
-                mapped.get("body_style") or cs.get("body_style") or ""
-            ).strip()
-            if body_style:
-                # Normalize against canonical body_types (SOT). Alias map is
-                # checked BEFORE match_body_type so explicit overrides
-                # (KOMBIVAN→Kombi Dostawczy, WYWROTKĄ→Podwozie Wywrotka) win
-                # over the matcher's greedy substring step. Falls back to raw
-                # so unknown labels surface in the UI rather than getting hidden.
-                normalized = body_style.upper()
-                key: str | None = BODY_ALIAS_MAP.get(normalized)
-                if key is None:
-                    for alias_key, alias_val in BODY_ALIAS_MAP.items():
-                        if alias_key in normalized:
-                            key = alias_val
-                            break
-                if key is None:
-                    bt = match_body_type(body_style)
-                    key = bt.matched_name or body_style
+            body_style = mapped.get("body_style") or cs.get("body_style")
+            key = normalize_body_style_for_display(body_style)
+            if key:
                 body_counts[key] = body_counts.get(key, 0) + 1
 
         result = InitialDataResponse(
@@ -1772,7 +1510,8 @@ def get_similar_vehicles(
         logger.debug("Cache HIT: similar [%s]", vehicle_id)
         return [SimilarVehicleMatch(**row) for row in cached]
 
-    sb = supabase
+    # Service-role client: anon's 3s statement_timeout cancels semantic RPCs on cold cache
+    sb = get_admin_client()
     method = (
         "rpc_get_similar_vehicles_semantic"
         if mode == "semantic"
@@ -1796,6 +1535,10 @@ def get_similar_vehicles(
             return []
 
         results = [_build_similar_vehicle_match(row) for row in resp.data]
+        # Stamp each match with the kalkulacja-level snapshot so its card can
+        # render the same params row (rabat / opony / ubezpieczenie / WIBOR /
+        # marża bankowa) as the source vehicle's card.
+        _attach_kalkulacja_snapshot_to_matches(results)
         _redis_set(cache_key, [r.model_dump() for r in results], 10800)
         return results
     except Exception as e:
@@ -1826,7 +1569,8 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
 
         return SimilarBatchResponse(results=restored_results)
 
-    sb = supabase
+    # Service-role client: anon's 3s statement_timeout cancels semantic RPCs on cold cache
+    sb = get_admin_client()
     method = (
         "rpc_get_similar_vehicles_batch_semantic"
         if req.mode == "semantic"
@@ -1901,6 +1645,13 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                 if source_id in results:
                     results[source_id].append(match)
 
+        # Enrich every match with the snapshot of its candidate kalkulacja in a
+        # single round-trip across all source-buckets so each similar-card has
+        # the rabat/opony/insurance/replacement-car/WIBOR row the user expects
+        # next to a price.
+        all_matches = [m for bucket in results.values() for m in bucket]
+        _attach_kalkulacja_snapshot_to_matches(all_matches)
+
         resp_obj = SimilarBatchResponse(results=results)
 
         # Serialize fully using model dumps for the cache
@@ -1945,7 +1696,8 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
     """Return base LTR prices (0% margin) and variants for multiple vehicles.
     Uses rpc_get_batch_prices to avoid PostgREST 1000-row limit.
     """
-    sb = supabase
+    # Service-role client: anon's 3s statement_timeout cancels this RPC on larger batches
+    sb = get_admin_client()
 
     try:
         if not req.vehicle_ids:
@@ -1968,8 +1720,9 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
         )
 
         rows = resp.data or []
-        # Pull the per-kalkulacja snapshot (rabat/marża bankowa/WIBOR/toggles)
-        # in a single round-trip and merge it into each price below.
+        # Pull the per-kalkulacja snapshot (rabat / marża bankowa / WIBOR /
+        # toggle-set) in a single round-trip so each price below carries the
+        # context the user needs to interpret it.
         snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
             [r.get("kalkulacja_id") for r in rows if r.get("kalkulacja_id")]
         )
@@ -2128,7 +1881,7 @@ def get_price_for_params(
 
         kid_best = best_match.get("kalkulacja_id")
         snap = (
-            _fetch_kalkulacja_snapshot_params([str(kid_best)]).get(str(kid_best))
+            _fetch_kalkulacja_snapshot_params([kid_best]).get(str(kid_best))
             if kid_best
             else None
         )
@@ -2197,6 +1950,9 @@ def get_price_variants(
                         "duration_months": dur,
                         "annual_mileage": row["annual_mileage"],
                         "monthly_price_net": price,
+                        # Carry kalkulacja_id through so the cart can recover the
+                        # full LTR breakdown (fin/tech split, in_rate, options)
+                        # when the user adds a variant to the offer.
                         "kalkulacja_id": row.get("kalkulacja_id"),
                         "tire_class": row.get("tire_class"),
                         "service_type": row.get("service_type"),
@@ -2204,9 +1960,8 @@ def get_price_variants(
                     }
 
         snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
-            [v["kalkulacja_id"] for v in grouped_variants.values() if v.get("kalkulacja_id")]
+            [v.get("kalkulacja_id") for v in grouped_variants.values() if v.get("kalkulacja_id")]
         )
-
         variants = [
             PriceForParamsResponse(
                 vehicle_id=vehicle_id,

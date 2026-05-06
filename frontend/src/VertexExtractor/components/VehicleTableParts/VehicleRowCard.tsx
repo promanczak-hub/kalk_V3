@@ -3,7 +3,7 @@ import { Loader2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { parsePriceToNumber } from "./PriceDualFormat";
-import { VehicleBaseInfo } from "./VehicleBaseInfo";
+import { VehicleBaseInfo, normalizeBodyTypeValue } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
@@ -467,12 +467,14 @@ export function VehicleRowCard({
   // ── Processing stages for progress stepper ──
   const PROCESSING_STAGES = [
     { key: "uploading", label: "Upload pliku do chmury" },
+    { key: "classifying_document", label: "Klasyfikacja dokumentu" },
     { key: "detecting_vehicles", label: "Wykrywanie pojazdów w dokumencie" },
-    { key: "extracting_twin", label: "Bliźniak cyfrowy (Docling + Gemini 2.5 Pro)" },
+    { key: "extracting_twin", label: "Bliźniak cyfrowy (PyMuPDF4LLM + Gemini 2.5 Pro)" },
     { key: "generating_summary", label: "Generowanie podsumowania" },
+    { key: "validating_prices", label: "Walidacja cen" },
     { key: "matching_discounts", label: "Dopasowywanie rabatów" },
     { key: "mapping_data", label: "Mapowanie danych AI" },
-    { key: "enriching_features", label: "Wzbogacanie cech i kalkulacja LTR" },
+    { key: "enriching_features", label: "Wzbogacanie cech i indeksowanie" },
   ];
 
   // Match multi-vehicle dynamic statuses like "extracting_twin_2_of_5"
@@ -481,8 +483,9 @@ export function VehicleRowCard({
   const normalizedStatus = isMultiTwinStatus ? "extracting_twin" : rawStatus;
 
   const processingStatuses = new Set([
-    "processing", "uploading", "detecting_vehicles", "extracting_twin",
-    "generating_summary", "matching_discounts", "mapping_data", "enriching_features",
+    "processing", "uploading", "classifying_document", "detecting_vehicles",
+    "extracting_twin", "generating_summary", "validating_prices",
+    "matching_discounts", "mapping_data", "enriching_features",
   ]);
 
   const {
@@ -693,12 +696,17 @@ export function VehicleRowCard({
 
   const vehicleTypeHint = localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class;
   
+  // Free-text body descriptions ("Podwozie z zabudową wywrotką") collapse to
+  // their canonical SOT name ("Podwozie Wywrotka") so the row label matches
+  // the body_types dropdown / filter chips elsewhere.
+  const displayBodyType = resolvedBodyType ? normalizeBodyTypeValue(resolvedBodyType) : resolvedBodyType;
+
   const rawParts = [
     vehicle.powertrain,
     vehicleTypeHint,
     driveType,
     transmission,
-    resolvedBodyType
+    displayBodyType
   ];
 
   const uniqueParts: string[] = [];

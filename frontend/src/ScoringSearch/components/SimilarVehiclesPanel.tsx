@@ -10,6 +10,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import type { SimilarVehicle, SimilarityReasons } from '../hooks/useBatchData';
 import { useOfferCartStore } from '../../stores/offerCartStore';
+import { KalkulacjaParamsRow } from './Results/KalkulacjaParamsRow';
 
 interface SimilarVehiclesPanelProps {
   vehicles: SimilarVehicle[];
@@ -212,7 +213,7 @@ function buildReasonTags(
   }
 
   if (!reasons.fuel_match) {
-    warnings.push({ kind: 'warn', label: 'Inny rodzaj napędu' });
+    warnings.push({ kind: 'warn', label: 'Inne paliwo / silnik' });
   }
   if (!reasons.drive_match) {
     warnings.push({ kind: 'warn', label: 'Inny typ napędu (FWD/AWD)' });
@@ -459,7 +460,6 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
 }) => {
   const addToCart = useOfferCartStore(state => state.addItem);
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
-<<<<<<< HEAD
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const toggleExpanded = (id: string) => {
@@ -467,7 +467,10 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-=======
+      return next;
+    });
+  };
+
   // Per-row, per-options-category expansion state. Key = `${vehicle_id}:${cat}`.
   const [expandedOptions, setExpandedOptions] = useState<Set<string>>(new Set());
 
@@ -477,7 +480,6 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
->>>>>>> ofertaxls
       return next;
     });
   };
@@ -524,6 +526,21 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
       standard_equipment: [],
       factory_options: [],
       dealer_options: [],
+      // Freeze the candidate kalkulacja's snapshot at add time. Source-side
+      // tire_class/service_type live on similarity_reasons (apple-to-apple
+      // setup means the candidate has the same setup as the source).
+      kalkulacja_snapshot: {
+        tire_class: v.tire_class ?? v.similarity_reasons?.source_tire_class ?? null,
+        service_type: v.service_type ?? v.similarity_reasons?.source_service_type ?? null,
+        discount_pct: v.discount_pct ?? v.similarity_reasons?.discount_pct ?? null,
+        bank_margin_pct: v.bank_margin_pct ?? null,
+        wibor_pct: v.wibor_pct ?? null,
+        tires_included: v.tires_included ?? null,
+        tire_buyback: v.tire_buyback ?? null,
+        insurance_included: v.insurance_included ?? null,
+        replacement_car: v.replacement_car ?? null,
+        service_included: v.service_included ?? null,
+      },
     });
   };
 
@@ -1052,6 +1069,20 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
                   fallbackAnnualMileage={targetAnnualMileage}
                 />
               )}
+
+              {/* Kalkulacja snapshot — wherever a price is shown, render the
+                  same params row (rabat / opony / ubezpieczenie / auto
+                  zastępcze / serwis / WIBOR / marża bankowa) so the user can
+                  read each candidate's pricing context at a glance. Spans both
+                  grid columns so it sits beneath the price/score row. */}
+              <Box sx={{ gridColumn: '1 / -1', mt: 0.5 }}>
+                <KalkulacjaParamsRow
+                  snapshot={v}
+                  fallbackTireClass={v.similarity_reasons?.source_tire_class}
+                  fallbackServiceType={v.similarity_reasons?.source_service_type}
+                  fallbackDiscountPct={v.similarity_reasons?.discount_pct}
+                />
+              </Box>
             </Box>
           );
         })}

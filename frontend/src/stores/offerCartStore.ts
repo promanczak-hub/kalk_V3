@@ -12,6 +12,23 @@ export interface OfferVariant {
   kalkulacja_id?: string;
 }
 
+/** Snapshot of the kalkulacja's pricing toggles + financing knobs at the
+ *  moment the user added the item to the cart. Mirrors the backend's
+ *  KalkulacjaSnapshotParams so <KalkulacjaParamsRow> can render the same
+ *  context next to the price in every place the cart is displayed. */
+export interface OfferItemKalkulacjaSnapshot {
+  tire_class?: string | null;
+  service_type?: string | null;
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
+}
+
 export interface OfferItem {
   id: string; // Unique combination of kalk_id_months_mileage
   brand: string;
@@ -32,6 +49,10 @@ export interface OfferItem {
   // Per-cart-item editable fields (live only for this offer):
   notes?: string;
   overuse_fee?: number; // zł/km — picked from dropdown 0.10..0.80 step 0.01
+  /** Frozen at add-to-cart time. The vehicle's current kalkulacja can change
+   *  later (recalc, new pricing), but the offer keeps the params it was
+   *  generated under so the printout matches what the customer was quoted. */
+  kalkulacja_snapshot?: OfferItemKalkulacjaSnapshot;
 }
 
 export interface ClientData {

@@ -195,6 +195,21 @@ def build_calculator_input(
     if is_metalic is None:
         is_metalic = cs.get("is_metalic_paint", False)
 
+    # ── Paint type id ──
+    # Send the canonical id from `calculator_setup.paint_category_id`
+    # straight through; LTRKalkulator's override layer picks it up first.
+    # paint_type_name is left out (the schema fallback resolves by name
+    # only when id is missing).
+    paint_type_id_val: Optional[int] = None
+    paint_cat_id = setup.get("paint_category_id")
+    if paint_cat_id is not None:
+        try:
+            pid = int(paint_cat_id)
+            if pid > 0:
+                paint_type_id_val = pid
+        except (TypeError, ValueError):
+            paint_type_id_val = None
+
     # ── Paid options ──
     factory_options_list: list[VehicleOptions] = []
     service_options_list: list[VehicleOptions] = []
@@ -296,6 +311,7 @@ def build_calculator_input(
         add_hook_installation=add_hook,
         service_cost_type=setup.get("service_cost_type", "ASO"),
         is_metalic=is_metalic,
+        paint_type_id=paint_type_id_val,
     )
 
     return calc_input

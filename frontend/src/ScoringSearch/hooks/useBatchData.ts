@@ -13,7 +13,8 @@ export interface PriceForParams {
   service_type?: string;
   kalkulacja_id?: string;
   // Snapshot of the kalkulacja's pricing toggles + financing knobs. Same for
-  // every variant under the same kalkulacja_id.
+  // every variant under the same kalkulacja_id. Rendered next to the price by
+  // <KalkulacjaParamsRow>.
   discount_pct?: number | null;
   bank_margin_pct?: number | null;
   wibor_pct?: number | null;
@@ -58,8 +59,6 @@ export interface SimilarityReasons {
   // ── Matrix params the rate was priced for (echoed RPC inputs) ──
   matched_duration_months?: number | null;
   matched_annual_mileage?: number | null;
-<<<<<<< HEAD
-=======
 }
 
 export interface OptionLineItem {
@@ -67,7 +66,6 @@ export interface OptionLineItem {
   price_net: number | null;
   price_gross?: number | null;
   category: string | null;
->>>>>>> ofertaxls
 }
 
 export interface SimilarVehicle {
@@ -102,6 +100,19 @@ export interface SimilarVehicle {
   service_options?: OptionLineItem[];
   total_price_net?: number | null;
   total_price_gross?: number | null;
+
+  // ── Snapshot of the candidate kalkulacja (parity with VehicleResultCard's
+  // KalkulacjaParamsRow) ──
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tire_class?: string | null;
+  service_type?: string | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
 }
 
 export function useBatchPrices(
