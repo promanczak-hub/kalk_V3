@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Sparkles, X } from 'lucide-react';
+import { ChevronDown, Loader2, Sparkles, X } from 'lucide-react';
 import { Box } from '@mui/material';
 import type { SearchContext, SelectedFeature, InitialDataResponse } from '../types';
 import { useEmailExtraction } from '../hooks/useEmailExtraction';
@@ -42,13 +42,15 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
 
   return (
     <Box sx={{ p: 2, pb: 1 }}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-          Opisz auto
-        </span>
-      </div>
-      <div className="flex flex-col gap-2">
+      <details className="group">
+        <summary className="flex items-center gap-1.5 mb-2 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden hover:text-slate-900">
+          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+            Opisz auto
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-auto group-open:rotate-180 transition-transform" />
+        </summary>
+        <div className="flex flex-col gap-2">
         <textarea
           value={queryText}
           onChange={(e) => setQueryText(e.target.value)}
@@ -159,7 +161,8 @@ export const SearchInputPanel: React.FC<SearchInputPanelProps> = ({
             )}
           </div>
         )}
-      </div>
+        </div>
+      </details>
     </Box>
   );
 };
