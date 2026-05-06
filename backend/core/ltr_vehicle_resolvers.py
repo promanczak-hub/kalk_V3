@@ -182,19 +182,53 @@ def _resolve_body_type_id_from_name(body_type_name: str) -> Optional[int]:
 def _resolve_paint_type_id_from_name(paint_type_name: str) -> Optional[int]:
     if not paint_type_name:
         return None
+    import re
     from core.database import supabase
 
     try:
         norm = paint_type_name.strip().upper()
         res = supabase.table("paint_types").select("id, name").execute()
-        for row in res.data or []:
+        rows = res.data or []
+        for row in rows:
             row_name = str(row.get("name", "")).strip().upper()
             if row_name == norm:
                 return int(row["id"])
-        for row in res.data or []:
+        # Whole-word keyword match (with parenthesised qualifier stripped).
+        # Frontend sends raw color labels like "Lakier: Zieleń Mamba Niemetalizowany"
+        # or "Bazowy: Czerń Mamba Metalizowany"; canonical names are e.g.
+        # "Niemetalizowany (Bazowy)". Word boundaries prevent METALIZOWANY
+        # from inadvertently matching NIEMETALIZOWANY (mid-word substring).
+        for row in rows:
             row_name = str(row.get("name", "")).strip().upper()
-            if row_name and (row_name in norm or norm in row_name):
+            keyword = re.sub(r"\s*\([^)]*\)\s*", " ", row_name).strip()
+            if not keyword:
+                continue
+            if re.search(rf"\b{re.escape(keyword)}\b", norm):
                 return int(row["id"])
+            if re.search(rf"\b{re.escape(norm)}\b", keyword):
+                return int(row["id"])
+    except Exception:
+        return None
+    return None
+
+
+@redis_cache(ttl_seconds=3600, prefix="ltr_resolvers:")
+def _resolve_paint_type_name_from_id(paint_type_id: int) -> Optional[str]:
+    if not paint_type_id:
+        return None
+    from core.database import supabase
+
+    try:
+        res = (
+            supabase.table("paint_types")
+            .select("name")
+            .eq("id", int(paint_type_id))
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            name = str(res.data[0].get("name") or "").strip()
+            return name or None
     except Exception:
         return None
     return None
