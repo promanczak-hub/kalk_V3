@@ -400,6 +400,75 @@ def audit_b5(report: list[str]) -> None:
             report.append(f"  - ... +{len(modified) - 10} more")
 
 
+# ── B6 audit: body_types (GSheet gid=484265370) ────────────────────────────
+
+def audit_b6(report: list[str]) -> None:
+    report.append("\n## B6 — `body_types` (GSheet gid=484265370)\n")
+
+    sot_url = (
+        "https://docs.google.com/spreadsheets/d/"
+        "1GzJk87wYrOT0RyrkYdMFGoG6rKhYop9497MvhdRTp-Q/export?format=csv&gid=484265370"
+    )
+    try:
+        import pandas as pd
+        sot_df = pd.read_csv(sot_url)
+    except Exception as exc:
+        report.append(f"⚠ Nie udało się pobrać SOT z GSheet: {exc}")
+        return
+
+    db = fetch_db_table("body_types", "id,nazwa_nadwozia,vehicle_class")
+
+    sot_idx: dict[int, tuple[str, str]] = {}
+    for _, r in sot_df.iterrows():
+        try:
+            b_id = int(r["ID"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        sot_idx[b_id] = (n(r.get("Nazwa_Nadwozia")), n(r.get("Typ_Pojazdu")))
+
+    db_idx: dict[int, tuple[str, str]] = {
+        int(r["id"]): (n(r.get("nazwa_nadwozia")), n(r.get("vehicle_class"))) for r in db
+    }
+
+    sot_keys = set(sot_idx.keys())
+    db_keys = set(db_idx.keys())
+    added = sot_keys - db_keys
+    removed = db_keys - sot_keys
+    common = sot_keys & db_keys
+    modified = {k for k in common if sot_idx[k] != db_idx[k]}
+
+    report.append(f"- SOT rows: **{len(sot_idx)}**")
+    report.append(f"- DB  rows: **{len(db_idx)}**")
+    report.append(f"- Added (in SOT, not DB): **{len(added)}**")
+    report.append(f"- Removed (in DB, not SOT): **{len(removed)}**")
+    report.append(f"- Modified (key match, name/class diff): **{len(modified)}**")
+    report.append(f"- Identical: **{len(common) - len(modified)}**\n")
+
+    if added:
+        report.append("### Added (SOT → would be inserted)")
+        for k in sorted(added):
+            n_name, n_class = sot_idx[k]
+            report.append(f"  - id=**{k}**: `{n_name}` / `{n_class}`")
+        report.append("")
+    if removed:
+        report.append("### Removed (in DB, not SOT)")
+        for k in sorted(removed):
+            d_name, d_class = db_idx[k]
+            report.append(f"  - id=**{k}**: `{d_name}` / `{d_class}`")
+        report.append("")
+    if modified:
+        report.append("### Modified")
+        for k in sorted(modified):
+            d_name, d_class = db_idx[k]
+            s_name, s_class = sot_idx[k]
+            report.append(
+                f"  - id=**{k}**: "
+                f"name DB=`{d_name}` vs SOT=`{s_name}`, "
+                f"class DB=`{d_class}` vs SOT=`{s_class}`"
+            )
+        report.append("")
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -415,6 +484,7 @@ def main() -> None:
     audit_b3(report)
     audit_b4(report)
     audit_b5(report)
+    audit_b6(report)
 
     text = "\n".join(report)
     with open(OUT, "w", encoding="utf-8") as f:

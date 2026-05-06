@@ -3,7 +3,7 @@ import { Loader2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { parsePriceToNumber } from "./PriceDualFormat";
-import { VehicleBaseInfo } from "./VehicleBaseInfo";
+import { VehicleBaseInfo, normalizeBodyTypeValue } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
@@ -688,12 +688,17 @@ export function VehicleRowCard({
 
   const vehicleTypeHint = localMappedData?.vehicle_type || mappedData?.vehicle_type || vehicle.document_category || vehicle.vehicle_class;
   
+  // Free-text body descriptions ("Podwozie z zabudową wywrotką") collapse to
+  // their canonical SOT name ("Podwozie Wywrotka") so the row label matches
+  // the body_types dropdown / filter chips elsewhere.
+  const displayBodyType = resolvedBodyType ? normalizeBodyTypeValue(resolvedBodyType) : resolvedBodyType;
+
   const rawParts = [
     vehicle.powertrain,
     vehicleTypeHint,
     driveType,
     transmission,
-    resolvedBodyType
+    displayBodyType
   ];
 
   const uniqueParts: string[] = [];

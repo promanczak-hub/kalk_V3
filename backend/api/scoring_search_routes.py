@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from celery.result import AsyncResult
 
 from core.database import supabase, get_admin_client
-from core.body_type_matcher import BODY_ALIAS_MAP, match_body_type
+from core.body_type_matcher import normalize_body_style_for_display
 from core.celery_app import celery_app
 from core.models_scoring_search import (
     AvailableFiltersRequest,
@@ -533,7 +533,7 @@ def _build_similar_vehicle_match(row: dict[str, Any]) -> SimilarVehicleMatch:
         similarity_score_pct=float(row.get("similarity_score_pct") or 0),
         power_hp=int(row.get("power_hp") or 0) or None,
         engine_label=row.get("engine_label") or None,
-        body_style=str(row.get("body_style") or "N/A"),
+        body_style=str(normalize_body_style_for_display(row.get("body_style")) or "N/A"),
         vehicle_class=str(row.get("vehicle_class") or "N/A"),
         drive_type=str(row.get("drive_type") or "N/A"),
         price_domain=price_domain,
@@ -958,7 +958,9 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                         "fuel": mapped.get("fuel") or cs.get("fuel"),
                         "transmission": mapped.get("gearbox") or cs.get("transmission"),
                         "drive_type": mapped.get("drive_type") or cs.get("drivetrain") or cs.get("drive_type"),
-                        "body_style": mapped.get("body_style") or cs.get("body_style"),
+                        "body_style": normalize_body_style_for_display(
+                            mapped.get("body_style") or cs.get("body_style")
+                        ),
                         "power_hp": cs.get("power_hp"),
                         "base_price": _parse_price_to_net(cs.get("base_price"), domain),
                         "total_price_net": _parse_price_to_net(cs.get("total_price"), domain),
@@ -1227,25 +1229,9 @@ def get_initial_data() -> InitialDataResponse:
             if trim:
                 trim_levels.setdefault(f"{brand}|{model}", set()).add(trim)
 
-            body_style = (
-                mapped.get("body_style") or cs.get("body_style") or ""
-            ).strip()
-            if body_style:
-                # Normalize against canonical body_types (SOT). Alias map is
-                # checked BEFORE match_body_type so explicit overrides
-                # (KOMBIVAN→Kombi Dostawczy, WYWROTKĄ→Podwozie Wywrotka) win
-                # over the matcher's greedy substring step. Falls back to raw
-                # so unknown labels surface in the UI rather than getting hidden.
-                normalized = body_style.upper()
-                key: str | None = BODY_ALIAS_MAP.get(normalized)
-                if key is None:
-                    for alias_key, alias_val in BODY_ALIAS_MAP.items():
-                        if alias_key in normalized:
-                            key = alias_val
-                            break
-                if key is None:
-                    bt = match_body_type(body_style)
-                    key = bt.matched_name or body_style
+            body_style = mapped.get("body_style") or cs.get("body_style")
+            key = normalize_body_style_for_display(body_style)
+            if key:
                 body_counts[key] = body_counts.get(key, 0) + 1
 
         result = InitialDataResponse(

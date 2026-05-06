@@ -130,6 +130,10 @@ const BODY_TYPE_FALLBACK = [
 "Wieloosobowy", "Pickup", "Furgon", "Podwozie",
 ];
 
+// Mirrors backend BODY_ALIAS_MAP (core/body_type_matcher.py). Free-text body
+// descriptions extracted by the LLM (e.g. "Podwozie z zabudową wywrotką")
+// must collapse to the canonical SOT name shown in the body_types dropdown
+// — otherwise the display label disagrees with the filter chip.
 const BODY_TYPE_ALIAS_MAP: Record<string, string> = {
 "SPORTSTOURER": "Kombi",
 "SPORTS TOURER": "Kombi",
@@ -143,13 +147,30 @@ const BODY_TYPE_ALIAS_MAP: Record<string, string> = {
 "VAN": "Furgon",
 "CARGO": "Furgon",
 "PICK-UP": "Pickup",
+"WYWROTKA": "Podwozie Wywrotka",
+"WYWROTKĄ": "Podwozie Wywrotka",
+"ZABUDOWA WYWROTKA": "Podwozie Wywrotka",
+"ZABUDOWĄ WYWROTKĄ": "Podwozie Wywrotka",
 };
 
-function normalizeBodyTypeValue(value: string): string {
-const trimmed = (value || "").trim();
-if (!trimmed) return "";
-const upper = trimmed.toUpperCase();
-return BODY_TYPE_ALIAS_MAP[upper] || trimmed;
+export function normalizeBodyTypeValue(value: string): string {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+  const upper = trimmed.toUpperCase();
+  // Exact match wins
+  if (BODY_TYPE_ALIAS_MAP[upper]) return BODY_TYPE_ALIAS_MAP[upper];
+  // Substring fallback — long free-text descriptions ("Podwozie z zabudową
+  // wywrotką") collapse to the canonical body type via the most specific
+  // alias key contained in the input.
+  let bestKey = "";
+  let bestVal = "";
+  for (const [aliasKey, aliasVal] of Object.entries(BODY_TYPE_ALIAS_MAP)) {
+    if (upper.includes(aliasKey) && aliasKey.length > bestKey.length) {
+      bestKey = aliasKey;
+      bestVal = aliasVal;
+    }
+  }
+  return bestVal || trimmed;
 }
 
 export function BodyTypeTag({ current, dbOptions, onChange, connected, currentVehicleType }: {
