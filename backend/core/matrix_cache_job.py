@@ -195,25 +195,20 @@ def build_calculator_input(
     if is_metalic is None:
         is_metalic = cs.get("is_metalic_paint", False)
 
-    # ── Paint type name ──
-    # Resolve from `calculator_setup.paint_category_id` so the WR pipeline
-    # picks up the niemetalik/metalik/perłowy correction. LTRKalkulator's
-    # override layer takes `paint_type_name` and re-resolves it to the
-    # `paint_types.id`; without this, `fetch_color_correction_cached`
-    # short-circuits to 0.0 and WR drifts by the kolor delta.
-    paint_type_name: Optional[str] = None
+    # ── Paint type id ──
+    # Send the canonical id from `calculator_setup.paint_category_id`
+    # straight through; LTRKalkulator's override layer picks it up first.
+    # paint_type_name is left out (the schema fallback resolves by name
+    # only when id is missing).
+    paint_type_id_val: Optional[int] = None
     paint_cat_id = setup.get("paint_category_id")
     if paint_cat_id is not None:
         try:
             pid = int(paint_cat_id)
             if pid > 0:
-                from core.ltr_vehicle_resolvers import (
-                    _resolve_paint_type_name_from_id,
-                )
-
-                paint_type_name = _resolve_paint_type_name_from_id(pid)
+                paint_type_id_val = pid
         except (TypeError, ValueError):
-            paint_type_name = None
+            paint_type_id_val = None
 
     # ── Paid options ──
     factory_options_list: list[VehicleOptions] = []
@@ -316,7 +311,7 @@ def build_calculator_input(
         add_hook_installation=add_hook,
         service_cost_type=setup.get("service_cost_type", "ASO"),
         is_metalic=is_metalic,
-        paint_type_name=paint_type_name,
+        paint_type_id=paint_type_id_val,
     )
 
     return calc_input

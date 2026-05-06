@@ -154,8 +154,20 @@ class CalculatorInput(BaseModel):
     drive_type: Optional[str] = Field(
         default=None, description="Typ napedu z dropdownu/UI (opcjonalnie)"
     )
+    paint_type_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "Kanoniczne ID z `paint_types` (1=niemetalik, 2=metalik, 3=perłowy). "
+            "Preferowane nad `paint_type_name` — jeśli oba podano, ID wygrywa."
+        ),
+    )
     paint_type_name: Optional[str] = Field(
-        default=None, description="Nazwa typu lakieru z dropdownu/UI (opcjonalnie)"
+        default=None,
+        description=(
+            "Nazwa typu lakieru z dropdownu/UI (legacy/fallback). "
+            "Używane tylko gdy `paint_type_id` jest puste — resolver "
+            "`_resolve_paint_type_id_from_name` mapuje to na ID."
+        ),
     )
     gearbox_name: Optional[str] = Field(
         default=None, description="Skrzynia biegów z dropdownu/UI (opcjonalnie)"

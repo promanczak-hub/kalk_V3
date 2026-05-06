@@ -25,6 +25,7 @@ from api.mileage_adjustments_routes import router as mileage_adjustments_router
 
 from api.control_center_routes import router as control_center_router
 from api.calculator_core_routes import router as calculator_core_router
+from api.calculator_resolve_routes import router as calculator_resolve_router
 from api.vehicle_features_crud_routes import router as vehicle_features_crud_router
 from api.pdf_parser_routes import router as pdf_parser_router
 from api.scoring_search_routes import router as scoring_search_router
@@ -86,6 +87,7 @@ app.include_router(body_type_wr_corrections_router, prefix="/api")
 app.include_router(admin_insurance_router, prefix="/api")
 app.include_router(control_center_router, prefix="/api")
 app.include_router(calculator_core_router, prefix="/api")
+app.include_router(calculator_resolve_router, prefix="/api")
 app.include_router(vehicle_features_crud_router, prefix="/api")
 app.include_router(pdf_parser_router, prefix="/api")
 app.include_router(scoring_search_router, prefix="/api")

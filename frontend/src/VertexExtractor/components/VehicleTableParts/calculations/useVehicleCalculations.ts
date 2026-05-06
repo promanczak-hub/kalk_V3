@@ -247,6 +247,13 @@ export function useVehicleCalculations({
         include_servicing: toggles.include_servicing !== false,
         vehicle_vintage: stanJson.vehicle_vintage || "current",
         is_metalic: stanJson.is_metalic === true,
+        paint_type_id: (
+          (typeof stanJson.paint_type_id === "number" && stanJson.paint_type_id > 0)
+            ? stanJson.paint_type_id
+            : (typeof stanJson.paint_category_id === "number" && stanJson.paint_category_id > 0)
+              ? stanJson.paint_category_id
+              : null
+        ),
         pricing_margin_pct: financialParams.pricing_margin_pct ?? null,
         manual_wr_correction: 0,
         pakiet_serwisowy: Number(stanJson.pakiet_serwisowy ?? 0),

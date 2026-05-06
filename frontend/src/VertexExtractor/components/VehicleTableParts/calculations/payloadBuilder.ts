@@ -156,6 +156,7 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
         service_cost_type: params.serviceCostType,
         vehicle_vintage: params.vehicleVintage,
         paint_category_id: params.paintCategoryId,
+        paint_type_id: params.paintCategoryId ?? null,
         discount: {
           active_discount_pct: params.activeDiscountPct,
           active_final_price: params.activeFinalPrice,
