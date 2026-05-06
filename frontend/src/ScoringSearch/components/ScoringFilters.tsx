@@ -136,6 +136,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             stdOptionSearch={stdOptionSearch} setStdOptionSearch={setStdOptionSearch}
             paidOptionSearch={paidOptionSearch} setPaidOptionSearch={setPaidOptionSearch}
             loadingFilters={loadingFilters}
+            loadingTrims={loadingTrims}
             sortedBooleanGroups={sortedBooleanGroups}
             data={data}
             trimsAndOptions={trimsAndOptions}

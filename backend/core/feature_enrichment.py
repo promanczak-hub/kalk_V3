@@ -61,27 +61,30 @@ _DIRECT_FIELD_MAP: dict[str, str] = {
 # card_summary fields that contain numeric values → universal_features keys.
 _NUMERIC_DIRECT_MAP: dict[str, tuple[str, str]] = {
     # card_summary_key: (feature_key, unit)
+    # feature_key MUST match reverse_search.universal_features.feature_key exactly
+    # (catalog stores keys without Polish diacritics: ł→l, ą→a, ó→o, ś→s, ż→z, ę→e)
     "power_hp": ("moc_silnika_km", "KM"),
     "engine_capacity_cc": ("pojemnosc_silnika", "cm³"),
-    "length_mm": ("długość_pojazdu_w_mm_bez_haka", "mm"),
-    "width_mm": ("szerokość_pojazdu_rozłożone_lusterka_w_mm", "mm"),
-    "height_mm": ("wysokość_pojazdu_w_mm", "mm"),
+    "length_mm": ("dim_dlugosc_pojazdu_w_mm", "mm"),
+    "width_mm": ("szerokosc_pojazdu_rozlozone_lusterka_w_mm", "mm"),
+    "height_mm": ("wysokosc_pojazdu_w_mm", "mm"),
     "wheelbase_mm": ("wheelbase_mm", "mm"),
-    "cargo_volume_l": ("kubatura_przestrzeni_ładunkowej_w_m3", "m³"),
-    "cargo_volume_m3": ("kubatura_przestrzeni_ładunkowej_w_m3", "m³"),
-    "cargo_length_mm": ("długość_przestrzeni_ładunkowej_w_mm", "mm"),
-    "cargo_width_mm": ("szerokość_przestrzeni_ładunkowej_w_mm", "mm"),
-    "cargo_height_mm": ("wysokość_przestrzeni_ładunkowej_w_mm", "mm"),
-    "payload_kg": ("dopuszczalna_ładowność_w_kg", "kg"),
+    "cargo_volume_l": ("kubatura_przestrzeni_ladunkowej_w_m3", "m³"),
+    "cargo_volume_m3": ("kubatura_przestrzeni_ladunkowej_w_m3", "m³"),
+    "cargo_length_mm": ("dlugosc_przestrzeni_ladunkowej_w_mm", "mm"),
+    "cargo_width_mm": ("szerokosc_przestrzeni_ladunkowej_w_mm", "mm"),
+    "cargo_height_mm": ("wysokosc_przestrzeni_ladunkowej_w_mm", "mm"),
+    "payload_kg": ("dopuszczalna_ladownosc_w_kg", "kg"),
     "dmc_kg": ("dmc_kg", "kg"),
     "gross_vehicle_weight_kg": ("dmc_kg", "kg"),
     "curb_weight_kg": ("curb_weight_kg", "kg"),
-    "euro_pallets": ("ilość_europalet", "szt"),
+    "fuel_tank_capacity_l": ("spec_pojemnosc_zbiornika_paliwa_w_litrach", "l"),
+    "euro_pallets": ("ilosc_europalet", "szt"),
     "battery_capacity_kwh": (
-        "pojemność_akumulatora_dla_pojazdu_elektrycznego_w_kwh",
+        "pojemnosc_akumulatora_dla_pojazdu_elektrycznego_w_kwh",
         "kWh",
     ),
-    "ev_range_km": ("zasięg_wltp_dla_pojazdów_elektrycznych_w_km", "km"),
+    "ev_range_km": ("zasieg_wltp_dla_pojazdow_elektrycznych_w_km", "km"),
     # NOTE: "seats" is handled by _DIRECT_FIELD_MAP ("number_of_seats")
 }
 
