@@ -14,7 +14,6 @@ celery_app = Celery(
         "tasks.matrix_tasks",
         "tasks.matrix_watchdog",
         "core.celery_tasks",
-        "core.pdf_pipeline.tasks",
     ],
 )
 
@@ -31,7 +30,6 @@ celery_app.conf.update(
     task_routes={
         "process_document_task": {"queue": "uploads"},
         "process_document_task_from_storage": {"queue": "uploads"},
-        "extract_pdf_pricelist_task": {"queue": "uploads"},
     },
     beat_schedule={
         "prewarm-global-filters-every-15-mins": {

@@ -9,36 +9,7 @@ from core.pdf_pipeline.extractor import PDFExtractor
 def test_extractor_file_not_found() -> None:
     extractor = PDFExtractor()
     with pytest.raises(FileNotFoundError):
-        extractor.extract_to_markdown("nieistniejacy_plik_testowy_12345.pdf")
-
-
-def test_extract_to_markdown_delegates_to_hybrid() -> None:
-    """extract_to_markdown should return only the markdown string."""
-    from unittest.mock import patch
-
-    extractor = PDFExtractor()
-
-    fd, tmp_file = tempfile.mkstemp(suffix=".pdf")
-    os.close(fd)
-
-    try:
-        with patch.dict(
-            "sys.modules",
-            {"pymupdf4llm": __import__("unittest.mock", fromlist=["MagicMock"])},
-        ):
-            import sys
-
-            mock_mod = sys.modules["pymupdf4llm"]
-            from unittest.mock import MagicMock
-
-            mock_mod.to_markdown = MagicMock(return_value="# Test Markdown Output")  # type: ignore[attr-defined]
-
-            # Need fresh extractor to pick up the mocked module
-            result = extractor.extract_to_markdown(tmp_file)
-
-            assert result == "# Test Markdown Output"
-    finally:
-        os.unlink(tmp_file)
+        extractor.extract_hybrid("nieistniejacy_plik_testowy_12345.pdf")
 
 
 def test_extract_hybrid_returns_tuple() -> None:
@@ -81,6 +52,6 @@ def test_extractor_failure() -> None:
 
             extractor = PDFExtractor()
             with pytest.raises(RuntimeError, match="pymupdf4llm crash"):
-                extractor.extract_to_markdown(tmp_file)
+                extractor.extract_hybrid(tmp_file)
     finally:
         os.unlink(tmp_file)
