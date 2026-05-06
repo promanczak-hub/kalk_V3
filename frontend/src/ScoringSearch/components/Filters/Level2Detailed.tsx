@@ -19,6 +19,7 @@ interface Level2DetailedProps {
   setPaidOptionSearch: (val: string) => void;
   
   loadingFilters: boolean;
+  loadingTrims: boolean;
   sortedBooleanGroups: { groupName: string, filters: BooleanFilter[], totalCount: number }[];
   data: AvailableFiltersResponse | null;
   trimsAndOptions: TrimsAndOptionsResponse | null;
@@ -38,7 +39,7 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
   universalSearch, setUniversalSearch,
   stdOptionSearch, setStdOptionSearch,
   paidOptionSearch, setPaidOptionSearch,
-  loadingFilters, sortedBooleanGroups, data, trimsAndOptions,
+  loadingFilters, loadingTrims, sortedBooleanGroups, data, trimsAndOptions,
   selectedFeatures,
   updateRangeFeature, toggleFeature, isFeatureSelected, isOptionSelected, toggleOption
 }) => {
@@ -168,9 +169,11 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
       {l2Tab === 'dedicated' && (
         <Box>
           {/* ── Standard equipment options ── */}
-          {(!trimsAndOptions || ((trimsAndOptions.standard_options || []).length === 0 && (trimsAndOptions.paid_options || []).length === 0)) ? (
+          {loadingTrims && !trimsAndOptions ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
+          ) : (!trimsAndOptions || ((trimsAndOptions.standard_options || []).length === 0 && (trimsAndOptions.paid_options || []).length === 0)) ? (
             <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 3, color: '#94a3b8' }}>
-              Wybierz model, aby załadować cechy dedykowane (wyposażenie).
+              Brak danych wyposażenia dla wybranych filtrów.
             </Typography>
           ) : (
             <>

@@ -70,10 +70,10 @@ export const useFilterDictionaries = ({ searchContext, onLevel2 }: UseFilterDict
       };
 
       const fetchTrimsAndOptions = async () => {
-        if (searchContext.brands.length === 0 && searchContext.models.length === 0) {
-          setTrimsAndOptions(null);
-          return;
-        }
+        // RPC rpc_get_trims_and_options accepts NULL/NULL and returns the full
+        // catalog of equipment across all completed vehicles. The previous
+        // brand+model gate left users staring at "Wybierz model…" even though
+        // the dataset was searchable globally.
         setLoadingTrims(true);
         try {
           const payload = {

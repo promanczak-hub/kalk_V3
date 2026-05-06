@@ -881,6 +881,63 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             {v.lower() for v in body_style_filter_raw} if body_style_filter_raw else None
         )
 
+        # Equipment chip filters from the "Cechy dedykowane" tab. Frontend
+        # toggles store feature_key="opt_std:<name>" (or "opt_paid:<name>")
+        # with value="true". We strip the prefix and match name lowercased
+        # against card_summary.standard_equipment / paid_options[].name.
+        # Only MUST_HAVE constrains the result set; NICE_TO_HAVE is currently
+        # ignored (no scoring for these yet).
+        _SPECIAL_REQ_KEYS = {"drive_type", "transmission", "fuel", "body_style"}
+
+        def _extract_req_values_with_prefix(prefix: str) -> set[str] | None:
+            vals: set[str] = set()
+            for req in request.requirements or []:
+                if isinstance(req, BaseModel):
+                    req_dict = req.model_dump()
+                elif isinstance(req, dict):
+                    req_dict = req
+                else:
+                    continue
+                fk = req_dict.get("feature_key") or ""
+                if not fk.startswith(prefix):
+                    continue
+                if req_dict.get("requirement") != "MUST_HAVE":
+                    continue
+                if str(req_dict.get("value")).lower() != "true":
+                    continue
+                name = fk[len(prefix):].strip().lower()
+                if name:
+                    vals.add(name)
+            return vals or None
+
+        opt_std_filter: set[str] | None = _extract_req_values_with_prefix("opt_std:")
+        opt_paid_filter: set[str] | None = _extract_req_values_with_prefix("opt_paid:")
+
+        # Universal boolean feature filters from the "Cechy uniwersalne" tab.
+        # Anything in requirements[] that isn't one of the 4 special keys nor
+        # an opt_*: prefixed equipment toggle is treated as a universal
+        # feature_key referring to reverse_search.universal_features. MUST_HAVE
+        # boolean values constrain the result; NICE_TO_HAVE / numeric ranges
+        # are not yet wired here.
+        universal_bool_keys: set[str] = set()
+        for req in request.requirements or []:
+            if isinstance(req, BaseModel):
+                req_dict = req.model_dump()
+            elif isinstance(req, dict):
+                req_dict = req
+            else:
+                continue
+            fk = req_dict.get("feature_key") or ""
+            if not fk or fk in _SPECIAL_REQ_KEYS:
+                continue
+            if fk.startswith("opt_std:") or fk.startswith("opt_paid:"):
+                continue
+            if req_dict.get("requirement") != "MUST_HAVE":
+                continue
+            if str(req_dict.get("value")).lower() != "true":
+                continue
+            universal_bool_keys.add(fk)
+
         rows: list[dict] = []
 
         def _fetch_rows_plain_select() -> list[dict]:
@@ -1044,6 +1101,72 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             row["transmission"] = _normalize_transmission(row.get("transmission"))
             row["drive_type"] = _normalize_drive_type(row.get("drive_type"))
 
+        # ── 3a. Prefetch equipment / universal feature data for filter chips ──
+        # Vector-path rows don't carry synthesis_data, plain-SELECT rows already
+        # consumed it but didn't materialize equipment lists into the row dict.
+        # We do one batch round-trip when an equipment or universal-bool filter
+        # is active, indexed by vehicle_id.
+        vehicle_std_eq: dict[str, set[str]] = {}
+        vehicle_paid_eq: dict[str, set[str]] = {}
+        if opt_std_filter or opt_paid_filter:
+            vid_list = [str(r.get("vehicle_id")) for r in rows if r.get("vehicle_id")]
+            if vid_list:
+                step = "prefetch_equipment_for_filters"
+                eq_resp = _supabase_execute_with_retry(
+                    sb.table("vehicle_synthesis")
+                    .select("id, synthesis_data")
+                    .in_("id", vid_list)
+                )
+                for r in eq_resp.data or []:
+                    sd = r.get("synthesis_data") or {}
+                    cs = sd.get("card_summary") or {}
+                    vid = str(r.get("id"))
+                    std_set = {
+                        str(e).strip().lower()
+                        for e in (cs.get("standard_equipment") or [])
+                        if isinstance(e, str) and e.strip()
+                    }
+                    paid_set = {
+                        str(po.get("name", "")).strip().lower()
+                        for po in (cs.get("paid_options") or [])
+                        if isinstance(po, dict) and po.get("name")
+                    }
+                    vehicle_std_eq[vid] = std_set
+                    vehicle_paid_eq[vid] = paid_set
+
+        vehicle_universal_bools: dict[str, set[str]] = {}
+        if universal_bool_keys:
+            vid_list = [str(r.get("vehicle_id")) for r in rows if r.get("vehicle_id")]
+            if vid_list:
+                step = "prefetch_universal_bools_for_filters"
+                feat_resp = _supabase_execute_with_retry(
+                    sb.schema("reverse_search")
+                    .table("universal_features")
+                    .select("id, feature_key")
+                    .in_("feature_key", list(universal_bool_keys))
+                )
+                feat_id_to_key = {
+                    f["id"]: f["feature_key"] for f in (feat_resp.data or [])
+                }
+                if feat_id_to_key:
+                    spec_resp = _supabase_execute_with_retry(
+                        sb.schema("reverse_search")
+                        .table("vehicle_specs_normalized")
+                        .select("vehicle_id, feature_id, value_bool, resolved_status")
+                        .in_("vehicle_id", vid_list)
+                        .in_("feature_id", list(feat_id_to_key.keys()))
+                        .in_("resolved_status", list(_PRESENT_STATUSES))
+                    )
+                    for s in spec_resp.data or []:
+                        if s.get("value_bool") is not True:
+                            continue
+                        fk = feat_id_to_key.get(s.get("feature_id"))
+                        if not fk:
+                            continue
+                        vehicle_universal_bools.setdefault(
+                            str(s.get("vehicle_id")), set()
+                        ).add(fk)
+
         step = "post_filter_and_map"
         all_matches: list[ScoringSearchMatch] = []
         for row in rows:
@@ -1073,6 +1196,22 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             if body_style_filter is not None:
                 row_body = (row.get("body_style") or "").lower()
                 if row_body not in body_style_filter:
+                    continue
+
+            # Equipment chip filters — vehicle must contain ALL selected names.
+            vid_str = str(row.get("vehicle_id") or "")
+            if opt_std_filter is not None:
+                if not opt_std_filter.issubset(vehicle_std_eq.get(vid_str, set())):
+                    continue
+            if opt_paid_filter is not None:
+                if not opt_paid_filter.issubset(vehicle_paid_eq.get(vid_str, set())):
+                    continue
+            # Universal boolean feature_keys — vehicle must have ALL keys
+            # resolved to value_bool=true with a "present" status.
+            if universal_bool_keys:
+                if not universal_bool_keys.issubset(
+                    vehicle_universal_bools.get(vid_str, set())
+                ):
                     continue
 
             base_price = row.get("base_price")
