@@ -188,17 +188,22 @@ def _compute_matrix_breakdown(
     term: int,
     annual_mileage: int,
     applied_margin_pct: Optional[float],
-) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float], Optional[float]]:
     """Re-run LTRKalkulator from stan_json and return
-    (czynsz_finansowy, czynsz_techniczny, laczna_stawka, marginal_per_km) for the
-    (term, annual_mileage) cell.
+    (czynsz_finansowy, czynsz_techniczny, laczna_stawka, marginal_per_km, ilosc_opon)
+    for the (term, annual_mileage) cell.
 
     marginal_per_km = (rate(next_higher_mileage) - rate(current)) * 12 / km_diff
     — the cost of one additional kilometer when stepping from the chosen mileage
     tier to the next higher one in the matrix. Used to suggest overuse fees.
+
+    ilosc_opon is the calculator-derived tire-set count for this cell — used as
+    fallback for the 'Ogumienie' column when stan_json doesn't carry an explicit
+    liczba_kompletow_opon override.
+
     Returns Nones on any failure or when no higher tier is available."""
     if not stan or not term or not annual_mileage:
-        return None, None, None, None
+        return None, None, None, None, None
     try:
         from api.schemas.calculator import CalculatorInput
         from core.LTRKalkulator import LTRKalkulator
@@ -206,7 +211,7 @@ def _compute_matrix_breakdown(
 
         settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
         if not settings_res.data:
-            return None, None, None, None
+            return None, None, None, None, None
         settings = ControlCenterSettings(**cast(Dict[str, Any], settings_res.data[0]))
 
         # Older stan_json rows have None for fields that the schema now types as
@@ -218,7 +223,7 @@ def _compute_matrix_breakdown(
             calc_input = CalculatorInput(**stan_clean)
         except Exception as ve:
             logger.info("CalculatorInput validation failed: %s", str(ve)[:300])
-            return None, None, None, None
+            return None, None, None, None, None
         if applied_margin_pct is not None:
             calc_input.pricing_margin_pct = float(applied_margin_pct)
 
@@ -235,14 +240,16 @@ def _compute_matrix_breakdown(
             None,
         )
         if not current:
-            return None, None, None, None
+            return None, None, None, None, None
 
         fin_raw = current.get("CzynszFinansowy")
         tech_raw = current.get("CzynszTechniczny")
         stawka_raw = current.get("LacznaStawka")
+        ilosc_opon_raw = current.get("IloscOpon")
         fin = float(fin_raw) if fin_raw is not None else None
         tech = float(tech_raw) if tech_raw is not None else None
         stawka = float(stawka_raw) if stawka_raw is not None else None
+        ilosc_opon = float(ilosc_opon_raw) if ilosc_opon_raw is not None else None
 
         marginal: Optional[float] = None
         higher = [c for c in same_term if int(c.get("Przebieg", 0)) > int(annual_mileage)]
@@ -256,10 +263,10 @@ def _compute_matrix_breakdown(
                 if km_next > km_now and rate_next > stawka:
                     marginal = (rate_next - stawka) * 12.0 / (km_next - km_now)
 
-        return fin, tech, stawka, marginal
+        return fin, tech, stawka, marginal, ilosc_opon
     except Exception as e:
         logger.info("matrix breakdown skipped: %s", str(e)[:200])
-    return None, None, None, None
+    return None, None, None, None, None
 
 
 def _suggest_overuse_fee(marginal_per_km: Optional[float]) -> float:
@@ -274,21 +281,10 @@ def _suggest_overuse_fee(marginal_per_km: Optional[float]) -> float:
 
 
 def _format_cost_breakdown(in_rate: Dict[str, Any]) -> str:
-    """Build 'Rodzaj kosztów' string from the active toggles in the calculation."""
-    parts: List[str] = []
-    if in_rate.get("serwis"):
-        typ = in_rate.get("serwis_typ") or "?"
-        parts.append(f"Serwis {typ}")
-    if in_rate.get("opony"):
-        klasa = (in_rate.get("opony_klasa") or "").strip()
-        parts.append(f"Opony ({klasa})" if klasa else "Opony")
-    if in_rate.get("ubezp_oc_ac"):
-        parts.append("OC/AC")
-    if in_rate.get("auto_zastepcze"):
-        parts.append("Auto zastępcze")
-    if in_rate.get("gps"):
-        parts.append("GPS")
-    return " • ".join(parts) if parts else "—"
+    """'Rodzaj kosztów' = service-table type only ('ASO' or 'nonASO')."""
+    if not in_rate.get("serwis"):
+        return "—"
+    return in_rate.get("serwis_typ") or "—"
 
 
 def _format_tire_display(in_rate: Dict[str, Any]) -> str:
@@ -297,12 +293,13 @@ def _format_tire_display(in_rate: Dict[str, Any]) -> str:
         return "Bez opon"
     klasa = (in_rate.get("opony_klasa") or "").strip()
     ilosc = in_rate.get("opony_zestawy")
-    if klasa and ilosc:
-        return f"{klasa} • {ilosc} kpl"
+    ilosc_str = f"{float(ilosc):.2f}".replace(".", ",") if ilosc else None
+    if klasa and ilosc_str:
+        return f"{klasa} • {ilosc_str} kpl"
     if klasa:
         return klasa
-    if ilosc:
-        return f"{ilosc} kpl"
+    if ilosc_str:
+        return f"{ilosc_str} kpl"
     return "—"
 
 
@@ -521,14 +518,21 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         sheet_label = numer or "Pojazd"
 
     if stan_loaded and not stan.get("_synthetic"):
-        fin, tech, stawka_recalc, marginal_per_km = _compute_matrix_breakdown(
+        fin, tech, stawka_recalc, marginal_per_km, tires_count_recalc = _compute_matrix_breakdown(
             stan,
             term=int(item.get("term") or 0),
             annual_mileage=int(item.get("mileage") or 0),
             applied_margin_pct=item.get("margin_pct"),
         )
     else:
-        fin, tech, stawka_recalc, marginal_per_km = None, None, None, None
+        fin, tech, stawka_recalc, marginal_per_km, tires_count_recalc = None, None, None, None, None
+
+    # User input (liczba_kompletow_opon / tire_set_count) is rare; most rows
+    # rely on the calculator to compute IloscOpon from contract km + tire
+    # thresholds. Backfill so the 'Ogumienie' column shows the same number
+    # the user sees in the 'Podsumowanie V1' panel.
+    if not in_rate.get("opony_zestawy") and tires_count_recalc:
+        in_rate["opony_zestawy"] = tires_count_recalc
 
     # Treat 0.0 as "unset" — the dropdown grid starts at 0.10, so a 0 means the
     # user never picked anything and we should suggest based on marginal cost.
