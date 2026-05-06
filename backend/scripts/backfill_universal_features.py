@@ -20,6 +20,7 @@ Usage:
     python scripts/backfill_universal_features.py             # all stuck
     python scripts/backfill_universal_features.py --limit 5   # first 5
     python scripts/backfill_universal_features.py --vehicle-id <uuid>
+    python scripts/backfill_universal_features.py --reenrich --since 2026-04-15
 """
 
 from __future__ import annotations
@@ -36,24 +37,41 @@ from core.database import supabase
 from core.feature_enrichment import enrich_vehicle_features
 
 
-def _stuck_vehicle_ids(limit: int | None) -> list[str]:
-    """Return ids of completed vehicles that have no evidence rows yet."""
-    completed = (
+def _stuck_vehicle_ids(
+    limit: int | None,
+    reenrich: bool = False,
+    since: str | None = None,
+) -> list[str]:
+    """Return ids of completed vehicles to enrich.
+
+    Default behaviour: only vehicles with no evidence rows yet ("stuck").
+    `reenrich=True` skips the no-evidence filter, so already-enriched vehicles
+    are re-processed too (used after fixing a feature_key mapping bug to add
+    missing evidence — `enrich_vehicle_features` upserts, so this is safe).
+    `since` (ISO date string) further restricts to vehicles created on/after
+    that date.
+    """
+    query = (
         supabase.table("vehicle_synthesis")
-        .select("id, brand, model, synthesis_data")
+        .select("id, brand, model, synthesis_data, created_at")
         .eq("verification_status", "completed")
-        .execute()
-    ).data or []
-
-    ev_resp = (
-        supabase.schema("reverse_search")
-        .table("vehicle_feature_evidence")
-        .select("source_vehicle_id")
-        .execute()
     )
-    enriched_ids = {row["source_vehicle_id"] for row in (ev_resp.data or [])}
+    if since:
+        query = query.gte("created_at", since)
+    completed = (query.execute()).data or []
 
-    stuck: list[tuple[str, str, str]] = []
+    if reenrich:
+        enriched_ids: set[str] = set()
+    else:
+        ev_resp = (
+            supabase.schema("reverse_search")
+            .table("vehicle_feature_evidence")
+            .select("source_vehicle_id")
+            .execute()
+        )
+        enriched_ids = {row["source_vehicle_id"] for row in (ev_resp.data or [])}
+
+    selected: list[tuple[str, str, str]] = []
     for v in completed:
         vid = v["id"]
         if vid in enriched_ids:
@@ -62,14 +80,15 @@ def _stuck_vehicle_ids(limit: int | None) -> list[str]:
         cs = synth.get("card_summary") or {}
         if not isinstance(cs, dict) or not cs:
             continue
-        stuck.append((vid, v.get("brand") or "?", v.get("model") or "?"))
+        selected.append((vid, v.get("brand") or "?", v.get("model") or "?"))
 
     if limit is not None:
-        stuck = stuck[:limit]
-    print(f"Found {len(stuck)} completed vehicles without evidence.")
-    for vid, brand, model in stuck:
+        selected = selected[:limit]
+    label = "to re-enrich" if reenrich else "without evidence"
+    print(f"Found {len(selected)} completed vehicles {label}.")
+    for vid, brand, model in selected:
         print(f"  {vid}  {brand} {model}")
-    return [vid for vid, _, _ in stuck]
+    return [vid for vid, _, _ in selected]
 
 
 async def _enrich_one(vehicle_id: str) -> dict:
@@ -130,6 +149,15 @@ def parse_args() -> argparse.Namespace:
         "--vehicle-id", default=None,
         help="Enrich a single vehicle by id (overrides --limit / discovery).",
     )
+    p.add_argument(
+        "--reenrich", action="store_true",
+        help="Skip the no-evidence filter so already-enriched vehicles are re-processed."
+        " enrich_vehicle_features upserts, so this is idempotent.",
+    )
+    p.add_argument(
+        "--since", default=None,
+        help="ISO date (YYYY-MM-DD); restrict to vehicles created on/after this date.",
+    )
     return p.parse_args()
 
 
@@ -138,5 +166,7 @@ if __name__ == "__main__":
     if args.vehicle_id:
         ids = [args.vehicle_id]
     else:
-        ids = _stuck_vehicle_ids(args.limit)
+        ids = _stuck_vehicle_ids(
+            args.limit, reenrich=args.reenrich, since=args.since
+        )
     asyncio.run(_main(ids))

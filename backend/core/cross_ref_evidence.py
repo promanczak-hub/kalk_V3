@@ -171,15 +171,15 @@ def create_body_param_evidence(
         return 0
 
     calc_features: dict[str, tuple[float | int | None, str]] = {
-        "długość_całkowita": (
+        "dlugosc_calkowita": (
             dims.get("overall_length_mm"),
             "mm",
         ),
-        "szerokość_całkowita": (
+        "szerokosc_calkowita": (
             dims.get("overall_width_mm"),
             "mm",
         ),
-        "wysokość_całkowita": (
+        "wysokosc_calkowita": (
             dims.get("overall_height_mm"),
             "mm",
         ),
@@ -194,8 +194,8 @@ def create_body_param_evidence(
         calc_features.update(
             {
                 "m2": (params.area_m2, "m²"),
-                "ilość_europalet": (params.europallets, "szt"),
-                "kubatura_przestrzeni_ładunkowej_w_m3": (
+                "ilosc_europalet": (params.europallets, "szt"),
+                "kubatura_przestrzeni_ladunkowej_w_m3": (
                     params.volume_m3,
                     "m³",
                 ),
