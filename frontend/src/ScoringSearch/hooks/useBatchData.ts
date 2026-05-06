@@ -12,6 +12,17 @@ export interface PriceForParams {
   tire_class?: string;
   service_type?: string;
   kalkulacja_id?: string;
+  // Snapshot of the kalkulacja's pricing toggles + financing knobs. Same for
+  // every variant under the same kalkulacja_id. Rendered next to the price by
+  // <KalkulacjaParamsRow>.
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
 }
 
 export interface SimilarityReasons {
@@ -89,6 +100,19 @@ export interface SimilarVehicle {
   service_options?: OptionLineItem[];
   total_price_net?: number | null;
   total_price_gross?: number | null;
+
+  // ── Snapshot of the candidate kalkulacja (parity with VehicleResultCard's
+  // KalkulacjaParamsRow) ──
+  discount_pct?: number | null;
+  bank_margin_pct?: number | null;
+  wibor_pct?: number | null;
+  tire_class?: string | null;
+  service_type?: string | null;
+  tires_included?: boolean | null;
+  tire_buyback?: boolean | null;
+  insurance_included?: boolean | null;
+  replacement_car?: boolean | null;
+  service_included?: boolean | null;
 }
 
 export function useBatchPrices(

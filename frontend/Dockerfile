@@ -15,12 +15,25 @@ FROM nginx:alpine
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# SPA fallback — redirect all routes to index.html
+# SPA fallback for client routes + reverse proxy /api/ → backend:8000.
+# Without the proxy, POSTs to /api/* hit `try_files` and nginx returns 405.
 RUN printf 'server {\n\
   listen 80;\n\
   server_name _;\n\
   root /usr/share/nginx/html;\n\
   index index.html;\n\
+  client_max_body_size 50m;\n\
+  location /api/ {\n\
+    proxy_pass http://backend:8000;\n\
+    proxy_http_version 1.1;\n\
+    proxy_set_header Host $host;\n\
+    proxy_set_header X-Real-IP $remote_addr;\n\
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
+    proxy_set_header X-Forwarded-Proto $scheme;\n\
+    proxy_read_timeout 180s;\n\
+    proxy_send_timeout 180s;\n\
+    proxy_connect_timeout 30s;\n\
+  }\n\
   location / {\n\
     try_files $uri $uri/ /index.html;\n\
   }\n\

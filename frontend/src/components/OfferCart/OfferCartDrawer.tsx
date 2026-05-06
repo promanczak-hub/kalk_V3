@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { X, Trash2, FileOutput, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useOfferCartStore, type OfferItem, type OfferVariant } from '../../stores/offerCartStore';
+import { KalkulacjaParamsRow } from '../../ScoringSearch/components/Results/KalkulacjaParamsRow';
 
 const hasFullCalc = (item: OfferItem): boolean => {
   const cd = item.calculation_data as { kalkulacja_id?: string | null } | null | undefined;
@@ -83,13 +84,23 @@ const CartItemRecord: React.FC<{
         <Typography variant="h6" color="primary.main">
           {new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(item.net_installment)} netto/mc
         </Typography>
-        
+
         {item.variants && item.variants.length > 1 && (
           <Button size="small" onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Ukryj warianty' : 'Pokaż warianty'}
           </Button>
         )}
       </Box>
+
+      {/* Snapshot of the kalkulacja's pricing toggles + financing knobs that
+          produced this rate. Frozen at add-to-cart time (kalkulacja_snapshot)
+          so the user always sees what was assumed when they quoted this
+          offer, even if the underlying calc has been re-priced since. */}
+      {item.kalkulacja_snapshot && (
+        <Box sx={{ mt: 1 }}>
+          <KalkulacjaParamsRow snapshot={item.kalkulacja_snapshot} hideFinancing={false} compact />
+        </Box>
+      )}
 
       <Box sx={{ mt: 2, pt: 1, borderTop: '1px dashed', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
         <TextField

@@ -207,6 +207,38 @@ class SimilarVehicleMatch(BaseModel):
     service_options: List[OptionLineItem] = []
     total_price_net: Optional[float] = None
     total_price_gross: Optional[float] = None
+    # Snapshot of the candidate kalkulacja's pricing toggles + financing knobs
+    # (rabat, marża bankowa, WIBOR, opony/ubezpieczenie/auto zastępcze/serwis).
+    # Sourced from `ltr_kalkulacje.stan_json` of the matched cache row so the
+    # similar-vehicle card can render the same params row as the source card.
+    discount_pct: Optional[float] = None
+    bank_margin_pct: Optional[float] = None
+    wibor_pct: Optional[float] = None
+    tire_class: Optional[str] = None
+    service_type: Optional[str] = None
+    tires_included: Optional[bool] = None
+    tire_buyback: Optional[bool] = None
+    insurance_included: Optional[bool] = None
+    replacement_car: Optional[bool] = None
+    service_included: Optional[bool] = None
+
+
+class KalkulacjaSnapshotParams(BaseModel):
+    """Pricing toggles + financing knobs that produced a particular cached
+    rate. Read from `ltr_kalkulacje.stan_json` and shipped alongside any
+    `monthly_price_net` value so the UI can render what was assumed when the
+    rate was computed (rabat, marża bankowa, WIBOR, opony / ubezpieczenie /
+    auto zastępcze / serwis). All variants of the same `kalkulacja_id` share
+    these — they're attached at the kalkulacja level, not per matrix row."""
+
+    discount_pct: Optional[float] = None       # rabat dealerski %
+    bank_margin_pct: Optional[float] = None    # marża bankowa % (financing)
+    wibor_pct: Optional[float] = None          # stawka WIBOR %
+    tires_included: Optional[bool] = None      # z_oponami
+    tire_buyback: Optional[bool] = None        # odkup_opon_enabled
+    insurance_included: Optional[bool] = None  # express_pays_insurance
+    replacement_car: Optional[bool] = None     # replacement_car_enabled
+    service_included: Optional[bool] = None    # include_servicing
 
 
 class PriceForParamsResponse(BaseModel):
@@ -220,6 +252,17 @@ class PriceForParamsResponse(BaseModel):
     tire_class: Optional[str] = None
     service_type: Optional[str] = None
     kalkulacja_id: Optional[str] = None
+    # Snapshot of the kalkulacja's pricing toggles + financing knobs (rabat,
+    # marża bankowa, WIBOR, opony/ubezpieczenie/auto zastępcze/serwis). Same
+    # for every matrix variant under the same kalkulacja_id.
+    discount_pct: Optional[float] = None
+    bank_margin_pct: Optional[float] = None
+    wibor_pct: Optional[float] = None
+    tires_included: Optional[bool] = None
+    tire_buyback: Optional[bool] = None
+    insurance_included: Optional[bool] = None
+    replacement_car: Optional[bool] = None
+    service_included: Optional[bool] = None
 
 
 class SimilarBatchRequest(BaseModel):

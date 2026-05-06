@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from celery.result import AsyncResult
 
-from core.database import supabase
+from core.database import supabase, get_admin_client
 from core.body_type_matcher import BODY_ALIAS_MAP, match_body_type
 from core.celery_app import celery_app
 from core.models_scoring_search import (
@@ -121,6 +121,103 @@ def _redis_set(key: str, value: Any, ttl: int) -> None:
 
 def _params_hash(payload: str) -> str:
     return hashlib.md5(payload.encode(), usedforsecurity=False).hexdigest()
+
+
+def _coerce_float(val: Any) -> float | None:
+    """Best-effort parse of a stan_json scalar into float. Returns None for
+    empty/None/non-numeric so missing toggle values don't get pinned to 0."""
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_bool(val: Any) -> bool | None:
+    """Parse a stan_json toggle value into bool. Treats string 'true'/'false'
+    case-insensitively (and bare 1/0) the same as native bool. Returns None
+    only when the field is missing or unparseable, so the UI can distinguish
+    'set to off' from 'unknown'."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    s = str(val).strip().lower()
+    if s in {"true", "1", "yes", "tak", "t"}:
+        return True
+    if s in {"false", "0", "no", "nie", "f"}:
+        return False
+    return None
+
+
+def _fetch_kalkulacja_snapshot_params(
+    kalk_ids: list[Any],
+) -> dict[str, dict[str, Any]]:
+    """Batch-fetch the pricing-toggle + financing-knob snapshot for a list of
+    kalkulacja_ids. Reads `ltr_kalkulacje.stan_json` (the JSONB blob holding
+    the full calculator state) and projects the subset that the UI needs to
+    render next to a price (rabat, marża bankowa, WIBOR, opony / ubezpieczenie
+    / auto zastępcze / serwis flags). Returns a map keyed by str(kalkulacja_id)
+    → dict suitable for splatting into PriceForParamsResponse / SimilarVehicleMatch.
+    Silent-fails to an empty dict on RPC error so a snapshot fetch glitch
+    never breaks the price endpoint."""
+    out: dict[str, dict[str, Any]] = {}
+    ids = sorted({str(x) for x in kalk_ids if x})
+    if not ids:
+        return out
+    try:
+        resp = supabase.table("ltr_kalkulacje").select("id, stan_json").in_("id", ids).execute()
+    except Exception:
+        logger.exception("ltr_kalkulacje snapshot fetch failed for ids=%s", ids[:5])
+        return out
+    for row in resp.data or []:
+        kid = str(row.get("id") or "")
+        stan = row.get("stan_json") or {}
+        if not isinstance(stan, dict):
+            continue
+        out[kid] = {
+            "discount_pct": _coerce_float(stan.get("discount_pct")),
+            # `margin_pct` in stan_json is the BANK margin (financing). The
+            # client/sales margin is derived per-variant from the matrix grid.
+            "bank_margin_pct": _coerce_float(stan.get("margin_pct")),
+            "wibor_pct": _coerce_float(stan.get("wibor_pct")),
+            "tires_included": _coerce_bool(stan.get("z_oponami")),
+            "tire_buyback": _coerce_bool(stan.get("odkup_opon_enabled")),
+            "insurance_included": _coerce_bool(stan.get("express_pays_insurance")),
+            "replacement_car": _coerce_bool(stan.get("replacement_car_enabled")),
+            "service_included": _coerce_bool(stan.get("include_servicing")),
+        }
+    return out
+
+
+def _attach_kalkulacja_snapshot_to_matches(matches: list[SimilarVehicleMatch]) -> None:
+    """Mutate-in-place: for a list of SimilarVehicleMatch, batch-fetch each
+    one's candidate kalkulacja snapshot and copy the fields onto the model.
+    No-op for matches without a kalkulacja_id (silent — those are typically
+    fallback matches with no cache hit). The snapshot is keyed by str(id) so
+    UUID/uuid.UUID round-trips are tolerated."""
+    if not matches:
+        return
+    snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
+        [m.kalkulacja_id for m in matches if m.kalkulacja_id]
+    )
+    if not snapshot_by_kid:
+        return
+    for m in matches:
+        if not m.kalkulacja_id:
+            continue
+        snap = snapshot_by_kid.get(str(m.kalkulacja_id))
+        if not snap:
+            continue
+        for k, v in snap.items():
+            # Only set when the model field is currently None — preserves
+            # anything the RPC explicitly populated (e.g. similarity_reasons
+            # discount_pct already on the row from the V2 path).
+            if getattr(m, k, None) is None:
+                setattr(m, k, v)
 
 
 def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
@@ -1258,7 +1355,8 @@ def get_similar_vehicles(
         logger.debug("Cache HIT: similar [%s]", vehicle_id)
         return [SimilarVehicleMatch(**row) for row in cached]
 
-    sb = supabase
+    # Service-role client: anon's 3s statement_timeout cancels semantic RPCs on cold cache
+    sb = get_admin_client()
     method = (
         "rpc_get_similar_vehicles_semantic"
         if mode == "semantic"
@@ -1282,6 +1380,10 @@ def get_similar_vehicles(
             return []
 
         results = [_build_similar_vehicle_match(row) for row in resp.data]
+        # Stamp each match with the kalkulacja-level snapshot so its card can
+        # render the same params row (rabat / opony / ubezpieczenie / WIBOR /
+        # marża bankowa) as the source vehicle's card.
+        _attach_kalkulacja_snapshot_to_matches(results)
         _redis_set(cache_key, [r.model_dump() for r in results], 10800)
         return results
     except Exception as e:
@@ -1312,7 +1414,8 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
 
         return SimilarBatchResponse(results=restored_results)
 
-    sb = supabase
+    # Service-role client: anon's 3s statement_timeout cancels semantic RPCs on cold cache
+    sb = get_admin_client()
     method = (
         "rpc_get_similar_vehicles_batch_semantic"
         if req.mode == "semantic"
@@ -1387,6 +1490,13 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                 if source_id in results:
                     results[source_id].append(match)
 
+        # Enrich every match with the snapshot of its candidate kalkulacja in a
+        # single round-trip across all source-buckets so each similar-card has
+        # the rabat/opony/insurance/replacement-car/WIBOR row the user expects
+        # next to a price.
+        all_matches = [m for bucket in results.values() for m in bucket]
+        _attach_kalkulacja_snapshot_to_matches(all_matches)
+
         resp_obj = SimilarBatchResponse(results=results)
 
         # Serialize fully using model dumps for the cache
@@ -1431,7 +1541,8 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
     """Return base LTR prices (0% margin) and variants for multiple vehicles.
     Uses rpc_get_batch_prices to avoid PostgREST 1000-row limit.
     """
-    sb = supabase
+    # Service-role client: anon's 3s statement_timeout cancels this RPC on larger batches
+    sb = get_admin_client()
 
     try:
         if not req.vehicle_ids:
@@ -1454,6 +1565,12 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
         )
 
         rows = resp.data or []
+        # Pull the per-kalkulacja snapshot (rabat / marża bankowa / WIBOR /
+        # toggle-set) in a single round-trip so each price below carries the
+        # context the user needs to interpret it.
+        snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
+            [r.get("kalkulacja_id") for r in rows if r.get("kalkulacja_id")]
+        )
         results: dict[str, VehiclePrices] = {}
 
         for row in rows:
@@ -1470,6 +1587,8 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                 )
                 continue
 
+            kid = row.get("kalkulacja_id")
+            snap = snapshot_by_kid.get(str(kid)) if kid else None
             # Map the best match returned by RPC
             best_match = PriceForParamsResponse(
                 vehicle_id=vid,
@@ -1481,7 +1600,8 @@ def get_batch_prices(req: BatchPricesRequest) -> BatchPricesResponse:
                 variants_count=variants_count,
                 tire_class=row.get("tire_class"),
                 service_type=row.get("service_type"),
-                kalkulacja_id=row.get("kalkulacja_id"),
+                kalkulacja_id=kid,
+                **(snap or {}),
             )
 
             # For batch search, we primarily care about the main price.
@@ -1604,6 +1724,13 @@ def get_price_for_params(
         )
         display_price_best = base_price_best / (1.0 - (margin / 100.0))
 
+        kid_best = best_match.get("kalkulacja_id")
+        snap = (
+            _fetch_kalkulacja_snapshot_params([kid_best]).get(str(kid_best))
+            if kid_best
+            else None
+        )
+
         return PriceForParamsResponse(
             vehicle_id=vehicle_id,
             duration_months=best_match["duration_months"],
@@ -1614,7 +1741,8 @@ def get_price_for_params(
             variants_count=variants_count,
             tire_class=best_match.get("tire_class"),
             service_type=best_match.get("service_type"),
-            kalkulacja_id=best_match.get("kalkulacja_id"),
+            kalkulacja_id=kid_best,
+            **(snap or {}),
         )
     except Exception as e:
         logger.exception("Error in get_price_for_params [%s]: %s", vehicle_id, e)
@@ -1670,6 +1798,9 @@ def get_price_variants(
                         "kalkulacja_id": row.get("kalkulacja_id"),
                     }
 
+        snapshot_by_kid = _fetch_kalkulacja_snapshot_params(
+            [v.get("kalkulacja_id") for v in grouped_variants.values() if v.get("kalkulacja_id")]
+        )
         variants = [
             PriceForParamsResponse(
                 vehicle_id=vehicle_id,
@@ -1678,6 +1809,7 @@ def get_price_variants(
                 monthly_price_net=v["monthly_price_net"],
                 found=True,
                 kalkulacja_id=v.get("kalkulacja_id"),
+                **(snapshot_by_kid.get(str(v.get("kalkulacja_id") or "")) or {}),
             )
             for v in grouped_variants.values()
         ]
