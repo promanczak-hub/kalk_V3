@@ -42,5 +42,13 @@ celery_app.conf.update(
             "task": "matrix_watchdog_task",
             "schedule": 300.0,  # 5 minutes in seconds
         },
+        # Safety net: catch vehicles whose phase_2 extraction skipped or
+        # failed the embedding step (e.g. Celery hiccup, empty embedding
+        # text, transient API error). Without this, missing vehicles stay
+        # invisible to semantic search until someone notices.
+        "backfill-vehicle-embeddings-every-6h": {
+            "task": "tasks.enrichment_tasks.backfill_vehicle_embeddings",
+            "schedule": 21600.0,  # 6 hours
+        },
     },
 )
