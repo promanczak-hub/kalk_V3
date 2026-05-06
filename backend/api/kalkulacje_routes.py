@@ -41,28 +41,115 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
 
 router = APIRouter(prefix="/kalkulacje", tags=["kalkulacje"])
 
-_PREFERRED_MONTHS = 48
-_PREFERRED_MILEAGE = 120_000
+# Canonical defaults (mirror CalculatorInput.okres_bazowy / przebieg_bazowy
+# at api/schemas/calculator.py and the consumer at calculation_service.py).
+_DEFAULT_MONTHS = 48
+_DEFAULT_TOTAL_KM = 140_000
 
 
-def _pick_rata_netto(matrix_rows: list[dict]) -> dict[str, float]:
-    """Return {kalkulacja_id: monthly_price_net} preferring 48mc/120k, falling back to minimum."""
-    preferred: dict[str, float] = {}
-    fallback: dict[str, float] = {}
+def _build_target_map(kalk_rows: list[dict]) -> dict[str, tuple[int, int, float]]:
+    """Per-kalkulacja (months, annual_km, sales_margin_pct) wyciagniete z stan_json.
+
+    Konwersja: annual = round(przebieg_bazowy / okres_bazowy * 12). Cache trzyma
+    wartosci po annual_mileage; stan_json ma przebieg_bazowy jako km/kontrakt.
+    """
+    out: dict[str, tuple[int, int, float]] = {}
+    for r in kalk_rows:
+        sj = r.get("stan_json") or {}
+        try:
+            months = int(sj.get("okres_bazowy") or _DEFAULT_MONTHS)
+        except (TypeError, ValueError):
+            months = _DEFAULT_MONTHS
+        if months <= 0:
+            months = _DEFAULT_MONTHS
+        try:
+            total_km = int(sj.get("przebieg_bazowy") or _DEFAULT_TOTAL_KM)
+        except (TypeError, ValueError):
+            total_km = _DEFAULT_TOTAL_KM
+        annual = int(round(total_km / months * 12))
+
+        # Marza sprzedazy z stan_json. Cache trzyma BAZOWY KOSZT (margin=0),
+        # marza jest doliczana dynamicznie przy odczycie z cache.
+        margin: float = 0.0
+        try:
+            raw_margin = sj.get("pricing_margin_pct")
+            if raw_margin is None:
+                fp = sj.get("financial_params") or {}
+                raw_margin = fp.get("pricing_margin_pct")
+            if raw_margin is not None:
+                margin = float(raw_margin)
+        except (TypeError, ValueError):
+            margin = 0.0
+
+        out[r["id"]] = (months, annual, margin)
+    return out
+
+
+def _apply_sales_margin(base: float, sales_margin_pct: float) -> float:
+    """Dolicza marze sprzedazy do bazowego kosztu z cache.
+
+    Cache trzyma czysty koszt (margin=0). Wzor V1: rata = base / (1 - margin).
+    Clampuje margin do [0, 0.9999] zeby uniknac dzielenia przez zero.
+    """
+    m = max(0.0, min(0.9999, sales_margin_pct / 100.0))
+    return base / (1.0 - m)
+
+
+def _pick_rata_netto(
+    matrix_rows: list[dict],
+    targets: dict[str, tuple[int, int, float]],
+) -> dict[str, float]:
+    """Return {kalkulacja_id: monthly_price_net} dla komorki matrycy najblizszej
+    (target_months, target_annual_km), z doliczona marza sprzedazy.
+
+    Kolejnosc dopasowania:
+      1) exact (months, annual)
+      2) ten sam months, najblizsza annual
+      3) najblizsza w (months, annual) Euclidean (1 mc ~= 1000 km)
+    Kalkulacje bez zadnych komorek nie pojawiaja sie w wyniku.
+    """
+    from collections import defaultdict
+
+    by_kalk: dict[str, list[tuple[int, int, float]]] = defaultdict(list)
     for m in matrix_rows:
         k_id = m.get("kalkulacja_id")
         val = m.get("monthly_price_net")
-        if not k_id or val is None:
+        d = m.get("duration_months")
+        a = m.get("annual_mileage")
+        if not k_id or val is None or not d or not a:
             continue
-        val = float(val)
-        if (
-            m.get("duration_months") == _PREFERRED_MONTHS
-            and m.get("annual_mileage") == _PREFERRED_MILEAGE
-        ):
-            preferred[k_id] = val
-        if k_id not in fallback or val < fallback[k_id]:
-            fallback[k_id] = val
-    return {k_id: preferred.get(k_id, fallback[k_id]) for k_id in fallback}
+        by_kalk[k_id].append((int(d), int(a), float(val)))
+
+    default_annual = int(round(_DEFAULT_TOTAL_KM / _DEFAULT_MONTHS * 12))
+    result: dict[str, float] = {}
+    for k_id, cells in by_kalk.items():
+        tgt_m, tgt_a, sales_margin = targets.get(
+            k_id, (_DEFAULT_MONTHS, default_annual, 0.0)
+        )
+
+        chosen: float | None = None
+        for d, a, v in cells:
+            if d == tgt_m and a == tgt_a:
+                chosen = v
+                break
+        if chosen is None:
+            same_m = [c for c in cells if c[0] == tgt_m]
+            if same_m:
+                same_m.sort(key=lambda c: (abs(c[1] - tgt_a), c[1], c[2]))
+                chosen = same_m[0][2]
+        if chosen is None:
+            cells_sorted = sorted(
+                cells,
+                key=lambda c: (
+                    (c[0] - tgt_m) ** 2 + ((c[1] - tgt_a) / 1000) ** 2,
+                    abs(c[0] - tgt_m),
+                    c[2],
+                ),
+            )
+            chosen = cells_sorted[0][2]
+
+        result[k_id] = round(_apply_sales_margin(chosen, sales_margin), 2)
+    return result
 
 
 class CreateKalkulacjaRequest(BaseModel):
@@ -351,7 +438,8 @@ def get_kalkulacje():
         )
 
         matrix_rows = rates_res.data or []
-        best_rates = _pick_rata_netto(matrix_rows)
+        targets = _build_target_map(res.data)
+        best_rates = _pick_rata_netto(matrix_rows, targets)
         matrix_counts: dict[str, int] = {}
         for m in matrix_rows:
             k_id = m.get("kalkulacja_id")
@@ -438,10 +526,12 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
             .in_("kalkulacja_id", kalk_ids)
         )
 
-        # ── Step 3: aggregate preferred rate (48mc/120k) + matrix count per kalkulacja ──
+        # ── Step 3: aggregate per-kalkulacja rate matching its (okres_bazowy, przebieg_bazowy)
+        # plus dynamic sales margin from stan_json. Cache holds base costs (margin=0). ──
         step = "aggregate_rates"
         matrix_rows = rates_res.data or []
-        best_rates: dict[str, float] = _pick_rata_netto(matrix_rows)
+        targets = _build_target_map(res.data)
+        best_rates: dict[str, float] = _pick_rata_netto(matrix_rows, targets)
         matrix_counts: dict[str, int] = {}
         for m in matrix_rows:
             k_id = m.get("kalkulacja_id")

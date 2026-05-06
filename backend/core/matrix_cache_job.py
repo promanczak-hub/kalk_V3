@@ -179,15 +179,19 @@ def build_calculator_input(
         return None
 
     # ── Discount extraction ──
-    # Priority: override > calculator_setup > card_summary
+    # Priority: override > calculator_setup (user choice) > card_summary (suggested).
+    # Critical: an explicit 0 from the user must not fall through to suggested.
+    # The previous `or` chain treated 0 as falsy and used `suggested_discount_pct`
+    # instead — silently inflating the cache discount above what the user picked.
     if override_discount_pct is not None:
         discount_pct = float(override_discount_pct)
     else:
-        discount_pct = float(
-            setup.get("discount", {}).get("active_discount_pct")
-            or cs.get("suggested_discount_pct")
-            or 0.0
-        )
+        active = setup.get("discount", {}).get("active_discount_pct")
+        if active is not None:
+            discount_pct = float(active)
+        else:
+            suggested = cs.get("suggested_discount_pct")
+            discount_pct = float(suggested) if suggested is not None else 0.0
 
     # ── Metalic paint ──
     # Priority: calculator_setup > card_summary
