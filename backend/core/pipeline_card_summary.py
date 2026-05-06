@@ -370,7 +370,43 @@ def _extract_from_pages(pages: list) -> dict:
     return result
 
 
-def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) -> str:
+def _call_with_pro_flash_fallback(
+    client: genai.Client,
+    contents: list[types.Part],
+    config: types.GenerateContentConfig,
+    *,
+    log_label: str,
+) -> Any:
+    """Call Gemini 2.5 Pro with tenacity retries; on exhaustion fall back to 2.5 Flash.
+
+    Mirrors the Pro→Flash fallback in `pipeline_digital_twin.extract_digital_twin_from_pdf`
+    so card_summary doesn't end up empty when Pro is intermittently unavailable.
+    """
+    pro_model_id = "gemini-2.5-pro"
+    flash_model_id = "gemini-2.5-flash"
+    try:
+        return generate_content_with_retry(
+            client=client,
+            model=pro_model_id,
+            contents=contents,
+            config=config,
+        )
+    except Exception as pro_err:
+        logger.warning(
+            "[%s] Pro failed (%s) — falling back to %s.",
+            log_label,
+            pro_err,
+            flash_model_id,
+        )
+        return generate_content_with_retry(
+            client=client,
+            model=flash_model_id,
+            contents=contents,
+            config=config,
+        )
+
+
+def classify_document_type(pro_data: dict, client: genai.Client) -> str:
     """
     Classifies the document type based on the extracted digital twin.
     """
@@ -384,11 +420,11 @@ def classify_document_type(pro_data: dict, client: genai.Client, model_id: str) 
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
     )
 
-    doc_type_response = generate_content_with_retry(
+    doc_type_response = _call_with_pro_flash_fallback(
         client=client,
-        model=model_id,
         contents=[types.Part.from_text(text=pro_response_text)],
         config=doc_type_config,
+        log_label="DOC TYPE",
     )
 
     doc_type_str = getattr(doc_type_response, "text", "Oferta na samochód")
@@ -421,12 +457,11 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
     """
     client = get_gemini_client()
 
-    pro_model_id = "gemini-2.5-pro"
     pro_response_text = json.dumps(pro_data, ensure_ascii=False)
 
     try:
         # Step 1: Classify document
-        doc_type_str = classify_document_type(pro_data, client, pro_model_id)
+        doc_type_str = classify_document_type(pro_data, client)
 
         # Step 2: Extract specific summaries based on type
         chosen_schema: Any
@@ -490,11 +525,11 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
             types.Part.from_text(text=pro_response_text)
         ]
 
-        summary_response = generate_content_with_retry(
+        summary_response = _call_with_pro_flash_fallback(
             client=client,
-            model=pro_model_id,
             contents=summary_contents,
             config=summary_config,
+            log_label="CARD SUMMARY",
         )
 
         summary_json_str = getattr(summary_response, "text", "{}") or "{}"
