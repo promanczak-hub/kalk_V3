@@ -1664,6 +1664,10 @@ def get_price_variants(
                         "duration_months": dur,
                         "annual_mileage": row["annual_mileage"],
                         "monthly_price_net": price,
+                        # Carry kalkulacja_id through so the cart can recover the
+                        # full LTR breakdown (fin/tech split, in_rate, options)
+                        # when the user adds a variant to the offer.
+                        "kalkulacja_id": row.get("kalkulacja_id"),
                     }
 
         variants = [
@@ -1673,6 +1677,7 @@ def get_price_variants(
                 annual_mileage=v["annual_mileage"],
                 monthly_price_net=v["monthly_price_net"],
                 found=True,
+                kalkulacja_id=v.get("kalkulacja_id"),
             )
             for v in grouped_variants.values()
         ]

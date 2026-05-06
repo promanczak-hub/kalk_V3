@@ -179,7 +179,7 @@ function buildReasonTags(
   }
 
   if (!reasons.fuel_match) {
-    tags.push({ kind: 'warn', label: 'Inny rodzaj napędu' });
+    tags.push({ kind: 'warn', label: 'Inne paliwo / silnik' });
   }
   if (!reasons.drive_match) {
     tags.push({ kind: 'warn', label: 'Inny typ napędu (FWD/AWD)' });
