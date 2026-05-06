@@ -193,10 +193,27 @@ def fetch_brand_correction_cached(
 def fetch_color_correction_cached(
     paint_type_id: Optional[int], is_metalic: bool
 ) -> float:
-    """Korekta za kolor z paint_types.wr_correction."""
-    if not paint_type_id:
-        return 0.0
+    """Korekta za kolor z paint_types.wr_correction.
+
+    Gdy `paint_type_id` jest pusty (część payloadów z frontu nie wysyła
+    `paint_type_name`/`paint_category_id`), spada się na `is_metalic`:
+    False → "Niemetalizowany", True → "Metalizowany". Pearl wymaga
+    explicit ID, więc tu nie pasuje.
+    """
     from core.database import supabase
+
+    if not paint_type_id:
+        try:
+            res = supabase.table("paint_types").select("name, wr_correction").execute()
+            for row in res.data or []:
+                name_upper = str(row.get("name") or "").upper()
+                if not is_metalic and name_upper.startswith("NIEMETAL"):
+                    return float(row.get("wr_correction") or 0.0)
+                if is_metalic and name_upper.startswith("METALIZ"):
+                    return float(row.get("wr_correction") or 0.0)
+        except Exception as exc:
+            logger.warning("Błąd color correction (is_metalic fallback): %s", exc)
+        return 0.0
 
     try:
         res = (

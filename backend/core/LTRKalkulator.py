@@ -509,7 +509,7 @@ class LTRKalkulator:
                 MarzaFinansowaProcent=float(
                     self.input_data.margin_pct
                     if getattr(self.input_data, "margin_pct", None) is not None
-                    else getattr(self.settings, "default_ltr_margin", 2.0)
+                    else getattr(self.settings, "bank_spread", 2.0)
                 ),
             )
             finance_calc = FinanseCalculator(finance_input)
@@ -945,7 +945,7 @@ class LTRKalkulator:
                 MarzaFinansowaProcent=float(
                     self.input_data.margin_pct
                     if getattr(self.input_data, "margin_pct", None) is not None
-                    else getattr(self.settings, "default_ltr_margin", 2.0)
+                    else getattr(self.settings, "bank_spread", 2.0)
                 ),
             )
             finance_calc = FinanseCalculator(finance_input)
