@@ -72,45 +72,53 @@ def _to_net(value: Optional[float], price_type: str) -> Optional[float]:
     return value
 
 
-def _option_price_net(entry: Dict[str, Any]) -> float:
-    """Resolve a per-option net price from a dict that may carry price_net / price_gross / price + price_type."""
+def _option_prices_net_gross(entry: Dict[str, Any]) -> tuple[float, float]:
+    """Resolve (net, gross) per-option price. Falls back to VAT 23% conversion
+    when only one side is provided, or parses the legacy `price` + `price_type`."""
     pn = _f(entry.get("price_net"))
-    if pn is not None:
-        return pn
     pg = _f(entry.get("price_gross"))
+    if pn is not None and pg is not None:
+        return pn, pg
+    if pn is not None:
+        return pn, round(pn * VAT_RATE, 2)
     if pg is not None:
-        return round(pg / VAT_RATE, 2)
+        return round(pg / VAT_RATE, 2), pg
     raw = _f(entry.get("price"))
     if raw is None:
-        return 0.0
-    converted = _to_net(raw, entry.get("price_type") or "")
-    return converted if converted is not None else 0.0
+        return 0.0, 0.0
+    pt = (entry.get("price_type") or "").strip().lower()
+    if pt in ("brutto", "gross"):
+        return round(raw / VAT_RATE, 2), raw
+    # Default: treat raw as net (LTR convention), derive gross.
+    return raw, round(raw * VAT_RATE, 2)
 
 
-def _normalize_options(raw: Any) -> List[tuple[str, float]]:
-    """Return [(name, price_net), ...] from heterogeneous shapes (list of dicts/strings)."""
-    out: List[tuple[str, float]] = []
+def _normalize_options(raw: Any) -> List[tuple[str, float, float]]:
+    """Return [(name, price_net, price_gross), ...] from heterogeneous shapes
+    (list of dicts/strings, or single service_equipment-shaped dict)."""
+    out: List[tuple[str, float, float]] = []
     if isinstance(raw, list):
         for entry in raw:
             if isinstance(entry, dict):
                 name = (entry.get("name") or entry.get("description") or "").strip()
                 if name:
-                    out.append((name, _option_price_net(entry)))
+                    net, gross = _option_prices_net_gross(entry)
+                    out.append((name, net, gross))
             elif isinstance(entry, str) and entry.strip():
-                out.append((entry.strip(), 0.0))
+                out.append((entry.strip(), 0.0, 0.0))
     elif isinstance(raw, dict):
-        # service_equipment is a single object with optional components.
-        # When components exist, prefer them — the wrapper holds totals only.
         components = raw.get("components") or []
         if not components:
             name = (raw.get("name") or "").strip()
             if name:
-                out.append((name, _option_price_net(raw)))
+                net, gross = _option_prices_net_gross(raw)
+                out.append((name, net, gross))
         for comp in components:
             if isinstance(comp, dict):
                 cname = (comp.get("name") or "").strip()
                 if cname:
-                    out.append((cname, _option_price_net(comp)))
+                    net, gross = _option_prices_net_gross(comp)
+                    out.append((cname, net, gross))
     return out
 
 
@@ -132,27 +140,199 @@ def _split_paid_options(paid_options: Any) -> tuple[List[Dict[str, Any]], List[D
     return factory, service
 
 
-def _build_marketing_name(stan: Dict[str, Any], cs: Dict[str, Any]) -> str:
-    parts: List[str] = []
-    brand = stan.get("brand") or ""
-    model = stan.get("model") or ""
-    trim = cs.get("trim_level") or stan.get("trim_level") or ""
-    powertrain = cs.get("powertrain") or ""
-    transmission = cs.get("transmission") or stan.get("gearbox_name") or ""
-    body = cs.get("body_style") or stan.get("body_type_name") or ""
+# Marketing names for transmissions — pick the specific brand/family fragment
+# (DSG, S tronic, PDK …) when the raw text glues a generic word in front
+# (e.g. "Automatyczna, DSG 7-stopniowa"). Pure "Manualna 6-biegowa" /
+# "Automatyczna 8-stopniowa" stay intact because they're already specific.
+_TRANSMISSION_BRAND_PATTERNS = (
+    r"DSG\s*\d*[\w\-]*",
+    r"S[\s-]?tronic[\w\s\-]*",
+    r"Steptronic[\w\s\-]*",
+    r"Tiptronic[\w\s\-]*",
+    r"Multitronic[\w\s\-]*",
+    r"Powershift[\w\s\-]*",
+    r"PowerShift[\w\s\-]*",
+    r"Speedshift[\w\s\-]*",
+    r"AUTOTRONIC[\w\s\-]*",
+    r"PDK[\w\s\-]*",
+    r"EDC\s*\d*[\w\-]*",
+    r"CVT[\w\s\-]*",
+    r"e-?CVT[\w\s\-]*",
+    r"\d{1,2}[\s-]?G[\s-]?TRONIC[\w\s\-]*",
+    r"\d{1,2}[\s-]?(?:AT|MT|DCT|G-Tronic|G\s?Tronic)[\w\-]*",
+)
+
+# Generic words that on their own carry no marketing weight — we only drop
+# them when a more specific fragment exists in the same string.
+_GENERIC_TRANSMISSION_WORDS = ("automatyczna", "manualna", "ręczna", "reczna")
+
+
+def _extract_transmission_brand(text: str) -> str:
+    """Return the first branded gearbox fragment (DSG/S tronic/PDK/…) found in
+    `text`, or ''. Doesn't match plain '6-biegowa'/'8-stopniowa' — those are
+    handled by `_marketing_transmission` which keeps the surrounding context."""
+    if not text:
+        return ""
+    import re
+    for pat in _TRANSMISSION_BRAND_PATTERNS:
+        m = re.search(pat, text, flags=re.IGNORECASE)
+        if m:
+            return m.group(0).strip(" ,;.-")
+    return ""
+
+
+def _clean_transmission_text(text: str) -> str:
+    """Strip leading 'Automatyczna,' or 'Manualna,' prefixes (used when the raw
+    text combines generic + specific labels but has no branded keyword)."""
+    if not text:
+        return ""
+    s = str(text).strip(" ,;.-")
+    low = s.lower()
+    for word in _GENERIC_TRANSMISSION_WORDS:
+        # Drop 'Automatyczna,' / 'Automatyczna' when followed by another word.
+        if low.startswith(word + ","):
+            return s[len(word) + 1:].strip(" ,;.-")
+        if low.startswith(word + " ") and len(s) > len(word) + 1:
+            # Keep when it's followed by a dimensional descriptor like
+            # '6-biegowa' or '8-stopniowa' — the combined form is informative.
+            return s
+    return s
+
+
+def _marketing_transmission(
+    stan: Dict[str, Any], cs: Dict[str, Any], mai: Dict[str, Any]
+) -> str:
+    """Pick the most marketing-friendly gearbox name for the offer XLS.
+
+    Priority:
+      1. Branded fragment found inside `card_summary.transmission` (e.g. "DSG 7-stopniowa"
+         from "Automatyczna, DSG 7-stopniowa").
+      2. Branded fragment from `mapped_ai_data.transmission`.
+      3. Branded fragment from `stan.gearbox_name`.
+      4. Fallback to whichever raw value isn't blank — `cs.transmission` →
+         `mai.transmission` → `stan.gearbox_name` → `mai.transmission_type`.
+    """
+    sources = (
+        cs.get("transmission"),
+        mai.get("transmission"),
+        stan.get("gearbox_name"),
+        mai.get("gearbox"),
+    )
+    for src in sources:
+        branded = _extract_transmission_brand(str(src or ""))
+        if branded:
+            return branded
+    for src in sources:
+        cleaned = _clean_transmission_text(str(src or ""))
+        if cleaned and cleaned.lower() not in ("brak", "—", "none", "null"):
+            return cleaned
+    fallback = str(mai.get("transmission_type") or stan.get("transmission_type") or "").strip()
+    return fallback
+
+
+# Drive-train tokens we strip from the end of powertrain so they appear as
+# their own segment in marketing_name (e.g. "2.0 TSI 310 KM AWD" → powertrain
+# "2.0 TSI (310 KM)", drive "AWD"). Doesn't affect tokens that sit inside the
+# string, only trailing ones.
+_DRIVE_TRAIL_TOKENS = (
+    "AWD", "FWD", "RWD", "4x4", "4WD", "quattro", "xDrive", "sDrive", "4Motion",
+)
+
+
+def _strip_trailing_drive_token(text: str) -> str:
+    """Drop a trailing drive-train token from a powertrain string."""
+    s = text.strip(" ,;.-")
+    low = s.lower()
+    for tok in _DRIVE_TRAIL_TOKENS:
+        tlow = tok.lower()
+        if low.endswith(" " + tlow) or low.endswith("," + tlow) or low.endswith("-" + tlow):
+            return s[: -len(tok)].strip(" ,;.-")
+    return s
+
+
+def _marketing_powertrain(cs: Dict[str, Any], stan: Dict[str, Any]) -> str:
+    """Return engine label as 'X.X TFSI (150 KM)' or 'engine_designation (power KM)'.
+
+    Uses card_summary.powertrain when it already reads as a marketing string,
+    otherwise composes from engine_designation + power_hp. Preserves trailing
+    descriptors like 'EQ Boost', 'mHEV' that follow the KM token but strips
+    drive-train tokens (AWD/FWD/quattro/...) so they show as a separate
+    segment in the offer model name."""
+    raw = (cs.get("powertrain") or stan.get("powertrain") or "").strip()
+    raw = _strip_trailing_drive_token(raw)
+    power_hp = _f(cs.get("power_hp")) or _f(stan.get("power_hp"))
+
+    if raw:
+        import re
+        # Already contains "(NNN KM)" — return as-is, fully preserving suffixes.
+        if re.search(r"\(\s*\d+\s*KM\s*\)", raw, flags=re.IGNORECASE):
+            return raw
+        # Has "NNN KM" — wrap that fragment in parens, keep prefix and suffix.
+        m = re.search(r"(\d+)\s*KM", raw, flags=re.IGNORECASE)
+        if m:
+            wrapped = re.sub(
+                r"(\d+)\s*KM",
+                lambda mm: f"({mm.group(1)} KM)",
+                raw,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            # Collapse double spaces left by replacement.
+            return re.sub(r"\s+", " ", wrapped).strip()
+        # No KM in string — append from power_hp if available.
+        if power_hp:
+            return f"{raw} ({int(power_hp)} KM)"
+        return raw
+
+    eng = (cs.get("engine_designation") or "").strip()
+    if eng and power_hp:
+        return f"{eng} ({int(power_hp)} KM)"
+    if eng:
+        return eng
+    if power_hp:
+        return f"{int(power_hp)} KM"
+    return ""
+
+
+def _build_marketing_name(
+    stan: Dict[str, Any], cs: Dict[str, Any], mai: Dict[str, Any] | None = None
+) -> str:
+    """Compose 'MARKA MODEL Trim • Silnik (KM) • Skrzynia • Napęd • Nadwozie'
+    using bullet separators. Drops empty/'brak'/'—' parts and de-duplicates
+    fragments that already appear earlier in the chain (e.g. trim that
+    already contains the engine label)."""
+    mai = mai or {}
+    brand = (stan.get("brand") or "").strip().upper()
+    model = (stan.get("model") or "").strip().upper()
+    trim = (cs.get("trim_level") or stan.get("trim_level") or "").strip()
+    powertrain = _marketing_powertrain(cs, stan)
+    transmission = _marketing_transmission(stan, cs, mai)
+    drive = (
+        cs.get("drive_type") or stan.get("drive_type") or mai.get("drive_type") or ""
+    ).strip()
+    body = (cs.get("body_style") or stan.get("body_type_name") or mai.get("body_type") or "").strip()
+
+    head_parts: List[str] = []
     if brand:
-        parts.append(brand.upper())
+        head_parts.append(brand)
     if model:
-        parts.append(model.upper())
-    if trim and trim.lower() not in ("brak", "—"):
-        parts.append(trim)
-    if powertrain:
-        parts.append(powertrain)
-    if transmission and transmission.lower() not in ("brak", "—"):
-        parts.append(transmission)
-    if body and body.lower() not in ("brak", "—"):
-        parts.append(body)
-    return " ".join(p for p in parts if p).strip()
+        head_parts.append(model)
+    if trim and trim.lower() not in ("brak", "—", "none", "null"):
+        head_parts.append(trim)
+    head = " ".join(head_parts).strip()
+
+    tail: List[str] = []
+    for label in (powertrain, transmission, drive, body):
+        if not label:
+            continue
+        s = label.strip()
+        if not s or s.lower() in ("brak", "—", "none", "null"):
+            continue
+        if s.lower() in head.lower() or any(s.lower() in t.lower() for t in tail):
+            continue
+        tail.append(s)
+
+    return " • ".join([head, *tail]) if tail else head
 
 
 def _build_in_rate(stan: Dict[str, Any]) -> Dict[str, Any]:
@@ -463,6 +643,20 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     cs: Dict[str, Any] = stan.get("card_summary") or {}
     mai: Dict[str, Any] = stan.get("mapped_ai_data") or {}
 
+    # AUTO-generated kalkulacje save only flat top-level keys (no card_summary
+    # or mapped_ai_data). Pull the rich PDF-extracted spec from
+    # vehicle_synthesis so the marketing name still gets trim / powertrain /
+    # transmission / body / drive — without this, those rows show only
+    # "BRAND MODEL" in the offer XLS.
+    if not cs:
+        fallback_vid = stan.get("vehicle_id") or vehicle_id
+        if fallback_vid:
+            synth = _load_synthesis_fallback(fallback_vid)
+            if synth:
+                cs = synth.get("card_summary") or cs
+                if not mai:
+                    mai = synth.get("mapped_ai_data") or mai
+
     factory_raw, service_raw_from_paid = _split_paid_options(cs.get("paid_options"))
 
     factory = _normalize_options(stan.get("factory_options"))
@@ -484,8 +678,8 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         standard_strs = []
 
     base_price_net = _f(stan.get("base_price_net")) or _f(calc_data.get("base_price_net")) or 0.0
-    factory_total = sum(p for _, p in factory)
-    service_total = sum(p for _, p in service)
+    factory_total = sum(net for _, net, _ in factory)
+    service_total = sum(net for _, net, _ in service)
 
     contribution_pln = _f(item.get("contribution"))
     if contribution_pln is None or contribution_pln == 0.0:
@@ -499,7 +693,7 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
 
     in_rate = _build_in_rate(stan)
 
-    marketing_name = _build_marketing_name(stan, cs) or item.get("powertrain") or "—"
+    marketing_name = _build_marketing_name(stan, cs, mai) or item.get("powertrain") or "—"
 
     config_code = (stan.get("configuration_code") or item.get("vin_or_config") or "").strip()
     brand_str = (stan.get("brand") or item.get("brand") or "").strip()

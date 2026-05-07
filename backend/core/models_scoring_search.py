@@ -45,6 +45,16 @@ class OptionLineItem(BaseModel):
     category: Optional[str] = None
 
 
+class PackageSubFeature(BaseModel):
+    feature_name: str
+    confidence: float
+
+
+class PackageContentsResponse(BaseModel):
+    vehicle_id: str
+    packages: dict[str, List[PackageSubFeature]]
+
+
 class KalkulacjaSnapshotParams(BaseModel):
     """Calculation parameters carried alongside any price coming out of
     `vehicle_matrix_cache`. These come from the parent `ltr_kalkulacje.stan_json`
@@ -179,6 +189,11 @@ class OptionItem(BaseModel):
 class TrimsAndOptionsRequest(BaseModel):
     brands: Optional[List[str]] = None
     models: Optional[List[str]] = None
+    body_types: Optional[List[str]] = None
+    samar_class_ids: Optional[List[int]] = None
+    transmissions: Optional[List[str]] = None
+    drive_types: Optional[List[str]] = None
+    fuel_types: Optional[List[str]] = None
 
 
 class TrimsAndOptionsResponse(BaseModel):

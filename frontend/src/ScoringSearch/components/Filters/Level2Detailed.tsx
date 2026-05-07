@@ -143,7 +143,7 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
                               <Checkbox
                                 size="small"
                                 checked={isSel}
-                                onChange={() => toggleFeature(filter.feature_key, 'true', 1, false)}
+                                onChange={() => toggleFeature(filter.feature_key, 'true', 1, true)}
                                 sx={{ color: '#94a3b8', '&.Mui-checked': { color: '#3b82f6' }, py: 0.3 }}
                               />
                             }
@@ -171,9 +171,13 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
           {/* ── Standard equipment options ── */}
           {loadingTrims && !trimsAndOptions ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
-          ) : (!trimsAndOptions || ((trimsAndOptions.standard_options || []).length === 0 && (trimsAndOptions.paid_options || []).length === 0)) ? (
+          ) : !trimsAndOptions ? (
             <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 3, color: '#94a3b8' }}>
-              Brak danych wyposażenia dla wybranych filtrów.
+              Wybierz markę, model lub filtr, aby załadować cechy dedykowane (wyposażenie).
+            </Typography>
+          ) : ((trimsAndOptions.standard_options || []).length === 0 && (trimsAndOptions.paid_options || []).length === 0) ? (
+            <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 3, color: '#94a3b8' }}>
+              Brak cech dedykowanych dla obecnego zestawu filtrów.
             </Typography>
           ) : (
             <>

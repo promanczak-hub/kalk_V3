@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import re
 
 from datetime import datetime
 import time
@@ -28,6 +29,8 @@ from core.models_scoring_search import (
     TrimsAndOptionsResponse,
     OptionItem,
     OptionLineItem,
+    PackageContentsResponse,
+    PackageSubFeature,
     PriceForParamsResponse,
     SimilarBatchRequest,
     SimilarBatchResponse,
@@ -1216,6 +1219,27 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
 
             base_price = row.get("base_price")
             score = row.get("score_total_pct")
+
+            # Build matched_features list — every MUST_HAVE requirement that the
+            # vehicle satisfies (bool universal feature OR equipment chip). Since
+            # the post-filter above already rejected vehicles missing any
+            # required item, surviving rows have all required matches; the list
+            # gives the UI per-feature confirmation badges.
+            matched_features_list: list[str] = []
+            if universal_bool_keys:
+                veh_bools = vehicle_universal_bools.get(vid_str, set())
+                matched_features_list.extend(sorted(universal_bool_keys & veh_bools))
+            if opt_std_filter:
+                veh_std = vehicle_std_eq.get(vid_str, set())
+                matched_features_list.extend(
+                    f"opt_std:{n}" for n in sorted(opt_std_filter) if n in veh_std
+                )
+            if opt_paid_filter:
+                veh_paid = vehicle_paid_eq.get(vid_str, set())
+                matched_features_list.extend(
+                    f"opt_paid:{n}" for n in sorted(opt_paid_filter) if n in veh_paid
+                )
+
             all_matches.append(
                 ScoringSearchMatch(
                     vehicle_id=row.get("vehicle_id"),
@@ -1223,7 +1247,7 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                     model=row.get("model"),
                     version=row.get("version"),
                     match_score_pct=float(score) if score is not None else 100.0,
-                    matched_features=[],
+                    matched_features=matched_features_list,
                     missing_features=[],
                     best_monthly_price=None,
                     fuel_type=row.get("fuel"),
@@ -1584,11 +1608,27 @@ def get_trims_and_options(request: TrimsAndOptionsRequest) -> TrimsAndOptionsRes
 
     sb = supabase
     try:
+        samar_class_names: list[str] | None = None
+        if request.samar_class_ids:
+            samar_resp = _supabase_execute_with_retry(
+                sb.table("samar_classes")
+                .select("name")
+                .in_("id", request.samar_class_ids)
+            )
+            samar_class_names = [
+                r["name"] for r in (samar_resp.data or []) if r.get("name")
+            ] or None
+
         resp = sb.rpc(
             "rpc_get_trims_and_options",
             {
                 "p_brands": request.brands,
                 "p_models": request.models,
+                "p_body_types": request.body_types,
+                "p_samar_class_names": samar_class_names,
+                "p_transmissions": request.transmissions,
+                "p_drive_types": request.drive_types,
+                "p_fuel_types": request.fuel_types,
             },
         ).execute()
 
@@ -2125,6 +2165,61 @@ def get_price_variants(
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch price variants: {e}"
         )
+
+
+# ── Package decomposition (LLM-inferred sub-features per package) ─────────────
+
+
+_PACKAGE_ORIGIN_RE = re.compile(r"\(z:\s*(.+?)\)\s*$")
+
+
+@router.get(
+    "/scoring-search/vehicle/{vehicle_id}/package-contents",
+    response_model=PackageContentsResponse,
+)
+def get_vehicle_package_contents(vehicle_id: str) -> PackageContentsResponse:
+    """Return LLM-decomposed sub-features grouped by parent package.
+
+    Reads `vehicle_feature_evidence` rows where `source_type='package_decomposition'`
+    written by `feature_enrichment._llm_decompose_packages()`. The parent package
+    name is encoded in `value_text` as "{sub_feature} (z: {package_name})".
+    """
+    sb = supabase
+    try:
+        resp = (
+            sb.schema("reverse_search")
+            .table("vehicle_feature_evidence")
+            .select("value_text, confidence, universal_features(display_name)")
+            .eq("source_vehicle_id", vehicle_id)
+            .eq("source_type", "package_decomposition")
+            .execute()
+        )
+    except Exception as e:
+        logger.exception("Error fetching package contents [%s]: %s", vehicle_id, e)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch package contents: {e}"
+        )
+
+    packages: dict[str, list[PackageSubFeature]] = {}
+    for row in resp.data or []:
+        value_text = row.get("value_text") or ""
+        m = _PACKAGE_ORIGIN_RE.search(value_text)
+        if not m:
+            continue
+        package_name = m.group(1).strip()
+        uf = row.get("universal_features") or {}
+        display_name = (uf.get("display_name") or "").strip()
+        if not display_name:
+            continue
+        try:
+            confidence = float(row.get("confidence") or 0.0)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        packages.setdefault(package_name, []).append(
+            PackageSubFeature(feature_name=display_name, confidence=confidence)
+        )
+
+    return PackageContentsResponse(vehicle_id=vehicle_id, packages=packages)
 
 
 # ── Cache management ──────────────────────────────────────────────────────────

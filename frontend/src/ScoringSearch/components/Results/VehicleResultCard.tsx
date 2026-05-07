@@ -5,8 +5,9 @@ import type { SearchContext } from '../../types';
 import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
-import type { ScoredVehicle } from '../../types';
+import type { ScoredVehicle, PackageContentsMap } from '../../types';
 import { KalkulacjaParamsRow } from './KalkulacjaParamsRow';
+import { isPackageName } from '../../utils/isPackageName';
 
 interface VehicleResultCardProps {
   car: ScoredVehicle;
@@ -50,6 +51,11 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   const [factoryOptionsOpen, setFactoryOptionsOpen] = useState(false);
   const [serviceOptionsOpen, setServiceOptionsOpen] = useState(false);
 
+  // LLM-decomposed package contents — lazy-loaded the first time the user
+  // expands "Opcje fabryczne" on a card containing at least one package row.
+  const [openPackages, setOpenPackages] = useState<Set<string>>(new Set());
+  const [packageContents, setPackageContents] = useState<PackageContentsMap | null>(null);
+
   // For pinned-calc cards, fetch price scoped to the specific kalkulacja_id.
   // Falls through to the batch priceData when no pin is set.
   const [pinnedPrice, setPinnedPrice] = useState<PriceForParams | null>(null);
@@ -73,6 +79,23 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
       .finally(() => { if (!cancelled) setPinnedPriceLoading(false); });
     return () => { cancelled = true; };
   }, [pinnedKalkulacjaId, vehicleId, targetDuration, targetAnnualMileage]);
+
+  React.useEffect(() => {
+    if (!factoryOptionsOpen || packageContents !== null) return;
+    const items = car.factory_options ?? [];
+    if (!items.some((o) => isPackageName(o.name))) return;
+    let cancelled = false;
+    import('../../../lib/apiClient')
+      .then(({ apiClient }) =>
+        apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/package-contents`),
+      )
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data: { packages: PackageContentsMap }) => {
+        if (!cancelled) setPackageContents(data.packages ?? {});
+      })
+      .catch(() => { if (!cancelled) setPackageContents({}); });
+    return () => { cancelled = true; };
+  }, [factoryOptionsOpen, packageContents, car.factory_options, vehicleId]);
 
   const matchedFeatures = car.matched_features || [];
   const missingFeatures = car.missing_features || [];
@@ -428,19 +451,61 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                     </button>
                     {expandable && factoryOptionsOpen && (
                       <ul className="mt-1 ml-3 flex flex-col gap-0.5">
-                        {items.map((opt, i) => (
-                          <li key={`fo-${i}-${opt.name}`} className="flex justify-between gap-2">
-                            <span className="text-slate-600 truncate">· {opt.name}</span>
-                            <span className="tabular-nums whitespace-nowrap text-slate-700">
-                              {opt.price_net != null ? (
-                                <>
-                                  {fmtPLN(opt.price_net)} PLN
-                                  <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_gross ?? opt.price_net * 1.23)} brutto)</span>
-                                </>
-                              ) : '—'}
-                            </span>
-                          </li>
-                        ))}
+                        {items.map((opt, i) => {
+                          const subFeatures = isPackageName(opt.name)
+                            ? packageContents?.[opt.name] ?? []
+                            : [];
+                          const pkgExpandable = subFeatures.length > 0;
+                          const pkgOpen = openPackages.has(opt.name);
+                          const priceNode = opt.price_net != null ? (
+                            <>
+                              {fmtPLN(opt.price_net)} PLN
+                              <span className="text-slate-500 ml-1.5">({fmtPLN(opt.price_gross ?? opt.price_net * 1.23)} brutto)</span>
+                            </>
+                          ) : '—';
+                          return (
+                            <li key={`fo-${i}-${opt.name}`} className="flex flex-col">
+                              {pkgExpandable ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenPackages((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(opt.name)) next.delete(opt.name);
+                                    else next.add(opt.name);
+                                    return next;
+                                  })}
+                                  className="w-full flex justify-between gap-2 text-left hover:text-slate-700 cursor-pointer"
+                                >
+                                  <span className="text-slate-600 truncate flex items-center gap-1">
+                                    · {opt.name}
+                                    {pkgOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                  </span>
+                                  <span className="tabular-nums whitespace-nowrap text-slate-700">{priceNode}</span>
+                                </button>
+                              ) : (
+                                <div className="flex justify-between gap-2">
+                                  <span className="text-slate-600 truncate">· {opt.name}</span>
+                                  <span className="tabular-nums whitespace-nowrap text-slate-700">{priceNode}</span>
+                                </div>
+                              )}
+                              {pkgExpandable && pkgOpen && (
+                                <ul className="mt-0.5 ml-6 flex flex-col gap-0.5">
+                                  {subFeatures.map((sf, j) => (
+                                    <li key={`fo-${i}-sf-${j}`} className="flex items-center gap-1 text-slate-600">
+                                      <Sparkles
+                                        className="w-3 h-3 text-amber-500 shrink-0"
+                                        aria-label="Zawartość wnioskowana przez AI"
+                                      />
+                                      <span className="truncate" title="Zawartość wnioskowana przez AI (LLM)">
+                                        {sf.feature_name}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

@@ -1,9 +1,11 @@
 import json
 import logging
 import asyncio
+import requests
 from typing import Any, Dict
 from pydantic import BaseModel
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi.responses import Response
 from core.celery_tasks import process_document_task_from_storage
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.database import supabase as supabase_client
@@ -359,6 +361,29 @@ def remap_classification(request: MapDataRequest) -> Dict[str, Any]:
             status_code=500,
             detail=f"Classification pipeline error: {str(e)}",
         )
+
+
+@router.get("/pdf-proxy")
+def proxy_pdf(url: str):
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return Response(
+            content=response.content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": 'inline; filename="document.pdf"',
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",
+                "Cross-Origin-Resource-Policy": "cross-origin",
+            },
+        )
+    except Exception as e:
+        print(f"Error proxying PDF: {e}")
+        raise HTTPException(status_code=500, detail="Failed to proxy PDF")
 
 
 _MIME_MAP: dict[str, str] = {

@@ -70,15 +70,28 @@ export const useFilterDictionaries = ({ searchContext, onLevel2 }: UseFilterDict
       };
 
       const fetchTrimsAndOptions = async () => {
-        // RPC rpc_get_trims_and_options accepts NULL/NULL and returns the full
-        // catalog of equipment across all completed vehicles. The previous
-        // brand+model gate left users staring at "Wybierz model…" even though
-        // the dataset was searchable globally.
+        const hasAnyFilter =
+          searchContext.brands.length > 0 ||
+          searchContext.models.length > 0 ||
+          searchContext.bodyTypes.length > 0 ||
+          searchContext.samarClassIds.length > 0 ||
+          searchContext.transmissions.length > 0 ||
+          searchContext.driveTypes.length > 0 ||
+          searchContext.fuelTypes.length > 0;
+        if (!hasAnyFilter) {
+          setTrimsAndOptions(null);
+          return;
+        }
         setLoadingTrims(true);
         try {
           const payload = {
             brands: searchContext.brands.length > 0 ? searchContext.brands : null,
             models: searchContext.models.length > 0 ? searchContext.models : null,
+            body_types: searchContext.bodyTypes.length > 0 ? searchContext.bodyTypes : null,
+            samar_class_ids: searchContext.samarClassIds.length > 0 ? searchContext.samarClassIds : null,
+            transmissions: searchContext.transmissions.length > 0 ? searchContext.transmissions : null,
+            drive_types: searchContext.driveTypes.length > 0 ? searchContext.driveTypes : null,
+            fuel_types: searchContext.fuelTypes.length > 0 ? searchContext.fuelTypes : null,
           };
           const res = await apiClient.fetch('/api/scoring-search/trims-and-options', {
             method: 'POST',
@@ -100,7 +113,16 @@ export const useFilterDictionaries = ({ searchContext, onLevel2 }: UseFilterDict
       fetchTrimsAndOptions();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchContext.brands.length, searchContext.models.length, searchContext.bodyTypes.length, onLevel2]);
+  }, [
+    searchContext.brands.length,
+    searchContext.models.length,
+    searchContext.bodyTypes.length,
+    searchContext.samarClassIds.length,
+    searchContext.transmissions.length,
+    searchContext.driveTypes.length,
+    searchContext.fuelTypes.length,
+    onLevel2,
+  ]);
 
   // ── Derived Data / Memos ──
 

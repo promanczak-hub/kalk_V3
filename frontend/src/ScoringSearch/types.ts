@@ -125,6 +125,12 @@ export interface OptionLineItem {
   category?: string | null;
 }
 
+export interface PackageSubFeature {
+  feature_name: string;
+  confidence: number;
+}
+export type PackageContentsMap = Record<string, PackageSubFeature[]>;
+
 export interface BestFitVariant {
   duration_months: number;
   annual_mileage: number;
