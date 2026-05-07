@@ -23,6 +23,20 @@ RUN printf 'server {\n\
   root /usr/share/nginx/html;\n\
   index index.html;\n\
   client_max_body_size 50m;\n\
+  types {\n\
+    text/javascript js mjs;\n\
+    text/css css;\n\
+    text/html html htm;\n\
+    image/png png;\n\
+    image/jpeg jpg jpeg;\n\
+    image/svg+xml svg;\n\
+    image/webp webp;\n\
+    image/x-icon ico;\n\
+    application/json json map;\n\
+    application/wasm wasm;\n\
+    font/woff woff;\n\
+    font/woff2 woff2;\n\
+  }\n\
   location /api/ {\n\
     proxy_pass http://backend:8000;\n\
     proxy_http_version 1.1;\n\

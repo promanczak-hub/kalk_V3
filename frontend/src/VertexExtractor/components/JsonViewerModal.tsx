@@ -10,9 +10,10 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import type { UploadedDocument } from "../types";
+import type { UploadedDocument, PriceValidation } from "../types";
 import { API_BASE_URL } from "../../config/env";
 import { apiClient } from "../../lib/apiClient";
+import { PriceValidationBanner } from "./VehicleTableParts/PriceValidationBanner";
 
 // Dodajemy pomocniczy interfejs
 interface JsonViewerModalProps {
@@ -65,6 +66,16 @@ export function JsonViewerModal({
       setIsSendingToKalk(false);
     }
   };
+
+  const validation = useMemo<PriceValidation | null>(() => {
+    if (!activeJsonView?.jsonResult) return null;
+    try {
+      const parsed = JSON.parse(activeJsonView.jsonResult);
+      return parsed?.card_summary?._validation ?? parsed?._validation ?? null;
+    } catch {
+      return null;
+    }
+  }, [activeJsonView?.jsonResult]);
 
   const highlightedJson = useMemo(() => {
     const rawJson = activeJsonView?.jsonResult || "Brak danych JSON.";
@@ -202,7 +213,13 @@ export function JsonViewerModal({
             </div>
           </div>
         </div>
-        
+
+        {validation && (
+          <div className="px-4 pt-3 pb-3 border-b border-slate-100 bg-slate-50 shrink-0">
+            <PriceValidationBanner validation={validation} />
+          </div>
+        )}
+
         <div className="p-6 overflow-y-auto flex-1 bg-white custom-scrollbar h-[500px]">
           <pre
             ref={contentRef}
