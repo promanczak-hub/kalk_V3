@@ -2,6 +2,8 @@ import { useMemo, useEffect } from "react";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
   ThemeProvider,
   createTheme,
@@ -33,11 +35,26 @@ import OfferCartFab from "./components/OfferCart/OfferCartFab";
 
 /**
  * Route definitions — single source of truth for navigation.
+ *
+ * `external: true` oznacza link otwierany w nowej karcie (Supabase
+ * Dashboard pod osobnym hostem). External routes są wyświetlane jako
+ * MUI <Tab component="a"> i NIE są częścią <Routes>.
  */
+const ADMIN_URL =
+  (import.meta.env.VITE_ADMIN_URL as string | undefined) || "";
+
 const ROUTES = [
-  { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" /> },
-  { path: "/search", label: "Szukaj Ofert", icon: <SearchOutlinedIcon fontSize="small" /> },
-  { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" /> },
+  { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" />, external: false },
+  { path: "/search", label: "Szukaj Ofert", icon: <SearchOutlinedIcon fontSize="small" />, external: false },
+  { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" />, external: false },
+  ...(ADMIN_URL
+    ? [{
+        path: ADMIN_URL,
+        label: "Panel admin",
+        icon: <AdminPanelSettingsOutlinedIcon fontSize="small" />,
+        external: true as const,
+      }]
+    : []),
 ] as const;
 
 interface AppContentProps {
@@ -48,20 +65,30 @@ function AppContent({ mode }: AppContentProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // External (Supabase Dashboard) nie matchuje location.pathname, więc activeTab
+  // odpowiada tylko wewnętrznym routes.
   const currentTabIndex = ROUTES.findIndex(
-    (r) => r.path === location.pathname
+    (r) => !r.external && r.path === location.pathname
   );
   const activeTab = currentTabIndex >= 0 ? currentTabIndex : 0;
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    navigate(ROUTES[newValue].path);
+    const route = ROUTES[newValue];
+    if (!route) return;
+    if (route.external) {
+      // Otwórz w nowej karcie — nie zmieniaj activeTab w głównym oknie.
+      window.open(route.path, "_blank", "noopener,noreferrer");
+      return;
+    }
+    navigate(route.path);
   };
 
   // Listen for global tab switch events (backward compat)
   useEffect(() => {
     const handleSwitchTab = (event: CustomEvent<{ tabIndex: number }>) => {
       const route = ROUTES[event.detail.tabIndex];
-      if (route) navigate(route.path);
+      if (!route || route.external) return;
+      navigate(route.path);
     };
 
     window.addEventListener('switchTab', handleSwitchTab as EventListener);
@@ -144,7 +171,21 @@ function AppContent({ mode }: AppContentProps) {
             }}
           >
             {ROUTES.map((route) => (
-              <Tab key={route.path} label={route.label} icon={route.icon} iconPosition="start" />
+              <Tab
+                key={route.path}
+                label={
+                  route.external ? (
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                      {route.label}
+                      <OpenInNewIcon sx={{ fontSize: 12, opacity: 0.7 }} />
+                    </Box>
+                  ) : (
+                    route.label
+                  )
+                }
+                icon={route.icon}
+                iconPosition="start"
+              />
             ))}
           </Tabs>
 

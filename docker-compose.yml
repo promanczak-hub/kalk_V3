@@ -29,6 +29,7 @@ services:
         - VITE_API_URL=http://localhost:8000
         - VITE_SUPABASE_URL=http://localhost:3000
         - VITE_SUPABASE_ANON_KEY=local_parity_key
+        - VITE_ADMIN_URL=${VITE_ADMIN_URL:-https://supabase.com/dashboard/project/gnpsdiarmwvqhqbyetce/editor}
     ports:
       - "5173:80"
     depends_on:
@@ -77,6 +78,11 @@ services:
       - AUTH_ENABLED=false
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
+    # Dev-only bind mount: edycje w backend/tasks/ wymagają tylko
+    # `docker compose restart celery_worker` zamiast pełnego rebuilda.
+    # Prod (docker-compose.prod.yml) nie ma tego mountu — obraz immutable.
+    volumes:
+      - ./backend:/app
     depends_on:
       - redis
     healthcheck:
@@ -99,6 +105,9 @@ services:
       - AUTH_ENABLED=false
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
+    # Dev-only bind mount — patrz comment przy celery_worker.
+    volumes:
+      - ./backend:/app
     depends_on:
       - redis
     restart: unless-stopped
