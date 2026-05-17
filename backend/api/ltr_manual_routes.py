@@ -1,10 +1,9 @@
 import logging
-from typing import Any, Dict, cast
+from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 
 from api.schemas.calculator import CalculatorInput
-from core.database import supabase
-from core.models import ControlCenterSettings
+from core.control_center import fetch_control_center_settings
 from core.calculation_service import CalculationService
 
 router = APIRouter(prefix="/api/ltr", tags=["LTR Manual Calculator"])
@@ -18,14 +17,7 @@ def calculate_manual(data: CalculatorInput) -> Dict[str, Any]:
     """
     try:
         # 1. Pobierz ustawienia globalne z Control Center
-        response = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=404, detail="Control center settings not found"
-            )
-
-        response_data = cast(Any, response.data[0])
-        settings = ControlCenterSettings(**response_data)
+        settings = fetch_control_center_settings()
 
         # 2. Uruchom serwis kalkulacyjny
         calc_service = CalculationService(data=data, settings=settings)

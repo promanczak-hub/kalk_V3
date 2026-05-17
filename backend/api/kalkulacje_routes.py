@@ -882,7 +882,6 @@ def recalculate_kalkulacja(kalk_id: str):
 def get_smart_variants(kalk_id: str):
     """Generates 3 smart variants (Base, Best Value, Low Monthly) for a given calculation."""
     from api.schemas.calculator import CalculatorInput
-    from core.models import ControlCenterSettings
     from core.LTRKalkulator import LTRKalkulator
 
     try:
@@ -922,8 +921,8 @@ def get_smart_variants(kalk_id: str):
                 detail=detail,
             )
 
-        cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-        cc_settings = ControlCenterSettings(**cc_res.data[0])
+        from core.control_center import fetch_control_center_settings
+        cc_settings = fetch_control_center_settings()
 
         engine = LTRKalkulator(input_data=calc_input, settings=cc_settings)
         matrix_cells = engine.build_matrix()
@@ -1012,17 +1011,14 @@ def get_smart_variants(kalk_id: str):
 def debug_calculation_pipeline(vehicle_id: str, req: dict):
     from api.schemas.calculator import CalculatorInput, VehicleOptions
     from core.PipelineDebugger import PipelineDebugger
-    from core.models import ControlCenterSettings
-    from typing import cast, Any, Dict
+    from core.control_center import fetch_control_center_settings
 
     try:
         # Reconstruct Control Center Settings
-        cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not cc_res.data:
-            raise HTTPException(status_code=500, detail="Brak ustawieĹ„ CC")
-
-        response_data = cast(Dict[str, Any], cc_res.data[0])
-        settings = ControlCenterSettings(**response_data)
+        try:
+            settings = fetch_control_center_settings()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Brak ustawien CC: {e}")
 
         # 1. Map options
         factory_opts = []

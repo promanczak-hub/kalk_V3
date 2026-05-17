@@ -1,10 +1,9 @@
 import logging
-from typing import Any, Dict, cast
+from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 
 from api.schemas.calculator import CalculatorInput
-from core.database import supabase
-from core.models import ControlCenterSettings
+from core.control_center import fetch_control_center_settings
 
 router = APIRouter()
 
@@ -14,13 +13,7 @@ def calculate_matrix(data: CalculatorInput) -> Dict[str, Any]:
     try:
         from core.calculation_service import CalculationService
 
-        response = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=404, detail="Control center settings not found"
-            )
-        response_data = cast(Any, response.data[0])
-        settings = ControlCenterSettings(**response_data)
+        settings = fetch_control_center_settings()
 
         # Wykorzystanie wzorca UseCase/Service z domeny calculations
         calc_service = CalculationService(data=data, settings=settings)
@@ -48,13 +41,7 @@ def calculate_trace(data: CalculatorInput) -> Dict[str, Any]:
     try:
         from core.calculation_service import CalculationService
 
-        response = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not response.data:
-            raise HTTPException(
-                status_code=404, detail="Control center settings not found"
-            )
-        response_data = cast(Any, response.data[0])
-        settings = ControlCenterSettings(**response_data)
+        settings = fetch_control_center_settings()
 
         calc_service = CalculationService(data=data, settings=settings)
         matrix_cells, trace_data = calc_service.generate_single_trace()

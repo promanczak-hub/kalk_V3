@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import uuid
 from typing import Any, Dict, List, Optional, cast
@@ -387,12 +388,12 @@ def _compute_matrix_breakdown(
     try:
         from api.schemas.calculator import CalculatorInput
         from core.LTRKalkulator import LTRKalkulator
-        from core.models import ControlCenterSettings
+        from core.control_center import fetch_control_center_settings
 
-        settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-        if not settings_res.data:
+        try:
+            settings = fetch_control_center_settings()
+        except Exception:
             return None, None, None, None, None
-        settings = ControlCenterSettings(**cast(Dict[str, Any], settings_res.data[0]))
 
         # Older stan_json rows have None for fields that the schema now types as
         # required-with-default (e.g. inne_koszty_serwisowania_netto: float = 0.0).
@@ -402,7 +403,13 @@ def _compute_matrix_breakdown(
         try:
             calc_input = CalculatorInput(**stan_clean)
         except Exception as ve:
-            logger.info("CalculatorInput validation failed: %s", str(ve)[:300])
+            # Promoted to warning + exc_info: when fin/tech split silently
+            # disappears in the XLS we need to see *which* field failed, not
+            # just notice that K/L/J turned red.
+            logger.warning(
+                "CalculatorInput validation failed (term=%s, mileage=%s): %s",
+                term, annual_mileage, str(ve)[:500], exc_info=True,
+            )
             return None, None, None, None, None
         if applied_margin_pct is not None:
             calc_input.pricing_margin_pct = float(applied_margin_pct)
@@ -445,7 +452,12 @@ def _compute_matrix_breakdown(
 
         return fin, tech, stawka, marginal, ilosc_opon
     except Exception as e:
-        logger.info("matrix breakdown skipped: %s", str(e)[:200])
+        # Promoted to warning + exc_info: silent split-loss in the XLS comes
+        # from this except, so we want the full traceback in the log.
+        logger.warning(
+            "matrix breakdown skipped (term=%s, mileage=%s): %s",
+            term, annual_mileage, str(e)[:300], exc_info=True,
+        )
     return None, None, None, None, None
 
 
@@ -580,15 +592,57 @@ def _resolve_kalk_id_via_matrix_cache(
     return None
 
 
+def _load_package_contents_map(vehicle_id: Optional[str]) -> Dict[str, List[str]]:
+    """Lower-cased {package_name: [sub_feature_name, ...]} for offer XLS.
+
+    Wraps `feature_enrichment.fetch_package_contents()` and drops confidence —
+    the XLS doesn't display it. Lower-cased key + sorted sub-features for
+    stable, case-insensitive matching against option names in the offer.
+    Returns {} on miss/error (XLS just won't render expandable rows)."""
+    if not vehicle_id:
+        return {}
+    try:
+        from core.feature_enrichment import fetch_package_contents
+
+        raw = fetch_package_contents(vehicle_id)
+    except Exception as e:
+        logger.info("package contents skipped [%s]: %s", vehicle_id, str(e)[:200])
+        return {}
+    return {
+        pkg.strip().lower(): sorted({name for name, _conf in subs})
+        for pkg, subs in raw.items()
+        if subs
+    }
+
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
+
+
+def _kalk_id_from_item_id(item_id: Any) -> Optional[str]:
+    """Cart items added from the VertexExtractor matrix encode the kalkulacja
+    UUID as the prefix of `item.id` (format: `<kalk_uuid>_<term>_<contract_km>`)
+    but historically didn't propagate it into calculation_data. Pull it back
+    from the prefix so legacy cart entries still enrich properly."""
+    if not item_id or not isinstance(item_id, str):
+        return None
+    m = _UUID_RE.match(item_id)
+    return m.group(0) if m else None
+
+
 def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """Pull stan_json + numer_kalkulacji + matrix breakdown for a single offer item."""
     calc_data = item.get("calculation_data") or {}
     kalk_id = (
         calc_data.get("kalkulacja_id")
         or item.get("kalkulacja_id")
+        or _kalk_id_from_item_id(item.get("id"))
     )
     vehicle_id = (
         item.get("vehicle_id")
+        or calc_data.get("vehicle_id")
         or _resolve_vehicle_id_from_calc_data(calc_data)
     )
 
@@ -805,6 +859,11 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "marginal_per_km": marginal_per_km,
         "overuse_fee": overuse_fee,
         "notes": (item.get("notes") or "").strip(),
+        # {package_name_lower: [sub_feature_name, ...]} — used by offer XLS to
+        # render expandable rows under each package option. Lower-cased key
+        # so the generator can match against factory/dealer option names
+        # regardless of original casing.
+        "package_contents": _load_package_contents_map(vehicle_id),
     }
     return enriched
 

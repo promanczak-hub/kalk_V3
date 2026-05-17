@@ -9,7 +9,7 @@ from datetime import datetime
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from celery.result import AsyncResult
 
@@ -19,6 +19,8 @@ from core.celery_app import celery_app
 from core.models_scoring_search import (
     AvailableFiltersRequest,
     BestFitVariant,
+    ComparisonSnapshotRequest,
+    ComparisonSnapshotResponse,
     ScoringSearchRequest,
     ScoringSearchResponse,
     ScoringSearchMatch,
@@ -34,6 +36,8 @@ from core.models_scoring_search import (
     PriceForParamsResponse,
     SimilarBatchRequest,
     SimilarBatchResponse,
+    VehicleSnapshot,
+    WrCurvePoint,
 )
 from typing import List, Dict
 from core.redis_cache import (
@@ -167,11 +171,35 @@ def _fetch_kalkulacja_snapshot_params(
     / auto zastępcze / serwis flags). Returns a map keyed by str(kalkulacja_id)
     → dict suitable for splatting into PriceForParamsResponse / SimilarVehicleMatch.
     Silent-fails to an empty dict on RPC error so a snapshot fetch glitch
-    never breaks the price endpoint."""
+    never breaks the price endpoint.
+
+    Bank margin / WIBOR fallback: kalkulacje saved before the frontend reliably
+    wrote these fields have stan_json.{margin,wibor}_pct = null. LTRKalkulator
+    falls back to ControlCenterSettings.{bank_spread,default_wibor} when
+    computing the rate, so we apply the same fallback here — the UI then
+    reflects what was actually used."""
     out: dict[str, dict[str, Any]] = {}
     ids = sorted({str(x) for x in kalk_ids if x})
     if not ids:
         return out
+
+    fb_wibor: float | None = None
+    fb_margin: float | None = None
+    try:
+        # Admin client: control_center has RLS deny-all for anon, but
+        # service-role bypasses it. Matches how LTRKalkulator reads CC.
+        # Table is EAV (key/value) — read via adapter, not raw .eq("id", 1).
+        from core.control_center import fetch_control_center_row
+
+        cc_row = fetch_control_center_row(
+            client=get_admin_client(),
+            keys=["default_wibor", "bank_spread"],
+        )
+        fb_wibor = _coerce_float(cc_row.get("default_wibor"))
+        fb_margin = _coerce_float(cc_row.get("bank_spread"))
+    except Exception:
+        logger.exception("control_center fallback fetch failed (non-fatal)")
+
     try:
         resp = supabase.table("ltr_kalkulacje").select("id, stan_json").in_("id", ids).execute()
     except Exception:
@@ -182,12 +210,14 @@ def _fetch_kalkulacja_snapshot_params(
         stan = row.get("stan_json") or {}
         if not isinstance(stan, dict):
             continue
+        bank_margin = _coerce_float(stan.get("margin_pct"))
+        wibor = _coerce_float(stan.get("wibor_pct"))
         out[kid] = {
             "discount_pct": _coerce_float(stan.get("discount_pct")),
             # `margin_pct` in stan_json is the BANK margin (financing). The
             # client/sales margin is derived per-variant from the matrix grid.
-            "bank_margin_pct": _coerce_float(stan.get("margin_pct")),
-            "wibor_pct": _coerce_float(stan.get("wibor_pct")),
+            "bank_margin_pct": bank_margin if bank_margin is not None else fb_margin,
+            "wibor_pct": wibor if wibor is not None else fb_wibor,
             "tires_included": _coerce_bool(stan.get("z_oponami")),
             "tire_buyback": _coerce_bool(stan.get("odkup_opon_enabled")),
             "insurance_included": _coerce_bool(stan.get("express_pays_insurance")),
@@ -239,6 +269,9 @@ def _supabase_execute_with_retry(query_obj: Any, max_retries: int = 3) -> Any:
                 or "unreachable" in err_str
                 or "timeout" in err_str
                 or "connection" in err_str
+                or "ssl" in err_str
+                or "eof" in err_str
+                or "protocol" in err_str
             ):
                 logger.warning(
                     "Supabase connection issue (attempt %d/%d): %s",
@@ -1137,6 +1170,29 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                     vehicle_std_eq[vid] = std_set
                     vehicle_paid_eq[vid] = paid_set
 
+                # Also include package sub-features so a filter like
+                # `opt_paid:system 360"` matches vehicles where the sub-feature is
+                # nested inside a package (e.g. "Pakiet IMMERSIVE"). Source:
+                # reverse_search.vehicle_feature_evidence rows written by the LLM
+                # decomposer, joined to universal_features.display_name.
+                if opt_paid_filter:
+                    sub_resp = _supabase_execute_with_retry(
+                        sb.schema("reverse_search")
+                        .table("vehicle_feature_evidence")
+                        .select("source_vehicle_id, universal_features(display_name)")
+                        .eq("source_type", "package_decomposition")
+                        .in_("source_vehicle_id", vid_list)
+                    )
+                    for s in sub_resp.data or []:
+                        vid = str(s.get("source_vehicle_id") or "")
+                        if not vid:
+                            continue
+                        uf = s.get("universal_features") or {}
+                        name = (uf.get("display_name") or "").strip().lower()
+                        if not name:
+                            continue
+                        vehicle_paid_eq.setdefault(vid, set()).add(name)
+
         vehicle_universal_bools: dict[str, set[str]] = {}
         if universal_bool_keys:
             vid_list = [str(r.get("vehicle_id")) for r in rows if r.get("vehicle_id")]
@@ -1201,13 +1257,17 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
                 if row_body not in body_style_filter:
                     continue
 
-            # Equipment chip filters — vehicle must contain ALL selected names.
+            # Equipment chip filters — OR within each facet (vehicle keeps if it
+            # has ANY of the selected names), AND across facets (std AND paid).
+            # Standard e-commerce multi-select semantics: ticking 3 boxes asks
+            # "any of these", not "all of these". Cross-facet AND keeps the
+            # filter useful when combining categories.
             vid_str = str(row.get("vehicle_id") or "")
             if opt_std_filter is not None:
-                if not opt_std_filter.issubset(vehicle_std_eq.get(vid_str, set())):
+                if not (opt_std_filter & vehicle_std_eq.get(vid_str, set())):
                     continue
             if opt_paid_filter is not None:
-                if not opt_paid_filter.issubset(vehicle_paid_eq.get(vid_str, set())):
+                if not (opt_paid_filter & vehicle_paid_eq.get(vid_str, set())):
                     continue
             # Universal boolean feature_keys — vehicle must have ALL keys
             # resolved to value_bool=true with a "present" status.
@@ -1220,11 +1280,11 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             base_price = row.get("base_price")
             score = row.get("score_total_pct")
 
-            # Build matched_features list — every MUST_HAVE requirement that the
-            # vehicle satisfies (bool universal feature OR equipment chip). Since
-            # the post-filter above already rejected vehicles missing any
-            # required item, surviving rows have all required matches; the list
-            # gives the UI per-feature confirmation badges.
+            # Build matched_features list — every selected requirement that the
+            # vehicle actually satisfies. With OR-within-facet semantics, a
+            # surviving vehicle may have only a subset of the ticked options
+            # (universal still AND, std/paid OR), so we explicitly list only
+            # the intersections to give the UI accurate per-feature badges.
             matched_features_list: list[str] = []
             if universal_bool_keys:
                 veh_bools = vehicle_universal_bools.get(vid_str, set())
@@ -1455,6 +1515,28 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             except Exception:
                 logger.exception("fit_to_budget sweep failed; leaving best_fit_variant=None")
 
+        # ── 6. Default snapshot for the comparison-chart view ──
+        # Attach the cost decomposition (WR%, koszty techniczne, TCO/mc) for the
+        # default (36mc, 30000 km) pair, sourced from vehicle_matrix_cache. Lets
+        # the chart view render immediately without an extra round-trip.
+        if vehicle_ids_in_results:
+            step = "attach_default_snapshot"
+            try:
+                snap_rows = _fetch_snapshot_rows(vehicle_ids_in_results, 30000)
+                rows_by_vehicle_snap: dict[str, list[dict[str, Any]]] = {}
+                for r in snap_rows:
+                    rows_by_vehicle_snap.setdefault(str(r.get("vehicle_id")), []).append(r)
+                for m in all_matches:
+                    vid = str(m.vehicle_id)
+                    m.default_snapshot = _build_snapshot_for_vehicle(
+                        rows_by_vehicle_snap.get(vid, []),
+                        vehicle_id=vid,
+                        target_months=36,
+                        include_curve=False,
+                    )
+            except Exception:
+                logger.exception("attach_default_snapshot failed; leaving default_snapshot=None")
+
         _redis_set(
             cache_key,
             {
@@ -1667,18 +1749,57 @@ def refresh_derived_features(vehicle_id: str) -> dict[str, Any]:
         )
 
 
+def _enqueue_embedding_with_dedupe(vehicle_id: str) -> bool:
+    """Best-effort trigger generate_embedding_for_vehicle z 60s Redis dedupe.
+
+    Zwraca True jeśli task został zaplanowany, False jeśli dedupe odsiał
+    (już zaplanowany w ostatnich 60s) lub Redis/Celery padł. Nie rzuca.
+    """
+    dedupe_key = f"{_PREFIX}similar-trigger:{vehicle_id}"
+    client = _get_client()
+    if client is not None:
+        try:
+            # SETNX z TTL — atomic, zwraca True tylko jeśli klucz nie istniał
+            if not client.set(dedupe_key, "1", ex=60, nx=True):
+                logger.debug("Embedding trigger deduped for %s", vehicle_id)
+                return False
+        except Exception as exc:
+            logger.debug("Redis dedupe failed for %s: %s — enqueuing anyway", vehicle_id, exc)
+    # Wyślij task (z 2s countdown żeby ten request HTTP zdążył wrócić zanim
+    # worker zacznie hammerować DB).
+    try:
+        celery_app.send_task(
+            "tasks.enrichment_tasks.generate_embedding_for_vehicle",
+            args=[vehicle_id],
+            countdown=2,
+        )
+        logger.info("On-demand embedding triggered for %s", vehicle_id)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to enqueue embedding task for %s: %s", vehicle_id, exc)
+        return False
+
+
 @router.get(
     "/scoring-search/vehicle/{vehicle_id}/similar",
     response_model=list[SimilarVehicleMatch],
 )
 def get_similar_vehicles(
     vehicle_id: str,
+    response: Response,
     limit: int = 5,
     duration_months: int | None = None,
     annual_mileage: int | None = None,
     mode: str = "rule-based",
 ) -> list[SimilarVehicleMatch]:
-    """Get similar vehicles sorted by best monthly price net. Supports 'rule-based' (default) and 'semantic' modes."""
+    """Get similar vehicles sorted by best monthly price net. Supports 'rule-based' (default) and 'semantic' modes.
+
+    Ustawia response header `X-Similar-Status`:
+    - `ready`  — źródłowy pojazd ma embeddingi i znaleziono dopasowania (lub RPC zwrócił rows)
+    - `pending` — źródłowy pojazd nie ma embeddingów; zaplanowano on-demand generację
+    - `empty`  — źródłowy pojazd ma embeddingi, ale RPC zwrócił 0 dopasowań
+    Header jest backward-compat: stary frontend ignoruje, nowy go czyta i rozróżnia stany.
+    """
 
     # Cache key generation
     cache_payload = f"{vehicle_id}:{limit}:{duration_months}:{annual_mileage}:{mode}"
@@ -1687,10 +1808,37 @@ def get_similar_vehicles(
     cached = _redis_get(cache_key)
     if cached is not None:
         logger.debug("Cache HIT: similar [%s]", vehicle_id)
+        response.headers["X-Similar-Status"] = "ready" if cached else "empty"
         return [SimilarVehicleMatch(**row) for row in cached]
 
     # Service-role client: anon's 3s statement_timeout cancels semantic RPCs on cold cache
     sb = get_admin_client()
+
+    # Pre-check: czy źródłowy pojazd ma embeddingi? Jeśli NULL — od razu
+    # zwracamy [] z header `pending` i triggerujemy on-demand generację
+    # (60s dedupe, żeby F5-spam nie hammerował Vertex AI).
+    try:
+        pre_resp = (
+            sb.table("vehicle_synthesis")
+            .select("semantic_embedding, vector_use_case, vector_specs, vector_equipment")
+            .eq("id", vehicle_id)
+            .limit(1)
+            .execute()
+        )
+        if pre_resp.data:
+            row = pre_resp.data[0]
+            missing_any = any(
+                row.get(col) is None
+                for col in ("semantic_embedding", "vector_use_case", "vector_specs", "vector_equipment")
+            )
+            if missing_any:
+                _enqueue_embedding_with_dedupe(vehicle_id)
+                response.headers["X-Similar-Status"] = "pending"
+                return []
+    except Exception as exc:
+        # Pre-check nie może wywrócić requestu — fallthrough do RPC.
+        logger.debug("Pre-check embedding state failed for %s: %s", vehicle_id, exc)
+
     method = (
         "rpc_get_similar_vehicles_semantic"
         if mode == "semantic"
@@ -1711,6 +1859,7 @@ def get_similar_vehicles(
         )
 
         if not resp.data:
+            response.headers["X-Similar-Status"] = "empty"
             return []
 
         results = [_build_similar_vehicle_match(row) for row in resp.data]
@@ -1719,6 +1868,7 @@ def get_similar_vehicles(
         # marża bankowa) as the source vehicle's card.
         _attach_kalkulacja_snapshot_to_matches(results)
         _redis_set(cache_key, [r.model_dump() for r in results], 10800)
+        response.headers["X-Similar-Status"] = "ready"
         return results
     except Exception as e:
         logger.exception("Error calling %s: %s", method, e)
@@ -1732,7 +1882,15 @@ def get_similar_vehicles(
     response_model=SimilarBatchResponse,
 )
 def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse:
-    """Return similar vehicles for multiple vehicle IDs in one DB query. Supports 'rule-based' and 'semantic'."""
+    """Return similar vehicles for multiple vehicle IDs in one DB query. Supports 'rule-based' and 'semantic'.
+
+    Per-vehicle `statuses` w response rozróżnia:
+    - `pending` — pojazd nie ma embeddingów, on-demand task został zaplanowany
+    - `ready`   — pojazd ma embeddingi, RPC zwrócił dopasowania
+    - `empty`   — pojazd ma embeddingi, ale RPC zwrócił 0 dopasowań
+    Frontend pokazuje "Trwa generowanie..." dla `pending`, obecny komunikat
+    "Brak podobnych" dla `empty`, pełną listę dla `ready`.
+    """
 
     params_hash = _params_hash(req.model_dump_json())
     cache_key = f"{_PREFIX}batch_similar_v2:{params_hash}"
@@ -1746,7 +1904,8 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
         for vid, cars in cached.get("results", {}).items():
             restored_results[vid] = [SimilarVehicleMatch(**c) for c in cars]
 
-        return SimilarBatchResponse(results=restored_results)
+        cached_statuses = cached.get("statuses") or {}
+        return SimilarBatchResponse(results=restored_results, statuses=cached_statuses)
 
     # Service-role client: anon's 3s statement_timeout cancels semantic RPCs on cold cache
     sb = get_admin_client()
@@ -1758,13 +1917,41 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
 
     try:
         if not req.vehicle_ids:
-            return SimilarBatchResponse(results={})
+            return SimilarBatchResponse(results={}, statuses={})
 
+        # Pre-check: dla których pojazdów źródłowych brakuje embeddingów?
+        # Te są oznaczane jako `pending` i on-demand task triggerowany (z dedupe).
+        # RPC i tak zwróci puste dla nich, więc filtrujemy żeby nie marnować
+        # czasu RPC i zwracamy szybciej z `pending`.
+        statuses: dict[str, str] = {vid: "ready" for vid in req.vehicle_ids}
+        pending_ids: set[str] = set()
+        try:
+            pre_resp = _supabase_execute_with_retry(
+                sb.table("vehicle_synthesis")
+                .select("id, semantic_embedding, vector_use_case, vector_specs, vector_equipment")
+                .in_("id", req.vehicle_ids)
+            )
+            for v_row in (pre_resp.data or []):
+                vid = str(v_row["id"])
+                missing = any(
+                    v_row.get(col) is None
+                    for col in ("semantic_embedding", "vector_use_case", "vector_specs", "vector_equipment")
+                )
+                if missing:
+                    pending_ids.add(vid)
+                    statuses[vid] = "pending"
+                    _enqueue_embedding_with_dedupe(vid)
+        except Exception as exc:
+            logger.debug("batch-similar pre-check failed: %s", exc)
+
+        # Wywołaj RPC tylko dla pojazdów które MAJĄ embeddingi.
+        # Te w `pending` zostawiamy z pustą listą + status `pending`.
+        rpc_ids = [vid for vid in req.vehicle_ids if vid not in pending_ids]
         response = _supabase_execute_with_retry(
             sb.rpc(
                 method,
                 {
-                    "p_vehicle_ids": req.vehicle_ids,
+                    "p_vehicle_ids": rpc_ids,
                     "p_limit": req.limit,
                     "p_duration_months": req.duration_months,
                     "p_annual_mileage": req.annual_mileage,
@@ -1773,7 +1960,7 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
                     else [],
                 },
             )
-        )
+        ) if rpc_ids else type("EmptyResp", (), {"data": []})()
 
         results: dict[str, list[SimilarVehicleMatch]] = {
             vid: [] for vid in req.vehicle_ids
@@ -1831,14 +2018,26 @@ def get_batch_similar_vehicles(req: SimilarBatchRequest) -> SimilarBatchResponse
         all_matches = [m for bucket in results.values() for m in bucket]
         _attach_kalkulacja_snapshot_to_matches(all_matches)
 
-        resp_obj = SimilarBatchResponse(results=results)
+        # Dopinguj statusy: jeśli pojazd ma embeddingi ALE RPC nie zwrócił
+        # żadnych dopasowań → "empty" (uczciwy "Brak podobnych pojazdów").
+        # Pozostałe nie-pending z dopasowaniami → "ready".
+        for vid in req.vehicle_ids:
+            if statuses.get(vid) == "pending":
+                continue
+            statuses[vid] = "ready" if results.get(vid) else "empty"
+
+        resp_obj = SimilarBatchResponse(results=results, statuses=statuses)
 
         # Serialize fully using model dumps for the cache
         serialized_results: dict[str, Any] = {}
         for k, v in results.items():
             serialized_results[k] = [m.model_dump() for m in v]
 
-        _redis_set(cache_key, {"results": serialized_results}, _TTL_SEARCH)
+        _redis_set(
+            cache_key,
+            {"results": serialized_results, "statuses": statuses},
+            _TTL_SEARCH,
+        )
 
         return resp_obj
     except Exception as e:
@@ -2170,9 +2369,6 @@ def get_price_variants(
 # ── Package decomposition (LLM-inferred sub-features per package) ─────────────
 
 
-_PACKAGE_ORIGIN_RE = re.compile(r"\(z:\s*(.+?)\)\s*$")
-
-
 @router.get(
     "/scoring-search/vehicle/{vehicle_id}/package-contents",
     response_model=PackageContentsResponse,
@@ -2180,46 +2376,174 @@ _PACKAGE_ORIGIN_RE = re.compile(r"\(z:\s*(.+?)\)\s*$")
 def get_vehicle_package_contents(vehicle_id: str) -> PackageContentsResponse:
     """Return LLM-decomposed sub-features grouped by parent package.
 
-    Reads `vehicle_feature_evidence` rows where `source_type='package_decomposition'`
-    written by `feature_enrichment._llm_decompose_packages()`. The parent package
-    name is encoded in `value_text` as "{sub_feature} (z: {package_name})".
+    Thin wrapper over `feature_enrichment.fetch_package_contents()` — the same
+    helper is reused by the offer-XLS generator to render expandable package
+    rows.
     """
-    sb = supabase
+    from core.feature_enrichment import fetch_package_contents
+
     try:
-        resp = (
-            sb.schema("reverse_search")
-            .table("vehicle_feature_evidence")
-            .select("value_text, confidence, universal_features(display_name)")
-            .eq("source_vehicle_id", vehicle_id)
-            .eq("source_type", "package_decomposition")
-            .execute()
-        )
+        raw = fetch_package_contents(vehicle_id)
     except Exception as e:
         logger.exception("Error fetching package contents [%s]: %s", vehicle_id, e)
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch package contents: {e}"
         )
 
-    packages: dict[str, list[PackageSubFeature]] = {}
-    for row in resp.data or []:
-        value_text = row.get("value_text") or ""
-        m = _PACKAGE_ORIGIN_RE.search(value_text)
-        if not m:
+    packages: dict[str, list[PackageSubFeature]] = {
+        pkg: [PackageSubFeature(feature_name=n, confidence=c) for n, c in subs]
+        for pkg, subs in raw.items()
+    }
+    return PackageContentsResponse(vehicle_id=vehicle_id, packages=packages)
+
+
+# ── Comparison-chart snapshot ─────────────────────────────────────────────────
+
+
+def _row_to_snapshot(row: dict[str, Any], vehicle_id: str, error: str | None = None) -> VehicleSnapshot:
+    """Map a `vehicle_matrix_cache` row to a VehicleSnapshot.
+
+    Falls back to error="null_decomposition" when the row exists but the
+    breakdown columns are NULL (pre-backfill state). monthly_total stays usable
+    because monthly_price_net is always present on the row.
+    """
+    months = int(row.get("duration_months") or 0) or None
+    mileage = int(row.get("annual_mileage") or 0) or None
+    base_price_net = float(row["base_price_net"]) if row.get("base_price_net") is not None else None
+    monthly_total = float(row["monthly_price_net"]) if row.get("monthly_price_net") is not None else None
+    utrata = row.get("utrata_wartosci_pln")
+    serwis = row.get("koszty_serwisowe_pln")
+    opony = row.get("koszt_opon_pln")
+    ubezp = row.get("ubezpieczenie_pln")
+    wr_pct = row.get("wr_pct")
+
+    has_decomposition = any(v is not None for v in (utrata, serwis, opony, ubezp))
+    effective_error = error or (None if has_decomposition else "null_decomposition")
+
+    def per_month(total: Any) -> Optional[float]:
+        if total is None or not months:
+            return None
+        return round(float(total) / months, 2)
+
+    return VehicleSnapshot(
+        vehicle_id=vehicle_id,
+        found=True,
+        duration_months=months,
+        annual_mileage=mileage,
+        base_price_net=base_price_net,
+        wr_pct=float(wr_pct) if wr_pct is not None else None,
+        wr_pln=float(utrata) if utrata is not None else None,
+        monthly_amortization=per_month(utrata),
+        monthly_service=per_month(serwis),
+        monthly_tires=per_month(opony),
+        monthly_insurance=per_month(ubezp),
+        monthly_total=monthly_total,
+        error=effective_error,
+    )
+
+
+def _row_to_curve_point(row: dict[str, Any]) -> WrCurvePoint:
+    return WrCurvePoint(
+        duration_months=int(row["duration_months"]),
+        wr_pct=float(row["wr_pct"]) if row.get("wr_pct") is not None else None,
+        wr_pln=float(row["utrata_wartosci_pln"]) if row.get("utrata_wartosci_pln") is not None else None,
+        monthly_total=float(row["monthly_price_net"]) if row.get("monthly_price_net") is not None else None,
+    )
+
+
+def _pick_latest_per_duration(rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    """Deduplicate by duration_months, keeping the most recently calculated row.
+
+    `vehicle_matrix_cache` can hold several rows per (duration, mileage) when
+    multiple kalkulacje exist for the same vehicle, or when margin_pct varies.
+    We pick the one with the newest `calculated_at` so the snapshot matches the
+    list view's "latest kalkulacja" semantics.
+    """
+    out: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        dur = int(r.get("duration_months") or 0)
+        if not dur:
             continue
-        package_name = m.group(1).strip()
-        uf = row.get("universal_features") or {}
-        display_name = (uf.get("display_name") or "").strip()
-        if not display_name:
+        prev = out.get(dur)
+        if prev is None:
+            out[dur] = r
             continue
-        try:
-            confidence = float(row.get("confidence") or 0.0)
-        except (TypeError, ValueError):
-            confidence = 0.0
-        packages.setdefault(package_name, []).append(
-            PackageSubFeature(feature_name=display_name, confidence=confidence)
+        if str(r.get("calculated_at") or "") > str(prev.get("calculated_at") or ""):
+            out[dur] = r
+    return out
+
+
+def _build_snapshot_for_vehicle(
+    rows: list[dict[str, Any]],
+    vehicle_id: str,
+    target_months: int,
+    include_curve: bool,
+) -> VehicleSnapshot:
+    if not rows:
+        return VehicleSnapshot(vehicle_id=vehicle_id, found=False, error="not_in_cache")
+
+    by_duration = _pick_latest_per_duration(rows)
+    if not by_duration:
+        return VehicleSnapshot(vehicle_id=vehicle_id, found=False, error="not_in_cache")
+
+    exact = by_duration.get(target_months)
+    snap_error: Optional[str] = None
+    if exact is None:
+        nearest_dur = min(by_duration.keys(), key=lambda d: abs(d - target_months))
+        exact = by_duration[nearest_dur]
+        snap_error = "snap_to_nearest"
+
+    snapshot = _row_to_snapshot(exact, vehicle_id, error=snap_error)
+
+    if include_curve:
+        curve = [_row_to_curve_point(by_duration[d]) for d in sorted(by_duration.keys())]
+        snapshot = snapshot.model_copy(update={"wr_curve": curve})
+
+    return snapshot
+
+
+def _fetch_snapshot_rows(vehicle_ids: list[str], annual_mileage: int) -> list[dict[str, Any]]:
+    """Single SELECT pulling every cache row needed for the snapshot view."""
+    res = (
+        supabase.table("vehicle_matrix_cache")
+        .select(
+            "vehicle_id, duration_months, annual_mileage, base_price_net, "
+            "monthly_price_net, utrata_wartosci_pln, koszty_serwisowe_pln, "
+            "koszt_opon_pln, ubezpieczenie_pln, wr_pct, calculated_at"
+        )
+        .in_("vehicle_id", vehicle_ids)
+        .eq("annual_mileage", annual_mileage)
+        .execute()
+    )
+    return list(res.data or [])
+
+
+@router.post(
+    "/scoring-search/comparison-snapshot",
+    response_model=ComparisonSnapshotResponse,
+)
+def get_comparison_snapshot(req: ComparisonSnapshotRequest) -> ComparisonSnapshotResponse:
+    """Pre-computed cost decomposition for a small set of vehicles.
+
+    Powers the comparison-chart view's pinned panel and the per-card hover.
+    Backed entirely by `vehicle_matrix_cache` — no LTRKalkulator invocation,
+    so latency is one Postgres SELECT regardless of the vehicle count (≤8).
+    """
+    rows = _fetch_snapshot_rows(req.vehicle_ids, req.annual_mileage)
+    rows_by_vehicle: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        rows_by_vehicle.setdefault(str(r.get("vehicle_id")), []).append(r)
+
+    snapshots: dict[str, VehicleSnapshot] = {}
+    for vid in req.vehicle_ids:
+        snapshots[vid] = _build_snapshot_for_vehicle(
+            rows_by_vehicle.get(vid, []),
+            vehicle_id=vid,
+            target_months=req.months,
+            include_curve=req.include_curve,
         )
 
-    return PackageContentsResponse(vehicle_id=vehicle_id, packages=packages)
+    return ComparisonSnapshotResponse(snapshots=snapshots)
 
 
 # ── Cache management ──────────────────────────────────────────────────────────
