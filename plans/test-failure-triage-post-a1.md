@@ -34,7 +34,19 @@ Po fixie pyproject.toml `poetry run pytest tests/` powinno collectować wszystko
 
 ---
 
-## REGRESSION FROM A1 (1 of 8) — **DECYZJA UŻYTKOWNIKA**
+## REGRESSION FROM A1 (1 of 8) — **RESOLVED 2026-05-17 (user decision: #2 accept new SOT)**
+
+**User decision:** "nie możesz robić żadnej regresji na Skodzie. ostatnie fixy k2 + k4 powodowały że wszystko liczy się dobrze" — k2 + k4 changes są intencjonalne, current code jest correct, test był stale. Wybrana ścieżka **#2** (accept regression jako nowy SOT, update test + Golden Rule + memory note).
+
+**Co zostało zrobione:**
+- `tests/test_v1_parity_samar_rv.py` — `expected_rv_gross: 81185.76 → 61046.00`, mileage assertion z `-2307.76 → 0.00`, dodano defense-in-depth assertion dla `krok4_korekta_disabled_per_sot == 1.0`, rewrite docstring (2503 SOT supersedes legacy `2503_wynik_JŁ.xlsx`)
+- `CLAUDE.md` Golden Rule — przepisany: krok 4 wyłączony per SOT, krok 1-3 multiplicative cascade, zabudowa w `body_types`, FORBIDDEN section zaktualizowana
+- `~/.claude/projects/D--kalk-v3/memory/body_types_sot.md` — dodano post-k2+k4 section z linkami
+- Test status: **PASSED** w 0.93s
+
+---
+
+## (archiwum) Pierwotny opis regression przed decyzją user'a
 
 | Test | Likely A1 commit | Root cause |
 |---|---|---|

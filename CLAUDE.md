@@ -61,16 +61,27 @@ Canonical order from V1 (`LTRKalkulator.cs:250-398`). Steps 1-4 are independent 
 
 Orchestrator: `backend/core/LTRKalkulator.py:Calculate()`. Step-by-step debugger: `backend/core/PipelineDebugger.py:calculate_steps()`. V1 parity reference: [v1_calcreport_reference.md](docs/audit/v1_calcreport_reference.md).
 
-### 🛡️ Golden Rule: Residual Value (WR) corrections
+### 🛡️ Golden Rule: Residual Value (WR) corrections — **2503 SOT**
 
-Step-5 admin corrections (kolor, nadwozie, zabudowa) MUST operate on **base catalogue price (net, no options)**, computed separately, and **added additively** to the WR pool already adjusted for depreciation+mileage:
+WR calculation per current **2503 SOT** (Source of Truth — Supabase `body_types.utrata_wartosci`):
+
+- **Krok 1-3:** depreciation curve (multiplicative year cascade `base × Π(1 ± δ)` per SOT — formerly additive `base + Σ deltas` in legacy `2503_wynik_JŁ.xlsx` Excel; *post k2 fix*).
+- **Krok 4 (korekta przebiegu):** **WYŁĄCZONY w samar_rv.py per 2503 SOT** (*post k4 fix*). Korekta przebiegu jest teraz częścią `body_types.utrata_wartosci` tabeli (per body type). Debug surface: `result.debug["krok4_korekta_disabled_per_sot"] == 1.0`.
+- **Krok 5 (admin corrections — kolor, nadwozie):** operuje na **base catalogue price (net, no options)**, additive po Krok 3:
 
 ```python
-Korekta_Wartosc = (Kolor_% + Nadwozie_% + Zabudowa_%) * Cena_Katalogowa_Baza_Netto
-WR_po_Kroku_5 = WR_po_Korekcie_za_Przebieg + Korekta_Wartosc
+Korekta_Wartosc = (Kolor_% + Nadwozie_%) * Cena_Katalogowa_Baza_Netto
+WR_po_Kroku_5 = WR_po_Krok_3 + Korekta_Wartosc
 ```
 
-**FORBIDDEN:** Multiplying the amortized WR pool by correction %'s (e.g. `WR * (1 - korekta_pct)`). Causes ~1000 PLN drift vs V1 (verified on Skoda Octavia RS, Cupra Terramar).
+  Zabudowa correction została przeniesiona do `body_types` (memory `body_types_sot`) — nie liczyć jej tutaj.
+
+**Parity validator:** `backend/tests/test_v1_parity_samar_rv.py::test_skoda_octavia_rs_v1_parity` — Skoda Octavia RS class-10 SAMAR daje **61 046,00 PLN brutto** per current SOT (legacy Excel baseline `81 185,76 PLN` jest superseded).
+
+**FORBIDDEN:**
+- Re-enabling Krok 4 w samar_rv.py bez zmiany `body_types.utrata_wartosci` (podwójna korekta).
+- Multiplying corrections on the WR pool (`WR * (1 - korekta_pct)`) zamiast additive on base — krok 5 jest additive.
+- Zabudowa correction w samar_rv.py — należy do `body_types`.
 
 ### Reverse Search uses CACHE — does NOT recompute
 

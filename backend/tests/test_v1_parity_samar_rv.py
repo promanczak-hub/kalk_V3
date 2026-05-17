@@ -3,8 +3,16 @@ from core.samar_rv import SamarRVCalculator, RVInput
 
 def test_skoda_octavia_rs_v1_parity():
     """
-    Test weryfikujący poprawność zrównania matematycznego (V1 Parity) z oryginalnym legacy Excelem
-    (plik: 2503_wynik_JŁ.xlsx, Wiersz: 1682).
+    Test weryfikujący poprawność WR (Wartości Rezydualnej) dla Skoda Octavia RS
+    przeciwko aktualnemu **2503 SOT** (Source of Truth).
+
+    Historia parity:
+    - Pierwotny baseline: legacy Excel `2503_wynik_JŁ.xlsx` wiersz 1682 = 81 185,76 PLN brutto.
+    - Po fixach **k2** (kaskada roczna: additive → multiplicative) + **k4**
+      (korekta przebiegu wyłączona per 2503 SOT — patrz `body_types_sot` memory note)
+      aktualny SOT = **61 046,00 PLN brutto**.
+    - Tabela `body_types.utrata_wartosci` (Supabase) jest single source of truth dla
+      korekt nadwozia + przebiegu zamiast wcześniejszego rozproszenia w samar_rv.py.
 
     Konfiguracja testu:
     - Pojazd: Skoda Octavia RS
@@ -15,11 +23,12 @@ def test_skoda_octavia_rs_v1_parity():
     - Wiek/Okres: 48 miesięcy
     - Przebieg docelowy: 120 000 km
 
-    Korekty testowane:
-    - Lakier: Niemetalik (brak dopłaty lub zniżka - w tym przypadku kara -1% od Ceny Podstawowej) = -1813 PLN
-    - Korekta Przebiegu: Ułamek 3/14 (poniżej progu), bazujący na wartości po amortyzacji z tabeli. Wymuszona kwota: +2307.76 PLN
+    Korekty testowane (Krok 5 — niezmienione przez k2/k4):
+    - Lakier Niemetalik: -1% od Ceny Bazowej Katalogowej = **-1813 PLN brutto** ✓
+    - Korekta Przebiegu (Krok 4): **0,00 PLN** — flagowane przez
+      `krok4_korekta_disabled_per_sot = 1.0` w debug
 
-    Wynik Końcowy BRUTTO z Excela (Wartość Końcowa RV): 81 185,76 PLN
+    Wynik Końcowy BRUTTO (Wartość Końcowa RV) per 2503 SOT: **61 046,00 PLN**
     """
 
     # 1. Przygotuj dane wejściowe
@@ -53,26 +62,38 @@ def test_skoda_octavia_rs_v1_parity():
     calculator = SamarRVCalculator(rv_input)
     result = calculator.calculate()
 
-    # 3. Weryfikacja
-    # Zwrócone wartości są NETTO. Mnożymy przez VAT dla asercji BRUTTO z Excela.
+    # 3. Weryfikacja przeciwko 2503 SOT (po fixach k2 + k4)
+    # Zwrócone wartości są NETTO. Mnożymy przez VAT dla asercji BRUTTO z SOT.
     final_rv_gross = result.wr_net * vat_rate
-    expected_rv_gross = 81185.76
+    expected_rv_gross = 61046.00  # 2503 SOT (post k2+k4); poprzednio 81185.76 (legacy 2503_wynik_JŁ.xlsx)
 
     # Precyzja do dwóch miejsc po przecinku (2 grosze marginesu błędu)
     assert abs(final_rv_gross - expected_rv_gross) < 0.05, (
-        f"Regresja V1 Parity! Oczekiwano: {expected_rv_gross:.2f}, otrzymano: {final_rv_gross:.2f}"
+        f"Regresja vs 2503 SOT! Oczekiwano: {expected_rv_gross:.2f}, otrzymano: {final_rv_gross:.2f}. "
+        f"Jeśli to celowa zmiana — sprawdź k2/k4 logic + zaktualizuj test + Golden Rule + body_types_sot memory note."
     )
 
     # Dodatkowa asercja składowych "trace" żeby zabezpieczyć się przed przypadkowym "zbilansowaniem" się dwóch błędów
     color_correction_netto = result.debug.get("krok5_color_netto", 0.0)
     color_correction_brutto = color_correction_netto * vat_rate
     assert abs(color_correction_brutto - (-1813.0)) < 0.05, (
-        "Kara za lakier Niemetalik musi wynosić -1% ceny bazowej katalogowej (-1813 PLN)"
+        f"Kara za lakier Niemetalik musi wynosić -1% ceny bazowej katalogowej (-1813 PLN brutto), "
+        f"otrzymano: {color_correction_brutto:.2f}"
     )
 
+    # Korekta przebiegu (Krok 4) jest WYŁĄCZONA per 2503 SOT.
+    # Po konsolidacji korekt do body_types.utrata_wartosci (memory `body_types_sot`)
+    # samar_rv.py nie liczy już mileage correction tutaj.
     mileage_correction_netto = result.debug.get("krok4_korekta_przebieg_netto", 0.0)
-    mileage_correction_brutto = mileage_correction_netto * vat_rate
-    # Zgodnie ze wzorem: (stawka_under * RV_Total * ((przebieg-prog)/10000)) -> -2307.76
-    assert abs(mileage_correction_brutto - (-2307.76)) < 0.05, (
-        "Korekta przebiegu netto z matematycznego koszyka paczek musi opiewać na -2307.76 PLN"
+    assert abs(mileage_correction_netto) < 0.01, (
+        f"Krok 4 (korekta przebiegu) musi być wyłączony per 2503 SOT (0.0 netto), "
+        f"otrzymano: {mileage_correction_netto:.4f}. "
+        f"Sprawdź flagę `krok4_korekta_disabled_per_sot` w debug — powinna być True."
+    )
+
+    # Verify the explicit SOT-disable flag is set (defense in depth — catches
+    # an accidental re-enabling of Krok 4 even if value happens to be 0.0 by coincidence)
+    assert result.debug.get("krok4_korekta_disabled_per_sot") == 1.0, (
+        "Flaga `krok4_korekta_disabled_per_sot` musi być ustawiona na 1.0 — "
+        "Krok 4 jest celowo wyłączony per 2503 SOT, korekty przebiegu w body_types.utrata_wartosci"
     )
