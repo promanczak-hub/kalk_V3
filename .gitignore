@@ -101,3 +101,18 @@ frontend/audit-output/
 
 # Claude Code local config
 .claude/
+
+# Experimental / one-off helper scripts (underscore-prefix at repo root)
+/_apply_migrations.py
+/_gsheet_diff.py
+/_gsheet_diff_report.txt
+/_gsheet_fetch_problem_tabs.py
+/_gsheet_schemas.txt
+/_phase_a_generate_sql.py
+/_phase_b_apply.py
+/_aurea-helper/
+/_gsheet_dump/
+
+# Runtime artifacts (per-machine, not for repo)
+backend/output/
+backend/celerybeat-schedule
