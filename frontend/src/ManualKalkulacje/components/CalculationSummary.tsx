@@ -1,5 +1,3 @@
-import React from 'react';
-
-export default function CalculationSummary(props: any) {
+export default function CalculationSummary(_props: any) {
   return <div>Component missing from git commit.</div>;
 }

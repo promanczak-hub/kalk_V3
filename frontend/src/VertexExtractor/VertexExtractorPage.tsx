@@ -31,10 +31,6 @@ interface PaintTypeOption {
   [key: string]: unknown;
 }
 
-interface DriveTypeOption {
-  drive_normalized: string;
-}
-
 export default function VertexExtractorPage() {
   const theme = useTheme();
   const highlightVehicleId = useMemo(() => {

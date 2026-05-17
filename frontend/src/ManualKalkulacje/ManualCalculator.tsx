@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Container,
@@ -12,19 +11,19 @@ import {
   Breadcrumbs,
   Link,
 } from "@mui/material";
-import { 
-  ChevronRight, 
-  ChevronLeft, 
-  Settings2, 
-  CheckCheck, 
-  CarFront, 
-  Zap 
+import {
+  ChevronRight,
+  ChevronLeft,
+  Settings2,
+  CheckCheck,
+  CarFront,
+  Zap
 } from "lucide-react";
 
 import { useCalculator } from "../hooks/useCalculator";
-import { VehicleSelector } from "./components/VehicleSelector";
-import { OptionsConfigurator } from "./components/OptionsConfigurator";
-import { CalculationSummary } from "./components/CalculationSummary";
+import VehicleSelector from "./components/VehicleSelector";
+import OptionsConfigurator from "./components/OptionsConfigurator";
+import CalculationSummary from "./components/CalculationSummary";
 
 const STEPS = ["Wybór Pojazdu", "Konfiguracja Opcji", "Podsumowanie"];
 

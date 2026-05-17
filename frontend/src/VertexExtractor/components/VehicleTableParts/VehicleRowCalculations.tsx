@@ -67,7 +67,6 @@ export function VehicleRowCalculations({
     handleOverridesChange,
     recalculateSingleCell,
     resetCell,
-    fetchTraceSingleCell,
     fetchPipelineSingleCell,
     handleExactRecalculate,
     recalculateWithMargin
