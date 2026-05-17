@@ -17,6 +17,8 @@ interface MatrixHeatmapViewProps {
   onReset?: (months: number) => void;
   modifiedCells?: Set<number>;
   recalculatingCell?: number | null;
+  onTargetPriceRecalculate?: (cell: MiniMatrixCell, targetPriceNet: number) => void;
+  onAddToCart?: (cell: MiniMatrixCell) => void;
 }
 
 /* ── Margin Tier System ─────────────────────────────────────────────── */
@@ -68,7 +70,7 @@ function fmtPLN2(v: number): string {
 
 interface V1SummaryRow {
   label: string;
-  kind: "money" | "percent" | "plain" | "interactive_wr";
+  kind: "money" | "percent" | "plain";
   net: number | string;
   gross?: number | string;
   emphasize?: boolean;
@@ -101,7 +103,7 @@ function buildV1SummaryRows(cell: MiniMatrixCell): V1SummaryRow[] {
       kind: "money",
       net: cell.CenaZakupuBezOponIOpcjiSerwisowychIPakietu,
     },
-    { label: "WR", kind: "interactive_wr", net: cell.WR, emphasize: true },
+    { label: "WR", kind: "money", net: cell.WR, emphasize: true },
     { label: "WR % (od ceny zakupu z opcjami fabrycznymi)", kind: "percent", net: wrPctBase },
     { label: "WR dla LO", kind: "money", net: cell.WRdlaLO },
     { label: "Koszt dzienny", kind: "money", net: cell.KosztDzienny, emphasize: true },
@@ -145,20 +147,24 @@ const LEGEND_TIERS = [
 
 /* ── Main Component ────────────────────────────────────────────────── */
 
-export function MatrixHeatmapView({ 
-  cells, 
-  mileageMode = "annual", 
-  onCellClick, 
-  onShowTrace, 
+export function MatrixHeatmapView({
+  cells,
+  mileageMode = "annual",
+  onCellClick,
+  onShowTrace,
   isFetchingTrace,
   getOverrides,
   onOverridesChange,
   onRecalculate,
   onReset,
   modifiedCells,
-  recalculatingCell
+  recalculatingCell,
+  onTargetPriceRecalculate,
+  onAddToCart
 }: MatrixHeatmapViewProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [targetPriceInputs, setTargetPriceInputs] = useState<Record<number, string>>({});
+  const [addedToCartCells, setAddedToCartCells] = useState<Set<string>>(new Set());
 
   const getContractKm = (c: MiniMatrixCell): number => c.PrzebiegKontrakt ?? Math.round((c.Okres / 12) * c.Przebieg);
 
@@ -366,7 +372,103 @@ export function MatrixHeatmapView({
                     : `${(getContractKm(cell) / 1000).toFixed(0)}k km lacznie`}
                 </span>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                {/* Korekta WR (per-cell) — dwa powiązane inputy: netto + brutto */}
+                {getOverrides && onOverridesChange && onRecalculate && (() => {
+                  const ov = getOverrides(cell.Okres);
+                  const netto = ov.manual_wr_correction ?? 0;
+                  const brutto = netto * VAT_MULTIPLIER;
+                  const isThisRecalcing = recalculatingCell === cell.Okres;
+                  const showReset = netto !== 0 || modifiedCells?.has(cell.Okres);
+                  return (
+                    <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-md px-2 py-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Korekta WR:</span>
+                      <input
+                        type="number"
+                        step={500}
+                        value={netto === 0 ? "" : netto}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          onOverridesChange(cell.Okres, { manual_wr_correction: isNaN(v) ? 0 : v });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") onRecalculate(cell.Okres);
+                        }}
+                        className="w-20 text-xs p-1 border border-slate-300 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 bg-white tabular-nums font-mono"
+                        placeholder="0"
+                      />
+                      <span className="text-[9px] text-slate-400">PLN netto</span>
+                      <input
+                        type="number"
+                        step={500}
+                        value={brutto === 0 ? "" : brutto.toFixed(2)}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          const nettoFromBrutto = isNaN(v) ? 0 : parseFloat((v / VAT_MULTIPLIER).toFixed(2));
+                          onOverridesChange(cell.Okres, { manual_wr_correction: nettoFromBrutto });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") onRecalculate(cell.Okres);
+                        }}
+                        className="w-20 text-xs p-1 border border-slate-300 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 bg-white tabular-nums font-mono"
+                        placeholder="0"
+                      />
+                      <span className="text-[9px] text-slate-400">PLN brutto</span>
+                      <button
+                        onClick={() => onRecalculate(cell.Okres)}
+                        disabled={isThisRecalcing}
+                        className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
+                      >
+                        {isThisRecalcing ? "..." : "Przelicz"}
+                      </button>
+                      {showReset && onReset && (
+                        <button
+                          onClick={() => onReset(cell.Okres)}
+                          className="p-1 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
+                          title="Resetuj korektę"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+                {/* Dostosuj stawkę (Goal Seek per-cell) */}
+                {onTargetPriceRecalculate && (() => {
+                  const isThisRecalcing = recalculatingCell === cell.Okres;
+                  const inputVal = targetPriceInputs[cell.Okres] ?? "";
+                  return (
+                    <div className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-md px-2 py-1">
+                      <span className="text-[10px] font-bold text-violet-700 uppercase tracking-wider">Dostosuj stawkę:</span>
+                      <input
+                        type="number"
+                        step={50}
+                        value={inputVal}
+                        onChange={(e) => setTargetPriceInputs(prev => ({ ...prev, [cell.Okres]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const v = parseFloat(inputVal);
+                            if (!isNaN(v) && v > 0) onTargetPriceRecalculate(cell, v);
+                          }
+                        }}
+                        placeholder={`np. ${Math.round(cell.LacznaStawka)}`}
+                        className="w-24 text-xs p-1 border border-violet-300 rounded text-right outline-none focus:ring-1 focus:ring-violet-400 bg-white tabular-nums font-mono"
+                      />
+                      <span className="text-[9px] text-violet-400">PLN netto</span>
+                      <button
+                        onClick={() => {
+                          const v = parseFloat(inputVal);
+                          if (!isNaN(v) && v > 0) onTargetPriceRecalculate(cell, v);
+                        }}
+                        disabled={isThisRecalcing || !inputVal}
+                        className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-violet-600 text-white rounded hover:bg-violet-700 shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Wylicz wymaganą marżę dla docelowej raty (Goal Seek)"
+                      >
+                        {isThisRecalcing ? "..." : "⚡ Goal Seek"}
+                      </button>
+                    </div>
+                  );
+                })()}
                 {onShowTrace && (
                   <button
                     onClick={() => onShowTrace(cell)}
@@ -377,6 +479,33 @@ export function MatrixHeatmapView({
                     Ślad Przeliczeń
                   </button>
                 )}
+                {onAddToCart && (() => {
+                  const cartKey = `${cell.Okres}_${getContractKm(cell)}`;
+                  const added = addedToCartCells.has(cartKey);
+                  return (
+                    <button
+                      onClick={() => {
+                        onAddToCart(cell);
+                        setAddedToCartCells(prev => new Set([...prev, cartKey]));
+                        setTimeout(() => {
+                          setAddedToCartCells(prev => {
+                            const next = new Set(prev);
+                            next.delete(cartKey);
+                            return next;
+                          });
+                        }, 2000);
+                      }}
+                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-md border transition-all ${
+                        added
+                          ? "bg-emerald-500 text-white border-emerald-500 shadow-md"
+                          : "bg-orange-500 text-white border-orange-500 hover:bg-orange-600 shadow-sm hover:shadow"
+                      }`}
+                      title="Dodaj ten wariant do koszyka ofertowego"
+                    >
+                      {added ? "✓ Dodano!" : "+ Do koszyka"}
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={() => setSelectedKey(null)}
                   className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
@@ -424,54 +553,12 @@ export function MatrixHeatmapView({
                     {v1Rows.map((row) => (
                       <tr key={row.label} className="border-t border-slate-100">
                         <td className={`px-2 py-1.5 ${row.emphasize ? "font-bold text-slate-800" : "text-slate-600"}`}>{row.label}</td>
-                        <td colSpan={row.kind === "interactive_wr" ? 2 : 1} className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
-                          {row.kind === "interactive_wr" ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <div className="mr-4">
-                                <span className="text-[10px] text-slate-400 mr-1">Tabela:</span>
-                                {renderV1CellValue(row, "net")}
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">Korekta:</span>
-                              <input
-                                type="number"
-                                step={500}
-                                value={getOverrides?.(cell.Okres)?.manual_wr_correction ?? ""}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  onOverridesChange?.(cell.Okres, { manual_wr_correction: isNaN(val) ? 0 : val });
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") onRecalculate?.(cell.Okres);
-                                }}
-                                className="w-20 text-xs p-1.5 border border-slate-300 rounded-md text-right outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 bg-white tabular-nums font-mono"
-                                placeholder="0"
-                              />
-                              <button
-                                onClick={() => onRecalculate?.(cell.Okres)}
-                                disabled={recalculatingCell === cell.Okres}
-                                className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
-                              >
-                                {recalculatingCell === cell.Okres ? "..." : "Przelicz"}
-                              </button>
-                              {(getOverrides?.(cell.Okres).manual_wr_correction !== null || modifiedCells?.has(cell.Okres)) && (
-                                <button
-                                  onClick={() => onReset?.(cell.Okres)}
-                                  className="px-2 py-1 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
-                                  title="Resetuj komórkę"
-                                >
-                                  <RotateCcw className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            renderV1CellValue(row, "net")
-                          )}
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
+                          {renderV1CellValue(row, "net")}
                         </td>
-                        {row.kind !== "interactive_wr" && (
-                          <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
-                            {renderV1CellValue(row, "gross")}
-                          </td>
-                        )}
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.emphasize ? "font-bold text-slate-900" : "text-slate-700"}`}>
+                          {renderV1CellValue(row, "gross")}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

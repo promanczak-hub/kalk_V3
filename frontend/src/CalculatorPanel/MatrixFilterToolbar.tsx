@@ -600,7 +600,7 @@ export function MatrixFilterToolbar({
               />
             </div>
             <div className="flex items-center gap-1.5 bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 rounded-md px-2 py-1 transition-colors">
-              <label className="text-[10px] text-blue-600 font-bold" htmlFor="exactPrice" title="Zostaw puste, aby użyć marży">Szukaj Wyniku (Netto):</label>
+              <label className="text-[10px] text-blue-600 font-bold" htmlFor="exactPrice" title="Dostosuj stawkę — wpisz docelową ratę netto, Goal Seek wyliczy potrzebną marżę. Zostaw puste, aby użyć marży z pola obok.">Dostosuj stawkę (netto):</label>
               <input
                 id="exactPrice"
                 type="number"
