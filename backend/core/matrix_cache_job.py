@@ -624,11 +624,12 @@ def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
             .get("mapped_ai_data", {})
             .get("samar_category", "")
         )
-        stan_json["engine_name"] = (
-            row.get("synthesis_data", {})
-            .get("mapped_ai_data", {})
-            .get("engine_class", "")
-        )
+        # SOT engines table — engine_name must be the FULL "name" column from
+        # engines (e.g. "Benzyna mHEV (PB-mHEV)"), NOT the category ("mhev"/"spalinowy").
+        # mapped_ai_data.fuel == engines.name (post Fix B mapping).
+        # Fallback to engine_class (legacy category) only if fuel missing.
+        mapped = row.get("synthesis_data", {}).get("mapped_ai_data", {})
+        stan_json["engine_name"] = mapped.get("fuel") or mapped.get("engine_class") or ""
 
         brand = stan_json["brand"]
         model = stan_json["model"]
