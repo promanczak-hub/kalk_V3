@@ -1090,30 +1090,6 @@ def delete_saved_filter(filter_id: str) -> dict[str, Any]:
     return {"status": "deleted", "id": filter_id}
 
 
-# ── Brochure Features ─────────────────────────────────────────
-
-
-@router.get("/features/brochure/{vehicle_id}")
-def get_features_brochure(
-    vehicle_id: str,
-) -> dict[str, Any]:
-    """Get features formatted for brochure."""
-    sb = supabase
-
-    resp = (
-        sb.schema("reverse_search")
-        .table("universal_features_brochure_view")
-        .select("*")
-        .eq("source_vehicle_id", vehicle_id)
-        .execute()
-    )
-
-    return {
-        "vehicle_id": vehicle_id,
-        "categories": resp.data,
-    }
-
-
 # ── Feature Enrichment ────────────────────────────────────────
 
 

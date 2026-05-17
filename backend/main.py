@@ -13,15 +13,11 @@ from api.features_routes import router as features_router
 from api.features_admin_routes import router as features_admin_router
 from api.body_types_routes import router as body_types_routes_router
 
-from api.mileage_adjustments_routes import router as mileage_adjustments_router
-
 from api.control_center_routes import router as control_center_router
 from api.calculator_core_routes import router as calculator_core_router
 from api.vehicle_features_crud_routes import router as vehicle_features_crud_router
 from api.scoring_search_routes import router as scoring_search_router
 from api.oferty_routes import router as oferty_router
-from api.brochure_routes import router as brochure_router
-from api.tender_routes import router as tender_router
 
 from api.router_tasks import router as router_tasks
 from api.ltr_manual_routes import router as ltr_manual_router
@@ -75,9 +71,6 @@ app.include_router(calculator_core_router, prefix="/api")
 app.include_router(vehicle_features_crud_router, prefix="/api")
 app.include_router(scoring_search_router, prefix="/api")
 app.include_router(oferty_router, prefix="/api/offers", tags=["Oferty"])
-app.include_router(brochure_router, prefix="/api")
-app.include_router(mileage_adjustments_router, prefix="/api")
-app.include_router(tender_router)
 
 app.include_router(router_tasks)
 app.include_router(ltr_manual_router)
