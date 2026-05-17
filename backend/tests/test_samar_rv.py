@@ -45,9 +45,6 @@ def test_samar_rv_calculate_base(mocker, mock_rv_input):
     mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.80)
     mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.01)
     mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.02)
-    mocker.patch.object(
-        SamarRVCalculator, "fetch_zabudowa_correction", return_value=0.0
-    )
     mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_lo_param", return_value=0.0)
 
@@ -59,7 +56,7 @@ def test_samar_rv_calculate_base(mocker, mock_rv_input):
     # Brak deprecjacji przebiegu (0.0 multiplier na under/over)
     # Opcje = 20k * 0.8 = 16k
     # Kolor = 100k * 0.01 = 1k
-    # Zabudowa/Body = 100k * 0.02 = 2k
+    # Body = 100k * 0.02 = 2k
     # RV = 50k + 16k + 1k + 2k = 69k
 
     output: RVOutput = calc.calculate()
@@ -81,9 +78,6 @@ def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
     mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.0)
-    mocker.patch.object(
-        SamarRVCalculator, "fetch_zabudowa_correction", return_value=0.0
-    )
     mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_lo_param", return_value=0.0)
 

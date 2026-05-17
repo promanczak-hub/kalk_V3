@@ -12,6 +12,324 @@ from core.pipeline_price_validator import (
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Rule 12: NET/GROSS ratio sanity per item
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestNetGrossRatioPerItem:
+    def _card_with_se(self, net: str, gross: str) -> dict:
+        return {
+            "base_price": "100000 PLN netto",
+            "options_price": "0 PLN netto",
+            "total_price": "100000 PLN netto",
+            "service_equipment": {
+                "name": "Test zabudowa",
+                "total_price_net": net,
+                "total_price_gross": gross,
+                "components": [],
+            },
+        }
+
+    def test_correct_ratio_no_warning(self) -> None:
+        card = self._card_with_se("10000 PLN", "12300 PLN")
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "NET_GROSS_RATIO_INVALID"]
+        assert flagged == []
+
+    def test_same_value_in_both_fields_flagged(self) -> None:
+        """AI dała te same kwoty do net i gross — ratio = 1.0."""
+        card = self._card_with_se("47970 PLN", "47970 PLN")
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "NET_GROSS_RATIO_INVALID"]
+        assert len(flagged) == 1
+        assert flagged[0].severity == "WARNING"
+
+    def test_wrong_ratio_flagged(self) -> None:
+        """ratio = 1.5 zamiast 1.23."""
+        card = self._card_with_se("10000 PLN", "15000 PLN")
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "NET_GROSS_RATIO_INVALID"]
+        assert len(flagged) == 1
+
+    def test_each_component_checked(self) -> None:
+        card = self._card_with_se("10000 PLN", "12300 PLN")
+        card["service_equipment"]["components"] = [
+            {"name": "OK comp", "price_net": "5000 PLN", "price_gross": "6150 PLN"},
+            {"name": "BAD comp", "price_net": "5000 PLN", "price_gross": "5000 PLN"},
+        ]
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "NET_GROSS_RATIO_INVALID"]
+        assert len(flagged) == 1
+        assert "BAD comp" in flagged[0].message
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Rule 13: service_equipment.total ≈ sum(components)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestServiceEquipmentSumIntegrity:
+    def test_matching_sum_no_warning(self) -> None:
+        card = {
+            "base_price": "100000 PLN netto",
+            "options_price": "0 PLN netto",
+            "total_price": "100000 PLN netto",
+            "service_equipment": {
+                "name": "Test",
+                "total_price_net": "10000 PLN",
+                "total_price_gross": "12300 PLN",
+                "components": [
+                    {"name": "A", "price_net": "6000 PLN", "price_gross": "7380 PLN"},
+                    {"name": "B", "price_net": "4000 PLN", "price_gross": "4920 PLN"},
+                ],
+            },
+        }
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "SERVICE_EQUIPMENT_SUM_MISMATCH"]
+        assert flagged == []
+
+    def test_mismatched_sum_flagged(self) -> None:
+        card = {
+            "base_price": "100000 PLN netto",
+            "options_price": "0 PLN netto",
+            "total_price": "100000 PLN netto",
+            "service_equipment": {
+                "name": "Test",
+                "total_price_net": "10000 PLN",
+                "total_price_gross": "12300 PLN",
+                "components": [
+                    {"name": "A", "price_net": "6000 PLN", "price_gross": "7380 PLN"},
+                    {"name": "B", "price_net": "3500 PLN", "price_gross": "4305 PLN"},
+                ],
+            },
+        }
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "SERVICE_EQUIPMENT_SUM_MISMATCH"]
+        assert len(flagged) == 2  # net + gross both flagged
+        assert any("netto" in w.message for w in flagged)
+        assert any("brutto" in w.message for w in flagged)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# _apply_self_healing — options_price recalc z uwzględnieniem rabatu
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestAutoFixOptionsPrice:
+    """Fix dla bug'a: AI / pipeline wpisuje options_price jako total - base,
+    ignorując rabat i zabudowę. Pełne równanie:
+        options = total + rabat - non_discountable - base
+    """
+
+    def test_master_izoterma_real_case(self) -> None:
+        """Realny case ccc626be Master: options_price powinno być 2029.50
+        (suma fabrycznych opcji), nie 37598 (total - base)."""
+        card = {
+            "base_price": "167218.50 PLN netto",
+            "options_price": "Brak",  # AI nie dała — pipeline naprawia
+            "total_price": "204817.14 PLN netto",
+            "paid_options": [
+                {
+                    "name": "Pakiet Conversion 2",
+                    "price": "738.00 PLN netto",
+                    "category": "Fabryczna",
+                },
+                {
+                    "name": "światła przeciwmgłowe",
+                    "price": "738.00 PLN netto",
+                    "category": "Fabryczna",
+                },
+                {
+                    "name": "asystent świateł",
+                    "price": "553.50 PLN netto",
+                    "category": "Fabryczna",
+                },
+            ],
+            "discount": {
+                "explicit_rabat_pln": 49928.16,
+                "discountable_base_net": 169248.0,
+                "non_discountable_total_net": 85497.30,
+                "extraction_method": "computed_from_total",
+                "confidence": 0.5,
+            },
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+        # 204817.14 + 49928.16 - 85497.30 - 167218.50 = 2029.50
+        # Pole options_price ma zawierać liczbę bliską 2029
+        opts = cs["options_price"]
+        assert "2029" in opts or "2030" in opts  # int() rounding may vary
+        assert "netto" in opts.lower()
+
+    def test_simple_case_without_discount_falls_back(self) -> None:
+        """Bez discount field — używa klasycznego total - base."""
+        card = {
+            "base_price": "100000 PLN netto",
+            "options_price": "999999 PLN netto",  # nieprawidłowa wartość
+            "total_price": "120000 PLN netto",
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+        # 120000 - 100000 = 20000 (no discount → classic formula)
+        assert "20000" in cs["options_price"]
+
+    def test_negative_correction_blocks_self_heal(self) -> None:
+        """Gdy `total + rabat - non_disc - base` < 0 → nie nadpisuj options
+        ujemną wartością; pozostaw warning żeby user/lejek mógł zareagować."""
+        # Pełne równanie: options = 100000 + 0 - 500000 - 200000 = -600000 < 0
+        card = {
+            "base_price": "200000 PLN netto",
+            "options_price": "Brak",
+            "total_price": "100000 PLN netto",
+            "discount": {
+                "explicit_rabat_pln": 0,
+                "non_discountable_total_net": 500000,  # absurdalnie wysoka — wymusza negative
+            },
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        rules = [
+            w["rule"] for w in result["card_summary"]["_validation"]["warnings"]
+        ]
+        # Bezpieczeństwo: AUTO_FIX_APPLIED NIE pojawia się dla ujemnego wyniku
+        assert "AUTO_FIX_APPLIED" not in rules
+
+
+# ═══════════════════════════════════════════════════════════════════
+# _apply_self_healing — derive base_price gdy LLM nie znalazł go w PDF
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestAutoDeriveBasePrice:
+    """Symetryczny self-heal: gdy LLM nie znalazł base_price w dokumencie
+    (np. Audi drukuje tylko cenę końcową + opcje), validator deterministycznie
+    wylicza bazę jako `total + rabat − non_discountable − options`.
+    """
+
+    def test_base_auto_derived_happy_path(self) -> None:
+        """Audi-like case: base brak, total + options spójne, brak rabatu.
+        Oczekiwane: derived_base = 120000 − 20000 = 100000."""
+        card = {
+            "base_price": "Brak",
+            "options_price": "20000 PLN netto",
+            "total_price": "120000 PLN netto",
+            "paid_options": [
+                {"name": "Pakiet komfort", "price": "12000 PLN netto", "category": "Fabryczna"},
+                {"name": "Lakier metalik", "price": "8000 PLN netto", "category": "Fabryczna"},
+            ],
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+
+        assert cs["_base_derived"] is True
+        assert "100000" in cs["base_price"]
+        assert "netto" in cs["base_price"].lower()
+
+        rules = [w["rule"] for w in cs["_validation"]["warnings"]]
+        assert "BASE_AUTO_DERIVED" in rules
+
+        # Wyliczona baza ląduje w parsed_prices.base, więc gate w phase_2_mapping
+        # puści rekord do enrichment'u zamiast zatrzymać w needs_review.
+        assert cs["_validation"]["parsed_prices"]["base"] == 100000
+
+        # INFO severity → is_valid pozostaje True
+        derived_warnings = [
+            w for w in cs["_validation"]["warnings"] if w["rule"] == "BASE_AUTO_DERIVED"
+        ]
+        assert derived_warnings[0]["severity"] == "INFO"
+
+    def test_base_auto_derived_blocked_by_options_mismatch(self) -> None:
+        """Gdy sum(paid_options) ≠ declared options_price, NIE wyliczamy bazy
+        — sygnał że options jest niepełne, więc derived base byłaby zawyżona."""
+        card = {
+            "base_price": "Brak",
+            "options_price": "20000 PLN netto",
+            "total_price": "120000 PLN netto",
+            "paid_options": [
+                # tylko 18000 zamiast 20000 — mismatch wystrzeli
+                {"name": "Pakiet komfort", "price": "18000 PLN netto", "category": "Fabryczna"},
+            ],
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+
+        assert cs.get("_base_derived") is not True
+        # base_price nadal "Brak" (nie zostało nadpisane)
+        assert "Brak" in cs["base_price"] or cs["base_price"] == "Brak"
+
+        rules = [w["rule"] for w in cs["_validation"]["warnings"]]
+        assert "OPTIONS_SUM_MISMATCH" in rules
+        assert "BASE_AUTO_DERIVED" not in rules
+
+        # parsed_base nadal None → gate zatrzyma w needs_review (zachowanie jak dziś)
+        assert cs["_validation"]["parsed_prices"]["base"] is None
+
+    def test_base_auto_derived_with_discount(self) -> None:
+        """Realny case z rabatem i zabudową (analogicznie do przykładu z promptu):
+        total=134900, options=2725 (factory), rabat=42317, non_disc=31732 (zabudowa).
+        derived_base = 134900 + 42317 − 31732 − 2725 = 142760."""
+        card = {
+            "base_price": "Brak",
+            "options_price": "2725 PLN netto",
+            "total_price": "134900 PLN netto",
+            "paid_options": [
+                {"name": "Hak fabryczny", "price": "2725 PLN netto", "category": "Fabryczna"},
+            ],
+            "discount": {
+                "explicit_rabat_pln": 42317.0,
+                "discountable_base_net": 145485.0,
+                "non_discountable_total_net": 31732.0,
+                "extraction_method": "explicit_amount",
+                "confidence": 1.0,
+            },
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+
+        assert cs["_base_derived"] is True
+        assert "142760" in cs["base_price"]
+        assert cs["_validation"]["parsed_prices"]["base"] == 142760.0
+
+    def test_base_auto_derived_blocked_by_unknown_domain(self) -> None:
+        """Gdy domena cenowa nie da się ustalić (brak suffixów netto/brutto,
+        brak relacji VAT) → nie wyliczamy bazy, żeby uniknąć mieszania domen."""
+        # 150k i 130k nie są ze sobą w relacji ×1.23, brak suffixów
+        card = {
+            "base_price": "Brak",
+            "options_price": "20000 PLN",
+            "total_price": "150000 PLN",
+            "paid_options": [
+                {"name": "Opcja", "price": "20000 PLN", "category": "Fabryczna"},
+            ],
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+
+        assert cs.get("_base_derived") is not True
+        rules = [w["rule"] for w in cs["_validation"]["warnings"]]
+        assert "BASE_AUTO_DERIVED" not in rules
+
+    def test_base_derivation_out_of_range_flagged(self) -> None:
+        """Gdy derived_base byłoby ujemne lub <30% total → flag ERROR,
+        nie nadpisuj bazy. Tu: options ≈ total, więc derived_base ≈ 0."""
+        card = {
+            "base_price": "Brak",
+            "options_price": "119000 PLN netto",
+            "total_price": "120000 PLN netto",
+            "paid_options": [
+                {"name": "Megapakiet", "price": "119000 PLN netto", "category": "Fabryczna"},
+            ],
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+
+        assert cs.get("_base_derived") is not True
+        rules = [w["rule"] for w in cs["_validation"]["warnings"]]
+        assert "BASE_DERIVATION_OUT_OF_RANGE" in rules
+        # parsed_base nadal None
+        assert cs["_validation"]["parsed_prices"]["base"] is None
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Rule 2: base + options ≈ total
 # ═══════════════════════════════════════════════════════════════════
 

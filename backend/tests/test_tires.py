@@ -18,16 +18,26 @@ from core.LTRSubCalculatorOpony import LTRSubCalculatorOpony
 # ---------------------------------------------------------------------------
 
 
+_CC_TYRE_CONFIG = {
+    "cost_tyre_swap": "120",
+    "cost_tyre_storage": "216",
+    "all_season_threshold_1": "60000",
+    "all_season_threshold_2": "120000",
+    "all_season_threshold_3": "180000",
+    "all_season_threshold_4": "240000",
+    "all_season_threshold_5": "300000",
+    "season_threshold_1": "120000",
+    "season_threshold_2": "180000",
+    "season_threshold_3": "240000",
+    "season_threshold_4": "300000",
+}
+
+
 def _mock_supabase() -> MagicMock:
-    """Zwraca mock supabase, który nie odpytuje bazy."""
+    """Zwraca mock supabase dla _fetch_tire_cost (control_center idzie przez adapter)."""
     mock = MagicMock()
     # _fetch_global_param → pusty wynik → fallback
     mock.table.return_value.select.return_value.ilike.return_value.limit.return_value.execute.return_value.data = []
-    # _fetch_tire_configurations → minimalny zestaw (bez hardcode fallbacku)
-    mock.table.return_value.select.return_value.execute.return_value.data = [
-        {"config_key": "cost_tyre_swap", "config_value": "120"},
-        {"config_key": "cost_tyre_storage", "config_value": "216"},
-    ]
     # _fetch_tire_cost → zwraca generyczny słownik by uniknąć ValueError (brak fallbacków)
     mock.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
         {
@@ -48,13 +58,24 @@ def _mock_supabase() -> MagicMock:
     return mock
 
 
+def _patched_fetch_cc_row(*args, **kwargs):
+    """Zastępuje fetch_control_center_row w testach — zwraca stały dict z opon-config."""
+    keys = kwargs.get("keys")
+    if keys is None and len(args) >= 2:
+        keys = args[1]
+    if keys is None:
+        return dict(_CC_TYRE_CONFIG)
+    return {k: _CC_TYRE_CONFIG[k] for k in keys if k in _CC_TYRE_CONFIG}
+
+
 def _make_calc(
     klasa: str = "Medium",
     srednica: int = 16,
     z_oponami: bool = True,
 ) -> LTRSubCalculatorOpony:
     """Tworzy kalkulator z zamockowanym Supabase."""
-    with patch("core.LTRSubCalculatorOpony.supabase", _mock_supabase()):
+    with patch("core.LTRSubCalculatorOpony.get_fresh_client", return_value=_mock_supabase()), \
+         patch("core.control_center.fetch_control_center_row", side_effect=_patched_fetch_cc_row):
         calc = LTRSubCalculatorOpony(
             z_oponami=z_oponami,
             klasa_opony_string=klasa,
@@ -163,7 +184,8 @@ class TestSrednicaValidation:
 
     def test_raises_when_srednica_zero_and_z_oponami(self) -> None:
         with pytest.raises(ValueError, match="srednica_felgi"):
-            with patch("core.LTRSubCalculatorOpony.supabase", _mock_supabase()):
+            with patch("core.LTRSubCalculatorOpony.get_fresh_client", return_value=_mock_supabase()), \
+         patch("core.control_center.fetch_control_center_row", side_effect=_patched_fetch_cc_row):
                 LTRSubCalculatorOpony(
                     z_oponami=True,
                     klasa_opony_string="Medium",
@@ -171,7 +193,8 @@ class TestSrednicaValidation:
                 )
 
     def test_no_error_when_z_oponami_false(self) -> None:
-        with patch("core.LTRSubCalculatorOpony.supabase", _mock_supabase()):
+        with patch("core.LTRSubCalculatorOpony.get_fresh_client", return_value=_mock_supabase()), \
+         patch("core.control_center.fetch_control_center_row", side_effect=_patched_fetch_cc_row):
             calc = LTRSubCalculatorOpony(
                 z_oponami=False,
                 klasa_opony_string="Medium",
