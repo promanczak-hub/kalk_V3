@@ -21,23 +21,19 @@
 | `samar_classes`                    | `samar_rv.py`, `samar_mapper.py`, `LTRKalkulator.py` | —                                                                  | Klasy SAMAR (słownik)             |
 | `samar_class_depreciation_rates`   | `samar_rv.py`                                        | —                                                                  | Stawki deprecjacji wg klasy SAMAR |
 | `samar_class_mileage_corrections`  | `samar_rv.py`                                        | —                                                                  | Korekty przebiegowe SAMAR         |
-| `samar_service_costs`              | `LTRSubCalculatorSerwisNew.py`                       | —                                                                  | Koszty serwisowe SAMAR            |
+| `samar_class_service_rates`        | `LTRSubCalculatorSerwisNew.py`                       | —                                                                  | Progi km × stawka serwisowa ASO/non-ASO (z GSheets) |
 | `samar_klasa_wr`                   | `LTRKalkulator.py`                                   | —                                                                  | Klasa WR (wartość rezydualna)     |
 | `engines`                          | `engine_mapper.py`                                   | `VehicleRowCard.tsx`                                               | Słownik napędów/silników          |
-| `body_types`                       | `body_type_matcher.py`                               | —                                                                  | Słownik typów nadwozia            |
-| `body_type_wr_corrections`         | `samar_rv.py`                                        | —                                                                  | Korekty WR wg nadwozia            |
-| `zabudowa_wr_corrections`          | `samar_rv.py`                                        | —                                                                  | Korekty WR wg zabudowy            |
+| `body_types`                       | `body_type_matcher.py`, `samar_rv_fetchers.py` (utrata_wartosci), `sync_body_types.py` | `BodyTypesCrudPanel.tsx` | Słownik typów nadwozia + korekta WR (kolumna utrata_wartosci, SOT: GSheet gid=484265370) |
 | `paint_types`                      | `samar_rv.py`                                        | —                                                                  | Typy lakieru (metalik itp.)       |
 | `koszty_opon`                      | `LTRSubCalculatorOpony.py`                           | `TabelaOponCrudPanel.tsx`                                          | Macierz cen opon                  |
-| `tyre_configurations`              | `LTRSubCalculatorOpony.py`                           | `TabelaOponCrudPanel.tsx`                                          | Konfiguracje opon (klasy)         |
 | `tabela_rabaty`                    | `pipeline_discounts.py`                              | `RabatyCrudPanel.tsx`                                              | Tabela rabatów dealerskich        |
-| `control_center`                   | `samar_rv.py`, `LTRKalkulator.py` (pośrednio)        | —                                                                  | Parametry globalne systemu        |
+| `control_center`                   | `samar_rv.py`, `LTRKalkulator.py` (pośrednio), `LTRSubCalculatorOpony.py`, `LTRSubCalculatorFinanse.py`, `LTRSubCalculatorSerwisNew.py`, `LTRSubCalculatorBudzetMarketingowy.py`, `sync_control_center_gsheet.py` | — | Singleton (id=1) — wszystkie globalne parametry aplikacji LTR (finanse, koszty operacyjne, opony, ubezpieczenia, sprzedaz, samar) |
 | `ltr_admin_ubezpieczenia`          | `LTRKalkulator.py`                                   | —                                                                  | Stawki ubezpieczeniowe            |
 | `ltr_admin_wspolczynniki_szkodowe` | `LTRKalkulator.py`                                   | —                                                                  | Współczynniki szkodowe            |
 | `ltr_admin_korekta_wr_markas`      | `samar_rv.py`                                        | —                                                                  | Korekty WR wg marki               |
 | `ltr_admin_korekta_wr_roczniks`    | `samar_rv.py`                                        | —                                                                  | Korekty WR wg rocznika            |
 | `replacement_car_rates`            | `LTRKalkulator.py`                                   | —                                                                  | Stawki sam. zastępczego           |
-| `LTRAdminParametry_czak`           | `LTRSubCalculatorOpony.py`                           | —                                                                  | Parametry admin (legacy)          |
 
 ## Tabele produkcyjne (schema: `reverse_search`)
 

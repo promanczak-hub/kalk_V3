@@ -131,7 +131,7 @@ Algorytmy w systemie (np. ubezpieczenie czy symulacja wartości rezydualnej) his
 | `backend/core/LTRSubCalculatorBudzetMarketingowy.py`  | 2026-03-05 | logika identyczna V1=V3, jedno mnożenie WR×VAT×budżet%                             |
 | `backend/core/LTRSubCalculatorUbezpieczenie.py`       | 2026-03-05 | pętla 7-lat, doubezp kradzież/nauka=False (OK), fallback stawek                    |
 | `DB: koszty_opon` (tabela danych)                     | 2026-03-09 | 11 rozmiarów (13-23") × 13 kategorii, RLS=read-only, dane z CSV Budżet             |
-| `DB: tyre_configurations` (progi przebiegowe)         | 2026-03-09 | 9 progów km (wielosezon 5 + sezonowe 4), RLS=read+write                            |
+| `DB: control_center` (globalne parametry aplikacji)   | 2026-05-16 | Konsolidacja: 9 progów opon przeniesione z `global_setup` jako kolumny `{season,all_season}_threshold_*`; `global_setup` zdropowana, singleton `control_center` pozostaje jedynym SOT (finanse, koszty op., opony, ubezp., sprzedaż) |
 | `frontend/src/TabelaOponCrud/TabelaOponCrudPanel.tsx` | 2026-03-09 | panel read-only, usunięto edycję/import/eksport, badge ZAMROŻONE                   |
 | `DB: samar_classes` (tabela danych)                   | 2026-03-10 | 33 klas, RLS=read-only, źródło prawdy dla kalkulatora                              |
 | `frontend/src/SamarMasterPanel.tsx`                   | 2026-03-09 | usunięto selektor klasy SAMAR, panel Master Table read-only, dodano ZAMROŻONE      |

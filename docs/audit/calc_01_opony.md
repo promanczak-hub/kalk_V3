@@ -18,7 +18,7 @@
 | `StawkaVAT` (param)              | `vat_rate`                                        | `LTRAdminParametry_czak.col_2` WHERE `col_1='VAT'`                | ✅                                                       |
 | `KosztOponKorekta` / VAT         | `koszt_opon_korekta / vat_rate`                   | input z UI                                                        | ✅                                                       |
 | `LiczbaKompletowOpon` (override) | `sets_needed_override`                            | input z UI                                                        | ✅                                                       |
-| progi schodkowe (hardcoded w V1) | `_fetch_tire_configurations()`                    | `tyre_configurations.config_key/value`                            | ✅ Lepiej w V3 (z bazy)                                  |
+| progi schodkowe (hardcoded w V1) | `_fetch_global_setup()`                           | `control_center.{season,all_season}_threshold_*`                  | ✅ Lepiej w V3 (z bazy)                                  |
 | `OdkupOpon` (cennik)             | **❌ BRAK w V3**                                  | (brak tabeli)                                                     | 🔴 NIE ZAIMPLEMENTOWANO                                  |
 | `AutoLiczbaOpon` (bool)          | domyślnie auto, override = `sets_needed_override` | —                                                                 | ✅                                                       |
 
@@ -101,7 +101,7 @@ Koszt1KplOpon = koszt1kompletu  → CAPEX (via CenaZakupu)
 | ----------------- | ------------------------------------------------------ | -------------------------------------------- | --------------------------- |
 | Źródło cen opon   | `PozycjaCennikaOpon` (cennik zewnętrzny)               | `koszty_opon` (tabela z kolumnami per klasa) | ⏸                           |
 | Odkup opon        | ✅ (z cennika)                                         | ❌ BRAK                                      | ⏸                           |
-| Progi schodkowe   | hardcoded w CS                                         | z bazy `tyre_configurations`                 | ✅ (lepiej)                 |
+| Progi schodkowe   | hardcoded w CS                                         | z bazy `control_center` (kolumny `*_threshold_*`) | ✅ (lepiej)            |
 | Mnożnik ceny (×4) | cena za 1 komplet (4 szt. razem)                       | `unit_price × 4` (cena za 1 sztukę × 4)      | ⏸ Uwaga: inny model cenowy! |
 | CAPEX split       | V1: `Koszt1KplOpon` trafia do `CenaZakupu` jako brutto | V3: `capex_initial_set`                      | ✅                          |
 
