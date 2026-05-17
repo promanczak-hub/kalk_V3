@@ -219,10 +219,28 @@ Dodatkowo rozbij `powertrain` na części składowe:
 - `engine_designation`: wyciągnij skrót i oznaczenie technologii (np. "TSI", "TDI", "dCi", "EcoBoost"). Jeśli brak, zostaw puste.
 - `engine_marketing_name`: wyciągnij specyficzne nazwy marketingowe i handlowe silnika (często z myślnikami lub wielkimi literami), np. "ECO-G", "BlueHDi", "e-Tech", "Hybrid 136". Uważaj, aby to nie była czysta technologia jak "TSI". Zostaw puste, jeśli brak.
 
-Wyciągnij pełną listę wyposażenia standardowego, ignorując znikome detale, ale zachowując kluczowe elementy. Przeszukaj wszystkie kolekcje i listy opisujące pojazd, niezależnie od tego, czy nazywają się "standard_equipment", "wyposażenie seryjne", "specyfikacja" itp.
+Wyciągnij KOMPLETNĄ listę wyposażenia standardowego — WSZYSTKIE pozycje, bez wyjątku. NIE filtruj, NIE pomijaj nic jako "trywialne" lub "oczywiste". Przeszukaj wszystkie kolekcje i listy opisujące pojazd, niezależnie od tego, czy nazywają się "standard_equipment", "wyposażenie seryjne", "specyfikacja", "Twoje wyposażenie", "Wyposażenie standardowe" itp.
+METODA: Idź sekcja po sekcji w dokumencie (np. Koła, Fotele, Multimedia, Zewnętrzne, Wewnętrzne, Elektryczne i funkcjonalne, Bezpieczeństwo, Wyposażenie dodatkowe, Komfort, Klimatyzacja, Pakiety) i z KAŻDEJ sekcji wypisz KAŻDY bullet/pozycję jako osobny element listy. Zachowaj oryginalne nazwy pozycji w 1:1.
+WAŻNE — wypisuj również tzw. "trywialne" pozycje, bo użytkownik filtruje pojazdy wg nich (przykłady do bezwzględnego uwzględnienia: 3-punktowe pasy bezpieczeństwa, ESP/ASR/ABS/MSR, ISOFIX, eCall, Apteczka/trójkąt, poduszki czołowe/boczne/kolanowe/kurtyny, hamulec postojowy Auto Hold, Antena FM/DAB+, 8 głośników, instalacja Bluetooth, gniazda USB-C/12V/230V, czujnik deszczu/zmierzchu, dywaniki, lusterka boczne/wewnętrzne wraz z funkcjami, listwy progowe, zestaw naprawczy, kontrola ciśnienia w oponach, system rozpoznawania znaków, Start-Stop, eCall, Lane Assist, Travel Assist itp.).
+Jedyne uzasadnione pominięcie to czysta duplikacja (ta sama pozycja występująca dwa razy słowo-w-słowo).
 Szczególną uwagę zwróć na zabudowy specjalne, pakiety serwisowe lub przedłużone gwarancje. Jeśli dokument zawiera opcje serwisowe/zabudowy (np. wywrotka, skrzynia, plandeka, izoterma, kontener, chłodnia, HDS, furgon brygadowy — cokolwiek modyfikuje bryłę lub homologację pojazdu), wyciągnij je do osobnego obiektu 'service_equipment', wyliczając poprawnie łączną kwotę netto i brutto całego pakietu. Ponadto, jeżeli suma ta składa się z pojedynczych części składowych, wypisz je wszystkie jako 'components' podając dla każdego cenę netto i brutto.
 Opcje płatne niebędące zabudową ('paid_options') dodaj normalnie do listy przypisując kategorię: 'Fabryczna' lub 'Serwisowa/Akcesoria'. Musisz wyciągnąć wszystkie płatne opcje wymienione w dokumencie. Dla lakierów/kolorów zewnętrznych używaj konsekwentnie prefiksu 'Lakier: ' w nazwie opcji.
-Bądź precyzyjny, ale szukaj szeroko w obrębie danego kontekstu. 
+Bądź precyzyjny, ale szukaj szeroko w obrębie danego kontekstu.
+
+ROZDZIAŁ body_style vs service_equipment (KRYTYCZNE — nie pomyl kabiny z zabudową):
+'body_style' MUSI zawierać tylko typ KABINY / PODWOZIA samego pojazdu (np. Podwozie / Furgon / Furgon brygadowy / Hatchback / Kombi / SUV / Pickup / Van / Minivan). NIGDY nie wpisuj tam zabudowy.
+Następujące słowa to ZAWSZE zabudowa dealera, zapisuj je w `service_equipment.name` lub `service_equipment.components[]`, NIGDY w `body_style`:
+- "Kontener", "Izoterma", "Izotermiczny", "Chłodnia", "Chłodniczy"
+- "Skrzynia", "Skrzynia ładunkowa", "Wywrotka", "Plandeka"
+- "Agregat", "Agregat chłodniczy", "HDS", "Winda"
+Dla dostawczaków z zabudową (Master / Crafter / Daily / Transit / Sprinter / Movano / Boxer / Jumper itp.):
+- `body_style = "Podwozie"` (chassis) — gdy pojazd to gołe podwozie + zabudowa.
+- `body_style = "Furgon"` / `"Furgon brygadowy"` — gdy pojazd ma fabryczną zamkniętą skrzynię ładunkową (potem może mieć dodatkowo wewnętrzną zabudowę chłodniczą).
+- `body_style = "Podwozie z kabiną brygadową"` — gdy gołe podwozie + załogowa kabina dla brygady.
+- Cała zabudowa (kontener / izoterma / chłodnia / skrzynia itd.) ZAWSZE idzie do `service_equipment`.
+WAŻNE: Jeśli widzisz "Kontener Izotermiczny" + "Agregat Chłodniczy" jako zabudowę — to nie jest zwykły "Kontener" (geometria), tylko aktywna izoterma. Wpisz całą frazę do `service_equipment.name`, a pipeline automatycznie złoży kategorię SOT jako "Podwozie Izoterma".
+Pipeline automatycznie łączy oba sygnały w SOT-canon (np. "Podwozie Izoterma", "Podwozie Skrzynia", "Furgon Chłodnia", "Podwozie Brygadowe Wywrotka") — Twoim zadaniem jest TYLKO rozdzielić je poprawnie na dwa pola.
+
 Wyciągnij 'body_style' i 'trim_level' jako dwie oddzielne wartości w obiekcie, nie dokładaj ich na końcu innych stringów typu model.
 
 DETEKCJA LAKIERU (is_metalic_paint):

@@ -7,21 +7,30 @@ strips those out and re-distributes them to the proper columns.
 The single entry point is `normalize_model_trim_body(...)`. It returns a
 3-tuple `(model, trim, body)` where each may be None.
 
-SOT body types come from `public.body_types` (32 rows). Producer-specific
-body labels (Avant, Sportstourer, Limuzyna, Variant) map to SOT bodies via
-BODY_ALIASES.
+SOT body types come from `public.body_types` (32 rows, edytowalne w
+Supabase Dashboard Table Editor). `get_sot_body_types()` jest lazy + lru_cache'owane;
+po edycji w UI wywołaj `POST /api/admin/invalidate-cache` (clear lru) —
+albo skonfiguruj Supabase Database Webhook żeby wywoływał ten endpoint automatycznie.
+Constant `SOT_BODY_TYPES_FALLBACK` zostaje na wypadek gdy DB niedostępne
+(import-time, testy bez Supabase).
 """
 
 from __future__ import annotations
 
+import functools
+import logging
 import re
 import unicodedata
 from typing import Optional, Tuple
 
+logger = logging.getLogger(__name__)
+
 # ── Constants ────────────────────────────────────────────────────────────────
 
-# 32 SOT body types from public.body_types (verified 2026-04-29)
-SOT_BODY_TYPES: tuple[str, ...] = (
+# Fallback 32 SOT body types — używane gdy DB niedostępne (import-time,
+# testy). Single-source-of-truth jest w `public.body_types`. Snapshot z
+# 2026-04-29.
+SOT_BODY_TYPES_FALLBACK: tuple[str, ...] = (
     "Hatchback", "Kombi", "Sedan", "SUV", "Liftback", "Coupe", "Cabrio",
     "Minivan", "5 drzwiowy", "4 drzwiowy",
     "Furgon", "Furgon brygadowy", "Pickup", "Van", "Podwozie",
@@ -32,6 +41,53 @@ SOT_BODY_TYPES: tuple[str, ...] = (
     "Podwozie Brygadowe Kontener", "Podwozie Brygadowe Wywrotka",
     "Podwozie Brygadowe Plandeka",
 )
+
+
+@functools.lru_cache(maxsize=1)
+def get_sot_body_types() -> tuple[str, ...]:
+    """Lazy SOT body types z DB (`public.body_types.nazwa_nadwozia`).
+
+    Cache'owane przez `lru_cache(maxsize=1)`. Po edycji w nakładce UI
+    wywołaj `POST /api/admin/invalidate-cache`, który robi
+    `get_sot_body_types.cache_clear()` — następne wywołanie pobiera świeże.
+
+    Fallback do `SOT_BODY_TYPES_FALLBACK` gdy DB niedostępne (import-time
+    issue, testy bez Supabase, transient outage).
+    """
+    try:
+        from core.database import supabase  # local import — uniknięcie cyklu
+
+        resp = (
+            supabase.table("body_types")
+            .select("nazwa_nadwozia")
+            .execute()
+        )
+        rows = resp.data or []
+        names = tuple(
+            r["nazwa_nadwozia"]
+            for r in rows
+            if r.get("nazwa_nadwozia")
+        )
+        if not names:
+            logger.warning(
+                "get_sot_body_types: DB zwróciło 0 wierszy z body_types, "
+                "fallback do SOT_BODY_TYPES_FALLBACK"
+            )
+            return SOT_BODY_TYPES_FALLBACK
+        return names
+    except Exception as exc:
+        logger.warning(
+            "get_sot_body_types: nie udało się pobrać body_types z DB (%s), "
+            "fallback do SOT_BODY_TYPES_FALLBACK",
+            exc,
+        )
+        return SOT_BODY_TYPES_FALLBACK
+
+
+# Backwards-compat alias dla istniejących importów (np. test_model_normalizer).
+# UWAGA: to jest fallback tuple, niekoniecznie aktualne. Nowy kod powinien
+# wołać get_sot_body_types().
+SOT_BODY_TYPES: tuple[str, ...] = SOT_BODY_TYPES_FALLBACK
 
 # Producer body labels → canonical SOT body
 BODY_ALIASES: dict[str, str] = {
@@ -48,10 +104,13 @@ BODY_ALIASES: dict[str, str] = {
     "saloon": "Sedan",
 }
 
-# Body words to strip from model name (extends SOT body types)
-_BODY_WORDS_STRIPPABLE: tuple[str, ...] = tuple(
-    {*SOT_BODY_TYPES, *BODY_ALIASES.keys()}
-)
+@functools.lru_cache(maxsize=1)
+def _body_words_strippable() -> tuple[str, ...]:
+    """Lazy union SOT body types ∪ BODY_ALIASES keys (do strip z model name).
+
+    Cache invalidated wraz z `get_sot_body_types.cache_clear()`.
+    """
+    return tuple({*get_sot_body_types(), *BODY_ALIASES.keys()})
 
 # Brand prefixes — common ones that LLM might prepend to model
 KNOWN_BRAND_PREFIXES: tuple[str, ...] = (
@@ -142,14 +201,14 @@ def _strip_body_words(s: str, current_body: Optional[str]) -> tuple[str, Optiona
     changed = True
     while changed:
         changed = False
-        for word in _BODY_WORDS_STRIPPABLE:
+        for word in _body_words_strippable():
             # Match word as whole token, anywhere except very start (we want model name first)
             pattern = re.compile(rf"(?<=\S)\.?\s+{re.escape(word)}(?=\s|\.|$)", re.IGNORECASE)
             new_s = pattern.sub("", s)
             if new_s != s:
                 if not derived:
                     canonical = BODY_ALIASES.get(word.lower(), word)
-                    if canonical in SOT_BODY_TYPES:
+                    if canonical in get_sot_body_types():
                         derived = canonical
                 s = new_s
                 changed = True
@@ -262,7 +321,7 @@ def _canonicalize_body(body: Optional[str]) -> Optional[str]:
     if not s:
         return None
     # Direct SOT match (case-insensitive against the canonical list)
-    for sot in SOT_BODY_TYPES:
+    for sot in get_sot_body_types():
         if s.lower() == sot.lower():
             return sot
     # Alias match

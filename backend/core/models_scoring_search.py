@@ -102,6 +102,50 @@ class BestFitVariant(BaseModel):
     service_included: Optional[bool] = None
 
 
+class WrCurvePoint(BaseModel):
+    """One point on the WR/TCO curve for a single vehicle, keyed by duration_months."""
+
+    duration_months: int
+    wr_pct: Optional[float] = None
+    wr_pln: Optional[float] = None
+    monthly_total: Optional[float] = None
+
+
+class VehicleSnapshot(BaseModel):
+    """Comparison-view snapshot for a single vehicle at a given (months, mileage).
+
+    Built straight off `vehicle_matrix_cache` rows extended with the cost
+    decomposition columns (utrata_wartosci_pln, koszty_serwisowe_pln, ...).
+    All `monthly_*` fields are PLN/month (component_total / duration_months).
+    """
+
+    vehicle_id: str
+    found: bool
+    duration_months: Optional[int] = None
+    annual_mileage: Optional[int] = None
+    base_price_net: Optional[float] = None
+    wr_pct: Optional[float] = None
+    wr_pln: Optional[float] = None
+    monthly_amortization: Optional[float] = None
+    monthly_service: Optional[float] = None
+    monthly_tires: Optional[float] = None
+    monthly_insurance: Optional[float] = None
+    monthly_total: Optional[float] = None
+    error: Optional[str] = None  # "not_in_cache" | "null_decomposition" | "snap_to_nearest"
+    wr_curve: Optional[List[WrCurvePoint]] = None
+
+
+class ComparisonSnapshotRequest(BaseModel):
+    vehicle_ids: List[str] = Field(..., min_length=1, max_length=8)
+    months: int = 36
+    annual_mileage: int = 30000
+    include_curve: bool = False
+
+
+class ComparisonSnapshotResponse(BaseModel):
+    snapshots: dict[str, VehicleSnapshot]
+
+
 class ScoringSearchMatch(BaseModel):
     vehicle_id: str
     brand: Optional[str] = None
@@ -151,6 +195,10 @@ class ScoringSearchMatch(BaseModel):
     selected_kalkulacja_ids: List[str] = []
     # Auto-fit snapshot — populated only when request.fit_to_budget=True.
     best_fit_variant: Optional[BestFitVariant] = None
+    # Snapshot for the comparison-chart view: WR%, koszty techniczne, TCO/mc
+    # at the default (months, annual_mileage). Sourced from vehicle_matrix_cache.
+    # Null when no row exists for that pair.
+    default_snapshot: Optional[VehicleSnapshot] = None
 
 
 class ScoringSearchResponse(BaseModel):
@@ -184,6 +232,8 @@ class InitialDataResponse(BaseModel):
 class OptionItem(BaseModel):
     name: str
     count: int
+    is_sub_feature: bool = False
+    parent_packages: List[str] = []
 
 
 class TrimsAndOptionsRequest(BaseModel):
@@ -355,3 +405,9 @@ class SimilarBatchItem(SimilarVehicleMatch):
 
 class SimilarBatchResponse(BaseModel):
     results: dict[str, list[SimilarVehicleMatch]]
+    # Per-vehicle status: 'ready' = embeddings present + RPC scored (regardless
+    # of match count), 'pending' = embeddings missing → on-demand task enqueued,
+    # 'empty' = embeddings present but RPC returned 0 matches.
+    # Frontend rozróżnia "Trwa generowanie..." vs "Brak podobnych".
+    # Default empty dict for backward compat: stary frontend ignoruje to pole.
+    statuses: dict[str, str] = {}

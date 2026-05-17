@@ -498,7 +498,7 @@ class CardSummary(BaseModel):
         description="Kolor lakieru nadwozia (wraz z dopłatą na rzecz lakieru, np. 'lakier metallic 3500 zł brutto' lub 'netto'). Zwróć 'Brak' jeśli nie znaleziono."
     )
     standard_equipment: list[str] = Field(
-        description="Lista głównych elementów wyposażenia standardowego (wypisz poszczególne nazwy/elementy, pomiń te trywialne)."
+        description="KOMPLETNA lista wyposażenia standardowego — wypisz KAŻDY element z KAŻDEJ sekcji dokumentu (Koła, Fotele, Multimedia, Zewnętrzne, Wewnętrzne, Elektryczne, Bezpieczeństwo, Wyposażenie dodatkowe itd.) zachowując oryginalne nazwy. NIE filtruj, NIE pomijaj 'trywialnych' pozycji (ABS, ESP, poduszki, ISOFIX, pasy, eCall, dywaniki, antena, głośniki itp.) — wszystkie są kluczowe dla wyszukiwarki cech pojazdów. Pomijaj WYŁĄCZNIE dokładne duplikaty."
     )
     paid_options: list[PaidOption] = Field(
         description="Lista osobnych, płatnych opcji dodatkowych uwzględnionych w konfiguracji podanych w postaci listy z nazwą ew. kodem opcji i ceną dopłaty (wraz z 'netto' lub 'brutto')."

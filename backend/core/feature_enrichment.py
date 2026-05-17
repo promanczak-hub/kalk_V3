@@ -650,6 +650,51 @@ def _is_package_name(name: str) -> bool:
     return any(kw in lower for kw in _PACKAGE_KEYWORDS)
 
 
+_PACKAGE_ORIGIN_RE = re.compile(r"\(z:\s*(.+?)\)\s*$")
+
+
+def fetch_package_contents(vehicle_id: str) -> dict[str, list[tuple[str, float]]]:
+    """Return {package_name: [(sub_feature_name, confidence), ...]} for a vehicle.
+
+    Reads `reverse_search.vehicle_feature_evidence` rows with
+    source_type='package_decomposition' — written by `_llm_decompose_packages()`.
+    Parent package is encoded in `value_text` as "{sub_feature} (z: {package_name})".
+    Returns {} on miss or any error (callers tolerate it).
+    """
+    if not vehicle_id:
+        return {}
+    try:
+        resp = (
+            sb_client.schema("reverse_search")
+            .table("vehicle_feature_evidence")
+            .select("value_text, confidence, universal_features(display_name)")
+            .eq("source_vehicle_id", vehicle_id)
+            .eq("source_type", "package_decomposition")
+            .execute()
+        )
+    except Exception as e:
+        logger.info("package contents lookup failed [%s]: %s", vehicle_id, str(e)[:200])
+        return {}
+
+    packages: dict[str, list[tuple[str, float]]] = {}
+    for row in resp.data or []:
+        value_text = row.get("value_text") or ""
+        m = _PACKAGE_ORIGIN_RE.search(value_text)
+        if not m:
+            continue
+        package_name = m.group(1).strip()
+        uf = row.get("universal_features") or {}
+        display_name = (uf.get("display_name") or "").strip()
+        if not display_name:
+            continue
+        try:
+            confidence = float(row.get("confidence") or 0.0)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        packages.setdefault(package_name, []).append((display_name, confidence))
+    return packages
+
+
 async def _llm_decompose_packages(
     package_names: list[str],
     brand: str,
@@ -886,35 +931,61 @@ async def enrich_vehicle_features(
 
     pkg_evidence_count = 0
     if package_names and brand:
-        decomposed = await _llm_decompose_packages(package_names, brand, model_name)
-        all_sub_features: list[str] = []
-        sub_feature_to_package: dict[str, str] = {}
-        for pkg_name, contents in decomposed.items():
-            for sub in contents:
-                all_sub_features.append(sub)
-                sub_feature_to_package[sub] = pkg_name
+        # Both LLM calls (decomposition + sub-feature matching) can be flaky on
+        # the first try (Gemini occasionally returns empty content for known
+        # packages or skips matches). We retry the whole block once if the
+        # round produces 0 sub-feature evidence rows — second attempt is
+        # almost always non-zero. Without this, a flaky run would leave a
+        # vehicle permanently without `package_decomposition` evidence rows,
+        # so the picker badge + "w pakiecie" UI silently lose data.
+        decomposition_attempts = 2
+        for attempt in range(1, decomposition_attempts + 1):
+            decomposed = await _llm_decompose_packages(
+                package_names, brand, model_name
+            )
+            all_sub_features: list[str] = []
+            sub_feature_to_package: dict[str, str] = {}
+            for pkg_name, contents in decomposed.items():
+                for sub in contents:
+                    all_sub_features.append(sub)
+                    sub_feature_to_package[sub] = pkg_name
 
-        if all_sub_features:
-            sub_matches = await _llm_match_equipment(all_sub_features, features)
-            for match in sub_matches:
-                feat_id = feature_by_key.get(match["feature_key"])
-                if not feat_id:
-                    continue
-                pkg_origin = sub_feature_to_package.get(
-                    match["item"], "unknown_package"
+            attempt_evidence_count = 0
+            if all_sub_features:
+                sub_matches = await _llm_match_equipment(
+                    all_sub_features, features
                 )
-                evidence_batch.append(
-                    {
-                        "source_vehicle_id": vehicle_id,
-                        "feature_id": feat_id,
-                        "source_type": "package_decomposition",
-                        "evidence_status": "inferred",
-                        "value_bool": True,
-                        "value_text": (f"{match['item']} (z: {pkg_origin})"),
-                        "confidence": round(match["confidence"] * 0.9, 4),
-                    }
+                for match in sub_matches:
+                    feat_id = feature_by_key.get(match["feature_key"])
+                    if not feat_id:
+                        continue
+                    pkg_origin = sub_feature_to_package.get(
+                        match["item"], "unknown_package"
+                    )
+                    evidence_batch.append(
+                        {
+                            "source_vehicle_id": vehicle_id,
+                            "feature_id": feat_id,
+                            "source_type": "package_decomposition",
+                            "evidence_status": "inferred",
+                            "value_bool": True,
+                            "value_text": (f"{match['item']} (z: {pkg_origin})"),
+                            "confidence": round(match["confidence"] * 0.9, 4),
+                        }
+                    )
+                    attempt_evidence_count += 1
+
+            pkg_evidence_count = attempt_evidence_count
+            if attempt_evidence_count > 0:
+                break
+            if attempt < decomposition_attempts:
+                logger.warning(
+                    "Vehicle %s: package decomposition attempt %d yielded 0 "
+                    "sub-features for %d packages — retrying",
+                    vehicle_id,
+                    attempt,
+                    len(package_names),
                 )
-                pkg_evidence_count += 1
 
         logger.info(
             "Vehicle %s: decomposed %d packages → %d sub-features → "

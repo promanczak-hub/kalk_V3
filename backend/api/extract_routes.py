@@ -187,6 +187,10 @@ def _direct_update_synthesis(vehicle_id: str, synthesis: dict) -> None:
     """Direct UPDATE via psycopg2 — PostgREST in this Supabase instance has
     default schema set to `reverse_search` and ignores Content-Profile for
     vehicle_synthesis. We bypass it entirely with a direct DB connection.
+
+    Falls back to `supabase_client.update()` when no DB password is configured
+    (dev / test environments). The fallback writes through PostgREST and works
+    as long as the local PostgREST default schema is `public`.
     """
     import psycopg2
     from psycopg2.extras import Json
@@ -194,13 +198,20 @@ def _direct_update_synthesis(vehicle_id: str, synthesis: dict) -> None:
 
     db_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
     if not db_url:
-        # Fallback: build from SUPABASE_URL
         host = SUPABASE_URL.replace("https://", "").replace("http://", "").rstrip("/")
-        # Direct postgres connection to Supabase: db.{ref}.supabase.co:5432
         ref = host.split(".")[0]
         password = os.getenv("SUPABASE_DB_PASSWORD")
         if not password:
-            raise RuntimeError("SUPABASE_DB_PASSWORD not set in env")
+            # Dev/test fallback: use PostgREST via supabase_client. Production
+            # uses direct psycopg2 because PostgREST default schema isn't public.
+            logger.info(
+                "[UPDATE] SUPABASE_DB_PASSWORD not set — falling back to "
+                "supabase_client.update() (dev mode)"
+            )
+            supabase_client.table("vehicle_synthesis").update(
+                {"synthesis_data": synthesis}
+            ).eq("id", vehicle_id).execute()
+            return
         db_url = f"postgresql://postgres:{password}@db.{ref}.supabase.co:5432/postgres"
 
     conn = psycopg2.connect(db_url)
