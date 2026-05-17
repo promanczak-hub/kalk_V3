@@ -129,18 +129,27 @@ async def test_spare_wheel_not_matched_as_alloy_rim() -> None:
 
 @pytest.mark.asyncio
 async def test_llm_match_fallback_on_error() -> None:
-    """LLM error must return empty list, not raise an exception."""
+    """LLM error must propagate (Fail Fast) when Gemini raises.
+
+    `_llm_match_equipment` checks `_get_aliases()` first — if the alias for
+    'felga aluminiowa' is cached in DB, the function early-returns BEFORE
+    Gemini is invoked, and the RuntimeError never fires. Patching _get_aliases
+    to return {} forces the LLM path so we can verify the exception propagates.
+    Without this patch the test was flaky depending on Supabase aliases cache state.
+    """
     from unittest.mock import AsyncMock
 
-    with patch("core.feature_enrichment.get_gemini_client") as mock_client:
+    with (
+        patch("core.feature_enrichment._get_aliases", AsyncMock(return_value={})),
+        patch("core.feature_enrichment.get_gemini_client") as mock_client,
+    ):
         mock_client.return_value.aio.models.generate_content = AsyncMock(
             side_effect=RuntimeError("quota exceeded")
         )
-        try:
+        # Production wraps the raw exception in a Polish-language RuntimeError:
+        # "Zatrzymano proces enrichment - błąd komunikacji z LLM." (from chain `from exc`).
+        with pytest.raises(RuntimeError, match="Zatrzymano proces enrichment"):
             await _llm_match_equipment(["felga aluminiowa"], SAMPLE_FEATURES)
-            assert False, "Should raise exception due to Fail Fast"
-        except RuntimeError:
-            pass
 
 
 @pytest.mark.asyncio

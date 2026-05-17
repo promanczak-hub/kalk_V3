@@ -123,14 +123,27 @@ class TestServiceCalculator(unittest.TestCase):
         expected = 12000 / 36 + 50.0
         self.assertAlmostEqual(self._monthly(result), expected, places=2)
 
-    def test_fake_brand_multiplier_survives(self) -> None:
-        """Testuje zasadę systemową (Rule 4), że zmyślona marka nie wyrzuca wyjątku, ale stosuje mnożnik bazowy 1.0 (z pomocą realnego lookupu w DB lub mocka jeśli live-DB wyłączono)."""
+    def test_fake_brand_multiplier_fail_fast(self) -> None:
+        """`get_service_multiplier` musi być fail-fast dla nieznanej marki (no silent 1.0 fallback).
+
+        Historia: poprzedni test oczekiwał `multiplier == 1.0` ("Rule 4 — fake
+        marka nie wyrzuca wyjątku"). Production *od dawna* raise'uje ValueError
+        gdy w `samar_service_brand_multipliers` brakuje wiersza dla brand_normalized
+        i brakuje POZOSTAŁE fallback. To celowe — wykrywa data-quality issues
+        zamiast cicho liczyć dalej z mnożnikiem 1.0.
+
+        Memory note `feedback_service_multipliers_neutral` mówi że W PRODUKCJI
+        mnożniki są trzymane na 1.0 (różnicowanie w base rate) — ale to o
+        wartościach w DB, nie o silent fallback gdy wiersz brakuje.
+        """
         from core.LTRSubCalculatorSerwisNew import get_service_multiplier
 
-        multiplier = get_service_multiplier(
-            "samar_service_brand_multipliers", "brand_normalized", "MarkaX_Zmyslona"
-        )
-        self.assertEqual(multiplier, 1.0)
+        with self.assertRaises(ValueError):
+            get_service_multiplier(
+                "samar_service_brand_multipliers",
+                "brand_normalized",
+                "MarkaX_Zmyslona",
+            )
 
     # --- Floor normatywny ---
 

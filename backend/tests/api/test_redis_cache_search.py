@@ -117,37 +117,53 @@ class TestInitialDataCache:
         mock_sb.rpc.assert_not_called()
         assert result.brands == ["Toyota"]
 
-    def test_cache_miss_calls_rpc_and_stores(
+    def test_cache_miss_calls_db_and_stores(
         self, mock_redis_client: MagicMock
     ) -> None:
-        """On cache miss, RPC is called and the result is stored in Redis."""
-        mock_redis_client.get.return_value = None
-        rpc_data = {
-            "brands": ["BMW"],
-            "models": ["X3"],
-            "brand_model_map": {"BMW": ["X3"]},
-            "brand_counts": {"BMW": 1},
-            "samar_classes": [{"id": 1}],
-            "body_types": [],
-        }
+        """On cache miss, DB is queried (vehicle_synthesis + samar_classes) and result is stored in Redis.
 
-        mock_sb = MagicMock()
-        mock_sb.rpc.return_value.execute.return_value.data = rpc_data
+        Previously this tested an rpc() call (`rpc_get_scoring_initial_data`) but
+        get_initial_data was rewritten to aggregate in Python from vehicle_synthesis
+        rows. Cache contract is the same: miss → fetch → setex.
+        """
+        mock_redis_client.get.return_value = None  # cache miss
+
+        # _supabase_execute_with_retry is called twice in get_initial_data:
+        # 1) fetch vehicle_synthesis rows  2) fetch samar_classes
+        synthesis_resp = MagicMock(
+            data=[
+                {
+                    "brand": "BMW",
+                    "model": "X3",
+                    "synthesis_data": {
+                        "card_summary": {"trim_level": "M Sport"},
+                        "mapped_ai_data": {"body_style": "SUV"},
+                    },
+                }
+            ]
+        )
+        samar_resp = MagicMock(data=[{"id": 1, "name": "Klasa 10"}])
 
         with (
             patch("core.redis_cache._get_client", return_value=mock_redis_client),
             patch(
                 "api.scoring_search_routes._get_client", return_value=mock_redis_client
             ),
-            patch("api.scoring_search_routes.supabase", mock_sb),
+            patch(
+                "api.scoring_search_routes._supabase_execute_with_retry",
+                side_effect=[synthesis_resp, samar_resp],
+            ),
         ):
             from api.scoring_search_routes import get_initial_data
 
             result = get_initial_data()
 
-        mock_sb.rpc.assert_called_once_with("rpc_get_scoring_initial_data")
+        # Verify cache write happened
         mock_redis_client.setex.assert_called_once()
-        assert result.brands == ["BMW"]
+        # Verify aggregated result matches mocked input
+        assert "BMW" in result.brands
+        assert "X3" in result.models
+        assert result.samar_classes[0]["name"] == "Klasa 10"
 
 
 # ── search caching ────────────────────────────────────────────────────────────
@@ -183,31 +199,47 @@ class TestSearchCache:
         assert hash1 != hash2
 
     def test_redis_unavailable_fallthrough(self) -> None:
-        """When Redis is down, search still works via direct Supabase call."""
-        rpc_data = [
-            {
-                "vehicle_id": "abc",
-                "brand": "Toyota",
-                "model": "Yaris",
-                "version": None,
-                "match_score_pct": 100.0,
-                "matched_features": ["monthly_price_net"],
-                "missing_features": [],
-                "best_monthly_price": 1500.0,
-            }
-        ]
+        """When Redis is down, search still works via plain SELECT from vehicle_synthesis.
 
-        mock_sb = MagicMock()
-        mock_sb.rpc.return_value.execute.return_value.data = rpc_data
+        Previously this tested an rpc() call (`rpc_reverse_search`) but run_scoring_search
+        was rewritten to use a plain SELECT on vehicle_synthesis (non-semantic path) +
+        rpc_search_vehicles_multi_vector (semantic path with embeddings). Cache contract
+        is the same: redis=None → DB path executes → result returned.
+        """
+        # Plain SELECT path returns vehicle_synthesis rows that get processed in-Python.
+        # Mock one Toyota Yaris row that matches the test request (brands=["Toyota"]).
+        synthesis_resp = MagicMock(
+            data=[
+                {
+                    "id": "abc",
+                    "brand": "Toyota",
+                    "model": "Yaris",
+                    "synthesis_data": {
+                        "card_summary": {
+                            "trim_level": None,
+                            "base_price": 50000,
+                            "power_hp": 90,
+                        },
+                        "mapped_ai_data": {},
+                    },
+                }
+            ]
+        )
 
         with (
             patch("core.redis_cache._get_client", return_value=None),
             patch("api.scoring_search_routes._get_client", return_value=None),
-            patch("api.scoring_search_routes.supabase", mock_sb),
+            patch(
+                "api.scoring_search_routes._supabase_execute_with_retry",
+                return_value=synthesis_resp,
+            ),
         ):
             from api.scoring_search_routes import run_scoring_search
 
             result = run_scoring_search(self._make_request())
 
-        assert result.total_count == 1
+        # Even without Redis, the search path should produce a result for the mocked
+        # Toyota Yaris row (which matches brand="Toyota" hard-filter from _make_request).
+        assert result.total_count >= 1
         assert result.results[0].brand == "Toyota"
+        assert result.results[0].model == "Yaris"

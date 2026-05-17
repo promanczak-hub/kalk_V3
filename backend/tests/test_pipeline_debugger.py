@@ -119,6 +119,16 @@ def test_pipeline_debugger_no_overrides_matches_kalkulator(
     monkeypatch.setattr("core.LTRKalkulator.InsuranceCalculator", DummyInsuranceCalc)
     monkeypatch.setattr("core.PipelineDebugger.InsuranceCalculator", DummyInsuranceCalc)
 
+    # ServiceCalculator's get_service_multiplier raises ValueError for unknown
+    # brand/fuel/drive/gearbox (fail-fast, no POZOSTAŁE fallback in DB). Patch
+    # to 1.0 so the pipeline can reach Stawka step. Memory note
+    # `feedback_service_multipliers_neutral` says multipliers stay at 1.0 in
+    # production anyway — differentiation is in base rate.
+    monkeypatch.setattr(
+        "core.LTRSubCalculatorSerwisNew.get_service_multiplier",
+        lambda *a, **kw: 1.0,
+    )
+
     # Expected standard calculation
     standard_calc = LTRKalkulator(input_data=mock_input_data, settings=mock_settings)
 
@@ -193,6 +203,16 @@ def test_pipeline_debugger_with_override(mock_input_data, mock_settings, monkeyp
 
     monkeypatch.setattr("core.LTRKalkulator.InsuranceCalculator", DummyInsuranceCalc)
     monkeypatch.setattr("core.PipelineDebugger.InsuranceCalculator", DummyInsuranceCalc)
+
+    # ServiceCalculator's get_service_multiplier raises ValueError for unknown
+    # brand/fuel/drive/gearbox (fail-fast, no POZOSTAŁE fallback in DB). Patch
+    # to 1.0 so the pipeline can reach Stawka step. Memory note
+    # `feedback_service_multipliers_neutral` says multipliers stay at 1.0 in
+    # production anyway — differentiation is in base rate.
+    monkeypatch.setattr(
+        "core.LTRSubCalculatorSerwisNew.get_service_multiplier",
+        lambda *a, **kw: 1.0,
+    )
 
     monkeypatch.setattr(
         "core.LTRSubCalculatorUtrataWartosciNew.LTRSubCalculatorUtrataWartosciNew.calculate_values",
