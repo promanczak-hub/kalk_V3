@@ -88,6 +88,9 @@ def mock_input_data():
 def test_pipeline_debugger_no_overrides_matches_kalkulator(
     mock_input_data, mock_settings, monkeypatch
 ):
+    # Disable Redis cache to avoid cross-test pollution in full suite
+    monkeypatch.setattr("core.redis_cache._get_client", lambda: None)
+
     monkeypatch.setattr(
         "core.LTRKalkulator.get_vehicle_from_db",
         lambda *a, **kw: {
@@ -174,6 +177,9 @@ def test_pipeline_debugger_no_overrides_matches_kalkulator(
 
 
 def test_pipeline_debugger_with_override(mock_input_data, mock_settings, monkeypatch):
+    # Disable Redis cache to avoid cross-test pollution in full suite
+    monkeypatch.setattr("core.redis_cache._get_client", lambda: None)
+
     monkeypatch.setattr(
         "core.LTRKalkulator.get_vehicle_from_db",
         lambda *a, **kw: {

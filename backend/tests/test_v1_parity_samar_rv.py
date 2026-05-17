@@ -1,21 +1,16 @@
 from core.samar_rv import SamarRVCalculator, RVInput
 
 
-def test_skoda_octavia_rs_v1_parity():
-    # ── Isolation: bust Redis cache for samar_rv:* keys ────────────────────
-    # When other tests run BEFORE this one in the suite (e.g. test_feature_enrichment
-    # transitively triggers Supabase calls via different paths), the @redis_cache
-    # state in core.samar_rv_fetchers gets populated with values that diverge
-    # ~1664 PLN brutto from a fresh calc. Forcing a cache flush at test start
-    # makes the test deterministic regardless of suite ordering. Individual
-    # runs still produce 61046 PLN brutto identically.
-    try:
-        from core.redis_cache import cache_invalidate_pattern
-        cache_invalidate_pattern("samar_rv:*")
-    except Exception:
-        # Redis unavailable in test env → @redis_cache falls through to direct
-        # function call anyway, so no-op is safe.
-        pass
+def test_skoda_octavia_rs_v1_parity(monkeypatch):
+    # ── Isolation: disable Redis cache entirely for this test ──────────────
+    # When other tests run BEFORE this one in the suite (especially
+    # test_feature_enrichment which transitively touches Supabase paths),
+    # @redis_cache state in core.samar_rv_fetchers diverges ~1664 PLN brutto
+    # from a fresh calc. Forcing `_get_client` to return None makes every
+    # @redis_cache decorator fall through to a direct Supabase call,
+    # eliminating cross-test pollution while keeping the parity assertion
+    # honest. Individual runs still produce 61046 PLN brutto identically.
+    monkeypatch.setattr("core.redis_cache._get_client", lambda: None)
     """
     Test weryfikujący poprawność WR (Wartości Rezydualnej) dla Skoda Octavia RS
     przeciwko aktualnemu **2503 SOT** (Source of Truth).
