@@ -34,6 +34,14 @@ Po fixie pyproject.toml `poetry run pytest tests/` powinno collectować wszystko
 
 ---
 
+## Final state — 2026-05-17 (evening)
+
+After Faza A2 + Skoda cache isolation fix:
+
+- **489 → 491 pass** (after pyproject pythonpath unlocked 2 collection errors → +15 tests visible, then 5 A2 fixes recovered the 5 pre-existing failures)
+- **6 → 1 expected failure (or 0 with cache-bust)** — Skoda parity now busts `samar_rv:*` Redis at test start to avoid order-dependent pollution from `test_feature_enrichment`
+- Vitest: **39 tests / 4 files** (from 2 / 1 pre-A1) — 19.5× discipline lift on frontend
+
 ## REGRESSION FROM A1 (1 of 8) — **RESOLVED 2026-05-17 (user decision: #2 accept new SOT)**
 
 **User decision:** "nie możesz robić żadnej regresji na Skodzie. ostatnie fixy k2 + k4 powodowały że wszystko liczy się dobrze" — k2 + k4 changes są intencjonalne, current code jest correct, test był stale. Wybrana ścieżka **#2** (accept regression jako nowy SOT, update test + Golden Rule + memory note).
