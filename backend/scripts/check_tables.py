@@ -8,7 +8,6 @@ def check():
         "ltr_admin_ubezpieczenia",
         "control_center",
         "tab_okres_final",
-        "tyre_configurations",
         "engines",
         "ltr_admin_wspolczynniki_szkodowe",
     ]

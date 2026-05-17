@@ -49,11 +49,9 @@ SEP = "─" * 70
 
 
 def load_settings() -> ControlCenterSettings:
-    """Pobiera ControlCenterSettings z control_center (id=1)."""
-    res = supabase.table("control_center").select("*").eq("id", 1).execute()
-    if not res.data:
-        raise RuntimeError("Brak ustawień control_center (id=1)!")
-    return ControlCenterSettings(**cast(Dict[str, Any], res.data[0]))
+    """Pobiera ControlCenterSettings z EAV tabeli control_center."""
+    from core.control_center import fetch_control_center_settings
+    return fetch_control_center_settings()
 
 
 def load_vehicles(vehicle_id: str | None = None) -> List[Dict[str, Any]]:

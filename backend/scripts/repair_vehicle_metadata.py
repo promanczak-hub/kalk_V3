@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 def repair_metadata():
     # 1. Fetch current control center settings
     logger.info("Fetching control center settings...")
-    cc_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-    if not cc_res.data:
-        logger.error("Control center settings not found")
+    from core.control_center import fetch_control_center_row
+    try:
+        cc_data = fetch_control_center_row()
+    except Exception as e:
+        logger.error("Control center settings not found: %s", e)
         return
-
-    cc_data = cc_res.data[0]
     default_wibor = float(cc_data.get("default_wibor", 3.83))
     bank_spread = float(cc_data.get("bank_spread", 2.20))
     logger.info(f"Using WIBOR: {default_wibor}%, Bank Margin: {bank_spread}%")

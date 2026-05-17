@@ -15,7 +15,6 @@ TABLES = [
     "replacement_car_rates",
     "pojazdy_master",
     "vehicle_synthesis",
-    "tyre_configurations",
     "koszty_opon",
     "paint_types",
     "engines",

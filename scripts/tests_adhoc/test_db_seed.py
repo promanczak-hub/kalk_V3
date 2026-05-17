@@ -23,5 +23,4 @@ def check(table, select_cols):
 
 print("Sprawdzam baze Supabase...")
 check("control_center", "id, cost_sales_prep, cost_registration")
-check("tyre_configurations", "config_key, config_value")
 check("replacement_car_rates", "samar_class_id, daily_rate_net")

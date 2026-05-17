@@ -11,8 +11,8 @@ from core.LTRKalkulator import LTRKalkulator
 
 
 async def main():
-    settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-    settings = ControlCenterSettings(**settings_res.data[0])
+    from core.control_center import fetch_control_center_settings
+    settings = fetch_control_center_settings()
 
     print("\n--- Vehicle: SWNLCDYR (Tavascan) ---")
     v_res = (

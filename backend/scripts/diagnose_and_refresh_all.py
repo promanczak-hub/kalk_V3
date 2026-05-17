@@ -43,11 +43,12 @@ def run_refresh_and_report() -> None:
     print(f"Łączna liczba aut w bazie: {len(vehicles)}\n")
 
     # 2. Fetch CC settings once
-    settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-    if not settings_res.data:
-        print("BŁĄD KRYTYCZNY: Brak ustawień Control Center!")
+    from core.control_center import fetch_control_center_settings
+    try:
+        settings = fetch_control_center_settings()
+    except Exception as e:
+        print(f"BŁĄD KRYTYCZNY: Brak ustawień Control Center! ({e})")
         return
-    settings = ControlCenterSettings(**cast(dict[str, Any], settings_res.data[0]))
 
     successes: list[dict] = []
     failures: list[dict] = []
