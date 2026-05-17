@@ -99,8 +99,11 @@ docker-compose.override.yml
 # Generated audit/test reports
 frontend/audit-output/
 
-# Claude Code local config
-.claude/
+# Claude Code local config — ignore personal/local artifacts but COMMIT
+# the codified skills + custom agents so they ship to the team via origin.
+.claude/*
+!.claude/skills/
+!.claude/agents/
 
 # Experimental / one-off helper scripts (underscore-prefix at repo root)
 /_apply_migrations.py
