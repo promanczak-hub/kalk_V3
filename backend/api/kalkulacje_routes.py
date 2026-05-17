@@ -47,6 +47,34 @@ router = APIRouter(prefix="/kalkulacje", tags=["kalkulacje"])
 _DEFAULT_MONTHS = 48
 _DEFAULT_TOTAL_KM = 140_000
 
+# Supabase REST default LIMIT (1000 rows). matrix_cache has ~200 cells per
+# kalkulacja, so >~5 calculations would silently truncate the response.
+# We paginate via .range() until exhausted.
+_MATRIX_PAGE_SIZE = 1000
+
+
+def _fetch_matrix_rows_paginated(kalk_ids: list[str]) -> list[dict]:
+    """Fetch ALL matrix_cache rows for the given kalk_ids, paginating past
+    Supabase's default 1000-row limit. Returns flat list."""
+    if not kalk_ids:
+        return []
+    out: list[dict] = []
+    offset = 0
+    while True:
+        batch = (
+            supabase.table("vehicle_matrix_cache")
+            .select("kalkulacja_id,monthly_price_net,duration_months,annual_mileage")
+            .in_("kalkulacja_id", kalk_ids)
+            .range(offset, offset + _MATRIX_PAGE_SIZE - 1)
+            .execute()
+        )
+        rows = batch.data or []
+        out.extend(rows)
+        if len(rows) < _MATRIX_PAGE_SIZE:
+            break
+        offset += _MATRIX_PAGE_SIZE
+    return out
+
 
 def _build_target_map(kalk_rows: list[dict]) -> dict[str, tuple[int, int, float]]:
     """Per-kalkulacja (months, annual_km, sales_margin_pct) wyciagniete z stan_json.
@@ -431,14 +459,7 @@ def get_kalkulacje():
             return []
 
         kalk_ids = [r["id"] for r in res.data]
-        rates_res = (
-            supabase.table("vehicle_matrix_cache")
-            .select("kalkulacja_id,monthly_price_net,duration_months,annual_mileage")
-            .in_("kalkulacja_id", kalk_ids)
-            .execute()
-        )
-
-        matrix_rows = rates_res.data or []
+        matrix_rows = _fetch_matrix_rows_paginated(kalk_ids)
         targets = _build_target_map(res.data)
         best_rates = _pick_rata_netto(matrix_rows, targets)
         matrix_counts: dict[str, int] = {}
@@ -523,17 +544,14 @@ def get_kalkulacje_by_vehicle(vehicle_id: str):
         kalk_ids = [r["id"] for r in res.data]
 
         # ── Step 2: fetch matrix cache rates for these calculations ──
+        # Paginate past Supabase's 1000-row default; otherwise newest calcs
+        # silently get dropped from the rate map.
         step = "fetch_matrix_cache"
-        rates_res = _supabase_execute_with_retry(
-            supabase.table("vehicle_matrix_cache")
-            .select("kalkulacja_id,monthly_price_net,duration_months,annual_mileage")
-            .in_("kalkulacja_id", kalk_ids)
-        )
+        matrix_rows = _fetch_matrix_rows_paginated(kalk_ids)
 
         # ── Step 3: aggregate per-kalkulacja rate matching its (okres_bazowy, przebieg_bazowy)
         # plus dynamic sales margin from stan_json. Cache holds base costs (margin=0). ──
         step = "aggregate_rates"
-        matrix_rows = rates_res.data or []
         targets = _build_target_map(res.data)
         best_rates: dict[str, float] = _pick_rata_netto(matrix_rows, targets)
         matrix_counts: dict[str, int] = {}

@@ -1423,17 +1423,30 @@ def run_scoring_search(request: ScoringSearchRequest) -> ScoringSearchResponse:
             try:
                 budget = float(request.monthly_budget)
                 cap = max(0.0, min(float(request.auto_margin_cap_pct), 99.0))
-                sweep_resp = _supabase_execute_with_retry(
-                    sb.table("vehicle_matrix_cache")
-                    .select(
-                        "vehicle_id,duration_months,annual_mileage,monthly_price_net,"
-                        "kalkulacja_id,tire_class,service_type,calculated_at"
+                # Paginate past Supabase's 1000-row default. With ~212 cells
+                # per vehicle, ~5 vehicles in search results overflows the
+                # default page and newest cells silently get dropped.
+                _PAGE = 1000
+                sweep_rows: list[dict] = []
+                _offset = 0
+                while True:
+                    _batch = _supabase_execute_with_retry(
+                        sb.table("vehicle_matrix_cache")
+                        .select(
+                            "vehicle_id,duration_months,annual_mileage,monthly_price_net,"
+                            "kalkulacja_id,tire_class,service_type,calculated_at"
+                        )
+                        .in_("vehicle_id", vehicle_ids_in_results)
+                        .range(_offset, _offset + _PAGE - 1)
                     )
-                    .in_("vehicle_id", vehicle_ids_in_results)
-                )
+                    _rows = _batch.data or []
+                    sweep_rows.extend(_rows)
+                    if len(_rows) < _PAGE:
+                        break
+                    _offset += _PAGE
                 rows_by_vehicle: dict[str, list[dict]] = {}
                 all_kalk_ids: set[str] = set()
-                for r in sweep_resp.data or []:
+                for r in sweep_rows:
                     vid = str(r.get("vehicle_id") or "")
                     if not vid:
                         continue
