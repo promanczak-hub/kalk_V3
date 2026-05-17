@@ -1,16 +1,3 @@
-# ==============================================================================
-# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
-# ==============================================================================
-# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
-# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
-# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
-#
-# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
-# 1. PRZERWIJ DZIAŁANIE.
-# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
-# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
-# ==============================================================================
-
 import logging
 from functools import lru_cache
 from typing import Any, cast
@@ -130,7 +117,7 @@ class ServiceCalculatorInput(BaseModel):
 
     Logika priorytetu:
         1. PakietSerwisowy > 0 → override (zastępuje km-ówkę)
-        2. W przeciwnym razie: km-ówka z samar_service_costs
+        2. W przeciwnym razie: km-ówka z samar_class_service_rates
         3. InneKosztySerwisowania dolicza się ZAWSZE (miesięcznie)
     """
 
@@ -263,7 +250,7 @@ class ServiceCalculator:
     Algorytm:
         1. Jeśli pakiet_serwisowy > 0 → koszt = pakiet / okres
         2. W przeciwnym razie:
-           stawka_za_km = z samar_service_costs (ASO/nonASO, wg power_band)
+           stawka_za_km = z samar_class_service_rates (ASO/nonASO, progresywnie wg przebieg_do)
            effective_km = max(total_km, normatywny_przebieg_mc × months)
            koszt = effective_km × stawka_za_km / months
         3. Do wyniku ZAWSZE dodaje inne_koszty_serwisowania_netto (mc)
