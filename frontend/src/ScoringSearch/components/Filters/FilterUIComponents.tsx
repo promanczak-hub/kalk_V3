@@ -131,6 +131,31 @@ export const OptionsChecklist: React.FC<{
             <Typography variant="body2" sx={{ fontSize: '0.78rem', color: '#475569' }}>
               {item.name}
               <Box component="span" sx={{ color: '#94a3b8', ml: 0.5, fontSize: '0.72rem' }}>({item.count})</Box>
+              {item.is_sub_feature && (
+                <Box
+                  component="span"
+                  title={
+                    item.parent_packages && item.parent_packages.length > 0
+                      ? `Występuje w: ${item.parent_packages.join(', ')}`
+                      : 'Występuje wyłącznie jako element pakietów'
+                  }
+                  sx={{
+                    ml: 0.7,
+                    px: 0.6,
+                    py: 0.1,
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    color: '#7c3aed',
+                    bgcolor: '#ede9fe',
+                    border: '1px solid #c4b5fd',
+                    borderRadius: 1,
+                    verticalAlign: 'middle',
+                    cursor: 'help',
+                  }}
+                >
+                  📦 W PAKIECIE
+                </Box>
+              )}
             </Typography>
           }
           sx={{ m: 0, alignItems: 'flex-start' }}

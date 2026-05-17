@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, CircularProgress, Typography } from '@mui/material';
 import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
-import type { SimilarVehicle } from '../../hooks/useBatchData';
+import type { SimilarStatus, SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesPanel } from '../SimilarVehiclesPanel';
 
 interface SimilarVehiclesSectionProps {
@@ -11,6 +11,14 @@ interface SimilarVehiclesSectionProps {
   targetDuration: number;
   targetAnnualMileage: number;
   similarData?: SimilarVehicle[];
+  /**
+   * Backend zwraca per-pojazd: 'pending' (embeddingi w trakcie generowania —
+   * pokazujemy spinner + komunikat „Trwa generowanie..."), 'ready' (lista
+   * dopasowań), 'empty' (embeddingi gotowe, ale 0 dopasowań — pokazujemy
+   * „Brak podobnych"). Brak wartości = stary backend bez X-Similar-Status →
+   * fallback do dotychczasowej logiki (length > 0 ? lista : 'Brak').
+   */
+  similarStatus?: SimilarStatus;
   marginPct?: number;
   matrixActive?: boolean;
 }
@@ -18,6 +26,7 @@ interface SimilarVehiclesSectionProps {
 export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
   sourceVehicle,
   similarData,
+  similarStatus,
   marginPct,
   targetDuration,
   targetAnnualMileage,
@@ -26,6 +35,11 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
   const [expanded, setExpanded] = useState(false);
 
   const hasSimilar = similarData && similarData.length > 0;
+  // Status 'pending' nadpisuje wszystko — nawet jeśli starszy cache zwrócił
+  // jakieś dane, ale nowy embedding się generuje, lepiej pokazać spinner
+  // niż mylące "0 dopasowań".
+  const isPending = similarStatus === 'pending';
+  const isEmpty = similarStatus === 'empty' || (!isPending && !hasSimilar);
 
   return (
     <div className="border-t border-slate-200">
@@ -43,7 +57,14 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
 
       {expanded && (
         <Box sx={{ px: 2, pb: 2 }}>
-          {hasSimilar ? (
+          {isPending ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1.5 }}>
+              <CircularProgress size={14} sx={{ color: '#8B5CF6' }} />
+              <Typography variant="caption" sx={{ color: '#64748B', fontStyle: 'italic' }}>
+                Trwa generowanie podobnych pojazdów…
+              </Typography>
+            </Box>
+          ) : hasSimilar ? (
             <SimilarVehiclesPanel
               vehicles={similarData}
               sourceVehicle={sourceVehicle}
@@ -53,11 +74,11 @@ export const SimilarVehiclesSection: React.FC<SimilarVehiclesSectionProps> = ({
               targetAnnualMileage={targetAnnualMileage}
               matrixActive={matrixActive}
             />
-          ) : (
+          ) : isEmpty ? (
             <Typography variant="caption" sx={{ color: '#94A3B8', fontStyle: 'italic', display: 'block', py: 1 }}>
               Brak podobnych pojazdów dla tego modelu.
             </Typography>
-          )}
+          ) : null}
         </Box>
       )}
     </div>

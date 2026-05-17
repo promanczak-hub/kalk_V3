@@ -308,14 +308,13 @@ export const Level1Primary: React.FC<Level1PrimaryProps> = ({
         </Section>
       )}
 
-      {/* Section: Trim selector (conditional — after model selected) */}
-      {searchContext.models.length > 0 && (
+      {/* Section: Trim selector (conditional — after model selected, and only if any trims exist) */}
+      {searchContext.models.length > 0 &&
+        (loadingTrims || (trimsAndOptions?.trim_levels || []).length > 0) && (
         <Section alt>
           <SectionLabel label="Wersja (trim)" selectedCount={(searchContext.trims || []).length} />
           {loadingTrims ? (
             <CircularProgress size={16} />
-          ) : (trimsAndOptions?.trim_levels || []).length === 0 ? (
-            <Typography variant="caption" color="textSecondary">Brak danych o wersjach</Typography>
           ) : (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
               {(trimsAndOptions?.trim_levels || []).map(t => (

@@ -166,6 +166,8 @@ export function useBatchPrices(
   return { prices, loading };
 }
 
+export type SimilarStatus = 'pending' | 'ready' | 'empty';
+
 export function useBatchSimilarVehicles(
   vehicleIds: string[],
   durationMonths: number,
@@ -173,8 +175,13 @@ export function useBatchSimilarVehicles(
   enabled: boolean,
   similarityMode: 'semantic' | 'exact' = 'semantic',
   requirements: SelectedFeature[] = []
-): { similarVehicles: Record<string, SimilarVehicle[]>; loading: boolean } {
+): {
+  similarVehicles: Record<string, SimilarVehicle[]>;
+  statuses: Record<string, SimilarStatus>;
+  loading: boolean;
+} {
   const [similarVehicles, setSimilarVehicles] = useState<Record<string, SimilarVehicle[]>>({});
+  const [statuses, setStatuses] = useState<Record<string, SimilarStatus>>({});
   const [loading, setLoading] = useState(false);
 
   // Zbudujmy stabilny hash z tablicy requirements do użycia w useEffect dependencies
@@ -183,10 +190,14 @@ export function useBatchSimilarVehicles(
   useEffect(() => {
     if (!enabled || !vehicleIds.length) {
       setSimilarVehicles({});
+      setStatuses({});
       return;
     }
     let cancelled = false;
-    const doFetch = async () => {
+    let retryAttempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const doFetch = async (): Promise<void> => {
       setLoading(true);
       try {
         const r = await apiClient.fetch(`/api/scoring-search/cache/batch-similar`, {
@@ -202,20 +213,37 @@ export function useBatchSimilarVehicles(
           }),
         });
         const data = await r.json();
-        if (!cancelled) setSimilarVehicles(data.results || {});
+        if (cancelled) return;
+        setSimilarVehicles(data.results || {});
+        const newStatuses: Record<string, SimilarStatus> = data.statuses || {};
+        setStatuses(newStatuses);
+
+        // Auto-refetch jeśli są pending. Backend triggeruje on-demand task,
+        // który zwykle kończy się w <60s. Refetch co 15s × 4 = do 60s czekania.
+        const hasPending = Object.values(newStatuses).some((s) => s === 'pending');
+        if (hasPending && retryAttempt < 4) {
+          retryAttempt += 1;
+          retryTimer = setTimeout(() => {
+            if (!cancelled) doFetch();
+          }, 15000);
+        }
       } catch {
-        if (!cancelled) setSimilarVehicles({});
+        if (!cancelled) {
+          setSimilarVehicles({});
+          setStatuses({});
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
     doFetch();
-    return () => { 
-      cancelled = true; 
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleIds.join(','), durationMonths, annualMileage, enabled, similarityMode, requirementsHash]);
 
-  return { similarVehicles, loading };
+  return { similarVehicles, statuses, loading };
 }

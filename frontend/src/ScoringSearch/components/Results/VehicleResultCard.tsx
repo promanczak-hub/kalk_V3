@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { ExternalLink, ShoppingCart, Check, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 import type { SearchContext } from '../../types';
-import type { PriceForParams, SimilarVehicle } from '../../hooks/useBatchData';
+import type { PriceForParams, SimilarStatus, SimilarVehicle } from '../../hooks/useBatchData';
 import { SimilarVehiclesSection } from './SimilarVehiclesSection';
 import { useOfferCartStore } from '../../../stores/offerCartStore';
 import type { ScoredVehicle, PackageContentsMap } from '../../types';
 import { KalkulacjaParamsRow } from './KalkulacjaParamsRow';
 import { isPackageName } from '../../utils/isPackageName';
+import { fetchFeaturesForCache, featuresCache } from '../../../VertexExtractor/hooks/useVehicleFeaturesCache';
 
 interface VehicleResultCardProps {
   car: ScoredVehicle;
@@ -17,6 +18,7 @@ interface VehicleResultCardProps {
   priceData?: { price_for_params?: PriceForParams; variants?: PriceForParams[] };
   pricesLoading: boolean;
   similarData?: SimilarVehicle[];
+  similarStatus?: SimilarStatus;
   // When set, this card represents a specific pinned calculation for the vehicle.
   // The card fetches its own price scoped to this kalkulacja_id instead of using priceData.
   pinnedKalkulacjaId?: string;
@@ -41,6 +43,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   priceData,
   pricesLoading,
   similarData,
+  similarStatus,
   pinnedKalkulacjaId,
 }) => {
   const addToCart = useOfferCartStore((s) => s.addItem);
@@ -50,6 +53,37 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
   // Inline expand/collapse for "Opcje fabryczne" / "Opcje serwisowe" rows.
   const [factoryOptionsOpen, setFactoryOptionsOpen] = useState(false);
   const [serviceOptionsOpen, setServiceOptionsOpen] = useState(false);
+
+  // "Opcje standardowe" — lazy-loaded from useVehicleFeaturesCache on first expand.
+  // Items come from synthesis_data.card_summary.standard_equipment (PDF), mapped
+  // into instantFeatures with feature_key prefix "config_std_".
+  const [standardOptionsOpen, setStandardOptionsOpen] = useState(false);
+  const [standardEquipment, setStandardEquipment] = useState<string[] | null>(null);
+  const [loadingStandard, setLoadingStandard] = useState(false);
+
+  const toggleStandardOptions = async () => {
+    const next = !standardOptionsOpen;
+    setStandardOptionsOpen(next);
+    if (!next || standardEquipment !== null) return;
+    const readFromCache = (entry: { instantFeatures: { feature_key: string; display_name: string }[] }) =>
+      entry.instantFeatures
+        .filter((f) => f.feature_key.startsWith('config_std_'))
+        .map((f) => f.display_name);
+    const cached = featuresCache.get(vehicleId);
+    if (cached) {
+      setStandardEquipment(readFromCache(cached));
+      return;
+    }
+    setLoadingStandard(true);
+    try {
+      const result = await fetchFeaturesForCache(vehicleId);
+      setStandardEquipment(readFromCache(result));
+    } catch {
+      setStandardEquipment([]);
+    } finally {
+      setLoadingStandard(false);
+    }
+  };
 
   // LLM-decomposed package contents — lazy-loaded the first time the user
   // expands "Opcje fabryczne" on a card containing at least one package row.
@@ -99,6 +133,51 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
 
   const matchedFeatures = car.matched_features || [];
   const missingFeatures = car.missing_features || [];
+
+  // Also lazy-load packageContents when the matched-features chips include a
+  // paid option — so we can annotate sub-features matched via a parent package
+  // with "w pakiecie: <name>". One extra round-trip per card, only triggered
+  // when the user ticked at least one `opt_paid:` filter.
+  React.useEffect(() => {
+    if (packageContents !== null) return;
+    if (!matchedFeatures.some((k) => k.startsWith('opt_paid:'))) return;
+    let cancelled = false;
+    import('../../../lib/apiClient')
+      .then(({ apiClient }) =>
+        apiClient.fetch(`/api/scoring-search/vehicle/${vehicleId}/package-contents`),
+      )
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data: { packages: PackageContentsMap }) => {
+        if (!cancelled) setPackageContents(data.packages ?? {});
+      })
+      .catch(() => { if (!cancelled) setPackageContents({}); });
+    return () => { cancelled = true; };
+  }, [matchedFeatures, packageContents, vehicleId]);
+
+  // For a matched `opt_paid:<name>` key, find which parent package(s) — if any
+  // — contain this sub-feature on this vehicle. Returns empty array when the
+  // name is a top-level paid option (no package origin to show).
+  const parentPackagesForMatched = React.useCallback(
+    (featureKey: string): string[] => {
+      if (!featureKey.startsWith('opt_paid:') || !packageContents) return [];
+      const wantedName = featureKey.slice('opt_paid:'.length).trim().toLowerCase();
+      if (!wantedName) return [];
+      // If the name matches a top-level factory option on THIS car, skip badge —
+      // it's directly listed, not via a package.
+      const topLevelHit = (car.factory_options ?? []).some(
+        (o) => (o.name ?? '').trim().toLowerCase() === wantedName,
+      );
+      if (topLevelHit) return [];
+      const pkgs: string[] = [];
+      for (const [pkgName, subFeatures] of Object.entries(packageContents)) {
+        if (subFeatures.some((sf) => (sf.feature_name ?? '').trim().toLowerCase() === wantedName)) {
+          pkgs.push(pkgName);
+        }
+      }
+      return pkgs;
+    },
+    [packageContents, car.factory_options],
+  );
   const score = car.match_score_pct;
 
   // Auto-fit snapshot from server-side matrix sweep — populated when the
@@ -413,6 +492,31 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
               </span>
             </div>
           </div>
+          {!!car.applied_discount_pct && car.applied_discount_pct > 0 && (car.total_price_net != null || car.base_price_net != null) && (() => {
+            const pct = car.applied_discount_pct as number;
+            const factor = 1 - pct / 100;
+            const catalogNet = (car.total_price_net ?? car.base_price_net) as number;
+            const catalogGross = (car.total_price_gross ?? car.base_price_gross ?? catalogNet * 1.23) as number;
+            const netAfter = catalogNet * factor;
+            const grossAfter = catalogGross * factor;
+            return (
+              <div
+                className="flex items-baseline justify-between mt-1"
+                title="Rabat zastosowany do całej ceny katalogowej (baza + opcje fabryczne + opcje serwisowe)."
+              >
+                <span className="text-[11px] uppercase tracking-wider text-emerald-700 font-semibold">
+                  Cena po rabacie ({pct}%)
+                </span>
+                <div className="text-sm font-semibold text-emerald-700 font-mono tabular-nums">
+                  {fmtPLN(netAfter)}{' '}
+                  <span className="font-normal">PLN netto</span>
+                  <span className="text-xs font-normal ml-2 text-emerald-600">
+                    ({fmtPLN(grossAfter)} brutto)
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           {(car.base_price_net != null
             || car.factory_options_price_net != null
             || car.service_options_price_net != null
@@ -427,6 +531,36 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                   </span>
                 </div>
               )}
+              <div>
+                <button
+                  type="button"
+                  onClick={toggleStandardOptions}
+                  className="w-full flex justify-between items-center text-left hover:text-slate-700 cursor-pointer"
+                >
+                  <span className="text-slate-600 flex items-center gap-1">
+                    Opcje standardowe
+                    {standardOptionsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </span>
+                  <span className="tabular-nums text-slate-500">
+                    {standardEquipment !== null ? `${standardEquipment.length} poz.` : 'w cenie bazowej'}
+                  </span>
+                </button>
+                {standardOptionsOpen && (
+                  <ul className="mt-1 ml-3 flex flex-col gap-0.5">
+                    {loadingStandard ? (
+                      <li className="text-slate-500 italic">Ładowanie…</li>
+                    ) : !standardEquipment || standardEquipment.length === 0 ? (
+                      <li className="text-slate-500 italic">Brak danych</li>
+                    ) : (
+                      standardEquipment.map((name, i) => (
+                        <li key={`std-${i}-${name}`} className="flex gap-2">
+                          <span className="text-slate-600 truncate">· {name}</span>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                )}
+              </div>
               {car.factory_options_price_net != null && car.factory_options_price_net > 0 && (() => {
                 const items = car.factory_options ?? [];
                 const expandable = items.length > 0;
@@ -731,14 +865,27 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
                 Spełnione wymagania ({matchedFeatures.length})
               </div>
               <div className="flex flex-wrap gap-1">
-                {matchedFeatures.map((f) => (
-                  <span
-                    key={f}
-                    className="text-[11px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full font-medium"
-                  >
-                    {f.replace(/_/g, ' ')}
-                  </span>
-                ))}
+                {matchedFeatures.map((f) => {
+                  const parentPkgs = parentPackagesForMatched(f);
+                  return (
+                    <span
+                      key={f}
+                      className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                        parentPkgs.length > 0
+                          ? 'text-violet-800 bg-violet-100 border border-violet-200'
+                          : 'text-emerald-800 bg-emerald-100'
+                      }`}
+                      title={parentPkgs.length > 0 ? `Dostępne w: ${parentPkgs.join(', ')}` : undefined}
+                    >
+                      {f.replace(/_/g, ' ')}
+                      {parentPkgs.length > 0 && (
+                        <span className="ml-1 text-[10px] opacity-80">
+                          📦 w pakiecie: {parentPkgs.join(', ')}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -768,6 +915,7 @@ const VehicleResultCardBase: React.FC<VehicleResultCardProps> = ({
         targetDuration={targetDuration}
         targetAnnualMileage={targetAnnualMileage}
         similarData={similarData}
+        similarStatus={similarStatus}
         marginPct={displayMarginPct}
         matrixActive={!!searchContext.useMatrixFilters}
       />

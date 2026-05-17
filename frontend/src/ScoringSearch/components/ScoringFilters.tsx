@@ -32,8 +32,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
 
   const [l2Tab, setL2Tab] = useState<'universal' | 'dedicated'>('universal');
   const [universalSearch, setUniversalSearch] = useState('');
-  const [stdOptionSearch, setStdOptionSearch] = useState('');
-  const [paidOptionSearch, setPaidOptionSearch] = useState('');
+  const [dedicatedSearch, setDedicatedSearch] = useState('');
 
   const {
     initialData, loadingInitial,
@@ -133,8 +132,7 @@ export const ScoringFilters: React.FC<ScoringFiltersProps> = ({
             level2Ref={level2Ref}
             l2Tab={l2Tab} setL2Tab={setL2Tab}
             universalSearch={universalSearch} setUniversalSearch={setUniversalSearch}
-            stdOptionSearch={stdOptionSearch} setStdOptionSearch={setStdOptionSearch}
-            paidOptionSearch={paidOptionSearch} setPaidOptionSearch={setPaidOptionSearch}
+            dedicatedSearch={dedicatedSearch} setDedicatedSearch={setDedicatedSearch}
             loadingFilters={loadingFilters}
             loadingTrims={loadingTrims}
             sortedBooleanGroups={sortedBooleanGroups}

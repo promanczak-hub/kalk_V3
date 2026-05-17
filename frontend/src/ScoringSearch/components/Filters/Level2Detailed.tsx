@@ -13,10 +13,8 @@ interface Level2DetailedProps {
   
   universalSearch: string;
   setUniversalSearch: (val: string) => void;
-  stdOptionSearch: string;
-  setStdOptionSearch: (val: string) => void;
-  paidOptionSearch: string;
-  setPaidOptionSearch: (val: string) => void;
+  dedicatedSearch: string;
+  setDedicatedSearch: (val: string) => void;
   
   loadingFilters: boolean;
   loadingTrims: boolean;
@@ -37,12 +35,18 @@ interface Level2DetailedProps {
 export const Level2Detailed: React.FC<Level2DetailedProps> = ({
   level2Ref, l2Tab, setL2Tab,
   universalSearch, setUniversalSearch,
-  stdOptionSearch, setStdOptionSearch,
-  paidOptionSearch, setPaidOptionSearch,
+  dedicatedSearch, setDedicatedSearch,
   loadingFilters, loadingTrims, sortedBooleanGroups, data, trimsAndOptions,
   selectedFeatures,
   updateRangeFeature, toggleFeature, isFeatureSelected, isOptionSelected, toggleOption
 }) => {
+  const dedicatedQuery = dedicatedSearch.toLowerCase();
+  const filteredStdOptions = (trimsAndOptions?.standard_options || []).filter(
+    o => o.name.toLowerCase().includes(dedicatedQuery)
+  );
+  const filteredPaidOptions = (trimsAndOptions?.paid_options || []).filter(
+    o => o.name.toLowerCase().includes(dedicatedQuery)
+  );
   return (
     <Box ref={level2Ref} sx={{ p: 2, bgcolor: '#fafafe' }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
@@ -168,7 +172,6 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
 
       {l2Tab === 'dedicated' && (
         <Box>
-          {/* ── Standard equipment options ── */}
           {loadingTrims && !trimsAndOptions ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
           ) : !trimsAndOptions ? (
@@ -181,24 +184,32 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
             </Typography>
           ) : (
             <>
-              {(trimsAndOptions?.standard_options || []).length > 0 && (
+              <TextField
+                size="small"
+                fullWidth
+                placeholder="Szukaj wśród wszystkich cech (standardowe + płatne)..."
+                value={dedicatedSearch}
+                onChange={e => setDedicatedSearch(e.target.value)}
+                sx={{ mb: 0.5, bgcolor: '#ffffff' }}
+              />
+              <Typography variant="caption" sx={{ display: 'block', color: '#94a3b8', mb: 2, fontSize: '0.7rem', fontStyle: 'italic' }}>
+                Zaznacz kilka, aby zobaczyć auta z <b>dowolną</b> z wybranych cech (suma, nie iloczyn).
+              </Typography>
+
+              {dedicatedQuery && filteredStdOptions.length === 0 && filteredPaidOptions.length === 0 && (
+                <Typography variant="body2" sx={{ textAlign: 'center', py: 2, color: '#94a3b8', fontStyle: 'italic' }}>
+                  Brak cech pasujących do „{dedicatedSearch}"
+                </Typography>
+              )}
+
+              {filteredStdOptions.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   <SectionLabel
-                    label="Wyposażenie standardowe"
+                    label={`Wyposażenie standardowe (${filteredStdOptions.length})`}
                     selectedCount={selectedFeatures.filter(f => f.feature_key.startsWith('opt_std:')).length}
                   />
-                  <TextField
-                    size="small"
-                    fullWidth
-                    placeholder="Szukaj wyposażenia standardowego..."
-                    value={stdOptionSearch}
-                    onChange={e => setStdOptionSearch(e.target.value)}
-                    sx={{ mb: 1, bgcolor: '#ffffff' }}
-                  />
                   <OptionsChecklist
-                    items={(trimsAndOptions?.standard_options || []).filter(
-                      o => o.name.toLowerCase().includes(stdOptionSearch.toLowerCase())
-                    )}
+                    items={filteredStdOptions}
                     prefix="opt_std:"
                     selectedFeatures={selectedFeatures}
                     isSelected={isOptionSelected}
@@ -207,25 +218,14 @@ export const Level2Detailed: React.FC<Level2DetailedProps> = ({
                 </Box>
               )}
 
-              {/* ── Paid options ── */}
-              {(trimsAndOptions?.paid_options || []).length > 0 && (
+              {filteredPaidOptions.length > 0 && (
                 <Box>
                   <SectionLabel
-                    label="Opcje dodatkowe (płatne)"
+                    label={`Opcje dodatkowe — płatne (${filteredPaidOptions.length})`}
                     selectedCount={selectedFeatures.filter(f => f.feature_key.startsWith('opt_paid:')).length}
                   />
-                  <TextField
-                    size="small"
-                    fullWidth
-                    placeholder="Szukaj opcji dodatkowych..."
-                    value={paidOptionSearch}
-                    onChange={e => setPaidOptionSearch(e.target.value)}
-                    sx={{ mb: 1, bgcolor: '#ffffff' }}
-                  />
                   <OptionsChecklist
-                    items={(trimsAndOptions?.paid_options || []).filter(
-                      o => o.name.toLowerCase().includes(paidOptionSearch.toLowerCase())
-                    )}
+                    items={filteredPaidOptions}
                     prefix="opt_paid:"
                     selectedFeatures={selectedFeatures}
                     isSelected={isOptionSelected}

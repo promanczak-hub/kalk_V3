@@ -69,6 +69,8 @@ export interface InitialDataResponse {
 export interface OptionItem {
   name: string;
   count: number;
+  is_sub_feature?: boolean;
+  parent_packages?: string[];
 }
 
 export interface TrimsAndOptionsResponse {
@@ -201,5 +203,45 @@ export interface ScoredVehicle {
   selected_kalkulacja_ids?: string[];
   // Auto-fit snapshot — populated when search request had fit_to_budget=true.
   best_fit_variant?: BestFitVariant;
+  // Comparison-chart snapshot at default (36mc, 30000 km). Sourced from
+  // vehicle_matrix_cache; null when no cache row exists.
+  default_snapshot?: VehicleSnapshot | null;
+}
+
+// ── Comparison-chart types ──────────────────────────────────────────────────
+export interface WrCurvePoint {
+  duration_months: number;
+  wr_pct?: number | null;
+  wr_pln?: number | null;
+  monthly_total?: number | null;
+}
+
+export interface VehicleSnapshot {
+  vehicle_id: string;
+  found: boolean;
+  duration_months?: number | null;
+  annual_mileage?: number | null;
+  base_price_net?: number | null;
+  wr_pct?: number | null;
+  wr_pln?: number | null;
+  monthly_amortization?: number | null;
+  monthly_service?: number | null;
+  monthly_tires?: number | null;
+  monthly_insurance?: number | null;
+  monthly_total?: number | null;
+  // "not_in_cache" | "null_decomposition" | "snap_to_nearest"
+  error?: string | null;
+  wr_curve?: WrCurvePoint[] | null;
+}
+
+export interface ComparisonSnapshotRequest {
+  vehicle_ids: string[];
+  months: number;
+  annual_mileage: number;
+  include_curve?: boolean;
+}
+
+export interface ComparisonSnapshotResponse {
+  snapshots: Record<string, VehicleSnapshot>;
 }
 

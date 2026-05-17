@@ -488,10 +488,9 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
 
   const filteredVehicles = useMemo(() => {
     if (brandFilter === 'all' || vehicles.length === 0) return vehicles;
-    const others = vehicles.filter(
+    return vehicles.filter(
       (v) => (v.brand || '').toLowerCase() !== sourceContext.brand.toLowerCase(),
     );
-    return others.length >= 2 ? others : vehicles;
   }, [vehicles, brandFilter, sourceContext.brand]);
 
   const otherBrandsCount = useMemo(() => {
