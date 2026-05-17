@@ -1,4 +1,6 @@
 import logging
+import re
+
 from supabase import Client
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.engine_mapper import map_to_engine_class
@@ -21,6 +23,69 @@ logger = logging.getLogger(__name__)
 
 _AUTOMATIC_KEYWORDS = ("automat", "dsg", "tronic", "cvt", "edc", "powershift", "multitronic", "pdk")
 _MANUAL_KEYWORDS = ("manual", "ręczna", "reczna")
+
+_MHEV_RE = re.compile(r"\b(m-?HEV|miękka\s+hybryd)", re.IGNORECASE)
+_PB_HINTS = ("benzyn", "pb", "tsi", "tfsi", "thp", "puretech", "ecoboost")
+_ON_HINTS = ("diesel", " on", "tdi", "hdi", "bluehdi", "dci", "cdi", "jtd")
+
+
+def detect_mhev_fuel_override(
+    parsed_data: dict,
+    card_summary: dict,
+    mapped_fuel: str | None,
+    document_markdown: str | None = None,
+) -> str | None:
+    """Return the canonical mHEV fuel name when the PDF contains an m-HEV signal.
+
+    Gemini Pro occasionally drops the m-HEV / mHEV / "miękka hybryda" marker from
+    `card_summary.fuel` even when the source PDF explicitly states it. Without this
+    guard the downstream AI mapper falls through to plain `Benzyna (PB)` /
+    `Diesel (ON)`, which selects the wrong row in the `engines` table and breaks
+    the WR cascade for non-baseline periods.
+
+    Three signal tiers, in priority order:
+      1. Raw `document_markdown` (PDF text as extracted by PyMuPDF) — strongest,
+         survives Gemini Pro's field-by-field re-encoding.
+      2. card_summary fields (powertrain, engine_designation, engine_marketing_name,
+         fuel) — Gemini-mapped, may have dropped the marker.
+      3. parsed_data top-level (engine_designation, fuel).
+    """
+    search_fields: list = []
+    pt = card_summary.get("powertrain")
+    if isinstance(pt, str):
+        search_fields.append(pt)
+    elif isinstance(pt, dict):
+        search_fields.extend(str(v) for v in pt.values() if v)
+    for key in ("engine_designation", "engine_marketing_name", "fuel"):
+        v = card_summary.get(key)
+        if v:
+            search_fields.append(str(v))
+    for key in ("engine_designation", "fuel"):
+        v = parsed_data.get(key)
+        if v:
+            search_fields.append(str(v))
+
+    has_signal = any(_MHEV_RE.search(s) for s in search_fields if s)
+    md_signal = bool(document_markdown and _MHEV_RE.search(document_markdown))
+    if not has_signal and not md_signal:
+        return None
+
+    base = (mapped_fuel or "").lower()
+    blob = " ".join(s.lower() for s in search_fields)
+    md_blob = (document_markdown or "").lower()
+    if (
+        any(h in base for h in _PB_HINTS)
+        or any(h in blob for h in _PB_HINTS)
+        or any(h in md_blob for h in _PB_HINTS)
+    ):
+        return "Benzyna mHEV (PB-mHEV)"
+    if (
+        any(h in base for h in _ON_HINTS)
+        or any(h in blob for h in _ON_HINTS)
+        or any(h in md_blob for h in _ON_HINTS)
+    ):
+        return "Diesel mHEV (ON-mHEV)"
+    return "Benzyna mHEV (PB-mHEV)"
 
 
 def normalize_transmission(raw: str | None) -> str | None:
@@ -86,6 +151,21 @@ def finalize_vehicle_pipeline(
         engine_designation = powertrain.get("engine_designation")
         capacity = powertrain.get("engine_capacity")
         power = card_summary.get("power_hp")
+
+        # m-HEV pre-flight: rescue the marker when AI mapper dropped it.
+        # When present, this seeds the guard at the foot of the block so a
+        # subsequent generic engine_mapper result can't override it.
+        # Includes raw document_markdown scan — Gemini Pro can drop m-HEV from
+        # structured fields even when the PDF text clearly contains it.
+        mhev_override = detect_mhev_fuel_override(
+            parsed_data, card_summary, mapped_data.get("fuel"), document_markdown
+        )
+        if mhev_override and mapped_data.get("fuel") != mhev_override:
+            logger.info(
+                "[BG TASK] m-HEV detected in extraction text — fuel upgrade "
+                f"'{mapped_data.get('fuel')}' -> '{mhev_override}'"
+            )
+            mapped_data["fuel"] = mhev_override
 
         eng_name, eng_cat, eng_candidates = map_to_engine_class(
             fuel=mapped_data.get("fuel"),

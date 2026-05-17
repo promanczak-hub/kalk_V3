@@ -419,15 +419,32 @@ class CardSummary(BaseModel):
     )
     engine_designation: Optional[str] = Field(
         None,
-        description="Oznaczenie handlowe silnika / technologii, np. 'TSI', 'TDI', 'dCi', 'EcoBoost'. Zwróć 'Brak' lub null, jeśli brakuje.",
+        description=(
+            "Oznaczenie handlowe silnika / technologii, np. 'TSI', 'TDI', 'dCi', 'EcoBoost'. "
+            "WAŻNE: jeśli obok technologii widnieje znacznik miękkiej hybrydy "
+            "(m-HEV / mHEV / MHEV / 'miękka hybryda'), DOŁĄCZ go do oznaczenia, "
+            "np. 'TSI m-HEV', 'TDI mHEV', 'eTSI mHEV'. NIE pomijaj członu m-HEV — "
+            "ma kluczowe znaczenie dla mapowania paliwa. Zwróć 'Brak' lub null, jeśli brakuje."
+        ),
     )
     engine_marketing_name: Optional[str] = Field(
         None,
-        description="Marketingowa, handlowa nazwa silnika lub technologii (np. 'ECO-G', 'BlueHDi', 'e-Tech', 'Hybrid 136'). Zwróć null jeśli brak.",
+        description=(
+            "Marketingowa, handlowa nazwa silnika lub technologii. "
+            "PRIORYTET: jeśli w dokumencie pojawia się 'm-HEV', 'mHEV', 'MHEV' lub "
+            "'miękka hybryda' — zwróć dokładnie 'm-HEV' (lub 'mHEV') tutaj, "
+            "nawet jeśli pole engine_designation już to zawiera. "
+            "Inne przykłady: 'ECO-G', 'BlueHDi', 'e-Tech', 'Hybrid 136'. Zwróć null jeśli brak."
+        ),
     )
     engine_category: Optional[NapedTyp] = Field(
         None,
-        description="Przyporządkuj rodzaj i zasilanie napędu pojazdu z dokumentu ściśle do jednej z kategorii w Enum `NapedTyp`.",
+        description=(
+            "Przyporządkuj rodzaj i zasilanie napędu pojazdu z dokumentu ściśle do jednej z kategorii w Enum `NapedTyp`. "
+            "UWAGA na miękkie hybrydy: jeśli dokument zawiera 'm-HEV', 'mHEV', 'MHEV' lub 'miękka hybryda' — "
+            "wybierz `BENZYNA_MHEV` lub `DIESEL_MHEV` (zamiast `BENZYNA_ICE`/`DIESEL_ICE`), nawet jeśli "
+            "silnik jest opisany jako 'TSI'/'TFSI'/'TDI'/'HDi'. m-HEV to dedykowana kategoria — nie pomijaj jej."
+        ),
     )
     power_hp: Optional[int] = Field(
         None,
@@ -443,7 +460,16 @@ class CardSummary(BaseModel):
         description="Na podstawie odczytanej mocy w KM `power_hp`, przyporządkuj pojazd do odpowiedniego przedziału opisanego w Enum `PrzedzialMocy`.",
     )
     fuel: str = Field(
-        description="Rodzaj paliwa / zasilania, np. 'Diesel', 'Benzyna', 'Elektryczny', 'Hybryda PHEV', 'MHEV'. Zwróć 'Brak' jeśli nie znaleziono."
+        description=(
+            "Rodzaj paliwa / zasilania, np. 'Diesel', 'Benzyna', 'Elektryczny', "
+            "'Hybryda PHEV', 'MHEV'. "
+            "REGUŁA KRYTYCZNA: jeśli w dokumencie widnieje 'm-HEV', 'mHEV', 'MHEV' "
+            "lub 'miękka hybryda' obok paliwa głównego — ZWRÓĆ 'Benzyna mHEV' "
+            "(gdy paliwo bazowe to benzyna/PB/TSI/TFSI) lub 'Diesel mHEV' "
+            "(gdy bazowe to diesel/TDI/HDi). NIE upraszczaj do samego 'Benzyna' — "
+            "różnica mHEV vs PB zmienia mapowanie do tabeli engines i kaskadę WR. "
+            "Zwróć 'Brak' jeśli nie znaleziono."
+        )
     )
     power_kw: Optional[int] = Field(
         None,
