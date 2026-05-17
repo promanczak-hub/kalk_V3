@@ -7,13 +7,12 @@ import {
   Chip,
   Tooltip,
 } from "@mui/material";
-import { 
-  CheckCircle2, 
-  Info, 
-  Calculator, 
-  TrendingUp, 
-  History, 
-  ArrowRight 
+import {
+  CheckCircle2,
+  Info,
+  Calculator,
+  TrendingUp,
+  History,
 } from "lucide-react";
 import type { CalculationResult, CalculationStep } from "../../hooks/useCalculator";
 
@@ -72,7 +71,7 @@ export default function CalculationResultsSection({
         </Box>
         
         <Grid container alignItems="center">
-          <Grid item xs={12} md={7}>
+          <Grid size={{ xs: 12, md: 7 }}>
             <Typography variant="overline" sx={{ letterSpacing: 2, opacity: 0.9 }}>MIESIĘCZNA RATA WYNAJMU (LTR)</Typography>
             <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
               <Typography variant="h2" sx={{ fontWeight: 800 }}>
@@ -85,7 +84,7 @@ export default function CalculationResultsSection({
               <Chip label="Gwarancja Ceny" size="small" sx={{ color: "white", borderColor: "rgba(255,255,255,0.3)", border: "1px solid" }} />
             </Box>
           </Grid>
-          <Grid item xs={12} md={5} sx={{ mt: { xs: 3, md: 0 } }}>
+          <Grid size={{ xs: 12, md: 5 }} sx={{ mt: { xs: 3, md: 0 } }}>
             <Paper sx={{ bgcolor: "rgba(255,255,255,0.1)", p: 2, borderRadius: "12px", border: "1px solid rgba(255,255,255,0.2)" }}>
               <Typography variant="body2" sx={{ mb: 1, opacity: 0.8 }}>Podsumowanie Cen:</Typography>
               <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
@@ -131,7 +130,7 @@ export default function CalculationResultsSection({
           }}
         >
           <Grid container spacing={2} alignItems="center">
-            <Grid item sx={{ display: "flex", alignItems: "center", minWidth: 40 }}>
+            <Grid sx={{ display: "flex", alignItems: "center", minWidth: 40 }}>
               <Box 
                 sx={{ 
                   width: 28, 
@@ -149,15 +148,15 @@ export default function CalculationResultsSection({
                 {idx + 1}
               </Box>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
                 {step.krok.toUpperCase().replace(/^\d+\.\s*/, '')}
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Box sx={{ px: 1.5, py: 0.5, bgcolor: "rgba(0,0,0,0.03)", borderRadius: "6px", border: "1px solid rgba(0,0,0,0.05)" }}>
-                  <Typography variant="mono" sx={{ fontSize: "12px", color: "text.secondary", fontFamily: "monospace" }}>
+                  <Typography variant="caption" sx={{ fontSize: "12px", color: "text.secondary", fontFamily: "monospace" }}>
                     {step.rownanie || "---"}
                   </Typography>
                 </Box>
@@ -168,7 +167,7 @@ export default function CalculationResultsSection({
                 )}
               </Box>
             </Grid>
-            <Grid item xs={12} sm={2.5} sx={{ textAlign: "right" }}>
+            <Grid size={{ xs: 12, sm: 2.5 }} sx={{ textAlign: "right" }}>
               <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1, color: "primary.main" }}>
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>
                   {step.wynik.toLocaleString('pl-PL', { minimumFractionDigits: 2 })}
@@ -176,7 +175,7 @@ export default function CalculationResultsSection({
                 <Typography variant="caption" sx={{ fontWeight: 600 }}>PLN</Typography>
               </Box>
             </Grid>
-            <Grid item sx={{ display: "flex", justifyContent: "flex-end", minWidth: 40 }}>
+            <Grid sx={{ display: "flex", justifyContent: "flex-end", minWidth: 40 }}>
               <CheckCircle2 size={18} color="#10b981" />
             </Grid>
           </Grid>

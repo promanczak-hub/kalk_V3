@@ -93,7 +93,7 @@ export default function AdditionalOptionsSection({
       <AccordionDetails sx={{ p: 4 }}>
         <Grid container spacing={4}>
           {/* OPCJE FABRYCZNE */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Package size={18} color="#059669" />
@@ -119,7 +119,7 @@ export default function AdditionalOptionsSection({
             {factoryOptions.map((opt) => (
               <Box key={opt.id} sx={{ mb: 2, p: 2, bgcolor: "rgba(0,0,0,0.01)", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.03)" }}>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       size="small"
@@ -128,7 +128,7 @@ export default function AdditionalOptionsSection({
                       onChange={(e) => updateOption('factory', opt.id, 'name', e.target.value)}
                     />
                   </Grid>
-                  <Grid item xs={10} sm={4}>
+                  <Grid size={{ xs: 10, sm: 4 }}>
                     <TextField
                       fullWidth
                       size="small"
@@ -138,7 +138,7 @@ export default function AdditionalOptionsSection({
                       onChange={(e) => updateOption('factory', opt.id, 'price_net', parseFloat(e.target.value) || 0)}
                     />
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid size={2}>
                     <IconButton color="error" onClick={() => removeFactoryOption(opt.id)}>
                       <Trash2 size={18} />
                     </IconButton>
@@ -151,7 +151,7 @@ export default function AdditionalOptionsSection({
           <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", md: "block" }, mx: 1 }} />
 
           {/* USŁUGI SERWISOWE */}
-          <Grid item xs={12} md={5.5}>
+          <Grid size={{ xs: 12, md: 5.5 }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Wrench size={18} color="#2563eb" />
@@ -177,7 +177,7 @@ export default function AdditionalOptionsSection({
             {serviceOptions.map((opt) => (
               <Box key={opt.id} sx={{ mb: 2, p: 2, bgcolor: "rgba(0,0,0,0.01)", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.03)" }}>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       size="small"
@@ -186,7 +186,7 @@ export default function AdditionalOptionsSection({
                       onChange={(e) => updateOption('service', opt.id, 'name', e.target.value)}
                     />
                   </Grid>
-                  <Grid item xs={10} sm={4}>
+                  <Grid size={{ xs: 10, sm: 4 }}>
                     <TextField
                       fullWidth
                       size="small"
@@ -196,7 +196,7 @@ export default function AdditionalOptionsSection({
                       onChange={(e) => updateOption('service', opt.id, 'price_net', parseFloat(e.target.value) || 0)}
                     />
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid size={2}>
                     <IconButton color="error" onClick={() => removeServiceOption(opt.id)}>
                       <Trash2 size={18} />
                     </IconButton>

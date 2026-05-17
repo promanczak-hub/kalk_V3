@@ -80,27 +80,27 @@ export default function OptionsTablesSection({
       <AccordionDetails sx={{ p: 4 }}>
         <Grid container spacing={4}>
           {/* OPONY */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
               <Truck size={18} color="#f59e0b" />
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Opony i Logistyka</Typography>
             </Box>
-            
+
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <FormControlLabel
                   control={
-                    <Switch 
-                      checked={data.has_tires} 
-                      onChange={(e) => handleUpdate("has_tires", e.target.checked)} 
-                      color="warning" 
+                    <Switch
+                      checked={data.has_tires}
+                      onChange={(e) => handleUpdate("has_tires", e.target.checked)}
+                      color="warning"
                     />
                   }
                   label="Obsługa Opon (Serwis i Wymiana)"
                 />
               </Grid>
-              
-              <Grid item xs={6}>
+
+              <Grid size={6}>
                 <TextField
                   fullWidth
                   label="Rozmiar (Felga)"
@@ -112,7 +112,7 @@ export default function OptionsTablesSection({
                   }}
                 />
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Klasa Opony</InputLabel>
                   <Select
@@ -131,26 +131,26 @@ export default function OptionsTablesSection({
           </Grid>
 
           {/* SERWIS I ZASTEPCZE */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
               <Shield size={18} color="#3b82f6" />
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Serwis i Ubezpieczenie</Typography>
             </Box>
 
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                  <FormControlLabel
                   control={
-                    <Switch 
-                      checked={data.has_replacement_car} 
-                      onChange={(e) => handleUpdate("has_replacement_car", e.target.checked)} 
-                      color="primary" 
+                    <Switch
+                      checked={data.has_replacement_car}
+                      onChange={(e) => handleUpdate("has_replacement_car", e.target.checked)}
+                      color="primary"
                     />
                   }
                   label="Auto Zastępcze (Limitowane / Non-Stop)"
                 />
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <TextField
                   fullWidth
                   label="Pakiet Serwisowy"
@@ -163,7 +163,7 @@ export default function OptionsTablesSection({
                   }}
                 />
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <TextField
                   fullWidth
                   label="Korekta WR (netto)"
@@ -178,14 +178,14 @@ export default function OptionsTablesSection({
           </Grid>
 
           {/* FINANSE */}
-          <Grid item xs={12} sx={{ mt: 2 }}>
+          <Grid size={12} sx={{ mt: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
               <Percent size={18} color="#ef4444" />
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parametry Finansowe</Typography>
             </Box>
 
             <Grid container spacing={3}>
-              <Grid item xs={12} sm={3}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <TextField
                   fullWidth
                   label="Oplata Wstępna %"
@@ -198,7 +198,7 @@ export default function OptionsTablesSection({
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <TextField
                   fullWidth
                   label="WIBOR %"
@@ -211,7 +211,7 @@ export default function OptionsTablesSection({
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <TextField
                   fullWidth
                   label="Marża Banku %"
@@ -224,7 +224,7 @@ export default function OptionsTablesSection({
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <TextField
                   fullWidth
                   label="Marża Sprzedaży %"
@@ -232,7 +232,7 @@ export default function OptionsTablesSection({
                   value={data.margin * 100}
                   onChange={(e) => handleUpdate("margin", (parseFloat(e.target.value) || 0) / 100)}
                   size="small"
-                  sx={{ 
+                  sx={{
                     bgcolor: "rgba(239, 68, 68, 0.05)",
                     "& .MuiOutlinedInput-root": {
                       "& fieldset": { borderColor: "rgba(239, 68, 68, 0.2)" },
