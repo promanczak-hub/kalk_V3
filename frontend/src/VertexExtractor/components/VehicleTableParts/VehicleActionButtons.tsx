@@ -233,7 +233,7 @@ export function VehicleActionButtons({
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const docId = activeKalkulacjaNumer?.split('/').pop() ?? vehicle.id;
-      const safe = (s?: string) => (s ?? '').replace(/[^a-zA-Z0-9_.-]+/g, '_').replace(/^_+|_+$/g, '');
+      const safe = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_.-]+/g, '_').replace(/^_+|_+$/g, '');
       const filename = [safe(docId), safe(vehicle.brand), safe(vehicle.model)]
         .filter(Boolean).join('_') + '.pdf';
       const a = document.createElement('a');

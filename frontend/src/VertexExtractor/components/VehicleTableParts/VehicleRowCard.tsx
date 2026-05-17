@@ -256,7 +256,8 @@ export function VehicleRowCard({
       if (match) setRimDiameter(parseInt(match[1], 10));
 
       const aiBase = parsePriceToNumber(vehicle.base_price);
-      const isDomainNetto = cs?.price_domain === "netto" || cs?.price_domain?.toLowerCase().includes("netto");
+      const priceDomain = typeof cs?.price_domain === "string" ? cs.price_domain : "";
+      const isDomainNetto = priceDomain === "netto" || priceDomain.toLowerCase().includes("netto");
       const isNetto = vehicle.base_price?.toLowerCase().includes("netto") || isDomainNetto;
       setCatalogBasePriceNet(isNetto ? aiBase : Math.round((aiBase / 1.23) * 100) / 100);
       return;

@@ -59,7 +59,7 @@ export const KalkulacjaCard: React.FC<KalkulacjaCardProps> = ({
           id: v.id || crypto.randomUUID(),
           brand: v.brand || item.dane_pojazdu?.split(' ')[0] || 'Nieznane',
           model: v.model || '',
-          powertrain: v.powertrain || item.fuel_type || '',
+          powertrain: v.powertrain || item.fuel || '',
           vin_or_config: v.vin_or_config || item.numer_kalkulacji || 'Brak',
           term: v.term || 0,
           mileage: v.mileage || 0,

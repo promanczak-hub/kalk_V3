@@ -439,7 +439,6 @@ export function MatrixFilterToolbar({
                 onChange={(v) => update({ targetKmPerYear: mileageMode === "contract" ? Math.round((v / safeReferenceMonths) * 12) : v })}
                 formatValue={(v) => `${fmtKm(v)} ${mileageMode === "contract" ? "km/kontrakt" : "km/rok"}`}
                 fillColor="bg-emerald-600"
-                thumbColor="border-emerald-600"
               />
               <div className="text-center mt-1">
                 <span className="text-[9px] text-slate-400 font-medium">

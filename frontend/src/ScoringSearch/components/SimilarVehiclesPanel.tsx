@@ -515,7 +515,8 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
       brand: v.brand || '',
       model: v.model || '',
       powertrain: v.fuel || '',
-      vin_or_config: v.configuration_code || '',
+      // TODO(types): SimilarVehicle has no configuration_code; fall back to vehicle_id.
+      vin_or_config: v.vehicle_id || '',
       term: dur,
       mileage: mil,
       net_installment: Math.round(installmentWithMargin),
@@ -614,7 +615,9 @@ export const SimilarVehiclesPanel: React.FC<SimilarVehiclesPanelProps> = ({
           const tags = buildReasonTags(v.similarity_reasons, sourceContext);
           const scoreRounded = v.similarity_score_pct ? Math.round(v.similarity_score_pct) : null;
           const specs = buildSpecChips(v);
-          const price = computeCatalogPriceInfo(v, sourceContext);
+          // TODO: price is computed but not consumed in render — kept call for side-effect-free precompute.
+          const _price = computeCatalogPriceInfo(v, sourceContext);
+          void _price;
 
           const marginFrac = typeof marginPct === 'number' ? Math.min(marginPct, 99) / 100 : 0;
           const monthlyWithMargin =

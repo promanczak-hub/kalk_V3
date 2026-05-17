@@ -94,7 +94,12 @@ const STEPS = [
 
 export default function ManualCalculator() {
   const [activeStep, setActiveStep] = useState(0);
-  const calculator = useCalculator();
+  // TODO(dead-code): This component is not imported anywhere. Its props are out of sync
+  // with the current VehicleDataSection / AdditionalOptionsSection / OptionsTablesSection /
+  // CalculationSummarySection APIs and with useCalculator's return shape (no mappedData /
+  // updateMappedData / setFactoryOptions / setServiceOptions). Either delete this file or
+  // rewrite it to match the current section APIs.
+  const calculator = useCalculator() as any;
 
   const handleNext = () => setActiveStep((prev) => Math.min(prev + 1, STEPS.length - 1));
   const handleBack = () => setActiveStep((prev) => Math.max(prev - 1, 0));
@@ -104,38 +109,46 @@ export default function ManualCalculator() {
       case 0:
         return (
           <VehicleDataSection
-            vehicle={calculator.vehicle}
-            mappedData={calculator.mappedData}
-            onVehicleChange={calculator.updateVehicle}
-            onMappedDataChange={calculator.updateMappedData}
+            {...({
+              vehicle: calculator.vehicle,
+              mappedData: calculator.mappedData,
+              onVehicleChange: calculator.updateVehicle,
+              onMappedDataChange: calculator.updateMappedData,
+            } as any)}
           />
         );
       case 1:
         return (
           <Stack spacing={4}>
             <AdditionalOptionsSection
-              factoryOptions={calculator.factoryOptions}
-              serviceOptions={calculator.serviceOptions}
-              onAddFactoryOption={calculator.addFactoryOption}
-              onRemoveFactoryOption={calculator.removeFactoryOption}
-              onAddServiceOption={calculator.addServiceOption}
-              onRemoveServiceOption={calculator.removeServiceOption}
+              {...({
+                factoryOptions: calculator.factoryOptions,
+                serviceOptions: calculator.serviceOptions,
+                onAddFactoryOption: calculator.addFactoryOption,
+                onRemoveFactoryOption: calculator.removeFactoryOption,
+                onAddServiceOption: calculator.addServiceOption,
+                onRemoveServiceOption: calculator.removeServiceOption,
+              } as any)}
             />
             <OptionsTablesSection
-              factoryOptions={calculator.factoryOptions}
-              serviceOptions={calculator.serviceOptions}
-              onFactoryOptionsChange={calculator.setFactoryOptions}
-              onServiceOptionsChange={calculator.setServiceOptions}
+              {...({
+                factoryOptions: calculator.factoryOptions,
+                serviceOptions: calculator.serviceOptions,
+                onFactoryOptionsChange: calculator.setFactoryOptions,
+                onServiceOptionsChange: calculator.setServiceOptions,
+              } as any)}
             />
           </Stack>
         );
       case 2:
         return (
           <CalculationSummarySection
-            result={calculator.calculationResult}
-            steps={calculator.steps}
-            isCalculating={calculator.isCalculating}
-            onRecalculate={calculator.calculate}
+            {...({
+              result: calculator.calculationResult,
+              steps: calculator.steps,
+              isCalculating: calculator.isCalculating,
+              onRecalculate: calculator.calculate,
+            } as any)}
           />
         );
       default:

@@ -68,9 +68,13 @@ interface VehicleFilterBarProps {
   kosztDziennyBounds: { kosztDziennyMin: number; kosztDziennyMax: number };
   onKosztDziennyRangeChange: (range: [number, number]) => void;
 
+  // Unmapped-SAMAR-only flag (parent-managed; not currently rendered as a UI control here)
+  showUnmappedSamarOnly?: boolean;
+  onShowUnmappedSamarChange?: (val: boolean) => void;
+
   // Reset
   onResetFilters: () => void;
-  
+
   // Selection
   selectedCount: number;
   totalVisible: number;
