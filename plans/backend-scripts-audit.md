@@ -1,8 +1,30 @@
-# backend/scripts/ audit — Faza D1
+# backend/scripts/ audit — Faza D
 
-**Status:** Draft. Categorization is based on filenames + ecosystem context (CLAUDE.md, TABLE_REGISTRY.md, memory). **DO NOT `git rm` anything without manual review.** Each `DELETE` candidate needs a 30-second look to confirm the work is truly done.
+**Status:** Phase 1 executed 2026-05-17. 21 conservative deletions (-1610 LOC). Categorization continues for the remaining 49.
 
-**Counts:** 70 scripts total.
+**Counts:** 70 → **49 scripts** (21 deleted in commit `d5a23f1`).
+
+## Phase 1 — executed (21 deletions, commit `d5a23f1`)
+
+Vehicle-specific debug (8): calc_tavascan{,2,_debug}, check_terramar, find_v1_wr_terramar, run_terramar_calc, investigate_kodiaq, script_kodiaq_test.
+CLAUDE.md anti-pattern fix_* (5): fix_body_context, fix_google_sheet_names, fix_specjalny, fix_tab_okres_final, fix_validation_final.
+One-off SQL/import (4): gen_okres_final_sql, import_tab_okres_final, revert_to_fks, revert_to_names.
+Obvious noise (4): sql_temp, test_refresh, print_sheet_data, read_wr_klasa.
+
+## Phase 2 — INVESTIGATE batch reclassification (in progress)
+
+Spot-checked and **reclassified to DELETE** (3):
+- `setup_gsheet_contexts.py`     — one-time GSheet init, hard-coded `C:\Users\proma\Downloads` paths
+- `setup_gsheet_dictionaries.py` — one-time MDM Excel → GSheet dictionaries import
+- `extract_excel_coeff.py`       — one-off Excel coefficient extractor (hard-coded Downloads path)
+
+Spot-checked and **reclassified to KEEP** (2):
+- `cleanup_ghost_records.py`     — proper docstring + `--dry-run` / `--confirm` pattern, ongoing maintenance
+- `force_gsheet_validation.py`   — re-runnable validation enforcer, well-documented
+
+Remaining INVESTIGATE (~13) still to review.
+
+Capabilities preserved by `.claude/skills/diagnose-calculator-stage` (vehicle-specific debug) and landed fixes in `backend/core/LTRSubCalculator*.py` (fix_* equivalents).
 
 | Category | Count | Action |
 |---|---|---|
