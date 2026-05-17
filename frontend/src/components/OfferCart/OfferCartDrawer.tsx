@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Drawer,
   Box,
@@ -173,6 +173,34 @@ const OfferCartDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
   const { items, clientData, removeItem, updateItem, clearCart, setClientData } = useOfferCartStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Pre-warm offer enrichment cache while user fills client data. The backend's
+  // _enrich_item runs build_matrix() per item — ~11s on first call, <50ms when
+  // cached. Firing preflight on drawer-open + items-change means by the time
+  // the user clicks Generate, the enriched payloads are already in Redis.
+  // Fire-and-forget: any failure just falls through to the slow path.
+  const lastPreflightKey = useRef<string>('');
+  useEffect(() => {
+    if (!open || items.length === 0) return;
+    const key = items.map(i => `${i.id}|${i.term}|${i.mileage}|${i.margin_pct ?? ''}`).join(';');
+    if (key === lastPreflightKey.current) return;
+    lastPreflightKey.current = key;
+    fetch('/api/offers/preflight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: items.map(item => ({
+          ...item,
+          id: item.id,
+          notes: item.notes ?? '',
+          overuse_fee: item.overuse_fee ?? DEFAULT_OVERUSE_FEE,
+        })),
+      }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) console.log('Offer preflight:', data); })
+      .catch(err => console.debug('Offer preflight failed (slow path will run on Generate):', err));
+  }, [open, items]);
 
   const handleGenerate = async () => {
     if (items.length === 0) return;

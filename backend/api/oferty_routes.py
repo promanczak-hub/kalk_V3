@@ -595,10 +595,13 @@ def _resolve_kalk_id_via_matrix_cache(
 def _load_package_contents_map(vehicle_id: Optional[str]) -> Dict[str, List[str]]:
     """Lower-cased {package_name: [sub_feature_name, ...]} for offer XLS.
 
-    Wraps `feature_enrichment.fetch_package_contents()` and drops confidence —
-    the XLS doesn't display it. Lower-cased key + sorted sub-features for
-    stable, case-insensitive matching against option names in the offer.
-    Returns {} on miss/error (XLS just won't render expandable rows)."""
+    Wraps `feature_enrichment.fetch_package_contents()` (reads from
+    `reverse_search.vehicle_feature_evidence` — note the **non-default
+    schema**; queries via the default `public` schema will report the
+    table as missing). Lower-cased key + sorted sub-features for stable,
+    case-insensitive matching against option names in the offer.
+    Returns {} on miss/error (XLS just won't render expandable rows).
+    """
     if not vehicle_id:
         return {}
     try:
@@ -630,6 +633,57 @@ def _kalk_id_from_item_id(item_id: Any) -> Optional[str]:
         return None
     m = _UUID_RE.match(item_id)
     return m.group(0) if m else None
+
+
+def _preflight_cache_key(item: Dict[str, Any]) -> str:
+    """Stable Redis key for an offer item's enriched form. Includes only fields
+    that affect _enrich_item output: identity + matrix-cell coordinates +
+    margin. Notes/overuse_fee are display-only and don't trigger re-enrich."""
+    import hashlib
+    parts = [
+        str(item.get("id") or ""),
+        str(item.get("kalkulacja_id") or ""),
+        str(item.get("vehicle_id") or ""),
+        str(int(item.get("term") or 0)),
+        str(int(item.get("mileage") or 0)),
+        f"{float(item.get('margin_pct') or 0):.4f}",
+        str(item.get("vin_or_config") or ""),
+    ]
+    h = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:24]
+    return f"kalk_v3:offer_enriched:{h}"
+
+
+def _get_cached_enriched(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return cached _enrich_item result, or None on miss / Redis down."""
+    try:
+        from core.redis_cache import _get_client
+        client = _get_client()
+        if client is None:
+            return None
+        cached = client.get(_preflight_cache_key(item))
+        if cached:
+            import json as _json
+            return _json.loads(cached)
+    except Exception as e:
+        logger.debug("offer enrich cache get failed: %s", str(e)[:200])
+    return None
+
+
+def _set_cached_enriched(item: Dict[str, Any], enriched: Dict[str, Any]) -> None:
+    """Store enriched item in Redis (30min TTL). Silent on failure."""
+    try:
+        from core.redis_cache import _get_client
+        client = _get_client()
+        if client is None:
+            return
+        import json as _json
+        client.setex(
+            _preflight_cache_key(item),
+            1800,  # 30 minutes — covers typical cart review window
+            _json.dumps(enriched, default=str),
+        )
+    except Exception as e:
+        logger.debug("offer enrich cache set failed: %s", str(e)[:200])
 
 
 def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -775,6 +829,36 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     else:
         fin, tech, stawka_recalc, marginal_per_km, tires_count_recalc = None, None, None, None, None
 
+    # Anchor K+L to the rate the customer was actually quoted.
+    # net_installment in the cart came from vehicle_matrix_cache and was shown
+    # to the user — that's the contractual rate. The fin/tech split is derived
+    # from a fresh build_matrix call which can diverge from cache (calc changes,
+    # control_center tweaks, etc.); when it does, K+L would NOT equal J.
+    # Solution: keep the fin/tech ratio from the recompute, but rescale so
+    # the integer-rounded sum equals net_installment to the złoty.
+    cart_rate = _f(item.get("net_installment"))
+    if (
+        fin is not None and tech is not None
+        and cart_rate is not None and cart_rate > 0
+    ):
+        recalc_total = float(fin) + float(tech)
+        if recalc_total > 0:
+            # Use the ratio from the recompute, then round so K+L == J exactly.
+            target = round(cart_rate)
+            fin_ratio = float(fin) / recalc_total
+            fin_rounded = round(target * fin_ratio)
+            tech_rounded = target - fin_rounded
+            if abs(recalc_total - cart_rate) / cart_rate > 0.01:
+                logger.warning(
+                    "Offer K+L rescaled: kalk=%s cart_rate=%.0f recalc_total=%.0f "
+                    "fin %s->%s tech %s->%s (calc drift from cache)",
+                    item.get("kalkulacja_id") or kalk_id or "?",
+                    cart_rate, recalc_total,
+                    fin, fin_rounded, tech, tech_rounded,
+                )
+            fin = float(fin_rounded)
+            tech = float(tech_rounded)
+
     # User input (liczba_kompletow_opon / tire_set_count) is rare; most rows
     # rely on the calculator to compute IloscOpon from contract km + tire
     # thresholds. Backfill so the 'Ogumienie' column shows the same number
@@ -868,6 +952,53 @@ def _enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
     return enriched
 
 
+def _enrich_item_cached(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Cache-aware wrapper around _enrich_item — read-through Redis with
+    30min TTL. The expensive part of _enrich_item is the build_matrix()
+    recompute inside _compute_matrix_breakdown (~11s per item); caching
+    eliminates that cost for items pre-warmed via /preflight while the
+    user is still filling client data in the cart drawer."""
+    cached = _get_cached_enriched(item)
+    if cached is not None:
+        return cached
+    enriched = _enrich_item(item)
+    _set_cached_enriched(item, enriched)
+    return enriched
+
+
+class OfferPreflightRequest(BaseModel):
+    items: List[OfferItem]
+
+
+@router.post("/preflight")
+def preflight_offer(request: OfferPreflightRequest):
+    """Pre-warm enrichment cache for offer items so generate_offer can skip
+    the ~11s-per-item build_matrix recompute. Called by the frontend when:
+      - an item is added to the offer cart (single-item warm-up)
+      - the offer cart drawer is opened (warm-up all cart items)
+    Returns counts only — actual enriched payload stays in Redis."""
+    if not request.items:
+        return {"warmed": 0, "cached": 0}
+
+    items_dict = [item.model_dump() for item in request.items]
+    warmed = 0
+    cached_hits = 0
+    for it in items_dict:
+        if _get_cached_enriched(it) is not None:
+            cached_hits += 1
+            continue
+        try:
+            enriched = _enrich_item(it)
+            _set_cached_enriched(it, enriched)
+            warmed += 1
+        except Exception as e:
+            logger.warning(
+                "preflight enrich failed for item %s: %s",
+                it.get("id"), str(e)[:200],
+            )
+    return {"warmed": warmed, "cached": cached_hits, "total": len(items_dict)}
+
+
 @router.post("/generate")
 def generate_offer(request: OfferGenerateRequest):
     if not request.items:
@@ -875,7 +1006,9 @@ def generate_offer(request: OfferGenerateRequest):
 
     try:
         items_dict = [item.model_dump() for item in request.items]
-        enriched = [_enrich_item(it) for it in items_dict]
+        # Read-through cache — items pre-warmed via /preflight skip the
+        # ~11s build_matrix recompute and resolve in <1ms.
+        enriched = [_enrich_item_cached(it) for it in items_dict]
 
         generator = ExcelOfferGenerator()
         excel_bytes = generator.generate_offer(
