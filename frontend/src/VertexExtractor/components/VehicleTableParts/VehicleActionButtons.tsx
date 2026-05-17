@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Loader2, Database, ExternalLink, X } from "lucide-react";
+import { Loader2, Database, ExternalLink, X, Download } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 import { API_BASE_URL } from "../../../config/env";
@@ -30,6 +30,8 @@ interface VehicleActionButtonsProps {
   paintCategoryId: number | null;
   activeDiscountPct: number;
   activeFinalPrice: number;
+  pakietSerwisowy?: number;
+  odkupOpon?: boolean;
   brochureData: Record<string, unknown> | null;
   setIsBrochureModalOpen: (val: boolean) => void;
   isGeneratingBrochure: boolean;
@@ -74,6 +76,8 @@ export function VehicleActionButtons({
   paintCategoryId,
   activeDiscountPct,
   activeFinalPrice,
+  pakietSerwisowy,
+  odkupOpon,
   brochureData,
   setIsBrochureModalOpen,
   isGeneratingBrochure,
@@ -89,6 +93,7 @@ export function VehicleActionButtons({
   activeKalkulacjaNumer,
 }: VehicleActionButtonsProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'saving' | 'calculating' | 'done'>('idle');
   const isCreateBlocked = Boolean(calculationBlockReason);
   
@@ -154,6 +159,8 @@ export function VehicleActionButtons({
           paintCategoryId,
           activeDiscountPct,
           activeFinalPrice,
+          pakietSerwisowy,
+          odkupOpon,
           priceAudit,
       });
 
@@ -213,6 +220,34 @@ export function VehicleActionButtons({
     } finally {
       setIsCreating(false);
       setPhase('idle');
+    }
+  };
+
+  const handleDownloadPdf = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!vehicle.raw_pdf_url) return;
+    setIsDownloading(true);
+    try {
+      const res = await fetch(vehicle.raw_pdf_url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const docId = activeKalkulacjaNumer?.split('/').pop() ?? vehicle.id;
+      const safe = (s?: string) => (s ?? '').replace(/[^a-zA-Z0-9_.-]+/g, '_').replace(/^_+|_+$/g, '');
+      const filename = [safe(docId), safe(vehicle.brand), safe(vehicle.model)]
+        .filter(Boolean).join('_') + '.pdf';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[downloadPdf] failed, fallback to open', err);
+      window.open(vehicle.raw_pdf_url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -360,6 +395,17 @@ export function VehicleActionButtons({
           >
             <ExternalLink className="w-3.5 h-3.5 mr-2" />
             {isViewerOpen ? "Zwiń dokument" : "Otwórz dokument"}
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isDownloading}
+            className="inline-flex items-center text-xs font-medium px-4 py-2 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Pobierz oryginalny PDF na dysk"
+          >
+            {isDownloading
+              ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+              : <Download className="w-3.5 h-3.5 mr-2" />}
+            {isDownloading ? "Pobieranie..." : "Pobierz PDF"}
           </button>
         </>
       )}

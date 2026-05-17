@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Loader2, History, Copy, Clock, CarFront, FileText, ChevronRight, Check, X, Shield, Wrench, Settings, Star, ShoppingCart, Pin } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { apiClient } from "../../../lib/apiClient";
@@ -311,8 +311,8 @@ export function VehicleCalculationsList({
   const [cartFlashMessage, setCartFlashMessage] = useState<string | null>(null);
   const addItemsToCart = useOfferCartStore((s) => s.addItems);
 
-  const fetchHistory = async () => {
-    setLoading(true);
+  const fetchHistory = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await apiClient.fetch(`${API_BASE_URL}/api/kalkulacje/vehicle/${vehicleId}`);
@@ -326,7 +326,7 @@ export function VehicleCalculationsList({
     } catch (err: unknown) {
       setError((err as Error).message || "Wystąpił błąd");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -341,6 +341,25 @@ export function VehicleCalculationsList({
     window.addEventListener('kalkulacjaCreated', handleNewCalc);
     return () => window.removeEventListener('kalkulacjaCreated', handleNewCalc);
   }, [vehicleId, activeKalkulacjaId]);
+
+  // Auto-refresh: while any row has rata_netto == null, poll the endpoint
+  // every 5s so the UI flips from "Przetwarzanie..." to the real rate as
+  // soon as the backend Celery task finishes — without page reload.
+  // Cap at 60 attempts (5 min) so a stuck backend doesn't get hammered forever.
+  const pollAttemptsRef = useRef(0);
+  useEffect(() => {
+    const hasPending = items.some((i) => i.rata_netto == null);
+    if (!hasPending) {
+      pollAttemptsRef.current = 0;
+      return;
+    }
+    if (pollAttemptsRef.current >= 60) return;
+    const id = window.setInterval(() => {
+      pollAttemptsRef.current += 1;
+      fetchHistory(true);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [items]);
 
   const handleAddToCart = async (kalkulacjaId: string) => {
     setCartPendingId(kalkulacjaId);

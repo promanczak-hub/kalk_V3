@@ -46,6 +46,18 @@ export function useVehicleFinancing(
   // Service cost type
   const [serviceCostType, setServiceCostType] = useState<"ASO" | "nonASO">("ASO");
 
+  // Pakiet serwisowy (netto na kontrakt — V1-parity konwersja brutto/netto w UI) + odkup opon.
+  // Globalna korekta WR usunięta — per-matrix override w CellDetail.tsx pozostaje samodzielną ścieżką.
+  const [pakietSerwisowy, setPakietSerwisowy] = useState<number>(0);
+  const [odkupOpon, setOdkupOpon] = useState<boolean>(false);
+
+  // Uwagi (free text — searchable via rpc_search_fleet_text na synthesis_data::text)
+  const [uwagi, setUwagi] = useState<string>(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sd = vehicle.synthesis_data as Record<string, any> | undefined;
+    return (sd?.uwagi as string) || "";
+  });
+
   // Vehicle vintage
   const [vehicleVintage, setVehicleVintage] = useState<"current" | "previous">(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,6 +116,15 @@ export function useVehicleFinancing(
       if (fp.other_service_costs != null) setOtherServiceCosts(fp.other_service_costs);
       if (fp.sales_prep_correction != null) setSalesPrepCorrection(fp.sales_prep_correction);
       else if (fp.korekta_kosztu_przygotowania != null) setSalesPrepCorrection(fp.korekta_kosztu_przygotowania);
+      if (fp.pakiet_serwisowy != null) setPakietSerwisowy(fp.pakiet_serwisowy);
+      if (fp.odkup_opon_enabled != null) setOdkupOpon(fp.odkup_opon_enabled);
+      // Stare zapisane wartości pakiet_serwisowy_nazwa / manual_wr_correction są ignorowane —
+      // pola usunięte z UI VertexExtractor (Korekta WR per-matrix przez overrides w CellDetail).
+      // Uwagi (jeśli zapisane w setup, używamy; inaczej z top-level synthesis_data.uwagi)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sd0 = vehicle.synthesis_data as Record<string, any> | undefined;
+      const u = (setup as any).uwagi ?? sd0?.uwagi ?? "";
+      if (u) setUwagi(u);
 
       if (fp.catalog_base_price_net != null && fp.catalog_base_price_net > 0) {
         setCatalogBasePriceNet(fp.catalog_base_price_net);
@@ -185,16 +206,33 @@ export function useVehicleFinancing(
       const currentSynthesis = vehicle.synthesis_data as Record<string, unknown> || {};
       const updatedJson = JSON.parse(JSON.stringify(currentSynthesis));
 
+      // Zapis Uwag na top-level synthesis_data.uwagi (żeby rpc_search_fleet_text łatwo
+      // je znalazł — RPC robi synthesis_data::text ILIKE, więc dowolne miejsce w JSONie
+      // jest przeszukiwane, ale top-level pole jest też semantycznie czyste).
+      updatedJson.uwagi = uwagi;
+
+      // Race-condition guard: useState initializers seed wibor/margin from
+      // globalSettings, but if globalSettings hadn't loaded by mount we end
+      // up with null state — then save writes null and ScoringSearch hides
+      // the "Finansowanie: marża bankowa X% · WIBOR Y%" row. Fall back to
+      // globalSettings here so the stan_json always carries the values that
+      // were actually used to compute the matrix.
+      const wiborToSave = wiborPct ?? globalSettings?.default_wibor ?? null;
+      const marginToSave = marginPct ?? globalSettings?.bank_spread ?? null;
+
       updatedJson.calculator_setup = {
         financial_params: {
-          wibor_pct: wiborPct,
-          margin_pct: marginPct,
+          wibor_pct: wiborToSave,
+          margin_pct: marginToSave,
           pricing_margin_pct: pricingMarginPct,
           depreciation_pct: null,
           initial_deposit_pct: initialDepositPct,
           other_service_costs: otherServiceCosts,
           sales_prep_correction: salesPrepCorrection,
+          pakiet_serwisowy: pakietSerwisowy,
+          odkup_opon_enabled: odkupOpon,
         },
+        uwagi: uwagi,
         toggles: {
           express_pays_insurance: expressPaysInsurance,
           replacement_car: replacementCar,
@@ -258,6 +296,9 @@ export function useVehicleFinancing(
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
     paintCategoryId, setPaintCategoryId,
+    pakietSerwisowy, setPakietSerwisowy,
+    odkupOpon, setOdkupOpon,
+    uwagi, setUwagi,
     isSavingSetup, handleSaveSetup
   };
 }

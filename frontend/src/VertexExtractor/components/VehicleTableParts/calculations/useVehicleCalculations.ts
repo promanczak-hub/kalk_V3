@@ -30,6 +30,26 @@ export interface TraceData {
   wynik: unknown;
 }
 
+export interface PipelineStep {
+  step: number;
+  name: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inputs: Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  outputs: Record<string, any>;
+  metadata?: Record<string, { source: string; formula: string }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  trace?: Array<{ krok: string; rownanie?: string; wynik: any } | string>;
+}
+
+export interface PipelineData {
+  steps: PipelineStep[];
+  months: number;
+  vehicle_id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: Record<string, any>;
+}
+
 interface UseVehicleCalculationsProps {
   kalkulacjaId: string;
   vehicleId: string;
@@ -54,11 +74,10 @@ export function useVehicleCalculations({
   const [recalculating, setRecalculating] = useState<number | null>(null);
   const [fetchingTraceCell, setFetchingTraceCell] = useState<number | null>(null);
   const [traceData, setTraceData] = useState<TraceData[] | null>(null);
+  const [pipelineData, setPipelineData] = useState<PipelineData | null>(null);
+  const [fetchingPipelineCell, setFetchingPipelineCell] = useState<number | null>(null);
   
   const [marginRecalculating, setMarginRecalculating] = useState(false);
-  const [globalWrCorrection, setGlobalWrCorrection] = useState<number>(0);
-  const [globalTireCorrection, setGlobalTireCorrection] = useState<number>(0);
-  const [isGlobalRecalculating, setIsGlobalRecalculating] = useState(false);
 
   const [mileageMode, setMileageMode] = useState<MileageMode>("contract");
   const [filters, setFilters] = useState<MatrixFilters>({
@@ -255,8 +274,17 @@ export function useVehicleCalculations({
               : null
         ),
         pricing_margin_pct: financialParams.pricing_margin_pct ?? null,
-        manual_wr_correction: 0,
-        pakiet_serwisowy: Number(stanJson.pakiet_serwisowy ?? 0),
+        manual_wr_correction: Number(
+          financialParams.manual_wr_correction
+            ?? stanJson.manual_wr_correction
+            ?? 0
+        ),
+        odkup_opon_enabled: (financialParams.odkup_opon_enabled ?? stanJson.odkup_opon_enabled) === true,
+        pakiet_serwisowy: Number(
+          financialParams.pakiet_serwisowy
+            ?? stanJson.pakiet_serwisowy
+            ?? 0
+        ),
         inne_koszty_serwisowania_netto: Number(
           financialParams.other_service_costs ?? stanJson.inne_koszty_serwisowania_netto ?? 0
         ),
@@ -304,7 +332,6 @@ export function useVehicleCalculations({
       setOriginalCells(newCells);
       setModifiedCells(new Set());
       setCellOverrides({});
-      setGlobalWrCorrection(0);
 
       if (onBestPriceFound) {
         const best = findBestCell(newCells);
@@ -447,6 +474,67 @@ export function useVehicleCalculations({
     }
   }, [cellOverrides, basePayload]);
 
+  const fetchPipelineSingleCell = useCallback(async (months: number, kmYearOverride?: number) => {
+    if (!basePayload) return;
+    if (!vehicleId) {
+      alert("Brak vehicleId — diagnostyka pipeline wymaga zarejestrowanego pojazdu.");
+      return;
+    }
+    const ov = cellOverrides[months] || buildDefaultOverrides(basePayload);
+
+    setFetchingPipelineCell(months);
+    try {
+      const effectiveMonths = ov.custom_months ?? months;
+      const effectiveKmYear = kmYearOverride ?? ov.custom_km_per_year;
+      const targetKm = effectiveKmYear != null
+        ? Math.round((effectiveKmYear / 12) * effectiveMonths)
+        : Math.round(kmPerMonthRef.current * effectiveMonths);
+
+      const modifiedPayload: Payload = {
+        ...basePayload,
+        okres_bazowy: effectiveMonths,
+        przebieg_bazowy: targetKm,
+        pricing_margin_pct: ov.pricing_margin_pct,
+        klasa_opony_string: ov.klasa_opony_string,
+        liczba_kompletow_opon: ov.liczba_kompletow_opon,
+        z_oponami: ov.z_oponami,
+        manual_wr_correction: ov.manual_wr_correction,
+        pakiet_serwisowy: ov.pakiet_serwisowy,
+        inne_koszty_serwisowania_netto: ov.inne_koszty_serwisowania_netto,
+        service_cost_type: ov.service_cost_type,
+        replacement_car_enabled: ov.replacement_car_enabled,
+        months: effectiveMonths,
+        overrides: {},
+      };
+
+      const resp = await apiClient.fetch(
+        `${API_BASE_URL}/api/kalkulacje/debug-pipeline/${vehicleId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(modifiedPayload),
+        }
+      );
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Błąd debug-pipeline: ${resp.status} ${errText}`);
+      }
+      const data = await resp.json();
+      setPipelineData({
+        steps: data.steps || [],
+        months: data.months || effectiveMonths,
+        vehicle_id: data.vehicle_id || vehicleId,
+        payload: modifiedPayload,
+      });
+    } catch (err) {
+      console.error("Pipeline trace error:", err);
+      alert("Błąd pobierania pełnego śladu: " + err);
+    } finally {
+      setFetchingPipelineCell(null);
+    }
+  }, [cellOverrides, basePayload, vehicleId]);
+
   const resetCell = (months: number) => {
     const original = originalCells.find(c => c.Okres === months);
     if (original) {
@@ -586,38 +674,6 @@ export function useVehicleCalculations({
     }
   }, [basePayload]);
 
-  const handleGlobalRecalculate = useCallback(async () => {
-    if (!basePayload) return;
-    setIsGlobalRecalculating(true);
-    try {
-      const modifiedPayload = {
-        ...basePayload,
-        manual_wr_correction: globalWrCorrection,
-        koszt_opon_korekta: globalTireCorrection,
-        korekta_kosztu_opon: globalTireCorrection !== 0,
-      };
-      setBasePayload(modifiedPayload);
-      const resp = await apiClient.fetch(`${API_BASE_URL}/api/calculate-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modifiedPayload),
-      });
-
-      if (!resp.ok) throw new Error("Błąd przeliczania matrycy z korektami");
-      const data = await resp.json();
-      const newCells = data.cells || [];
-      
-      setCells(newCells);
-      setOriginalCells(newCells);
-      setModifiedCells(new Set());
-      setCellOverrides({});
-    } catch (err) {
-      console.error("Global recalculation error:", err);
-    } finally {
-      setIsGlobalRecalculating(false);
-    }
-  }, [globalWrCorrection, globalTireCorrection, basePayload]);
-
   return {
     cells,
     filteredCells,
@@ -625,8 +681,11 @@ export function useVehicleCalculations({
     error,
     traceData,
     setTraceData,
+    pipelineData,
+    setPipelineData,
     recalculating,
     fetchingTraceCell,
+    fetchingPipelineCell,
     marginRecalculating,
     basePayload,
     filters,
@@ -634,11 +693,6 @@ export function useVehicleCalculations({
     mileageMode,
     setMileageMode,
     mileageReferenceMonths,
-    isGlobalRecalculating,
-    globalWrCorrection,
-    setGlobalWrCorrection,
-    globalTireCorrection,
-    setGlobalTireCorrection,
     modifiedCells,
     getOverrides,
     fetchMatrix,
@@ -646,8 +700,8 @@ export function useVehicleCalculations({
     recalculateSingleCell,
     resetCell,
     fetchTraceSingleCell,
+    fetchPipelineSingleCell,
     handleExactRecalculate,
-    handleGlobalRecalculate,
     recalculateWithMargin
   };
 }

@@ -24,6 +24,8 @@ export interface CalculationPayloadParams {
     paintCategoryId: number | null;
     activeDiscountPct: number;
     activeFinalPrice: number;
+    pakietSerwisowy?: number;
+    odkupOpon?: boolean;
     priceAudit?: {
       threshold_pln: number;
       ai_base_price_netto: number;
@@ -52,20 +54,32 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
 
     const isDemo = String(cs.is_demo || "").toLowerCase() === "true";
     
-    // Robust hierarchy for price discovery
-    const rawBasePrice = setup.catalog_base_price_net || 
-      (isDemo ? (cs.demo_price || cs.base_price) : cs.base_price) || 
-      cs.total_price || 
-      pp.base || 
-      uf.cena_pojazdu || 
-      comp.estimated_price || 
-      "0";
-      
+    // Robust hierarchy for price discovery.
+    // `setup.catalog_base_price_net` is ALREADY netto (saved by useVehicleFinancing.handleSaveSetup
+    // after a one-time brutto→netto conversion). All other sources may be brutto strings/numbers
+    // that still need VAT conversion based on card_summary._price_domain.
+    const savedNet =
+      typeof setup.catalog_base_price_net === "number" && setup.catalog_base_price_net > 0
+        ? setup.catalog_base_price_net
+        : null;
+
+    const rawBasePrice = savedNet ??
+      ((isDemo ? (cs.demo_price || cs.base_price) : cs.base_price) ||
+        cs.total_price ||
+        pp.base ||
+        uf.cena_pojazdu ||
+        comp.estimated_price ||
+        "0");
+
     // Remove whitespaces and format to float
     const cleanBasePrice = typeof rawBasePrice === "number" ? rawBasePrice : parseFloat(String(rawBasePrice || "").replace(/\s+/g, "").replace(",", ".")) || 0;
     const priceDomain = cs._price_domain || cs.price_domain || "unknown";
-    const isBrutto = String(rawBasePrice || "").toLowerCase().includes("brutto") || priceDomain === "brutto";
-    
+    // Skip VAT division when the source is the already-net saved field. Otherwise apply the
+    // normal brutto detection (string suffix "brutto" or card_summary._price_domain).
+    const isBrutto = savedNet === null && (
+      String(rawBasePrice || "").toLowerCase().includes("brutto") || priceDomain === "brutto"
+    );
+
     // Normalize to Net
     const basePriceNet = isBrutto ? parseFloat((cleanBasePrice / 1.23).toFixed(2)) : cleanBasePrice;
 
@@ -120,7 +134,13 @@ export function buildCalculationPayload(params: CalculationPayloadParams): Recor
         add_gsm_subscription: params.gpsRequired,
         add_hook_installation: params.hookInstallation,
         include_servicing: params.includeServicing,
-        
+
+        // Faza A — nowe pola wpływające na kalkulację
+        // Pakiet serwisowy: UI przyjmuje BRUTTO (V1-parity), state trzyma netto — payload niezmieniony.
+        // Korekta WR globalna usunięta — per-matrix override w CellDetail.tsx ma własną ścieżkę.
+        pakiet_serwisowy: params.pakietSerwisowy ?? 0,
+        odkup_opon_enabled: params.odkupOpon ?? false,
+
         z_oponami: params.includeTires,
         klasa_opony_string: params.tireClass || "Medium",
         liczba_kompletow_opon: tireCount,

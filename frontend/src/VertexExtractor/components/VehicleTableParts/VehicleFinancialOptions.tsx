@@ -78,6 +78,17 @@ interface VehicleFinancialOptionsProps {
   paintCategoryId: number | null;
   setPaintCategoryId: (val: number) => void;
   paintTypes?: { id: number; name: string }[];
+  // Faza A - nowe pola wpływające na kalkulację
+  // Pakiet serwisowy: state w netto; UI prezentuje brutto (V1-parity).
+  // manualWrCorrection usunięty z propsów — globalna korekta WR przeniesiona w pełni do per-matrix
+  // override w CellDetail.tsx; pole "Pakiet serwisowy — nazwa" usunięte (V1 nie ma odpowiednika).
+  pakietSerwisowy: number;
+  setPakietSerwisowy: (val: number) => void;
+  odkupOpon: boolean;
+  setOdkupOpon: (val: boolean) => void;
+  // Uwagi (free text, searchable in main search bar)
+  uwagi: string;
+  setUwagi: (val: string) => void;
   isMetalicAutoDetected: boolean;
   hookAutoDetected: boolean;
   vintageAutoDetected: boolean;
@@ -158,11 +169,17 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     paramPreview,
     controlCenter,
     totalCatalogPriceNet,
+    // Faza A — nowe pola
+    pakietSerwisowy, setPakietSerwisowy,
+    odkupOpon, setOdkupOpon,
+    uwagi, setUwagi,
   } = props;
 
   const crossCardAlerts = props.crossCardAlerts ?? [];
 
   const [depositMode, setDepositMode] = useState<"%" | "PLN">("%");
+  // Pakiet serwisowy: state trzyma netto, UI prezentuje brutto (V1-parity: V1 dzieli wartość przez VAT 1.23 przed użyciem).
+  const pakietSerwisowyBrutto = Math.round(pakietSerwisowy * 1.23);
 
   // Extracted wheel size from AI
   const extractedWheelSize = useMemo(() => {
@@ -473,6 +490,64 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Faza A: Pakiet serwisowy (brutto, V1-parity) + Odkup opon.
+              Korekta WR przeniesiona w pełni do per-matrix override (CellDetail.tsx). */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 pt-3 border-t border-slate-100">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+                Pakiet serwisowy (brutto/kontrakt)
+                <span className="ml-1 text-[9px] font-normal text-slate-400 normal-case" title="Dedykowany pakiet serwisowy — całkowity koszt BRUTTO na cały okres kontraktu (V1-parity). Jeśli > 0, zastępuje logikę km-ową. Frontend konwertuje na netto (÷1.23) przed wysłaniem do backendu.">ⓘ</span>
+              </label>
+              <input
+                type="number" step="100"
+                className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 tabular-nums"
+                value={pakietSerwisowyBrutto}
+                onChange={e => {
+                  const brutto = parseFloat(e.target.value) || 0;
+                  setPakietSerwisowy(parseFloat((brutto / 1.23).toFixed(2)));
+                }}
+                placeholder="0"
+              />
+              {pakietSerwisowy !== 0 && (
+                <div className="text-[9px] text-slate-400 mt-0.5">
+                  ≈ {pakietSerwisowy.toFixed(0)} PLN netto (V1: brutto ÷ VAT 1.23)
+                </div>
+              )}
+            </div>
+            <div className="flex items-end pb-0.5">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                <input
+                  type="checkbox"
+                  checked={odkupOpon}
+                  onChange={e => setOdkupOpon(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                />
+                <span className="font-semibold">Odkup opon</span>
+                <span className="text-[9px] text-slate-400 normal-case" title="Włącz logikę obniżenia kosztów przez odkup opon na koniec kontraktu (V1-parity: cena z tabeli koszty_opon.odkup_opon po średnicy felgi).">ⓘ</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Uwagi (free text, searchable) */}
+          <div className="pt-3 border-t border-slate-100">
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
+              Uwagi
+              <span className="ml-1 text-[9px] font-normal text-slate-400 normal-case" title="Tekst dowolny. Można wyszukiwać po treści w głównym polu wyszukiwania (Skan wyposażenia).">ⓘ przeszukiwalne</span>
+            </label>
+            <textarea
+              value={uwagi}
+              onChange={e => setUwagi(e.target.value)}
+              placeholder="Notatki do kalkulacji: warunki, przypomnienia, kontekst klienta itd. Zostaną przeszukane przy filtrowaniu listy pojazdów."
+              rows={2}
+              className="w-full text-xs p-2 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 resize-y min-h-[40px]"
+            />
+            {uwagi.trim().length > 0 && (
+              <div className="text-[9px] text-emerald-600 mt-0.5 font-semibold">
+                ✓ {uwagi.trim().length} znaków — zapis nastąpi przy &laquo;Zapisz Setup&raquo;
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 pt-3 border-t border-slate-100">

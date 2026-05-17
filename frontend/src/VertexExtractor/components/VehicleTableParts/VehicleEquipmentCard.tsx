@@ -67,33 +67,31 @@ export function VehicleEquipmentCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b-2 border-slate-200">
-                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-400 py-2 pr-4">
+                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-400 py-3 pr-4">
                     Nazwa
                   </th>
-                  <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-400 py-2 pr-2 w-40">
+                  <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-400 py-3 pr-2 w-40">
                     Netto
                   </th>
-                  <th className="text-center text-xs font-semibold uppercase tracking-wider text-slate-400 py-2 w-6">
+                  <th className="text-center text-xs font-semibold uppercase tracking-wider text-slate-400 py-3 w-6">
                   </th>
-                  <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-400 py-2 pr-2 w-40">
+                  <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-400 py-3 pr-2 w-40">
                     Brutto
                   </th>
                   <th className="w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {customFactoryOptions.map((opt, idx) => (
+                {customFactoryOptions.map((opt) => (
                   <tr
                     key={opt.id}
-                    className={`border-b border-slate-100 last:border-b-0 ${
-                      idx % 2 === 1 ? "bg-slate-50/50" : ""
-                    }`}
+                    className="border-b border-slate-100 last:border-b-0"
                   >
-                    <td className="py-0.5 pr-4">
+                    <td className="py-2.5 pr-4">
                       <div className="flex items-center gap-2">
                          <input
                           type="text"
-                          className="flex-1 px-2 py-1 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           value={opt.name}
                           onChange={(e) => handleUpdateFactoryOptionName(opt.id, e.target.value)}
                           placeholder="Nazwa opcji"
@@ -105,13 +103,13 @@ export function VehicleEquipmentCard({
                         )}
                       </div>
                     </td>
-                    <td className="py-0.5" colSpan={3}>
+                    <td className="py-2.5" colSpan={3}>
                       <NetGrossInput
                         netValue={opt.price_net}
                         onChangeNet={(newVal) => handleUpdateFactoryOptionPrice(opt.id, newVal)}
                       />
                     </td>
-                    <td className="py-0.5 text-center">
+                    <td className="py-2.5 text-center">
                       <div className="flex items-center gap-1">
                         <label
                           className="relative inline-flex items-center cursor-pointer"

@@ -12,6 +12,7 @@ import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleServiceOptionsCard } from "./VehicleServiceOptionsCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import { DiscountAuditCard } from "./DiscountAuditCard";
+import { ValidationWarningsCard } from "./ValidationWarningsCard";
 import type { DiscountBreakdown } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { supabase } from "../../../lib/supabaseClient";
@@ -187,6 +188,9 @@ export function VehicleRowCard({
     serviceCostType, setServiceCostType,
     vehicleVintage, setVehicleVintage,
     paintCategoryId, setPaintCategoryId,
+    pakietSerwisowy, setPakietSerwisowy,
+    odkupOpon, setOdkupOpon,
+    uwagi, setUwagi,
     isSavingSetup, handleSaveSetup
   } = useVehicleFinancing(vehicle, autoDetectMetalic, setCatalogBasePriceNet, globalSettings);
 
@@ -788,7 +792,7 @@ export function VehicleRowCard({
                 </div>
               </div>
             )}
-            
+
             {/* Section 2 (moved to top): Summary and Details */}
             <div className="w-full flex flex-col gap-6">
 
@@ -862,6 +866,7 @@ export function VehicleRowCard({
                   nonDiscountableTotalNet={nonDiscountableOptionsTotal + customServiceOptionsPriceTotal}
                   onUpdated={onRefresh}
                 />
+                <ValidationWarningsCard validation={vehicle.price_validation} />
                 <VehicleEquipmentCard
                   vehicle={vehicle}
                   customFactoryOptions={customFactoryOptions}
@@ -954,6 +959,14 @@ export function VehicleRowCard({
                  paintCategoryId={paintCategoryId}
                  setPaintCategoryId={setPaintCategoryId}
                  paintTypes={paintTypes}
+                 // Faza A
+                 pakietSerwisowy={pakietSerwisowy}
+                 setPakietSerwisowy={setPakietSerwisowy}
+                 odkupOpon={odkupOpon}
+                 setOdkupOpon={setOdkupOpon}
+                 // Uwagi (searchable)
+                 uwagi={uwagi}
+                 setUwagi={setUwagi}
                  isMetalicAutoDetected={autoDetectMetalic()}
                  hookAutoDetected={((vehicle.synthesis_data as Record<string, Record<string, unknown>>)?.card_summary)?.has_tow_hook === true}
                  vintageAutoDetected={((vehicle.synthesis_data as Record<string, Record<string, unknown>>)?.card_summary)?.is_current_year_vehicle != null}
@@ -986,6 +999,8 @@ export function VehicleRowCard({
                    paintCategoryId={paintCategoryId}
                    activeDiscountPct={activeDiscountPct}
                    activeFinalPrice={activeFinalPriceNet}
+                   pakietSerwisowy={pakietSerwisowy}
+                   odkupOpon={odkupOpon}
                    brochureData={brochureData}
                    setIsBrochureModalOpen={setIsBrochureModalOpen}
                    isGeneratingBrochure={isGeneratingBrochure}

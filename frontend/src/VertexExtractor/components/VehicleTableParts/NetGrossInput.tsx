@@ -55,7 +55,7 @@ export function NetGrossInput({ netValue, onChangeNet }: NetGrossInputProps): JS
       <div className="relative flex-1 min-w-[90px]">
         <input
           type="number"
-          className="w-full px-2 pr-9 py-1 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-2.5 pr-9 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
           value={localNet}
           onChange={handleNetChange}
           placeholder="Netto"
@@ -70,7 +70,7 @@ export function NetGrossInput({ netValue, onChangeNet }: NetGrossInputProps): JS
       <div className="relative flex-1 min-w-[90px]">
         <input
           type="number"
-          className="w-full px-2 pr-9 py-1 border border-slate-200 rounded text-slate-700 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-slate-50"
+          className="w-full px-2.5 pr-9 py-1.5 border border-slate-200 rounded text-slate-700 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-slate-50"
           value={localGross}
           onChange={handleGrossChange}
           placeholder="Brutto"

@@ -3,6 +3,16 @@ import type { FleetVehicleView } from "../../types";
 import { NetGrossInput } from "./NetGrossInput";
 import { AccordionCard } from "./AccordionCard";
 
+const VAT = 1.23;
+
+function fmtPLN(value: number): string {
+  if (value === 0) return "—";
+  return new Intl.NumberFormat("pl-PL", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 interface VehicleServiceOptionsCardProps {
   vehicle: FleetVehicleView;
   customServiceOptions: { id: string; name: string; price_net: number; category: string; include_in_wr?: boolean }[];
@@ -28,6 +38,9 @@ export function VehicleServiceOptionsCard({
   handleSaveAllOptions,
   isSavingServices,
 }: VehicleServiceOptionsCardProps) {
+  const totalNet = customServiceOptions.reduce((sum, opt) => sum + opt.price_net, 0);
+  const totalBrutto = totalNet * VAT;
+
   return (
     <AccordionCard
       id={`service-options-${vehicle.id}`}
@@ -60,7 +73,20 @@ export function VehicleServiceOptionsCard({
             Brak zdefiniowanych operacji serwisowych dla tego pojazdu.
           </div>
         )}
-        <div className="flex flex-col gap-4 pt-2 border-t border-slate-100">
+        {customServiceOptions.length > 0 && (
+          <div className="pt-3 border-t border-slate-200 flex flex-wrap justify-between items-baseline gap-2">
+            <span className="text-xs text-slate-400">Suma opcji serwisowych</span>
+            <div className="text-right">
+              <span className="text-sm font-semibold text-slate-800 tabular-nums">
+                {fmtPLN(totalBrutto)} PLN
+              </span>
+              <span className="text-xs text-slate-400 ml-2 tabular-nums">
+                ({fmtPLN(totalNet)} netto)
+              </span>
+            </div>
+          </div>
+        )}
+        <div className={`flex flex-col gap-4 pt-2 ${customServiceOptions.length === 0 ? "border-t border-slate-100" : ""}`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <button onClick={handleAddManualServiceOption} className="flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 transition-all shadow-sm">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>

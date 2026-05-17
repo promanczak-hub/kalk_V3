@@ -3,7 +3,7 @@ import {
   Box,
   Typography,
 } from "@mui/material";
-import { Calculator, ChevronDown, ChevronUp, Loader2, FileCode2, RotateCcw, X, Settings, TrendingUp } from "lucide-react";
+import { Calculator, ChevronDown, ChevronUp, Loader2, FileCode2, RotateCcw, X, Settings } from "lucide-react";
 import { MatrixFilterToolbar } from "../../../CalculatorPanel/MatrixFilterToolbar";
 import { MatrixHeatmapView, MatrixViewToggle } from "../../../CalculatorPanel/MatrixHeatmapView";
 
@@ -11,6 +11,9 @@ import { fmtPLN } from "./calculations/calculations.utils";
 import { CellDetail } from "./calculations/CellDetail";
 import { useVehicleCalculations } from "./calculations/useVehicleCalculations";
 import { AccordionCard } from "./AccordionCard";
+import { LegacyTraceReport } from "../LegacyTraceReport";
+import { useOfferCartStore } from "../../../stores/offerCartStore";
+import type { MiniMatrixCell } from "./decision-center/decision-center.types";
 
 export function VehicleRowCalculations({ 
   kalkulacjaId, 
@@ -37,6 +40,7 @@ export function VehicleRowCalculations({
 }) {
   const [matrixView, setMatrixView] = useState<"cards" | "heatmap">("heatmap");
   const [expandedCell, setExpandedCell] = useState<string | null>(null);
+  const addToCart = useOfferCartStore((s) => s.addItem);
 
   const {
     cells,
@@ -45,8 +49,11 @@ export function VehicleRowCalculations({
     error,
     traceData,
     setTraceData,
+    pipelineData,
+    setPipelineData,
     recalculating,
     fetchingTraceCell,
+    fetchingPipelineCell,
     marginRecalculating,
     basePayload,
     filters,
@@ -54,11 +61,6 @@ export function VehicleRowCalculations({
     mileageMode,
     setMileageMode,
     mileageReferenceMonths,
-    isGlobalRecalculating,
-    globalWrCorrection,
-    setGlobalWrCorrection,
-    globalTireCorrection,
-    setGlobalTireCorrection,
     modifiedCells,
     getOverrides,
     fetchMatrix,
@@ -66,8 +68,8 @@ export function VehicleRowCalculations({
     recalculateSingleCell,
     resetCell,
     fetchTraceSingleCell,
+    fetchPipelineSingleCell,
     handleExactRecalculate,
-    handleGlobalRecalculate,
     recalculateWithMargin
   } = useVehicleCalculations({
     kalkulacjaId,
@@ -148,45 +150,6 @@ export function VehicleRowCalculations({
           </div>
         )}
 
-        <div className="flex justify-end">
-          <div className="flex items-center gap-4 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🔧 Korekta: WR</span>
-              <input
-                type="number"
-                step={500}
-                value={globalWrCorrection}
-                onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalWrCorrection(isNaN(parsed) ? globalWrCorrection : parsed); }}
-                className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
-                placeholder="WR"
-              />
-              <span className="text-[10px] text-slate-400">PLN</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🛞 Korekta: Opony</span>
-              <input
-                type="number"
-                step={200}
-                value={globalTireCorrection}
-                onChange={(e) => { const parsed = parseFloat(e.target.value); setGlobalTireCorrection(isNaN(parsed) ? globalTireCorrection : parsed); }}
-                className="w-20 text-xs p-1 border border-slate-200 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 tabular-nums bg-white shadow-sm"
-                placeholder="Opony"
-              />
-              <span className="text-[10px] text-slate-400">PLN</span>
-            </div>
-
-            <button
-              onClick={handleGlobalRecalculate}
-              disabled={isGlobalRecalculating || loading}
-              className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md uppercase tracking-wide"
-            >
-              {isGlobalRecalculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TrendingUp className="w-3.5 h-3.5" />}
-              Przelicz Korekty
-            </button>
-          </div>
-        </div>
-
       {/* Main content */}
       <div className="w-full">
         {loading && (
@@ -254,17 +217,65 @@ export function VehicleRowCalculations({
 
             {/* Matrix View: Heatmap or Cards */}
             {matrixView === "heatmap" ? (
-              <MatrixHeatmapView 
-                cells={filteredCells} 
-                mileageMode={mileageMode} 
-                onShowTrace={(cell) => fetchTraceSingleCell(cell.Okres, cell.Przebieg)}
-                isFetchingTrace={fetchingTraceCell !== null}
+              <MatrixHeatmapView
+                cells={filteredCells}
+                mileageMode={mileageMode}
+                onShowTrace={(cell) => fetchPipelineSingleCell(cell.Okres, cell.Przebieg)}
+                isFetchingTrace={fetchingPipelineCell !== null || fetchingTraceCell !== null}
                 getOverrides={getOverrides}
                 onOverridesChange={handleOverridesChange}
                 onRecalculate={recalculateSingleCell}
                 onReset={resetCell}
                 modifiedCells={modifiedCells}
                 recalculatingCell={recalculating}
+                onTargetPriceRecalculate={(cell, targetPriceNet) => {
+                  // Mini Goal Seek per-cell: M = Z / (1+Z) where Z = (target - koszty) / podstawa
+                  const podstawa = cell.PodstawaMarzy ?? 0;
+                  const koszty = cell.KosztyLaczneMC ?? 0;
+                  if (podstawa <= 0) return;
+                  const zysk = targetPriceNet - koszty;
+                  const z = zysk / podstawa;
+                  if (1 + z === 0) return;
+                  let m = z / (1 + z);
+                  m = Math.max(Math.min(m, 0.9999), -0.5);
+                  handleOverridesChange(cell.Okres, { pricing_margin_pct: m * 100 });
+                  // recalculateSingleCell uses cellOverrides via closure - defer 1 tick to let state settle
+                  setTimeout(() => recalculateSingleCell(cell.Okres), 0);
+                }}
+                onAddToCart={(cell: MiniMatrixCell) => {
+                  const contractKm = cell.PrzebiegKontrakt ?? Math.round((cell.Okres / 12) * cell.Przebieg);
+                  const annualKm = Math.round((contractKm / cell.Okres) * 12);
+                  const itemId = `${kalkulacjaId}_${cell.Okres}_${contractKm}`;
+                  const ov = getOverrides ? getOverrides(cell.Okres) : null;
+                  const item = {
+                    id: itemId,
+                    brand: (vehicleName.split(" ")[0] || "").toUpperCase(),
+                    model: vehicleName,
+                    powertrain: powertrain,
+                    vin_or_config: configCode || offerNumber || kalkulacjaNumer,
+                    term: cell.Okres,
+                    mileage: annualKm,
+                    net_installment: cell.LacznaStawka,
+                    contribution: cell.CzynszInicjalnyNetto ?? 0,
+                    margin_pct: (cell.MarzaNaKontrakcieProcent ?? 0) * 100,
+                    system_recommendation: "Wariant z matrycy",
+                    // Embed kalkulacja_id + vehicle_id so backend /generate can
+                    // load stan_json (paid_options, trim, brand/model, fin/tech
+                    // split). Without these the offer XLSX comes out with "—"
+                    // in every spec cell and 0 in every price cell.
+                    calculation_data: { ...cell, kalkulacja_id: kalkulacjaId, vehicle_id: vehicleId },
+                    standard_equipment: [],
+                    factory_options: [],
+                    dealer_options: [],
+                    kalkulacja_snapshot: {
+                      tire_class: ov?.klasa_opony_string ?? null,
+                      service_type: ov?.service_cost_type ?? null,
+                      tires_included: ov?.z_oponami ?? null,
+                      replacement_car: ov?.replacement_car_enabled ?? null,
+                    },
+                  };
+                  addToCart(item);
+                }}
               />
             ) : (
             /* Matrix Card Grid */
@@ -326,11 +337,11 @@ export function VehicleRowCalculations({
                         overrides={getOverrides(cell.Okres)}
                         isModified={isMod}
                         isRecalculating={recalculating === cell.Okres}
-                        isFetchingTrace={fetchingTraceCell === cell.Okres}
+                        isFetchingTrace={fetchingPipelineCell === cell.Okres || fetchingTraceCell === cell.Okres}
                         onOverridesChange={(o) => handleOverridesChange(cell.Okres, o)}
                         onRecalculate={() => recalculateSingleCell(cell.Okres)}
                         onReset={() => resetCell(cell.Okres)}
-                        onShowTrace={() => fetchTraceSingleCell(cell.Okres)}
+                        onShowTrace={() => fetchPipelineSingleCell(cell.Okres)}
                       />
                     )}
                   </div>
@@ -351,7 +362,12 @@ export function VehicleRowCalculations({
           </div>
         )}
 
-        {/* Trace Modal */}
+        {/* Pełny ślad legacy-style (z /debug-pipeline) */}
+        {pipelineData && (
+          <LegacyTraceReport data={pipelineData} onClose={() => setPipelineData(null)} />
+        )}
+
+        {/* Fallback prosty trace modal (z /calculate-trace) */}
         {traceData && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
