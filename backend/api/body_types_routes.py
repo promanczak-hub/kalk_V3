@@ -12,6 +12,7 @@ class BodyTypeSchema(BaseModel):
     id: Optional[int] = None
     nazwa_nadwozia: str
     typ_pojazdu: str
+    utrata_wartosci: float = 0.0
     created_at: Optional[str] = None
 
 
