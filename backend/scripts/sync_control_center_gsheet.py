@@ -1,11 +1,10 @@
-"""Sync control_center singleton from Google Sheet 'Globalne ustawienia'.
+"""Sync control_center (EAV key/value) from Google Sheet 'Globalne ustawienia'.
 
-One-way: sheet -> public.control_center (id=1).
+One-way: sheet -> public.control_center (pionowa tabela key/value).
 
-Reads the same tab as sync_tyre_config_v3.py (gid 890315543) which is structured
-as key/value pairs (column index 3 = db_key, column index 1 = value). Only the
-keys that map to columns in `public.control_center` are upserted; tyre-related
-keys are ignored (they continue to be handled by sync_tyre_config_v3.py).
+Tab 'Globalne ustawienia' (gid 890315543) jest key/value (col index 3 =
+db_key, col index 1 = value). Kazdy klucz z CONTROL_CENTER_FIELDS trafia
+jako wiersz do tabeli control_center (upsert po `key`).
 
 Run from the backend root:
     poetry run python scripts/sync_control_center_gsheet.py
@@ -15,13 +14,12 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
 
 import gspread
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 
-from core.database import supabase
+from core.control_center import update_control_center_fields
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("sync_control_center")
@@ -31,9 +29,10 @@ load_dotenv()
 SPREADSHEET_ID = "1GzJk87wYrOT0RyrkYdMFGoG6rKhYop9497MvhdRTp-Q"
 GLOBAL_SETTINGS_GID = 890315543
 
-# Mapping: sheet db_key -> (control_center column, type cast)
-# Only keys that exist in public.control_center are listed. Other keys in the
-# tab (tyre thresholds, cost_tyre_*) are handled by sync_tyre_config_v3.py.
+# Mapping: sheet db_key -> (control_center column, type cast).
+# Wszystkie globalne parametry aplikacji LTR (finanse, koszty operacyjne,
+# opony, ubezpieczenia, sprzedaz) trzymane sa jako kolumny w singletonie
+# control_center (id=1).
 CONTROL_CENTER_FIELDS: dict[str, type] = {
     "default_wibor": float,
     "default_ltr_margin": float,
@@ -54,6 +53,18 @@ CONTROL_CENTER_FIELDS: dict[str, type] = {
     "normatywny_przebieg_mc": int,
     "przewidywana_cena_sprzedazy_lo": float,
     "budzet_marketingowy_ltr": float,
+    # Opony (przeniesione z global_setup 2026-05-16)
+    "cost_tyre_storage": float,
+    "cost_tyre_swap": float,
+    "all_season_threshold_1": float,
+    "all_season_threshold_2": float,
+    "all_season_threshold_3": float,
+    "all_season_threshold_4": float,
+    "all_season_threshold_5": float,
+    "season_threshold_1": float,
+    "season_threshold_2": float,
+    "season_threshold_3": float,
+    "season_threshold_4": float,
 }
 
 
@@ -92,8 +103,7 @@ def main() -> None:
         log.error("Sheet '%s' is empty", ws.title)
         raise SystemExit(1)
 
-    # Same column convention as sync_tyre_config_v3.py:
-    #   col index 3 = db_key, col index 1 = value
+    # Konwencja kolumn arkusza: col index 3 = db_key, col index 1 = value.
     payload: dict[str, int | float] = {}
     skipped: list[str] = []
     for row in rows[1:]:
@@ -126,15 +136,13 @@ def main() -> None:
         log.error("No control_center fields found in sheet — nothing to update.")
         raise SystemExit(1)
 
-    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-
-    log.info("Updating public.control_center where id=1 with %d fields...", len(payload) - 1)
-    res = supabase.table("control_center").update(payload).eq("id", 1).execute()
-    if not res.data:
-        log.error("Update returned no rows — singleton row may be missing.")
+    log.info("Upserting %d key/value rows into public.control_center...", len(payload))
+    written = update_control_center_fields(payload)
+    if not written:
+        log.error("Upsert returned no rows — check RLS / connectivity.")
         raise SystemExit(1)
 
-    log.info("OK. Updated columns: %s", sorted(k for k in payload if k != "updated_at"))
+    log.info("OK. Upserted keys: %s", sorted(payload.keys()))
 
 
 if __name__ == "__main__":
