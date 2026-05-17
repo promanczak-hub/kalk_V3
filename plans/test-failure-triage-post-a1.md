@@ -36,11 +36,41 @@ Po fixie pyproject.toml `poetry run pytest tests/` powinno collectować wszystko
 
 ## Final state — 2026-05-17 (evening)
 
-After Faza A2 + Skoda cache isolation fix:
+After Faza A2 + cache isolation fixes + conftest.py:
 
-- **489 → 491 pass** (after pyproject pythonpath unlocked 2 collection errors → +15 tests visible, then 5 A2 fixes recovered the 5 pre-existing failures)
-- **6 → 1 expected failure (or 0 with cache-bust)** — Skoda parity now busts `samar_rv:*` Redis at test start to avoid order-dependent pollution from `test_feature_enrichment`
+- **491 pass / 4 fail** in full suite (was 8 fail pre-A1)
+- **All 4 fail pass INDIVIDUALLY** — order-dependent pollution from full-suite execution
 - Vitest: **39 tests / 4 files** (from 2 / 1 pre-A1) — 19.5× discipline lift on frontend
+- Pytest suite runtime: **17 min → 3 min** (5× speedup from conftest.py cache reset + Redis bypass per test)
+
+### 4 remaining order-dependent failures (known issue, not regression)
+
+These tests all pass individually:
+```
+tests/test_golden_path_ltr_kalkulator.py::test_golden_path_standard_car
+tests/test_pipeline_debugger.py::test_pipeline_debugger_no_overrides_matches_kalkulator
+tests/test_pipeline_debugger.py::test_pipeline_debugger_with_override
+tests/test_v1_parity_samar_rv.py::test_skoda_octavia_rs_v1_parity
+```
+
+**Symptom:** when run as `poetry run pytest tests/`, tests produce diverging numerical results vs running individually. Example: Skoda parity expects 61 046,00 PLN brutto; in suite produces 59 382,00 (-1664 PLN delta).
+
+**Diagnosis so far:**
+- Not caused by A1 commits — same tests passed pre-A1 individually too (the 5 OTHER pre-existing failures are now fixed by A2)
+- Not Redis cache (verified by monkeypatching `_get_client → None`)
+- Not @lru_cache (verified by autouse cache reset in conftest.py)
+- Likely: some import-time side effect in test_feature_enrichment or other test that mutates shared module state (singleton supabase client? logger? unknown)
+
+**Workaround until proper fix:** run parity / pipeline_debugger / golden_path tests separately:
+```powershell
+poetry run pytest tests/test_v1_parity_samar_rv.py tests/test_pipeline_debugger.py tests/test_golden_path_ltr_kalkulator.py -v
+```
+
+**Proper fix (future work):**
+- Bisect the suite to find the exact polluting test
+- Identify the leaked state (use `gc.get_objects()` diff before/after, or pytest-randomly to surface non-determinism)
+- Fix at source (likely add lazy init or explicit cleanup)
+- Or split into separate pytest session in CI (already works, just slower)
 
 ## REGRESSION FROM A1 (1 of 8) — **RESOLVED 2026-05-17 (user decision: #2 accept new SOT)**
 
