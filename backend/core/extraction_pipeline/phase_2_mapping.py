@@ -13,6 +13,7 @@ from core.extraction_pipeline.utils import (
     normalize_brand,
 )
 from core.model_normalizer import normalize_model_trim_body
+from core.composite_body_style import compose_body_style
 from tasks.enrichment_tasks import generate_embedding_for_vehicle
 
 logger = logging.getLogger(__name__)
@@ -234,6 +235,28 @@ def finalize_vehicle_pipeline(
         cs["body_style"] = norm_body
         parsed_data["card_summary"] = cs
 
+    # ── Composite body_style: join cabin + zabudowa signals ──
+    # AI splits cabin info into card_summary.body_style and zabudowa info into
+    # card_summary.service_equipment. SOT canon (Szablon_Wyceny_GCP) requires
+    # the composite name (e.g. "Podwozie Brygadowe Skrzynia"), so we merge here.
+    pre_compose_body = cs.get("body_style")
+    # Production wywołanie: enable LLM fallback dla edge cases (nietypowe zabudowy,
+    # sklejone PDF). Composer najpierw próbuje deterministycznej mapy (95% case),
+    # potem Flash 2.5 dla pozostałych.
+    composed_body = compose_body_style(
+        pre_compose_body,
+        cs.get("service_equipment"),
+        enable_llm_fallback=True,
+        card_summary=cs,
+    )
+    if composed_body and composed_body != pre_compose_body:
+        logger.info(
+            "[NORMALIZE] body_style composite %r -> %r (vehicle_id=%s)",
+            pre_compose_body, composed_body, vehicle_id,
+        )
+        cs["body_style"] = composed_body
+        parsed_data["card_summary"] = cs
+
     # ── P0-A: Partial save — always persist extracted data ──
     update_payload = {
         "brand": brand,
@@ -361,6 +384,16 @@ def finalize_vehicle_pipeline(
         "id", vehicle_id
     ).execute()
 
+    # Trigger embedding generation. Strategia warstwowa, każda warstwa to
+    # NIE-blokujące best-effort:
+    #   1) primary: .delay() — async via Celery broker, włącza retry/backoff
+    #      z dekoratora taska (5 retries z jitter, do 600s cap).
+    #   2) secondary: .apply_async(countdown=30) — gdy broker chwilowo niedostępny
+    #      ale za moment wstanie.
+    #   3) fallback: zarejestruj vehicle_id w Redis SET kalk_v3:embedding:pending
+    #      — `backfill_recent_vehicle_embeddings` (co 10 min) podniesie te ID
+    #      jako fast lane. NIE odpalamy synchronicznie tutaj — blokowało to
+    #      pipeline ekstrakcji i nie korzystało z retry/idempotency taska.
     try:
         logger.info(
             f"[BG TASK] Kolejkowanie generowania wektorów (Celery) dla {vehicle_id}"
@@ -368,15 +401,29 @@ def finalize_vehicle_pipeline(
         generate_embedding_for_vehicle.delay(vehicle_id)
     except Exception as emb_e:
         logger.warning(
-            f"[BG TASK] Celery niedostępny, generuję embedding synchronicznie: {emb_e}"
+            f"[BG TASK] .delay() failed for {vehicle_id}: {emb_e!r} — próba apply_async(countdown=30)"
         )
         try:
-            result = generate_embedding_for_vehicle(vehicle_id)
-            logger.info(f"[BG TASK] Embedding synchroniczny: {result.get('status')}")
-        except Exception as sync_e:
-            logger.error(
-                f"[BG TASK] Błąd synchronicznego generowania embeddingu: {sync_e}"
+            generate_embedding_for_vehicle.apply_async(
+                args=[vehicle_id], countdown=30
             )
+        except Exception as retry_e:
+            # Ostatnia linia obrony: Redis SET → recent-backfill (10 min) złapie.
+            logger.error(
+                f"[BG TASK] apply_async też padło dla {vehicle_id}: {retry_e!r} — "
+                "zarejestrowanie w embedding:pending dla recent-backfill"
+            )
+            try:
+                from core.redis_cache import _get_client
+
+                client = _get_client()
+                if client is not None:
+                    client.sadd("kalk_v3:embedding:pending", vehicle_id)
+                    client.expire("kalk_v3:embedding:pending", 86400)  # 24h
+            except Exception as redis_e:
+                logger.error(
+                    f"[BG TASK] Redis SADD też padł dla {vehicle_id}: {redis_e!r}"
+                )
 
     cache_invalidate_pattern("initial_data")
     cache_invalidate_pattern("filters:*")
