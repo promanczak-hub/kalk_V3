@@ -11,18 +11,29 @@ CLAUDE.md anti-pattern fix_* (5): fix_body_context, fix_google_sheet_names, fix_
 One-off SQL/import (4): gen_okres_final_sql, import_tab_okres_final, revert_to_fks, revert_to_names.
 Obvious noise (4): sql_temp, test_refresh, print_sheet_data, read_wr_klasa.
 
-## Phase 2 — INVESTIGATE batch reclassification (in progress)
+## Phase 2 — INVESTIGATE batch reclassification
 
-Spot-checked and **reclassified to DELETE** (3):
-- `setup_gsheet_contexts.py`     — one-time GSheet init, hard-coded `C:\Users\proma\Downloads` paths
-- `setup_gsheet_dictionaries.py` — one-time MDM Excel → GSheet dictionaries import
-- `extract_excel_coeff.py`       — one-off Excel coefficient extractor (hard-coded Downloads path)
+Spot-checked and **reclassified to DELETE** (9):
+- `setup_gsheet_contexts.py`     — one-time GSheet init
+- `setup_gsheet_dictionaries.py` — one-time MDM Excel → GSheet dictionaries
+- `extract_excel_coeff.py`       — one-off Excel coefficient extractor
+- `process_csv_insurance.py`     — one-off CSV → SQL migration (OneDrive paths)
+- `import_excel_twin.py`         — one-off Excel import ("path provided by user")
+- `populate_rv_matrix_gsheet.py` — one-off RV matrix GSheet populate
+- `update_gsheet_rows.py`        — one-off MDM_v3_FINAL_PLUS_191.xlsx import
+- `update_sheet_models.py`       — one-off GSheet update
+- `test_supabase_conn.py`        — diagnostic, no docstring
 
-Spot-checked and **reclassified to KEEP** (2):
-- `cleanup_ghost_records.py`     — proper docstring + `--dry-run` / `--confirm` pattern, ongoing maintenance
-- `force_gsheet_validation.py`   — re-runnable validation enforcer, well-documented
+Spot-checked and **reclassified to KEEP** (4):
+- `cleanup_ghost_records.py`            — proper docstring + `--dry-run` / `--confirm`
+- `force_gsheet_validation.py`          — re-runnable validation enforcer
+- `set_mdm_flags.py`                    — proper docstring, idempotent flag setter
+- `set_semantic_powertrain_context.py`  — proper docstring "idempotent — safe to re-run"
 
-Remaining INVESTIGATE (~13) still to review.
+A1-era scripts (recently created/modified in main work, KEEP by default):
+- `build_service_cost_resource.py`, `import_serwis_baza.py`, `cleanup_user_overrides.py`,
+  `repair_vehicle_metadata.py`, `revalidate_card_summary.py`, `diagnose_kalk_synthesis_link.py`,
+  `backfill_matrix_decomposition.py`
 
 Capabilities preserved by `.claude/skills/diagnose-calculator-stage` (vehicle-specific debug) and landed fixes in `backend/core/LTRSubCalculator*.py` (fix_* equivalents).
 
