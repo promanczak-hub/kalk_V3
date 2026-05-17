@@ -19,14 +19,18 @@ def test_skoda_octavia_rs_v1_parity(monkeypatch):
     - Pierwotny baseline: legacy Excel `2503_wynik_JŁ.xlsx` wiersz 1682 = 81 185,76 PLN brutto.
     - Po fixach **k2** (kaskada roczna: additive → multiplicative) + **k4**
       (korekta przebiegu wyłączona per 2503 SOT — patrz `body_types_sot` memory note)
-      aktualny SOT = **61 046,00 PLN brutto**.
-    - Tabela `body_types.utrata_wartosci` (Supabase) jest single source of truth dla
-      korekt nadwozia + przebiegu zamiast wcześniejszego rozproszenia w samar_rv.py.
+      = 61 046,00 PLN brutto.
+    - **2026-05-17 Octavia V1 parity calibration** (memory `v1_wr_calibration`):
+      class 10 (C niższa średnia) benzyna_pb / benzyna_mhev_pb_mhev: 0.39 → **0.36**
+      w `samar_class_depreciation_rates`. Powód: w V1 RMS Octavia ląduje w klasie D
+      (DPb=0.36); w v3 SAMAR Octavia mapuje się do C (poprawnie, granularniej).
+      Aby WR zgadzało się co do grosza dla **tej samej Octavii** w obu systemach,
+      v3 class C dostaje koeficjent V1 class D = 0.36. Aktualny SOT = **55 607,00 PLN brutto**.
 
     Konfiguracja testu:
     - Pojazd: Skoda Octavia RS
-    - Klasa SAMAR: 10
-    - Model/Silnik ID: 1
+    - Klasa SAMAR: 10 (C niższa średnia)
+    - Engine ID: 1 (Benzyna PB)
     - Cena Podstawowa Katalogowa (Brutto): 181 300,00 PLN
     - Cena Opcji Katalogowa (Brutto): 41 600,00 PLN
     - Wiek/Okres: 48 miesięcy
@@ -37,7 +41,7 @@ def test_skoda_octavia_rs_v1_parity(monkeypatch):
     - Korekta Przebiegu (Krok 4): **0,00 PLN** — flagowane przez
       `krok4_korekta_disabled_per_sot = 1.0` w debug
 
-    Wynik Końcowy BRUTTO (Wartość Końcowa RV) per 2503 SOT: **61 046,00 PLN**
+    Wynik Końcowy BRUTTO per current SOT (post Octavia V1 calibration): **55 607,00 PLN**
     """
 
     # 1. Przygotuj dane wejściowe
@@ -74,12 +78,23 @@ def test_skoda_octavia_rs_v1_parity(monkeypatch):
     # 3. Weryfikacja przeciwko 2503 SOT (po fixach k2 + k4)
     # Zwrócone wartości są NETTO. Mnożymy przez VAT dla asercji BRUTTO z SOT.
     final_rv_gross = result.wr_net * vat_rate
-    expected_rv_gross = 61046.00  # 2503 SOT (post k2+k4); poprzednio 81185.76 (legacy 2503_wynik_JŁ.xlsx)
+    # Historia baseline:
+    #   81 185,76 (legacy 2503_wynik_JŁ.xlsx)
+    #   → 61 046,00 (post k2+k4 SOT)
+    #   → 55 607,00 (post Octavia V1 parity 2026-05-17 stage 1: class 10 PB 0.39→0.36)
+    #   → 63 076,20 (post Octavia V1 parity 2026-05-17 stage 2: full V1-grosz calibration:
+    #                base 0.36→0.360555, cascade off-by-one fix, V1 deltas, Krok 4 re-enabled
+    #                z baseline=140k constant + threshold=190k, options at base_rate, see
+    #                memory `v1_wr_calibration`)
+    expected_rv_gross = 63076.20
 
-    # Precyzja do dwóch miejsc po przecinku (2 grosze marginesu błędu)
+    # Precyzja: 0.05 grosz (testowa konfiguracja 48mc/120k — Krok 4 daje bonus dla
+    # under-baseline 20k, formuła dokładna do groszy w okresie 48mc)
     assert abs(final_rv_gross - expected_rv_gross) < 0.05, (
-        f"Regresja vs 2503 SOT! Oczekiwano: {expected_rv_gross:.2f}, otrzymano: {final_rv_gross:.2f}. "
-        f"Jeśli to celowa zmiana — sprawdź k2/k4 logic + zaktualizuj test + Golden Rule + body_types_sot memory note."
+        f"Regresja vs current SOT! Oczekiwano: {expected_rv_gross:.2f}, otrzymano: {final_rv_gross:.2f}. "
+        f"Jeśli to celowa zmiana — sprawdź samar_class_depreciation_rates + tab_okres_final + "
+        f"samar_class_mileage_corrections (wszystkie dla class 10 PB/mHEV) + samar_rv.py cascade formula + "
+        f"memory `v1_wr_calibration`."
     )
 
     # Dodatkowa asercja składowych "trace" żeby zabezpieczyć się przed przypadkowym "zbilansowaniem" się dwóch błędów
@@ -90,19 +105,19 @@ def test_skoda_octavia_rs_v1_parity(monkeypatch):
         f"otrzymano: {color_correction_brutto:.2f}"
     )
 
-    # Korekta przebiegu (Krok 4) jest WYŁĄCZONA per 2503 SOT.
-    # Po konsolidacji korekt do body_types.utrata_wartosci (memory `body_types_sot`)
-    # samar_rv.py nie liczy już mileage correction tutaj.
-    mileage_correction_netto = result.debug.get("krok4_korekta_przebieg_netto", 0.0)
-    assert abs(mileage_correction_netto) < 0.01, (
-        f"Krok 4 (korekta przebiegu) musi być wyłączony per 2503 SOT (0.0 netto), "
-        f"otrzymano: {mileage_correction_netto:.4f}. "
-        f"Sprawdź flagę `krok4_korekta_disabled_per_sot` w debug — powinna być True."
+    # Krok 4 (korekta przebiegu) — RE-ENABLED 2026-05-17 per V1 RMS parity.
+    # Aktywny dla nadwozi z body_types.utrata_wartosci == 0 (Kombi/Sedan/Hatchback).
+    # Test config: body_type_id=3 (Sedan, utrata_wartosci=0) + 48mc/120k.
+    # Excess = 120k - baseline_140k = -20k → 2 paczki under → bonus.
+    # Bonus = 2 × under_rate × rv_total_netto (zwiększa WR).
+    # debug stores the SIGNED value (-1913.4 = bonus added back to WR).
+    assert result.debug.get("krok4_active") is True, (
+        "Krok 4 powinien być AKTYWNY dla body_type Sedan (utrata_wartosci=0). "
+        "Per V1 RMS parity (memory `v1_wr_calibration`)."
     )
-
-    # Verify the explicit SOT-disable flag is set (defense in depth — catches
-    # an accidental re-enabling of Krok 4 even if value happens to be 0.0 by coincidence)
-    assert result.debug.get("krok4_korekta_disabled_per_sot") == 1.0, (
-        "Flaga `krok4_korekta_disabled_per_sot` musi być ustawiona na 1.0 — "
-        "Krok 4 jest celowo wyłączony per 2503 SOT, korekty przebiegu w body_types.utrata_wartosci"
+    mileage_correction_netto = result.debug.get("krok4_korekta_przebieg_netto", 0.0)
+    # For 48mc/120k expected korekta ≈ -1913.40 (bonus added back; negative sign = "added to WR")
+    assert abs(mileage_correction_netto - (-1913.40)) < 0.5, (
+        f"Krok 4 dla 48mc/120k (under-baseline by 20k) powinien dać ~-1913.40 netto bonus, "
+        f"otrzymano: {mileage_correction_netto:.4f}"
     )

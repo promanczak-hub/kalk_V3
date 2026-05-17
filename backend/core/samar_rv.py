@@ -204,6 +204,33 @@ class SamarRVCalculator:
         """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
         return fetch_lo_param_cached()
 
+    def _calculate_liczba_lat_v1(self) -> int:
+        """V1 RMS calendar-year-diff for cascade selection.
+
+        Replicates `LTRSubCalculatorUtrataWartosciNew.CalculateWiekSamochodu`:
+            dataZakonczeniaKontraktu = dataKalkulacji.AddMonths(okresUzytkowania)
+                                        .AddMonths(czasPrzygotowaniaDoSprzedazy);
+            liczbaLat = dataZakonczeniaKontraktu.Year - dataKalkulacji.Year;
+
+        Reads `flota.resale_time_days` from control_center (EAV). Default 60 days
+        (~2 months) per current production config. Converts days→months as
+        round(days / 30) to match C# `.AddMonths(int)` semantics.
+        """
+        from datetime import date
+        from dateutil.relativedelta import relativedelta
+        from core.control_center import fetch_control_center_row
+
+        try:
+            cc = fetch_control_center_row(keys=["resale_time_days"])
+            resale_days = int(cc.get("resale_time_days") or 60)
+        except Exception:
+            resale_days = 60  # fallback per current control_center default
+        prep_months = round(resale_days / 30)
+
+        today = date.today()
+        end_date = today + relativedelta(months=self.data.months + prep_months)
+        return end_date.year - today.year
+
     def calculate(self) -> RVOutput:
         """Oblicza RV wg algorytmu Excel JŁ (6 kroków)."""
         debug: Dict[str, Any] = {}
@@ -230,6 +257,12 @@ class SamarRVCalculator:
         # Przybliżenie dniowe stosowane w modelu Excelowym (~30.5 dnia)
         years = int((self.data.months * 30.5) / 365)
         years = max(0, min(years, self.LICZBA_LAT))
+
+        # V1 RMS calendar-year-diff (per LTRSubCalculatorUtrataWartosciNew.cs:111-117):
+        #   liczbaLat = (today.AddMonths(okres + czasPrzygotowania)).Year - today.Year
+        # czasPrzygotowania jest w MIESIĄCACH w V1; control_center.flota.resale_time_days
+        # przechowuje to w DNIACH. Konwertujemy days→months używając 30 dni/mc (V1 .AddMonths(int)).
+        liczba_lat_v1 = self._calculate_liczba_lat_v1()
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 1 & 2: ODCZYT BAZY I WYLICZENIE DELT Z tab_okres_final
@@ -260,20 +293,24 @@ class SamarRVCalculator:
         def get_wr_percent_for_year(yr: int) -> float:
             """Oblicza WR% per rok (1-7) wg multiplikatywnej kaskady z 4Y baseline.
 
-            Wzór z arkusza SOT JŁ (2503_wynik_JŁ.xlsx, KALKULATOR DH (dubel)):
-              4Y baseline: BC = base_rate_4y (np. 0.39 dla CPb)
-              WSTECZ (1Y-3Y): BC × (1 + delta) gdzie delta = tab_okres_final[km_<okres-1>k]
-                              dla 3Y: BC × (1 + km_140000) — neutralne (delta=0)
-                              dla 2Y: WR_3Y × (1 + km_105000)
-                              dla 1Y: WR_2Y × (1 + km_70000)
-              WPRZÓD (5Y-7Y): BC × (1 - delta) gdzie delta = tab_okres_final[km_<okres>k]
-                              dla 5Y: BC × (1 - km_175000)
-                              dla 6Y: WR_5Y × (1 - km_210000)
-                              dla 7Y: WR_6Y × (1 - km_245000)
+            Formuła (post 2026-05-17 off-by-one fix dla zgodności V1 RMS):
+              4Y baseline: BC = base_rate_4y (np. 0.36 dla DPb)
+              WSTECZ (1Y-3Y): kaskada cofa rok-po-roku, używając delty dla
+                              ROKU DOCELOWEGO (year_destination):
+                              Y3 = Y4 × (1 + delta_year_3)   gdzie delta_year_3 = km_105000
+                              Y2 = Y3 × (1 + delta_year_2)   gdzie delta_year_2 = km_70000
+                              Y1 = Y2 × (1 + delta_year_1)   gdzie delta_year_1 = km_35000
+              WPRZÓD (5Y-7Y): kaskada idzie wprzód, używając delty dla
+                              ROKU AKTUALNEGO:
+                              Y5 = Y4 × (1 - delta_year_5)   gdzie delta_year_5 = km_175000
+                              Y6 = Y5 × (1 - delta_year_6)   gdzie delta_year_6 = km_210000
+                              Y7 = Y6 × (1 - delta_year_7)   gdzie delta_year_7 = km_245000
 
-            Wcześniejsza implementacja używała sumy addytywnej delt (modifier_sum),
-            co rozjeżdżało się drastycznie z SOT JŁ dla okresów ≠ 4Y (rozjazd
-            +27% dla 3Y, -46% dla 7Y). Multiplikatywna kaskada daje 1:1 zgodność.
+            BUGFIX 2026-05-17: poprzednio kaskada WSTECZ używała ordered_keys[y_inner-1]
+            zamiast [y_inner-2], przez co Y3 dostawała delta z km_140000 (=0 baseline
+            marker) zamiast km_105000 (właściwa Y3 delta). To zmieniało Y3 z
+            ~40.9% catalog na płaskie 36% catalog — niezgodne z V1 RMS. Po fixie
+            Y2/Y3/Y4/Y5 są zgodne z V1 sweep 172207 dla Octavii (cascade per okres).
             """
             if yr < 1:
                 yr = 1
@@ -281,99 +318,116 @@ class SamarRVCalculator:
                 yr = 7
             factor = 1.0
             if yr <= 4:
-                # Kaskada wstecz z 4Y baseline (zmniejszamy rok, mnożymy przez (1+delta))
+                # Kaskada wstecz: dla każdego kroku wstecz (Y_n → Y_(n-1)) używamy
+                # delty dla roku docelowego (n-1). Indeks: ordered_keys[(n-1)-1] = [n-2].
                 for y_inner in range(4, yr, -1):
-                    delta_col = ordered_keys[y_inner - 1]
+                    year_dest = y_inner - 1  # destination year of this cascade step
+                    delta_col = ordered_keys[year_dest - 1]  # km marker for that year
                     factor *= 1.0 + float(mileage_rates.get(delta_col, 0.0))
             else:
-                # Kaskada wprzód z 4Y baseline (zwiększamy rok, mnożymy przez (1-delta))
+                # Kaskada wprzód: dla każdego kroku w przód (Y_n → Y_(n+1)) używamy
+                # delty dla roku docelowego (n+1). Indeks: ordered_keys[(n+1)-1] = [n].
+                # y_inner pełni rolę year_destination tutaj.
                 for y_inner in range(5, yr + 1):
                     delta_col = ordered_keys[y_inner - 1]
                     factor *= 1.0 - float(mileage_rates.get(delta_col, 0.0))
             return base_rate_4y * factor
 
-        years_exact = self.data.months / 12.0
-
-        import math
-
-        lower_yr = max(1, math.floor(years_exact))
-        upper_yr = min(7, math.ceil(years_exact))
-
-        if lower_yr == upper_yr:
-            effective_base_pct = get_wr_percent_for_year(lower_yr)
-        else:
-            p_lower = get_wr_percent_for_year(lower_yr)
-            p_upper = get_wr_percent_for_year(upper_yr)
-            ratio = years_exact - lower_yr
-            effective_base_pct = p_lower + ratio * (p_upper - p_lower)
+        # V1 RMS uses INTEGER calendar-year-diff (liczbaLat) for cascade selection
+        # — NO interpolation. Per LTRSubCalculatorUtrataWartosciNew.cs:73-109.
+        # For round-12 okres (24/36/48/60mc) this gives the same result as
+        # months/12, but for non-round okres it picks the integer cascade step.
+        liczba_lat = max(1, min(liczba_lat_v1, 7))
+        effective_base_pct = get_wr_percent_for_year(liczba_lat)
 
         # FINALNY WSPÓŁCZYNNIK:
         effective_pct = effective_base_pct + brand_correction
         rv_base_netto = base_netto * effective_pct
 
-        debug["krok1_years_exact"] = years_exact
+        debug["krok1_liczba_lat_v1"] = liczba_lat
         debug["krok1_interpolated_base_pct"] = effective_base_pct
         debug["krok1_brand_correction"] = brand_correction
         debug["krok1_effective_pct"] = effective_pct
         debug["krok1_wr_value_netto"] = round(rv_base_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 3:  Ręczne ułamkowe WR doposażenia (Amortyzacja Opcji)
+        # KROK 3:  Amortyzacja Opcji — Path B (V1 RMS parity)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        options_rate = fetch_base_options_rate_cached(
-            self.data.samar_class_id, self.data.engine_id, years
-        )
-
-        if options_rate > 0.0:
-            # Stosujemy kaskadę deprecjacji dla opcji (uproszczoną do l. lat)
-            # W V3 PARITY bierzemy po prostu stawkę bazową amortyzacji i ewentualnie ją skalujemy
-            rv_options_netto = options_netto * options_rate
-        else:
-            divisor = 1.0 + years
-            rv_options_netto = options_netto / divisor if divisor > 0 else options_netto
-
+        # V1 RMS stosuje **catalog_total × WR_pct** płasko — opcje fabryczne nie mają
+        # osobnej stawki amortyzacji, są deprecjonowane tą samą stawką co baza.
+        # Z naszej kalibracji V1 sweep (KALK 172207 Octavia) WR_raw = catalog × base_pct
+        # z dokładnością ~88 PLN cushion (≈ 0.5% per opcje_z_WR — pomijalne).
+        #
+        # Wcześniej Krok 3 używał osobnego options_rate z `samar_class_options_rv`
+        # (Excel SOT TAB.DOPOSAŻENIA — np. CPb Y4 = 0.24). To było zgodne z arkuszem
+        # Excelowym, ale rozjeżdżało się z V1 produkcyjnym (Excel TAB.DOPOSAŻENIA jest
+        # NIEUŻYWANY przez V1 RMS). Decyzja 2026-05-17: priorytet V1 parity nad Excel.
+        rv_options_netto = options_netto * effective_pct  # same rate as base
         rv_total_netto = rv_base_netto + rv_options_netto
 
         debug["krok3_years"] = years
         debug["krok3_rv_base_netto"] = round(rv_base_netto, 2)
         debug["krok3_rv_options_netto"] = round(rv_options_netto, 2)
         debug["krok3_rv_total_netto"] = round(rv_total_netto, 2)
+        debug["krok3_options_rate_used"] = effective_pct  # Path B marker
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 4: Korekta przebiegu — NIEAKTYWNA (zgodność 1:1 z 2503 JŁ SOT)
+        # KROK 4: Korekta przebiegu — V1 RMS parity formula
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # Arkusz SOT JŁ (2503_wynik_JŁ.xlsx) oblicza korektę przebiegu (kolumna AK
-        # = AI*(AD/10) + AJ*(AF/10)) ale formuła końcowa BV = BR + KOLOR*L + NADWOZIE*L
-        # NIE zużywa AK. Czyli w SOT korekta przebiegu jest mathematycznie obliczana
-        # ale nieaktywna. Tu replikujemy ten sam design — liczymy raw values do
-        # debug trace, ale nie modyfikujemy rv_total_netto.
+        # V1 RMS formula (zweryfikowana na 7 punktach sweep'u KALK 172207 Octavia):
+        #   baseline = 140_000 km **STAŁA** (NIE okres × 35k/12 — niezależna od okresu)
+        #   threshold = 190_000 km
+        #   paczki_lt = (od baseline do threshold lub poniżej baseline) / 10k
+        #   paczki_gt = (powyżej threshold) / 10k
+        #   znak: + gdy actual > baseline (penalty, odejmuje od WR), − gdy < (bonus, dodaje)
         #
-        # Historycznie tu była aktywna korekta (paczki 10k pod/nad 190k z stawkami
-        # under/over_rate z samar_class_mileage_corrections), ale dawała ona rozjazdy
-        # ±10-30% vs 2503 SOT dla przebiegów nieproporcjonalnych. Decyzja biznesowa
-        # 2026-05-16: zgodność z 2503 JŁ ma priorytet.
+        # Korekta jest WYŁĄCZONA dla nadwozi z `body_types.utrata_wartosci != 0`
+        # (np. Furgon Brygadowy = 0.4) — tam mileage correction jest zbundlowana w body
+        # correction (memory `body_types_sot`). Dla normalnych nadwozi (Kombi, Sedan,
+        # Hatchback z utrata_wartosci=0.0) Krok 4 aktywny.
+        #
+        # Historycznie wyłączony per 2503 SOT (Excel TAB.PRZEBIEG nieaktywne w końcowej
+        # formule BV). Decyzja 2026-05-17: priorytet V1 RMS parity nad Excel 2503 SOT.
         under_rate, over_rate, threshold_km = self._fetch_mileage_corrections()
+        body_correction_pct_for_krok4 = self.fetch_body_correction()
+        krok4_active = abs(body_correction_pct_for_krok4) < 1e-6  # 0.0 → aktywny
 
-        base_mileage = (self.data.months / 12.0) * 35000.0
-        przebieg_ponizej = min(self.data.total_km, threshold_km) - base_mileage
-        przebieg_powyzej = max(self.data.total_km - threshold_km, 0.0)
-        p1 = przebieg_ponizej / 10000.0
-        p2 = przebieg_powyzej / 10000.0
+        # V1 RMS baseline = 140_000 km STAŁA
+        V1_BASELINE_KM = 140_000.0
+        excess_km = float(self.data.total_km) - V1_BASELINE_KM
 
-        # Korekta NIEAKTYWNA — zachowujemy wyłącznie w trace dla audytu
-        korekta_przebieg_netto = 0.0
-        rv_netto_post_krok4 = rv_total_netto
+        if excess_km > 0:
+            # Powyżej baseline → penalty (odejmie od WR)
+            paczki_lt_kor = min(excess_km, threshold_km - V1_BASELINE_KM) / 10_000.0
+            paczki_gt_kor = max(excess_km - (threshold_km - V1_BASELINE_KM), 0.0) / 10_000.0
+            korekta_sign = 1.0  # deduct
+        else:
+            # Poniżej baseline → bonus (doda do WR)
+            paczki_lt_kor = abs(excess_km) / 10_000.0
+            paczki_gt_kor = 0.0
+            korekta_sign = -1.0  # add
 
-        debug["krok4_base_mileage"] = base_mileage
+        korekta_przebieg_netto = (
+            paczki_lt_kor * under_rate + paczki_gt_kor * over_rate
+        ) * rv_total_netto
+
+        if krok4_active:
+            rv_netto_post_krok4 = rv_total_netto - korekta_sign * korekta_przebieg_netto
+        else:
+            rv_netto_post_krok4 = rv_total_netto
+            korekta_przebieg_netto = 0.0
+
+        debug["krok4_baseline_km"] = V1_BASELINE_KM
         debug["krok4_threshold_km"] = threshold_km
-        debug["krok4_przebieg_ponizej"] = przebieg_ponizej
-        debug["krok4_przebieg_powyzej"] = przebieg_powyzej
-        debug["krok4_p1"] = p1
-        debug["krok4_p2"] = p2
+        debug["krok4_excess_km"] = excess_km
+        debug["krok4_paczki_lt"] = paczki_lt_kor
+        debug["krok4_paczki_gt"] = paczki_gt_kor
         debug["krok4_under_rate"] = under_rate
         debug["krok4_over_rate"] = over_rate
-        debug["krok4_korekta_przebieg_netto"] = 0.0
-        debug["krok4_korekta_disabled_per_sot"] = True
+        debug["krok4_korekta_sign"] = korekta_sign
+        debug["krok4_korekta_przebieg_netto"] = round(korekta_sign * korekta_przebieg_netto, 2)
+        debug["krok4_active"] = krok4_active
+        debug["krok4_body_correction_pct"] = body_correction_pct_for_krok4
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 5: Korekta administracyjna (Zgodność V3)

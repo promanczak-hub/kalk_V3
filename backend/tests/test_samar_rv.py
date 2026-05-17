@@ -30,7 +30,13 @@ def mock_rv_input():
 
 
 def test_samar_rv_calculate_base(mocker, mock_rv_input):
-    """Testuje czy kalkulator wyliczy poprawnie RV wg uproszczonego V1 algorytmu na mockach"""
+    """Testuje czy kalkulator wyliczy poprawnie RV wg V1-aligned algorytmu.
+
+    Post 2026-05-17 (V1 RMS parity calibration):
+    - Path B: opcje × base_rate (= 0.50) zamiast osobnego options_rate
+    - Krok 4 (przebieg) aktywny tylko gdy body_correction == 0 (Kombi/Sedan); tu body=0.02 → DISABLED
+    - Krok 5 (kolor/body) ADDITIVE
+    """
     # Base WR = 50% dla 4 roku
     mocker.patch.object(
         SamarRVCalculator,
@@ -42,7 +48,6 @@ def test_samar_rv_calculate_base(mocker, mock_rv_input):
         SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0, 140000)
     )
     mocker.patch.object(SamarRVCalculator, "_fetch_base_rv_percent", return_value=0.50)
-    mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.80)
     mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.01)
     mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.02)
     mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
@@ -50,21 +55,21 @@ def test_samar_rv_calculate_base(mocker, mock_rv_input):
 
     calc = SamarRVCalculator(mock_rv_input)
 
-    # Base: 50%
-    # Options: 80% (0.8)
-    # Wartość 48 miesięcy = 50% * 100k = 50k
-    # Brak deprecjacji przebiegu (0.0 multiplier na under/over)
-    # Opcje = 20k * 0.8 = 16k
-    # Kolor = 100k * 0.01 = 1k
-    # Body = 100k * 0.02 = 2k
-    # RV = 50k + 16k + 1k + 2k = 69k
+    # Path B kalkulacja:
+    # Base × base_pct = 100k × 0.50 = 50k
+    # Opcje × base_pct = 20k × 0.50 = 10k (Path B: same rate as base)
+    # rv_total = 60k
+    # Krok 4: body_correction=0.02 ≠ 0 → DISABLED (mileage neutral)
+    # Krok 5: kolor = 100k × 0.01 = 1k, body = 100k × 0.02 = 2k → sum = 3k
+    # rv_pre_manual = 60k + 3k = 63k
+    # Vintage = 0, Manual = 0 → final = 63k
 
     output: RVOutput = calc.calculate()
-    assert output.wr_net == pytest.approx(69000.0)
+    assert output.wr_net == pytest.approx(63000.0)
 
 
 def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
-    """Sprawdzenie czy parametry zwracaja sie poprawnie przy 0% (edge case)"""
+    """Edge case: wszystkie rates = 0 → WR = 0 (post Path B: brak fallbacku opcje/(1+years))."""
     mocker.patch.object(
         SamarRVCalculator,
         "_fetch_depreciation_rates",
@@ -75,7 +80,6 @@ def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
         SamarRVCalculator, "_fetch_mileage_corrections", return_value=(0.0, 0.0, 140000)
     )
     mocker.patch.object(SamarRVCalculator, "_fetch_base_rv_percent", return_value=0.00)
-    mocker.patch("core.samar_rv.fetch_base_options_rate_cached", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_color_correction", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_body_correction", return_value=0.0)
     mocker.patch.object(SamarRVCalculator, "fetch_vintage_correction", return_value=0.0)
@@ -83,6 +87,8 @@ def test_samar_rv_sanity_bounds(mocker, mock_rv_input):
 
     calc = SamarRVCalculator(mock_rv_input)
 
-    # Suma to 0%, wiec final_rv_netto wynika tylko z opcji przez ułamek V1: 20000 / (1 + 4) = 4000
+    # Path B: opcje × base_pct (0) = 0. Brak fallbacku.
+    # Krok 4: body=0 → aktywny ALE under_rate=over_rate=0 → korekta=0
+    # WR = 0
     rv_output = calc.calculate()
-    assert rv_output.wr_net == pytest.approx(4000.0)
+    assert rv_output.wr_net == pytest.approx(0.0)
