@@ -446,12 +446,14 @@ class ExcelOfferGenerator:
         ws.row_dimensions[4].height = 28
         ws.row_dimensions[5].height = 8
 
-        # Section headers row 6
+        # Section headers row 6 — 3 columns. Wyposażenie standardowe było
+        # tutaj czwartą kolumną, ale długie pozycje (zwłaszcza po polsku) nie
+        # mieściły się w wąskiej kolumnie K i tekst się ucinał. Przeniesione
+        # na dół arkusza jako jedna duża scalona komórka bullet-list.
         for rng, label in [
             ("A6:B6", "POJAZD"),
             ("D6:E6", "WARUNKI FINANSOWANIA"),
             ("G6:H6", "W CENIE RATY"),
-            ("J6:K6", "WYPOSAŻENIE STANDARDOWE"),
         ]:
             ws.merge_cells(rng)
             c = ws[rng.split(":")[0]]
@@ -511,15 +513,12 @@ class ExcelOfferGenerator:
             ("GPS", ir.get("gps")),
         ]
 
+        # Standard equipment now rendered as a single merged cell at the
+        # bottom of the sheet, not column-by-column. Capture the list here
+        # for use after OPCJE PŁATNE; main grid uses only 3 sections.
         standard_items = item.get("standard") or []
-        standard_is_placeholder = not bool(standard_items)
-        standard_rows = (
-            [("— wykaz w PDF konfiguracji —", "")]
-            if standard_is_placeholder
-            else [(s, "") for s in standard_items]
-        )
         max_section_rows = max(
-            len(pojazd_rows), len(warunki_rows), len(in_rate_rows), len(standard_rows), 1
+            len(pojazd_rows), len(warunki_rows), len(in_rate_rows), 1
         )
 
         for i in range(max_section_rows):
@@ -566,26 +565,26 @@ class ExcelOfferGenerator:
                 va.fill = PatternFill("solid", fgColor=zebra)
                 va.border = _thin_border()
 
-            if i < len(standard_rows):
-                ws.merge_cells(start_row=r, start_column=10, end_row=r, end_column=11)
-                if standard_is_placeholder:
-                    la = ws.cell(row=r, column=10, value=standard_rows[i][0])
-                    la.font = Font(name="Calibri", size=10, italic=True, color=GRAY)
-                else:
-                    la = ws.cell(row=r, column=10, value=f"•  {standard_rows[i][0]}")
-                    la.font = Font(name="Calibri", size=10)
-                la.alignment = Alignment(vertical="center", wrap_text=True, indent=1)
-                la.fill = PatternFill("solid", fgColor=zebra)
-                la.border = _thin_border()
+            # Standard equipment column (J:K) — left as empty zebra-filled
+            # placeholder; the actual equipment list is rendered at the bottom
+            # of the sheet as one merged cell (see WYPOSAŻENIE STANDARDOWE
+            # section after OPCJE PŁATNE).
+            ws.merge_cells(start_row=r, start_column=10, end_row=r, end_column=11)
+            ph = ws.cell(row=r, column=10)
+            ph.fill = PatternFill("solid", fgColor=zebra)
+            ph.border = _thin_border()
 
-            # Bump row height when the in_rate value (col H) is a long wrapped
-            # string (e.g. "Wielosezon Wzmocnione Premium • 4 kpl") so it isn't
-            # clipped by the 20pt default.
+            # Row height based on the LONGEST wrapped value across the three
+            # active columns (B, E, H). Calibri 10pt at ~7px per char ⇒
+            # ~28 chars per line in col H (narrowest data column).
             row_height = 20
+            lines_needed = 1
             if i < len(in_rate_rows):
                 _, val = in_rate_rows[i]
-                if isinstance(val, str) and len(val) > 18:
-                    row_height = 32
+                if isinstance(val, str) and val:
+                    lines_needed = max(lines_needed, (len(val) // 28) + 1)
+            if lines_needed > 1:
+                row_height = max(20, 14 * lines_needed + 6)
             ws.row_dimensions[r].height = row_height
 
         bottom_start = 7 + max_section_rows + 1
@@ -735,6 +734,58 @@ class ExcelOfferGenerator:
             dealer,
             "Brak opcji dealerskich / serwisowych w tej ofercie.",
         )
+
+        # WYPOSAŻENIE STANDARDOWE — jedna duża scalona komórka z bullet-list.
+        # Wcześniej wyposażenie szło w wąskiej kolumnie K po prawej stronie
+        # głównej siatki, gdzie długie pozycje (>52 chars) się ucinały.
+        # Teraz: pełna szerokość A:K, jeden tekst z liniowanymi pozycjami.
+        std_header_row = r + 1
+        ws.row_dimensions[std_header_row - 1].height = 8
+        ws.merge_cells(
+            start_row=std_header_row, start_column=1,
+            end_row=std_header_row, end_column=11,
+        )
+        sh = ws.cell(row=std_header_row, column=1, value="WYPOSAŻENIE STANDARDOWE")
+        sh.font = Font(name="Calibri", size=11, bold=True, color=WHITE)
+        sh.fill = PatternFill("solid", fgColor=NAVY)
+        sh.alignment = Alignment(vertical="center", horizontal="center")
+        ws.row_dimensions[std_header_row].height = 22
+
+        # Body — bullet list joined with newlines. Estimate visual lines per
+        # item: at full A:K width (~180 char visible), most items take 1 line,
+        # very long ones (Polish 100+ chars) wrap to 2. Allocate N rows of
+        # ~14pt each so wrap_text has room.
+        if standard_items:
+            body_lines = [f"•  {s}" for s in standard_items]
+            body_text = "\n".join(body_lines)
+            # Estimate total visual lines (some items wrap)
+            CHARS_PER_LINE = 110  # conservative for merged A:K at Calibri 10pt
+            est_lines = sum(((len(line) // CHARS_PER_LINE) + 1) for line in body_lines)
+        else:
+            body_text = "— wykaz w PDF konfiguracji —"
+            est_lines = 2
+
+        std_body_row = std_header_row + 1
+        # Merge across enough rows to give each line ~16pt vertical space.
+        # Each row is 16pt; total height = est_lines × 16pt accommodates wrap.
+        rows_for_body = max(est_lines, 6)  # min 6 rows even for short lists
+        ws.merge_cells(
+            start_row=std_body_row, start_column=1,
+            end_row=std_body_row + rows_for_body - 1, end_column=11,
+        )
+        sb = ws.cell(row=std_body_row, column=1, value=body_text)
+        sb.font = Font(
+            name="Calibri", size=10,
+            italic=not bool(standard_items),
+            color=GRAY if not standard_items else "000000",
+        )
+        sb.alignment = Alignment(vertical="top", horizontal="left", wrap_text=True, indent=1)
+        sb.fill = PatternFill("solid", fgColor=ZEBRA)
+        sb.border = _thin_border()
+        for body_r in range(std_body_row, std_body_row + rows_for_body):
+            ws.row_dimensions[body_r].height = 16
+
+        r = std_body_row + rows_for_body
 
         footer_row = r + 1
         ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=11)
