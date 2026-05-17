@@ -10,18 +10,25 @@ import io
 import logging
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Protection
 from openpyxl.utils import get_column_letter
 from pydantic import BaseModel
 
+from core.auth_middleware import require_role
 from core.database import supabase
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Features Admin"])
+# Router-level dep: cały moduł to admin operations (upsert/delete/import-xlsx
+# kategorii i features). Dep jest no-op gdy AUTH_ENABLED=false; po flipnięciu
+# env flagi → JWT-based role check z app_metadata.role == "admin".
+router = APIRouter(
+    tags=["Features Admin"],
+    dependencies=[Depends(require_role("admin"))],
+)
 
 # ── Styling constants ────────────────────────────────────────────
 _HEADER_FILL = PatternFill(

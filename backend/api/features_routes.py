@@ -9,10 +9,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from pydantic import BaseModel
 
+from core.auth_middleware import require_role
 from core.database import supabase
 
 from core.feature_cross_reference import (
@@ -167,7 +168,10 @@ def get_vehicle_feature_evidence(
 # ── Feature Wipe ──────────────────────────────────────────────
 
 
-@router.delete("/features/vehicle/{vehicle_id}/evidence")
+@router.delete(
+    "/features/vehicle/{vehicle_id}/evidence",
+    dependencies=[Depends(require_role("admin"))],
+)
 def wipe_vehicle_evidence(
     vehicle_id: str,
     source_type: str | None = None,

@@ -4,8 +4,9 @@ import asyncio
 import requests
 from typing import Any, Dict
 from pydantic import BaseModel
-from fastapi import APIRouter, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.responses import Response
+from core.auth_middleware import require_role
 from core.celery_tasks import process_document_task_from_storage
 from services.ai_mapper_service import map_vehicle_data_flash
 from core.database import supabase as supabase_client
@@ -474,7 +475,10 @@ class BatchDeleteRequest(BaseModel):
     vehicle_ids: list[str]
 
 
-@router.post("/delete-vehicles-batch")
+@router.post(
+    "/delete-vehicles-batch",
+    dependencies=[Depends(require_role("admin"))],
+)
 def delete_vehicles_batch(request: BatchDeleteRequest) -> Dict[str, Any]:
     """Delete multiple vehicles in a single transaction."""
     if not request.vehicle_ids:

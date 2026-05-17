@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Literal, Optional, List, cast
 from datetime import datetime
 import time
 import uuid
 import logging
+from core.auth_middleware import require_role
 from core.database import supabase
 from api.schemas.pricing import PricingPatch, PricingResult
 
@@ -463,7 +464,10 @@ class MatrixCacheRefreshRequest(BaseModel):
     vehicle_ids: List[str]
 
 
-@router.post("/matrix-cache/refresh")
+@router.post(
+    "/matrix-cache/refresh",
+    dependencies=[Depends(require_role("admin"))],
+)
 def refresh_matrix_cache(request: MatrixCacheRefreshRequest):
     """
     Ręczne wywołanie odświeżenia cache macierzy dla pojazdów.
