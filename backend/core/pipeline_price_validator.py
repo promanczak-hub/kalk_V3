@@ -140,6 +140,12 @@ def validate_card_summary_prices(
     # ── Rule 11: Sanity range on computed discount % ──
     _check_discount_pct_sanity(report, card_summary)
 
+    # ── Rule 12: NET/GROSS ratio sanity per item (paid_options + service_equipment) ──
+    _check_net_gross_ratio_per_item(report, card_summary)
+
+    # ── Rule 13: service_equipment.total ≈ sum(components) ──
+    _check_service_equipment_sum_integrity(report, card_summary)
+
     _log_report(report)
     return report
 
@@ -160,6 +166,12 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     # Allow empty dict to still get _validation flags
     report = validate_card_summary_prices(card_summary)
 
+    # Detect domain BEFORE self-healing — derived base_price needs the
+    # netto/brutto suffix to be formatted correctly, and the self-heal
+    # guard for derived base requires a known domain.
+    detected_domain = detect_and_normalize_price_domain(card_summary)
+    card_summary["_price_domain"] = detected_domain
+
     # Apply self-healing rules if mathematically inconsistent
     _apply_self_healing(card_summary, report)
 
@@ -168,10 +180,6 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     report.summary = generate_price_summary(validation_dict, card_summary)
 
     card_summary["_validation"] = report.to_dict()
-
-    # Detect and propagate price domain
-    detected_domain = detect_and_normalize_price_domain(card_summary)
-    card_summary["_price_domain"] = detected_domain
 
     # ── User-facing warning when price domain cannot be determined ──
     if detected_domain == "unknown":
@@ -199,16 +207,59 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     return pro_data
 
 
+_DERIVED_BASE_MIN_RATIO_OF_TOTAL = 0.30
+
+
 def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) -> None:
     """Attempt to auto-fix certain mathematical errors in card_summary before generation of summary."""
+    # Branch 0: derive missing base_price from total − options when LLM
+    # couldn't find it directly (e.g. Audi catalogs print only final price
+    # + options breakdown). Symmetric to the options-derivation branch below.
+    if (
+        report.parsed_base is None
+        and report.parsed_total is not None
+        and report.parsed_options is not None
+    ):
+        _try_derive_base_price(card_summary, report)
+
     sum_warning = next(
         (w for w in report.warnings if w.rule == "BASE_PLUS_OPTIONS_VS_TOTAL"), None
     )
 
     if sum_warning and report.parsed_base and report.parsed_total:
         if report.parsed_base < report.parsed_total:
-            # We trust base and total more than options string
-            corrected_options_val = report.parsed_total - report.parsed_base
+            # We trust base and total more than options string.
+            #
+            # Pełne równanie z uwzględnieniem rabatu i zabudowy:
+            #   total = base + options_fabryczne + non_discountable - rabat
+            # Stąd:
+            #   options_fabryczne = total + rabat - non_discountable - base
+            #
+            # Gdy discount nie istnieje, równanie redukuje się do
+            # options = total - base (zachowanie historyczne).
+            discount = card_summary.get("discount") or {}
+            rabat = 0.0
+            non_disc = 0.0
+            if isinstance(discount, dict):
+                try:
+                    rabat = float(discount.get("explicit_rabat_pln") or 0)
+                except (TypeError, ValueError):
+                    rabat = 0.0
+                try:
+                    non_disc = float(
+                        discount.get("non_discountable_total_net") or 0
+                    )
+                except (TypeError, ValueError):
+                    non_disc = 0.0
+
+            corrected_options_val = (
+                report.parsed_total + rabat - non_disc - report.parsed_base
+            )
+
+            # Jeśli korekta dałaby ujemną kwotę opcji → coś jest poważnie nie
+            # tak, lepiej pozostawić warning niż maskować błąd.
+            if corrected_options_val < 0:
+                return
 
             original_options = str(card_summary.get("options_price", ""))
 
@@ -242,10 +293,18 @@ def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) 
             report.parsed_options = corrected_options_val
 
             # Add an INFO note about the fix
+            fix_msg = (
+                f"Automatycznie wyliczono options_price jako "
+                f"{int(corrected_options_val)} (= total + rabat − zabudowa − base)."
+            )
+            if rabat > 0 or non_disc > 0:
+                fix_msg += (
+                    f" Użyto rabatu={int(rabat)} i non_discountable={int(non_disc)}."
+                )
             report.add(
                 ValidationWarning(
                     rule="AUTO_FIX_APPLIED",
-                    message=f"Automatycznie wyliczono brakujące options_price jako {int(corrected_options_val)} aby zbilansować sumę.",
+                    message=fix_msg,
                     severity="INFO",
                 )
             )
@@ -278,6 +337,128 @@ def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) 
                     severity="INFO",
                 )
             )
+
+
+def _try_derive_base_price(
+    card_summary: dict[str, Any], report: ValidationReport
+) -> None:
+    """Derive missing base_price from total − options when guards pass.
+
+    Mirror of the options-derivation logic in _apply_self_healing. Used when
+    LLM couldn't find an explicit base_price in the document (e.g. Audi
+    catalogs that print only final price + options breakdown).
+
+    Equation: total = base + options + non_discountable − rabat
+              ⇒ base = total + rabat − non_discountable − options
+    """
+    # G1: options sum must be consistent (paid_options ≈ declared options_price).
+    # Without this, deriving base would replicate the very error the prompt warns
+    # about: a missed option would inflate the derived base.
+    if any(w.rule == "OPTIONS_SUM_MISMATCH" for w in report.warnings):
+        return
+
+    # G2: price domain must be known (netto vs brutto) to format the derived
+    # value correctly and to avoid mixing-domain arithmetic.
+    domain = card_summary.get("_price_domain", "unknown")
+    if domain == "unknown":
+        return
+
+    # Defensive — caller already checked these are non-None.
+    if report.parsed_total is None or report.parsed_options is None:
+        return
+
+    # Read discount components — same pattern as options-derivation branch.
+    discount = card_summary.get("discount") or {}
+    rabat = 0.0
+    non_disc = 0.0
+    if isinstance(discount, dict):
+        try:
+            rabat = float(discount.get("explicit_rabat_pln") or 0)
+        except (TypeError, ValueError):
+            rabat = 0.0
+        try:
+            non_disc = float(discount.get("non_discountable_total_net") or 0)
+        except (TypeError, ValueError):
+            non_disc = 0.0
+
+    derived_base = (
+        report.parsed_total + rabat - non_disc - report.parsed_options
+    )
+
+    # G3 & G4: sanity range. Negative or implausibly small derived base means
+    # the inputs are inconsistent — leaving base as "Brak" is safer than
+    # writing a misleading value.
+    min_allowed = _DERIVED_BASE_MIN_RATIO_OF_TOTAL * report.parsed_total
+    if derived_base <= 0 or derived_base < min_allowed:
+        report.add(
+            ValidationWarning(
+                rule="BASE_DERIVATION_OUT_OF_RANGE",
+                message=(
+                    f"Próba wyliczenia ceny bazowej dała wartość poza rozsądnym "
+                    f"zakresem: {derived_base:.0f} (total={report.parsed_total:.0f}, "
+                    f"options={report.parsed_options:.0f}, rabat={rabat:.0f}, "
+                    f"non_disc={non_disc:.0f}). Pozostawiono bazę jako 'Brak'."
+                ),
+                severity="ERROR",
+                actual=derived_base,
+            )
+        )
+        return
+
+    # Format derived value to match existing string convention used elsewhere
+    # in this module (see options self-heal, lines ~250-266).
+    total_str = str(card_summary.get("total_price", ""))
+    domain_suffix = ""
+    if "netto" in total_str.lower():
+        domain_suffix = " netto"
+    elif "brutto" in total_str.lower():
+        domain_suffix = " brutto"
+    else:
+        domain_suffix = f" {domain}"
+
+    currency = " PLN" if "PLN" in total_str.upper() else ""
+    if not currency:
+        options_str = str(card_summary.get("options_price", ""))
+        if "PLN" in options_str.upper():
+            currency = " PLN"
+
+    original_base = str(card_summary.get("base_price", ""))
+    card_summary["base_price"] = (
+        f"{int(derived_base)}{currency}{domain_suffix}".strip()
+    )
+    card_summary["_base_derived"] = True
+
+    # Critical: update report so the gate in phase_2_mapping.py
+    # (`parsed_prices.get("base") is not None`) lets the row through to
+    # feature enrichment instead of stalling in 'needs_review'.
+    report.parsed_base = derived_base
+
+    logger.info(
+        "[PRICE VALIDATOR] Auto-derive: Wyliczono base_price '%s' z total − options "
+        "(rabat=%.0f, non_disc=%.0f). Oryginał: '%s'",
+        card_summary["base_price"],
+        rabat,
+        non_disc,
+        original_base,
+    )
+
+    derive_msg = (
+        f"Cena bazowa nie była podana literalnie w dokumencie. "
+        f"Wyliczono jako total + rabat − non_discountable − options "
+        f"= {int(derived_base)}. Zweryfikuj manualnie."
+    )
+    if rabat > 0 or non_disc > 0:
+        derive_msg += (
+            f" Użyto rabatu={int(rabat)} i non_discountable={int(non_disc)}."
+        )
+
+    report.add(
+        ValidationWarning(
+            rule="BASE_AUTO_DERIVED",
+            message=derive_msg,
+            severity="INFO",
+        )
+    )
 
 
 # ── Price domain detection ──
@@ -911,6 +1092,131 @@ def _check_discount_pct_sanity(
                 ),
                 severity="INFO",
                 actual=pct,
+            )
+        )
+
+
+def _check_net_gross_ratio_per_item(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Sprawdza czy stosunek price_gross/price_net dla każdej pozycji
+    z osobnymi polami netto i brutto mieści się w realnym zakresie VAT
+    (~1.23 ± tolerancja). Pozycje poza zakresem są flagowane.
+
+    Łapie:
+    - AI dała te same kwoty do net i gross (ratio = 1.0)
+    - AI dała losowe wartości bez relacji VAT (ratio np. 1.5)
+    - Pomyłki konwersji (gross = net * 1.08 dla niepoprawnej stawki)
+
+    NIE łapie przypadku, gdy AI poprawnie pomnożyła kwotę przez 1.23,
+    ale OBIE wartości są w złej domenie (np. wzięła brutto z dokumentu jako
+    netto i dorobiła "brutto" jako 1.23×brutto).
+    """
+    _MIN_RATIO = 1.20
+    _MAX_RATIO = 1.26
+
+    def _check_pair(name: str, net_raw: Any, gross_raw: Any, path: str) -> None:
+        net = parse_price_string(str(net_raw) if net_raw else None)
+        gross = parse_price_string(str(gross_raw) if gross_raw else None)
+        if net is None or gross is None:
+            return
+        if net.value <= 0 or gross.value <= 0:
+            return
+        ratio = gross.value / net.value
+        if _MIN_RATIO <= ratio <= _MAX_RATIO:
+            return
+        report.add(
+            ValidationWarning(
+                rule="NET_GROSS_RATIO_INVALID",
+                message=(
+                    f"'{name}' ma podejrzany stosunek brutto/netto = {ratio:.3f} "
+                    f"(oczekiwane ≈1.23). path={path}, net={net.value:.2f}, "
+                    f"gross={gross.value:.2f}"
+                ),
+                severity="WARNING",
+                expected=round(net.value * 1.23, 2),
+                actual=gross.value,
+                diff_pct=abs(ratio - 1.23) * 100,
+            )
+        )
+
+    # service_equipment.components[*] + service_equipment.total_*
+    service_eq = card_summary.get("service_equipment")
+    if isinstance(service_eq, dict):
+        for idx, comp in enumerate(service_eq.get("components") or []):
+            if not isinstance(comp, dict):
+                continue
+            _check_pair(
+                comp.get("name", f"component[{idx}]"),
+                comp.get("price_net"),
+                comp.get("price_gross"),
+                f"service_equipment.components[{idx}]",
+            )
+        _check_pair(
+            service_eq.get("name", "service_equipment"),
+            service_eq.get("total_price_net"),
+            service_eq.get("total_price_gross"),
+            "service_equipment.total",
+        )
+
+
+def _check_service_equipment_sum_integrity(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Sprawdza czy sum(components.price_net) ≈ service_equipment.total_price_net
+    oraz analogicznie dla brutto. Tolerancja: ±1 PLN.
+
+    Łapie przypadki gdzie AI zapisała komponenty z innymi kwotami niż
+    aggregowany total (literówki / niespójność wewnętrzna ekstrakcji).
+    """
+    service_eq = card_summary.get("service_equipment")
+    if not isinstance(service_eq, dict):
+        return
+    components = service_eq.get("components")
+    if not isinstance(components, list) or not components:
+        return
+
+    def _sum_field(key: str) -> float | None:
+        total = 0.0
+        seen = False
+        for comp in components:
+            if not isinstance(comp, dict):
+                continue
+            parsed = parse_price_string(str(comp.get(key)) if comp.get(key) else None)
+            if parsed is None:
+                continue
+            total += parsed.value
+            seen = True
+        return total if seen else None
+
+    for field_total, field_comp, label in (
+        ("total_price_net", "price_net", "netto"),
+        ("total_price_gross", "price_gross", "brutto"),
+    ):
+        declared = parse_price_string(
+            str(service_eq.get(field_total)) if service_eq.get(field_total) else None
+        )
+        components_sum = _sum_field(field_comp)
+        if declared is None or components_sum is None or declared.value <= 0:
+            continue
+        diff = abs(components_sum - declared.value)
+        if diff <= 1.0:
+            continue
+        diff_pct = (diff / declared.value) * 100
+        report.add(
+            ValidationWarning(
+                rule="SERVICE_EQUIPMENT_SUM_MISMATCH",
+                message=(
+                    f"Σ(components.{field_comp}) = {components_sum:.2f}, "
+                    f"ale service_equipment.{field_total} = {declared.value:.2f} "
+                    f"(Δ {diff:.2f} PLN / {diff_pct:.2f}%, domena: {label})"
+                ),
+                severity="WARNING",
+                expected=declared.value,
+                actual=components_sum,
+                diff_pct=diff_pct,
             )
         )
 

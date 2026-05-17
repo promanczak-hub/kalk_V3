@@ -624,6 +624,14 @@ class ExcelOfferGenerator:
 
         factory = item.get("factory_options_priced") or []
         dealer = item.get("dealer_options_priced") or []
+        # {package_name_lower: [sub_feature_name, ...]} — see oferty_routes
+        # _load_package_contents_map(). Empty when vehicle has no decomposed
+        # packages in vehicle_feature_evidence.
+        package_contents: dict[str, list[str]] = item.get("package_contents") or {}
+
+        # Outline (+/-) appears in the row gutter above the package row, not
+        # below — so the "+" sits next to the package name a user just read.
+        ws.sheet_properties.outlinePr.summaryBelow = False
 
         def _write_options_block(start_row: int, label: str, rows: list, empty_text: str) -> int:
             """Render one options sub-table (header + data/empty row). Returns
@@ -646,6 +654,8 @@ class ExcelOfferGenerator:
             r_local += 1
 
             if rows:
+                from core.feature_enrichment import _is_package_name
+
                 for entry in rows:
                     # Tolerate legacy 2-tuples (name, net) by deriving gross.
                     if len(entry) == 3:
@@ -672,6 +682,38 @@ class ExcelOfferGenerator:
                     # Calibri at column-A:I width.
                     ws.row_dimensions[r_local].height = 32 if len(str(name)) > 60 else 24
                     r_local += 1
+
+                    # Expandable sub-rows for packages — Excel renders a "+" in
+                    # the row gutter (outlinePr.summaryBelow=False puts it on
+                    # the package row itself). Sub-features come from LLM
+                    # decomposition; they have no per-item price (only the
+                    # parent package does), so the price columns get "—".
+                    sub_features = package_contents.get(str(name).strip().lower())
+                    if sub_features and _is_package_name(str(name)):
+                        for sub_name in sub_features:
+                            ws.merge_cells(
+                                start_row=r_local, start_column=1,
+                                end_row=r_local, end_column=9,
+                            )
+                            sub_nm = ws.cell(row=r_local, column=1, value=f"└  {sub_name}")
+                            sub_nm.font = Font(name="Calibri", size=9, italic=True, color=DARK_GRAY)
+                            sub_nm.alignment = Alignment(
+                                vertical="center", indent=3, wrap_text=True,
+                            )
+                            sub_nm.border = _thin_border()
+                            for col_idx, price_color in ((10, GRAY), (11, GRAY)):
+                                pc = ws.cell(row=r_local, column=col_idx, value="—")
+                                pc.font = Font(name="Calibri", size=9, color=price_color)
+                                pc.alignment = Alignment(
+                                    vertical="center", horizontal="right", indent=1,
+                                )
+                                pc.border = _thin_border()
+                            ws.row_dimensions[r_local].outline_level = 1
+                            ws.row_dimensions[r_local].hidden = True
+                            ws.row_dimensions[r_local].height = (
+                                26 if len(sub_name) > 55 else 20
+                            )
+                            r_local += 1
             else:
                 ws.merge_cells(start_row=r_local, start_column=1, end_row=r_local, end_column=11)
                 empty = ws.cell(row=r_local, column=1, value=empty_text)

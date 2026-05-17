@@ -619,7 +619,7 @@ class LTRKalkulator:
                     f"Brak stawek serwisowych (ServiceCalculator zwrocil 0) dla "
                     f"okres={months}, klasa={getattr(self.vehicle, 'samar_class_id', '?')}, "
                     f"silnik={getattr(self.vehicle, 'engine_type_id', '?')}. "
-                    f"Uzupelnij brakujace dane w tabeli `samar_service_costs`."
+                    f"Uzupelnij brakujace dane w tabeli `samar_class_service_rates`."
                 )
 
             # --- SUB-KALKULATOR: AMORTYZACJA (V1 port) ---

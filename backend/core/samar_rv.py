@@ -11,7 +11,7 @@ Algorytm:
 
 Kluczowe tabele: samar_class_depreciation_rates,
                  samar_class_mileage_corrections,
-                 body_type_wr_corrections, paint_types.
+                 body_types (kolumna utrata_wartosci), paint_types.
 
 Moduly pomocnicze:
   - core.samar_rv_fetchers  -- cached DB fetchers + _normalize_fuel_name
@@ -34,7 +34,6 @@ from core.samar_rv_fetchers import (
     fetch_lo_param_cached,
     fetch_mileage_corrections_cached,
     fetch_vintage_correction_cached,
-    fetch_zabudowa_correction_cached,
 )
 
 logger = logging.getLogger(__name__)
@@ -188,24 +187,18 @@ class SamarRVCalculator:
         )
 
     def fetch_body_correction(self) -> float:
-        """Korekta nadwozia (marka + nadwozie + silnik, bez klasy SAMAR)."""
-        return fetch_body_correction_cached(
-            self.data.engine_id,
-            self.data.brand_name,
-            self.data.body_type_id,
-        )
+        """Korekta WR per typ nadwozia (z body_types.utrata_wartosci).
 
-    def fetch_zabudowa_correction(self) -> float:
-        """Korekta zabudowy dla aut dostawczych."""
-        if not self.data.zabudowa_apr_wr:
-            return 0.0
-        # Zabudowa IDs współdzielą tabelę z body_types
-        target_id = self.data.zabudowa_type_id or self.data.body_type_id
-        return fetch_zabudowa_correction_cached(target_id, self.data.samar_class_id)
+        Composite cabin+zabudowa name (np. "Podwozie Brygadowe Skrzynia") jest
+        pojedynczym body_type, więc korekta pokrywa też zabudowę.
+        """
+        return fetch_body_correction_cached(self.data.body_type_id)
 
     def fetch_vintage_correction(self) -> float:
-        """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
-        return fetch_vintage_correction_cached(self.data.rocznik)
+        """Korekta za rocznik z ltr_admin_korekta_wr_roczniks (per klasa SAMAR)."""
+        return fetch_vintage_correction_cached(
+            self.data.rocznik, self.data.samar_class_id
+        )
 
     def fetch_lo_param(self) -> float:
         """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
@@ -265,23 +258,39 @@ class SamarRVCalculator:
         base_idx = ordered_keys.index(base_key)
 
         def get_wr_percent_for_year(yr: int) -> float:
-            """Oblicza skumulowane WR% (Base_4Y + delty) dla zadanego roku (1-7)."""
+            """Oblicza WR% per rok (1-7) wg multiplikatywnej kaskady z 4Y baseline.
+
+            Wzór z arkusza SOT JŁ (2503_wynik_JŁ.xlsx, KALKULATOR DH (dubel)):
+              4Y baseline: BC = base_rate_4y (np. 0.39 dla CPb)
+              WSTECZ (1Y-3Y): BC × (1 + delta) gdzie delta = tab_okres_final[km_<okres-1>k]
+                              dla 3Y: BC × (1 + km_140000) — neutralne (delta=0)
+                              dla 2Y: WR_3Y × (1 + km_105000)
+                              dla 1Y: WR_2Y × (1 + km_70000)
+              WPRZÓD (5Y-7Y): BC × (1 - delta) gdzie delta = tab_okres_final[km_<okres>k]
+                              dla 5Y: BC × (1 - km_175000)
+                              dla 6Y: WR_5Y × (1 - km_210000)
+                              dla 7Y: WR_6Y × (1 - km_245000)
+
+            Wcześniejsza implementacja używała sumy addytywnej delt (modifier_sum),
+            co rozjeżdżało się drastycznie z SOT JŁ dla okresów ≠ 4Y (rozjazd
+            +27% dla 3Y, -46% dla 7Y). Multiplikatywna kaskada daje 1:1 zgodność.
+            """
             if yr < 1:
                 yr = 1
             if yr > 7:
                 yr = 7
-            target_key = ordered_keys[yr - 1]
-            target_idx = ordered_keys.index(target_key)
-            modifier_sum = 0.0
-
-            if target_idx < base_idx:
-                for i in range(target_idx, base_idx):
-                    modifier_sum += float(mileage_rates.get(ordered_keys[i], 0.0))
-            elif target_idx > base_idx:
-                for i in range(base_idx + 1, target_idx + 1):
-                    # W tabeli wpisane są dodatnie kwoty utraty wartości dla lat > 4, więc je odejmujemy
-                    modifier_sum -= float(mileage_rates.get(ordered_keys[i], 0.0))
-            return base_rate_4y + modifier_sum
+            factor = 1.0
+            if yr <= 4:
+                # Kaskada wstecz z 4Y baseline (zmniejszamy rok, mnożymy przez (1+delta))
+                for y_inner in range(4, yr, -1):
+                    delta_col = ordered_keys[y_inner - 1]
+                    factor *= 1.0 + float(mileage_rates.get(delta_col, 0.0))
+            else:
+                # Kaskada wprzód z 4Y baseline (zwiększamy rok, mnożymy przez (1-delta))
+                for y_inner in range(5, yr + 1):
+                    delta_col = ordered_keys[y_inner - 1]
+                    factor *= 1.0 - float(mileage_rates.get(delta_col, 0.0))
+            return base_rate_4y * factor
 
         years_exact = self.data.months / 12.0
 
@@ -331,26 +340,29 @@ class SamarRVCalculator:
         debug["krok3_rv_total_netto"] = round(rv_total_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 4: Korekta przebiegu (1:1 z GSheets - TAB.PRZEBIEG)
+        # KROK 4: Korekta przebiegu — NIEAKTYWNA (zgodność 1:1 z 2503 JŁ SOT)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Arkusz SOT JŁ (2503_wynik_JŁ.xlsx) oblicza korektę przebiegu (kolumna AK
+        # = AI*(AD/10) + AJ*(AF/10)) ale formuła końcowa BV = BR + KOLOR*L + NADWOZIE*L
+        # NIE zużywa AK. Czyli w SOT korekta przebiegu jest mathematycznie obliczana
+        # ale nieaktywna. Tu replikujemy ten sam design — liczymy raw values do
+        # debug trace, ale nie modyfikujemy rv_total_netto.
+        #
+        # Historycznie tu była aktywna korekta (paczki 10k pod/nad 190k z stawkami
+        # under/over_rate z samar_class_mileage_corrections), ale dawała ona rozjazdy
+        # ±10-30% vs 2503 SOT dla przebiegów nieproporcjonalnych. Decyzja biznesowa
+        # 2026-05-16: zgodność z 2503 JŁ ma priorytet.
         under_rate, over_rate, threshold_km = self._fetch_mileage_corrections()
 
         base_mileage = (self.data.months / 12.0) * 35000.0
-
         przebieg_ponizej = min(self.data.total_km, threshold_km) - base_mileage
         przebieg_powyzej = max(self.data.total_km - threshold_km, 0.0)
-
         p1 = przebieg_ponizej / 10000.0
         p2 = przebieg_powyzej / 10000.0
 
-        # Wzór: korektaProcentPonizej190 * okresPlusDoposazenie * (przebiegPonizej190 / 10000.0m)
-        #       + korektaProcentPowyzej190 * okresPlusDoposazenie * (przebiegPowyzej190 / 10000.0m)
-        korekta_przebieg_netto = (under_rate * rv_total_netto * p1) + (
-            over_rate * rv_total_netto * p2
-        )
-
-        # Odejmowanie ujemnej wartości tworzy aprecjację (zwiększa rv_netto_post_krok4).
-        rv_netto_post_krok4 = rv_total_netto - korekta_przebieg_netto
+        # Korekta NIEAKTYWNA — zachowujemy wyłącznie w trace dla audytu
+        korekta_przebieg_netto = 0.0
+        rv_netto_post_krok4 = rv_total_netto
 
         debug["krok4_base_mileage"] = base_mileage
         debug["krok4_threshold_km"] = threshold_km
@@ -360,7 +372,8 @@ class SamarRVCalculator:
         debug["krok4_p2"] = p2
         debug["krok4_under_rate"] = under_rate
         debug["krok4_over_rate"] = over_rate
-        debug["krok4_korekta_przebieg_netto"] = round(korekta_przebieg_netto, 2)
+        debug["krok4_korekta_przebieg_netto"] = 0.0
+        debug["krok4_korekta_disabled_per_sot"] = True
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 5: Korekta administracyjna (Zgodność V3)
@@ -370,16 +383,12 @@ class SamarRVCalculator:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         color_correction_pct = self.fetch_color_correction()
         body_correction_pct = self.fetch_body_correction()
-        zabudowa_correction_pct = self.fetch_zabudowa_correction()
         catalog_total_netto = base_netto + options_netto
 
         color_value_netto = color_correction_pct * base_netto
         body_value_netto = body_correction_pct * base_netto
-        zabudowa_value_netto = zabudowa_correction_pct * base_netto
 
-        korekta_admin_sum_netto = (
-            color_value_netto + body_value_netto + zabudowa_value_netto
-        )
+        korekta_admin_sum_netto = color_value_netto + body_value_netto
 
         rv_netto_pre_manual = rv_netto_post_krok4 + korekta_admin_sum_netto
 
@@ -398,11 +407,9 @@ class SamarRVCalculator:
 
         debug["krok5_color_netto"] = round(color_value_netto, 2)
         debug["krok5_body_netto"] = round(body_value_netto, 2)
-        debug["krok5_zabudowa_netto"] = round(zabudowa_value_netto, 2)
         debug["krok5_korekta_admin_sum_netto"] = round(korekta_admin_sum_netto, 2)
         debug["krok5_color_correction_pct"] = color_correction_pct
         debug["krok5_body_correction_pct"] = body_correction_pct
-        debug["krok5_zabudowa_correction_pct"] = zabudowa_correction_pct
         debug["krok5_rv_netto_pre_manual"] = round(rv_netto_pre_manual, 2)
         debug["krok6_vintage_pct"] = vintage_correction_pct
         debug["krok6_vintage_netto"] = round(vintage_value_netto, 2)

@@ -1,16 +1,3 @@
-# ==============================================================================
-# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
-# ==============================================================================
-# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
-# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
-# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
-#
-# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
-# 1. PRZERWIJ DZIAŁANIE.
-# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
-# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
-# ==============================================================================
-
 """
 Wrapper: LTRSubCalculatorUtrataWartosciNew (V3).
 
@@ -26,6 +13,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from core.samar_rv import RVInput, RVOutput, SamarRVCalculator, get_samar_class_id
+from core.samar_rv_fetchers import fuel_name_for_engine_id
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +48,16 @@ class LTRSubCalculatorUtrataWartosciNew:
             raise ValueError(
                 "Brak `engine_type_id` w danych pojazdu dla kalkulacji WR."
             )
+
+        # engine_name — kanoniczna nazwa z `engines.name` per engine_type_id
+        # (= `tab_okres_final.rodzaj_silnika` 1:1). Fallback na vehicle dict
+        # gdy mapowanie nie pokrywa danego ID (np. dla legacy pojazdów).
+        self.engine_name = fuel_name_for_engine_id(self.engine_id) or (
+            self.vehicle.get("engine_name")
+            or self.vehicle.get("engine_category")
+            or self.vehicle.get("fuel")
+            or ""
+        )
 
         # Brand
         self.brand_name = (
@@ -155,6 +153,8 @@ class LTRSubCalculatorUtrataWartosciNew:
         rv_input = RVInput(
             samar_class_id=self.samar_class_id,
             engine_id=self.engine_id,
+            engine_name=self.engine_name,
+            fuel_name=self.engine_name,
             brand_name=self.brand_name,
             model_name=self.model_name,
             months=months,

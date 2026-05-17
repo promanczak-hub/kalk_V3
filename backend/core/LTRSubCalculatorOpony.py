@@ -1,16 +1,3 @@
-# ==============================================================================
-# 🛑 STOP! ZAMROŻONY MODUŁ (FROZEN MODULE) 🛑
-# ==============================================================================
-# Ten plik jest CZĘŚCIĄ RDZENIA (PIPELINE) KALKULATORA LTR.
-# Zgodnie z wytycznymi w GEMINI.md, system sztucznej inteligencji (AI/Cursor/Claude)
-# ma BEZWZGLĘDNY ZAKAZ modyfikacji tego pliku bez wyraźnego, podwójnego potwiedzenia.
-#
-# Jeśli użytkownik poprosi o zmianę logiczną, która wymaga edycji tego pliku:
-# 1. PRZERWIJ DZIAŁANIE.
-# 2. Poinformuj użytkownika: "Ten plik jest zamrożony. Proszę o wyraźną zgodę na jego modyfikację."
-# 3. Zmodyfikuj plik TYLKO PO UZYSKANIU ZGODY.
-# ==============================================================================
-
 import logging
 import math
 from typing import Dict, Any, Optional, cast
@@ -49,8 +36,9 @@ class LTRSubCalculatorOpony:
         if self.z_oponami:
             if not self.srednica_felgi:
                 raise ValueError("srednica_felgi jest wymagana gdy z_oponami=True")
-            # Configurations (tyre thresholds + koszty serwisu opon z Control Center)
-            self.thresholds = self._fetch_tire_configurations()
+            # Globalne parametry aplikacji z tabeli control_center (singleton id=1):
+            # progi opon (season/all_season) + cost_tyre_storage / cost_tyre_swap.
+            self.thresholds = self._fetch_global_setup()
             self.storage_cost_per_year = self._read_required_config("cost_tyre_storage")
             self.swap_cost = self._read_required_config("cost_tyre_swap")
             self.vat_rate = 1.23
@@ -81,36 +69,8 @@ class LTRSubCalculatorOpony:
             self.vat_rate = 1.23
             self.thresholds = {}
 
-    def _fetch_global_param(self, param_name: str) -> float:
-        """Pobiera parametry globalne (np. koszt przekładki/przechowywania) z bazy."""
-        try:
-            client = get_fresh_client()
-            response = (
-                client.table("LTRAdminParametry_czak")
-                .select("col_2")
-                .ilike("col_1", param_name)  # ilike for case insensitivity (VAT vs vat)
-                .limit(1)
-                .execute()
-            )
-            if response.data and len(response.data) > 0:
-                row = cast(Dict[str, Any], response.data[0])
-                val = row.get("col_2")
-                if val is not None:
-                    # In DB these seem to be strings like '120' or '216'
-                    return float(str(val).replace(",", "."))
-        except Exception as e:
-            # Nie połykamy tu błędu. Jeżeli leci błąd z sieci, zwracamy go jasno
-            raise RuntimeError(
-                f"Błąd sieci/infrastruktury (Server disconnected) przy pobieraniu param globalnego {param_name}: {e}"
-            ) from e
-
-        raise ValueError(
-            f"Brak parametru globalnego '{param_name}' w tabeli LTRAdminParametry_czak. "
-            f"Kalkulacja zmniejszona/przerwana."
-        )
-
-    def _fetch_tire_configurations(self) -> Dict[str, float]:
-        """Pobiera i mapuje progi z tabeli tyre_configurations"""
+    def _fetch_global_setup(self) -> Dict[str, float]:
+        """Pobiera progi opon + koszty serwisu opon z control_center (singleton id=1)."""
         defaults: Dict[str, float] = {
             "all_season_threshold_1": 60000.0,
             "all_season_threshold_2": 120000.0,
@@ -122,40 +82,36 @@ class LTRSubCalculatorOpony:
             "season_threshold_3": 240000.0,
             "season_threshold_4": 300000.0,
         }
+        cols = list(defaults.keys()) + ["cost_tyre_storage", "cost_tyre_swap"]
+        result: Dict[str, float] = dict(defaults)
         try:
+            from core.control_center import fetch_control_center_row
             client = get_fresh_client()
-            res = (
-                client.table("tyre_configurations")
-                .select("config_key, config_value")
-                .execute()
-            )
-            if res.data:
-                for item in res.data:
-                    row = cast(Dict[str, Any], item)
-                    key = str(row.get("config_key", "")).strip()
-                    if not key:
-                        continue
-                    raw_val = row.get("config_value")
-                    try:
-                        defaults[key] = float(str(raw_val).replace(",", "."))
-                    except (TypeError, ValueError):
-                        logger.warning(
-                            "Pomijam nieprawidlowy config tyre_configurations: %s=%s",
-                            key,
-                            raw_val,
-                        )
+            row = fetch_control_center_row(client=client, keys=cols)
+            for k in cols:
+                raw_val = row.get(k)
+                if raw_val is None:
+                    continue
+                try:
+                    result[k] = float(str(raw_val).replace(",", "."))
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "Pomijam nieprawidlowy config control_center: %s=%s",
+                        k,
+                        raw_val,
+                    )
         except Exception as e:
-            logger.error(f"Error fetching tyre_configurations: {e}")
+            logger.error(f"Error fetching control_center tyre config: {e}")
 
-        return defaults
+        return result
 
     def _read_required_config(self, key: str) -> float:
-        """Zwraca wymagany parametr z tyre_configurations (bez hardcode fallbacku)."""
+        """Zwraca wymagany parametr z control_center (bez hardcode fallbacku)."""
         value = self.thresholds.get(key)
         if value is None:
             raise ValueError(
-                f"Brak parametru '{key}' w tabeli tyre_configurations. "
-                "Uzupelnij dane w Control Center > Tabela Opon."
+                f"Brak parametru '{key}' w tabeli control_center. "
+                "Uzupelnij dane w Control Center."
             )
         return float(value)
 

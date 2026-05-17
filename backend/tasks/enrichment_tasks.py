@@ -1,4 +1,7 @@
 import logging
+from datetime import datetime, timedelta, timezone
+
+from celery.exceptions import Reject
 from core.celery_app import celery_app
 from core.database import supabase
 from core.feature_cross_reference import (
@@ -18,6 +21,39 @@ from core.cross_ref_llm import match_variant_with_llm
 from core.feature_resolver import resolve_vehicle_features
 
 logger = logging.getLogger(__name__)
+
+# Redis SET trackujący pojazdy z nieudanym embeddingiem — zapełniany przez
+# phase_2 trigger (jako fallback gdy Celery .delay padnie) i czyszczony po
+# sukcesie w generate_embedding_for_vehicle. backfill_recent_vehicle_embeddings
+# odczytuje ten set jako fast-lane priority.
+PENDING_EMBEDDING_SET = "kalk_v3:embedding:pending"
+
+
+def _redis_srem_pending(vehicle_id: str) -> None:
+    """Best-effort cleanup po sukcesie embeddingu. Nigdy nie rzuca."""
+    try:
+        from core.redis_cache import _get_client
+
+        client = _get_client()
+        if client is not None:
+            client.srem(PENDING_EMBEDDING_SET, vehicle_id)
+    except Exception as exc:  # noqa: BLE001 — best-effort
+        logger.debug(f"Redis SREM pending failed for {vehicle_id}: {exc}")
+
+
+def _redis_smembers_pending() -> list[str]:
+    """Best-effort fetch listy oczekujących pojazdów. Zwraca [] gdy Redis down."""
+    try:
+        from core.redis_cache import _get_client
+
+        client = _get_client()
+        if client is None:
+            return []
+        members = client.smembers(PENDING_EMBEDDING_SET)
+        return [m for m in members] if members else []
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(f"Redis SMEMBERS pending failed: {exc}")
+        return []
 
 
 @celery_app.task
@@ -115,14 +151,24 @@ def _vec_to_pg_literal(vec: list[float]) -> str:
     return "[" + ",".join(str(v) for v in vec) + "]"
 
 
-@celery_app.task
-def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
-    """Generate semantic + multi-vector embeddings for a vehicle.
+_EMBEDDING_COLUMNS = (
+    "semantic_embedding",
+    "vector_use_case",
+    "vector_specs",
+    "vector_equipment",
+)
 
-    Writes 4 columns: `semantic_embedding` (used by similar_vehicles RPCs and
-    `rpc_reverse_search`) and `vector_use_case`/`vector_specs`/`vector_equipment`
-    (used by `rpc_search_vehicles_multi_vector`). Each embedding is generated
-    independently — partial success still saves what worked.
+
+def _do_generate_embeddings(vehicle_id: str) -> dict:
+    """Czysta funkcja generująca embeddingi dla pojazdu.
+
+    Idempotentna: regeneruje TYLKO kolumny aktualnie NULL w DB. Wywoływana
+    z taska Celery (z retry/backoff) i z backfilli (bez retry — niech kolejny
+    cykl spróbuje ponownie).
+
+    Może rzucić wyjątek (np. transient API/SSL/network) — caller decyduje
+    czy retry. Rzuca :class:`celery.exceptions.Reject` na terminalne błędy
+    (vehicle not found, wszystkie teksty puste), żeby autoretry ich nie łapał.
     """
     logger.info(f"Generating embeddings for vehicle {vehicle_id}")
     sb = supabase
@@ -134,29 +180,53 @@ def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
         generate_embedding,
     )
 
+    # 1. Pobierz pojazd + sprawdź które kolumny już są wypełnione
+    select_cols = "brand, model, synthesis_data, " + ", ".join(_EMBEDDING_COLUMNS)
     v_resp = (
         sb.table("vehicle_synthesis")
-        .select("brand, model, synthesis_data")
+        .select(select_cols)
         .eq("id", vehicle_id)
         .execute()
     )
     if not v_resp.data:
-        return {"status": "error", "message": "Vehicle not found"}
+        # Terminal — pojazd nie istnieje, retry niczego nie zmieni.
+        raise Reject(reason=f"Vehicle {vehicle_id} not found", requeue=False)
 
     row = v_resp.data[0]
     brand = row.get("brand") or ""
     model = row.get("model") or ""
     synthesis = row.get("synthesis_data") or {}
 
+    # Idempotency: jeśli wszystkie 4 kolumny już są — nic nie rób.
+    already_present = {col for col in _EMBEDDING_COLUMNS if row.get(col) is not None}
+    if len(already_present) == len(_EMBEDDING_COLUMNS):
+        logger.info(f"Vehicle {vehicle_id} already has all embeddings — skipping")
+        _redis_srem_pending(vehicle_id)
+        return {
+            "status": "success",
+            "vehicle_id": vehicle_id,
+            "skipped": True,
+            "saved_columns": [],
+            "failures": [],
+        }
+
+    # 2. Buduj teksty TYLKO dla brakujących kolumn
+    text_builders = {
+        "semantic_embedding": lambda: build_vehicle_document(brand, model, synthesis),
+        "vector_use_case": lambda: build_use_case_text(brand, model, synthesis),
+        "vector_specs": lambda: build_specs_text(brand, model, synthesis),
+        "vector_equipment": lambda: build_equipment_text(brand, model, synthesis),
+    }
     texts = {
-        "semantic_embedding": build_vehicle_document(brand, model, synthesis),
-        "vector_use_case": build_use_case_text(brand, model, synthesis),
-        "vector_specs": build_specs_text(brand, model, synthesis),
-        "vector_equipment": build_equipment_text(brand, model, synthesis),
+        col: text_builders[col]()
+        for col in _EMBEDDING_COLUMNS
+        if col not in already_present
     }
 
+    # 3. Generuj embeddingi per kolumna (partial success allowed)
     update_payload: dict[str, str] = {}
     failures: list[str] = []
+    transient_errors: list[Exception] = []
     for column, text in texts.items():
         if not text or not text.strip():
             failures.append(f"{column}:empty_text")
@@ -164,28 +234,35 @@ def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
         try:
             vec = generate_embedding(text)
         except Exception as exc:
-            logger.exception(f"Embedding error for {vehicle_id} {column}: {exc}")
-            failures.append(f"{column}:exception")
+            # Transient (Vertex 429, network, SSL/EOF) — zachowujemy i ewentualnie
+            # rzucamy na końcu, żeby Celery zrobił autoretry.
+            logger.warning(
+                f"Embedding error for {vehicle_id} {column}: {exc!r}"
+            )
+            failures.append(f"{column}:exception:{type(exc).__name__}")
+            transient_errors.append(exc)
             continue
         if not vec:
             failures.append(f"{column}:none")
             continue
         update_payload[column] = _vec_to_pg_literal(vec)
 
-    if not update_payload:
-        logger.error(
-            f"Failed to generate ANY embedding for vehicle {vehicle_id}: {failures}"
-        )
-        return {
-            "status": "error",
-            "message": "All embeddings failed",
-            "failures": failures,
-        }
+    # 4. Wszystkie teksty były puste → terminal (Reject, bez retry)
+    if not update_payload and not transient_errors:
+        all_empty = all(f.endswith(":empty_text") or f.endswith(":none") for f in failures)
+        if all_empty:
+            logger.error(
+                f"All texts empty for vehicle {vehicle_id}: {failures} — terminal"
+            )
+            raise Reject(
+                reason=f"All embedding texts empty for {vehicle_id}",
+                requeue=False,
+            )
 
-    if any(k.startswith("vector_") for k in update_payload):
-        update_payload["multi_vectors_at"] = "now()"
-
-    try:
+    # 5. Zapisz to co się udało wygenerować
+    if update_payload:
+        if any(k.startswith("vector_") for k in update_payload):
+            update_payload["multi_vectors_at"] = "now()"
         sb.table("vehicle_synthesis").update(update_payload).eq(
             "id", vehicle_id
         ).execute()
@@ -193,20 +270,60 @@ def generate_embedding_for_vehicle(vehicle_id: str) -> dict:
             f"Saved {sorted(update_payload)} for vehicle {vehicle_id}"
             + (f" (failures: {failures})" if failures else "")
         )
-        return {
-            "status": "success",
-            "vehicle_id": vehicle_id,
-            "saved_columns": sorted(update_payload),
-            "failures": failures,
-        }
-    except Exception as e:
-        logger.exception(f"DB Error saving embeddings for {vehicle_id}")
-        return {"status": "error", "message": str(e)}
+
+    # 6. Jeśli były transient errors a my mamy jeszcze brakujące kolumny —
+    # rzucamy je, niech Celery zrobi retry z backoffem.
+    still_missing = set(_EMBEDDING_COLUMNS) - already_present - set(update_payload.keys())
+    if still_missing and transient_errors:
+        # Wybierz pierwszy najbardziej "ciekawy" błąd jako reason — Celery
+        # autoretry_for=(Exception,) złapie i zaplanuje retry.
+        raise transient_errors[0]
+
+    # 7. Sukces (pełny lub częściowy, ale bez retryowalnych błędów)
+    if not still_missing:
+        _redis_srem_pending(vehicle_id)
+
+    return {
+        "status": "success",
+        "vehicle_id": vehicle_id,
+        "saved_columns": sorted(c for c in update_payload if c != "multi_vectors_at"),
+        "failures": failures,
+        "still_missing": sorted(still_missing),
+    }
+
+
+@celery_app.task(
+    bind=True,
+    max_retries=5,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)
+def generate_embedding_for_vehicle(self, vehicle_id: str) -> dict:
+    """Generate semantic + multi-vector embeddings for a vehicle.
+
+    Writes 4 columns: `semantic_embedding` (used by similar_vehicles RPCs and
+    `rpc_reverse_search`) and `vector_use_case`/`vector_specs`/`vector_equipment`
+    (used by `rpc_search_vehicles_multi_vector`). Each embedding is generated
+    independently — partial success still saves what worked.
+
+    Retry: do 5 prób z exponential backoff + jitter (do 600s cap). Terminal
+    failures (`Vehicle not found`, all texts empty) rzucają `Reject(requeue=False)`
+    — nie są retry'owane. Sukces best-effort SREM z `kalk_v3:embedding:pending`.
+    """
+    logger.info(
+        f"embedding_task_attempt vehicle={vehicle_id} attempt={self.request.retries + 1}/{self.max_retries + 1}"
+    )
+    return _do_generate_embeddings(vehicle_id)
 
 
 @celery_app.task
 def backfill_vehicle_embeddings() -> dict:
-    """Backfill embeddings for vehicles missing semantic OR any multi-vector column."""
+    """Defensive full-sweep backfill: regeneruje embeddingi dla wszystkich
+    pojazdów z NULL w jakiejkolwiek z 4 kolumn wektorowych. Odpalany co 6h
+    przez beat schedule. Wewnątrz wywołuje `_do_generate_embeddings` bez
+    retry — kolejny sweep złapie ewentualne porażki."""
     logger.info("Starting vehicle embedding backfill process")
     sb = supabase
 
@@ -227,8 +344,15 @@ def backfill_vehicle_embeddings() -> dict:
 
     success_count = 0
     for v in vehicles:
-        res = generate_embedding_for_vehicle(v["id"])
-        if res.get("status") == "success":
+        try:
+            res = _do_generate_embeddings(v["id"])
+        except Reject as exc:
+            logger.warning(f"Backfill rejected {v['id']}: {exc.reason}")
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(f"Backfill failed for {v['id']}: {exc}")
+            continue
+        if res.get("status") == "success" and not res.get("still_missing"):
             success_count += 1
 
     logger.info(
@@ -238,4 +362,68 @@ def backfill_vehicle_embeddings() -> dict:
         "status": "success",
         "processed": len(vehicles),
         "successful": success_count,
+    }
+
+
+@celery_app.task
+def backfill_recent_vehicle_embeddings() -> dict:
+    """Fast-lane backfill (co 10 min) dla pojazdów świeżo wyekstrahowanych
+    LUB explicite zarejestrowanych w Redis SET `kalk_v3:embedding:pending`.
+
+    Skraca worst-case okno "świeży pojazd bez embeddingów → 'Brak podobnych'"
+    z 6h (defensive sweep) na <10 min. Nie hammeruje Vertex AI pełnym
+    katalogiem co 10 min — tylko ostatnie 2h + jawnie pending.
+    """
+    logger.info("Starting recent-vehicle embedding backfill process")
+    sb = supabase
+
+    # Recent vehicles (2h window) z jakimkolwiek NULL.
+    # NB: PostgREST nie ewaluuje SQL — przekazujemy gotowy ISO timestamp
+    # liczony po stronie Pythona zamiast `now() - interval '2 hours'`.
+    two_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    recent_resp = (
+        sb.table("vehicle_synthesis")
+        .select("id, created_at")
+        .or_(
+            "semantic_embedding.is.null,"
+            "vector_use_case.is.null,"
+            "vector_specs.is.null,"
+            "vector_equipment.is.null"
+        )
+        .gte("created_at", two_hours_ago)
+        .execute()
+    )
+    recent_ids = [v["id"] for v in (recent_resp.data or [])]
+
+    # Plus pending z Redis (best-effort, [] gdy down)
+    pending_ids = _redis_smembers_pending()
+
+    # Unique union
+    all_ids = list({*recent_ids, *pending_ids})
+    logger.info(
+        f"Recent backfill: {len(recent_ids)} recent + {len(pending_ids)} pending = {len(all_ids)} unique"
+    )
+
+    success_count = 0
+    for vid in all_ids:
+        try:
+            res = _do_generate_embeddings(vid)
+        except Reject as exc:
+            logger.warning(f"Recent backfill rejected {vid}: {exc.reason}")
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(f"Recent backfill failed for {vid}: {exc}")
+            continue
+        if res.get("status") == "success" and not res.get("still_missing"):
+            success_count += 1
+
+    logger.info(
+        f"Recent backfill complete: {success_count}/{len(all_ids)} vehicles."
+    )
+    return {
+        "status": "success",
+        "processed": len(all_ids),
+        "successful": success_count,
+        "recent": len(recent_ids),
+        "pending": len(pending_ids),
     }

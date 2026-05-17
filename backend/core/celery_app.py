@@ -48,5 +48,13 @@ celery_app.conf.update(
             "task": "tasks.enrichment_tasks.backfill_vehicle_embeddings",
             "schedule": 21600.0,  # 6 hours
         },
+        # Fast-lane: zbieraj świeżo wyekstrahowane pojazdy (created_at <2h)
+        # i te jawnie zarejestrowane w Redis SET embedding:pending. Mały N
+        # → tani cykl. Skraca worst-case okno "świeży pojazd bez embeddings"
+        # z 6h do <10 min, bez hammerowania Vertex AI pełnym katalogiem.
+        "backfill-recent-vehicles-every-10-min": {
+            "task": "tasks.enrichment_tasks.backfill_recent_vehicle_embeddings",
+            "schedule": 600.0,  # 10 minutes
+        },
     },
 )

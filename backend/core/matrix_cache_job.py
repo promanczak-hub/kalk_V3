@@ -359,20 +359,21 @@ def process_single_kalkulacja_matrix_task(
     _upsert_job(vehicle_id, "running", celery_task_id=celery_task_id)
 
     # 2. Load CC settings (needed for both direct parse and fallback)
-    settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-    if not settings_res.data:
+    from core.control_center import fetch_control_center_settings
+    try:
+        settings = fetch_control_center_settings()
+    except Exception as cc_err:
         logger.error(
-            "process_single_kalkulacja_matrix_task: Control center settings not found"
+            "process_single_kalkulacja_matrix_task: Control center settings not found: %s",
+            cc_err,
         )
         _upsert_job(
             vehicle_id,
             "failed",
             error_code="NO_CC_SETTINGS",
-            error_detail="control_center table empty",
+            error_detail=f"control_center read failed: {cc_err}",
         )
         return
-    settings_dict = cast(dict[str, Any], settings_res.data[0])
-    settings = ControlCenterSettings(**settings_dict)
 
     # 3. Build CalculatorInput — try direct parse first, fallback to build_calculator_input
     calc_input: CalculatorInput | None = None
@@ -481,6 +482,14 @@ def process_single_kalkulacja_matrix_task(
             koszt_dzienny_val = float(cell.get("KosztDzienny", 0.0))
             if koszt_dzienny_val > 0 and (min_koszt_dzienny is None or koszt_dzienny_val < min_koszt_dzienny):
                 min_koszt_dzienny = koszt_dzienny_val
+            utrata = float(cell.get("UtrataWartosci", 0.0)) or None
+            serwis = float(cell.get("KosztySerwisowe", 0.0)) or None
+            opony = float(cell.get("LacznyKosztOpon", 0.0)) or None
+            ubezp = float(cell.get("LacznieUbezpieczenie", 0.0)) or None
+            wr_pct_val: float | None = None
+            if utrata is not None and base_price_net > 0:
+                wr_pct_val = round((utrata / base_price_net) * 100, 2)
+
             records_to_upsert.append(
                 {
                     "vehicle_id": str(vehicle_id),
@@ -493,6 +502,11 @@ def process_single_kalkulacja_matrix_task(
                     "monthly_price_net": monthly_price_net,
                     "tire_class": tire_class,
                     "service_type": service_type,
+                    "utrata_wartosci_pln": utrata,
+                    "koszty_serwisowe_pln": serwis,
+                    "koszt_opon_pln": opony,
+                    "ubezpieczenie_pln": ubezp,
+                    "wr_pct": wr_pct_val,
                 }
             )
 
@@ -558,14 +572,15 @@ def refresh_matrix_cache_for_vehicles(vehicle_ids: list[str]) -> None:
     vehicles = v_res.data or []
 
     # 2. Fetch CC settings
-    settings_res = supabase.table("control_center").select("*").eq("id", 1).execute()
-    if not settings_res.data:
+    from core.control_center import fetch_control_center_settings
+    try:
+        settings = fetch_control_center_settings()
+    except Exception as cc_err:
         logger.error(
-            "refresh_matrix_cache_for_vehicles: Control center settings not found"
+            "refresh_matrix_cache_for_vehicles: Control center settings not found: %s",
+            cc_err,
         )
         return
-    settings_dict = cast(dict[str, Any], settings_res.data[0])
-    settings = ControlCenterSettings(**settings_dict)
 
     import uuid
     from datetime import datetime

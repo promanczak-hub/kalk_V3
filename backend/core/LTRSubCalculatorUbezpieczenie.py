@@ -30,6 +30,7 @@ class InsuranceCalculator:
             raise ValueError("Cena bazowa (base_price) musi być > 0")
 
         trace: list[dict[str, Any]] = []
+        year_breakdown: list[dict[str, Any]] = []
         total_cost_period = 0.0
 
         average_damage_value_base = float(
@@ -145,6 +146,21 @@ class InsuranceCalculator:
 
             skladka_laczna_rok = skladka_roczna + szkoda_rocznie
 
+            year_breakdown.append(
+                {
+                    "rok": year,
+                    "PostawaNaliczania": podstawa_naliczania,
+                    "SkladkaBazowaAC": stawka_ac,
+                    "SkladkaAC": skladka_ac_kwota,
+                    "SkladkaOC": skladka_oc_kwota,
+                    "DoubezpieczenieKradziezy": 0.0,
+                    "DoubezpieczenieNaukaJazdy": 0.0,
+                    "SkladkaRoczna": skladka_roczna,
+                    "SredniaWartoscSzkodyRocznie": szkoda_rocznie,
+                    "SkladkaLacznie": skladka_laczna_rok,
+                }
+            )
+
             # Add to total cost ONLY if the months span overlaps this year
             if months > v2:
                 print(
@@ -170,8 +186,15 @@ class InsuranceCalculator:
             }
         )
 
+        for yb in year_breakdown:
+            yb["SkladkaWCalymOkresie"] = total_cost_net if yb["rok"] == int(months / 12) + (1 if months % 12 else 0) else 0.0
+
         return {
             "monthly_insurance": monthly_cost_net,
             "total_insurance": total_cost_net,
             "trace": trace,
+            "year_breakdown": year_breakdown,
+            "srednia_szkoda_calosc": srednia_szkoda_calosc,
+            "wsp_sredni_przebieg": wsp_sredni_przebieg,
+            "wsp_wartosc_szkody": wsp_wartosc_szkody,
         }

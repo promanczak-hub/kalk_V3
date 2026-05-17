@@ -18,44 +18,98 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════
 
 # Muszą dokładnie odpowiadać wartościom w kolumnie `rodzaj_silnika`
-# tabeli `tab_okres_final`.
+# tabeli `tab_okres_final` (SOT). Aktualne wartości w DB (9 sztuk):
+#   "Benzyna (PB)", "Benzyna mHEV (PB-mHEV)",
+#   "Diesel (ON)", "Diesel mHEV (ON-mHEV)",
+#   "Hybryda (HEV)", "Plug-in Hybrid (PHEV)",
+#   "Elektryczny (BEV)", "Wodór (FCEV)", "LPG"
 KNOWN_FUEL_TYPES: frozenset[str] = frozenset(
     [
-        "Benzyna",
-        "Diesel",
-        "Elektryczny",
-        "Hybryda Plug-in",
+        "Benzyna (PB)",
+        "Benzyna mHEV (PB-mHEV)",
+        "Diesel (ON)",
+        "Diesel mHEV (ON-mHEV)",
         "Hybryda (HEV)",
-        "Benzyna+LPG",
-        "Wodór",
+        "Plug-in Hybrid (PHEV)",
+        "Elektryczny (BEV)",
+        "Wodór (FCEV)",
+        "LPG",
     ]
 )
 
+# Mapowanie engine_type_id (z tabeli `engines`) → kanoniczna nazwa
+# z `tab_okres_final.rodzaj_silnika`. Identyczne z engines.name 1:1.
+ENGINE_ID_TO_FUEL: dict[int, str] = {
+    1: "Benzyna (PB)",
+    2: "Diesel (ON)",
+    3: "Benzyna mHEV (PB-mHEV)",
+    4: "Diesel mHEV (ON-mHEV)",
+    5: "Hybryda (HEV)",
+    6: "Plug-in Hybrid (PHEV)",
+    7: "Elektryczny (BEV)",
+    8: "Wodór (FCEV)",
+    9: "LPG",
+}
+
+
+def fuel_name_for_engine_id(engine_type_id: int) -> str | None:
+    """Zwraca kanoniczną nazwę rodzaj_silnika dla engine_type_id (1-9).
+
+    None gdy nieznane ID — caller może zrobić fallback przez _normalize_fuel_name.
+    """
+    return ENGINE_ID_TO_FUEL.get(int(engine_type_id) if engine_type_id else 0)
+
 
 def _normalize_fuel_name(brand: str, engine_name: str) -> str:
-    """Ujednolica nazwy paliw na potrzeby lookupów w V3 (rodzaj_silnika).
+    """Ujednolica nazwy paliw na potrzeby lookupów w tab_okres_final.
 
-    Mapuje wyłącznie na wartości z KNOWN_FUEL_TYPES (1:1 z tab_okres_final).
-    Przy nieznanym paliwie rzuca ValueError (Fail-Fast — GEMINI.md §2A).
+    Pipeline:
+      1. Jeśli engine_name już jest kanoniczną nazwą (w KNOWN_FUEL_TYPES) → zwróć as-is.
+      2. Inaczej legacy heurystyki keyword → mapuj na kanoniczną nazwę.
+      3. Inaczej ValueError (Fail-Fast).
+
+    Argumenty:
+        brand: marka (tylko do error msg, nie wpływa na mapowanie).
+        engine_name: dowolna postać (np. "Benzyna (PB)", "BENZYNA", "Diesel", "PHEV").
     """
-    normalized = engine_name.strip().upper()
+    if engine_name in KNOWN_FUEL_TYPES:
+        return engine_name
 
-    if "BENZYNA" in normalized and "LPG" in normalized:
-        return "Benzyna+LPG"
-    if "LPG" in normalized:
-        return "Benzyna+LPG"
-    if "BENZYNA" in normalized:
-        return "Benzyna"
-    if "DIESEL" in normalized:
-        return "Diesel"
-    if "ELEKTRYCZNY" in normalized or "BEV" in normalized:
-        return "Elektryczny"
-    if "HYBRYDA PLUG-IN" in normalized or "PHEV" in normalized:
-        return "Hybryda Plug-in"
-    if "HYBRYDA (HEV)" in normalized or "HEV" in normalized:
+    n = engine_name.strip().upper()
+
+    # mHEV warianty (sprawdzić PRZED czystą "BENZYNA"/"DIESEL", bo zawierają te słowa)
+    if "MHEV" in n or "PB-MHEV" in n:
+        if "DIESEL" in n or "ON" in n:
+            return "Diesel mHEV (ON-mHEV)"
+        return "Benzyna mHEV (PB-mHEV)"
+    if "ON-MHEV" in n:
+        return "Diesel mHEV (ON-mHEV)"
+
+    # PHEV (sprawdzić PRZED ogólnym "HEV")
+    if "PHEV" in n or "PLUG-IN" in n or "PLUG IN" in n:
+        return "Plug-in Hybrid (PHEV)"
+
+    # LPG (sprawdzić PRZED "BENZYNA" bo "Benzyna+LPG" zawiera oba)
+    if "LPG" in n:
+        return "LPG"
+
+    # BEV / elektryczny
+    if "ELEKTRYCZNY" in n or "BEV" in n or n == "EV":
+        return "Elektryczny (BEV)"
+
+    # Wodór
+    if "WODÓR" in n or "WODOR" in n or "FCEV" in n or "H2" in n:
+        return "Wodór (FCEV)"
+
+    # HEV (po PHEV i mHEV)
+    if "HEV" in n or "HYBRYDA" in n:
         return "Hybryda (HEV)"
-    if "WODÓR" in normalized or "WODOR" in normalized or "H2" in normalized:
-        return "Wodór"
+
+    # Czysta benzyna / diesel
+    if "BENZYNA" in n or n == "PB":
+        return "Benzyna (PB)"
+    if "DIESEL" in n or n == "ON":
+        return "Diesel (ON)"
 
     raise ValueError(
         f"Nieznany rodzaj silnika: '{engine_name}' (brand={brand!r}). "
@@ -231,174 +285,84 @@ def fetch_color_correction_cached(
 
 
 @redis_cache(ttl_seconds=3600, prefix="samar_rv:")
-def fetch_body_correction_cached(
-    engine_id: int, brand_name: str, body_type_id: Optional[int]
-) -> float:
-    """Korekta nadwozia z kaskadą fallbacków (marka + nadwozie + silnik).
+def fetch_body_correction_cached(body_type_id: Optional[int]) -> float:
+    """Korekta WR per typ nadwozia.
 
-    ORAZ globalny fallback z body_types.utrata_wartosci.
+    SOT: GSheet body_types.Korekta (gid=484265370) → DB body_types.utrata_wartosci.
+    Composite cabin+zabudowa (np. "Podwozie Brygadowe Skrzynia") jest pojedynczym
+    body_type, więc nie potrzebujemy osobnej korekty zabudowy.
     """
     if not body_type_id:
         return 0.0
 
     from core.database import supabase
 
-    brand = brand_name.strip().upper() if brand_name else ""
-
-    def _extract(rows: list[dict]) -> float:  # type: ignore[type-arg]
-        return float(rows[0].get("correction_percent") or 0.0)
-
     try:
-        tbl = "body_type_wr_corrections"
-        cols = "correction_percent"
-
-        # 1.1 EXACT: marka + nadwozie + silnik
-        if brand and engine_id:
-            res = (
-                supabase.table(tbl)
-                .select(cols)
-                .eq("brand_name", brand)
-                .eq("body_type_id", body_type_id)
-                .eq("engine_type_id", engine_id)
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return _extract(res.data)
-
-        # 1.2 NO-ENGINE: marka + nadwozie (engine IS NULL)
-        if brand:
-            res = (
-                supabase.table(tbl)
-                .select(cols)
-                .eq("brand_name", brand)
-                .eq("body_type_id", body_type_id)
-                .is_("engine_type_id", "null")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return _extract(res.data)
-
-        # 1.3 NO-BODY: marka (body IS NULL, engine IS NULL)
-        if brand:
-            res = (
-                supabase.table(tbl)
-                .select(cols)
-                .eq("brand_name", brand)
-                .is_("body_type_id", "null")
-                .is_("engine_type_id", "null")
-                .limit(1)
-                .execute()
-            )
-            if res.data:
-                return _extract(res.data)
-
-        # 1.4 GLOBAL FALLBACK w tabeli korekt (brand='', engine=NULL)
         res = (
-            supabase.table(tbl)
-            .select(cols)
-            .eq("brand_name", "")
-            .eq("body_type_id", body_type_id)
-            .is_("engine_type_id", "null")
+            supabase.table("body_types")
+            .select("utrata_wartosci")
+            .eq("id", body_type_id)
             .limit(1)
             .execute()
         )
         if res.data:
-            return _extract(res.data)
-
+            return float(res.data[0].get("utrata_wartosci") or 0.0)
     except Exception as exc:
-        logger.warning("Błąd kaskady body correction: %s", exc)
+        logger.warning("Błąd body correction: %s", exc)
 
     return 0.0
 
 
 @redis_cache(ttl_seconds=3600, prefix="samar_rv:")
-def fetch_zabudowa_correction_cached(
-    body_type_id: Optional[int], samar_class_id: int
+def fetch_vintage_correction_cached(
+    rocznik: str, samar_class_id: int | None = None
 ) -> float:
-    """Korekta zabudowy dla dostawczych (Typ Zabudowy + Klasa SAMAR) bez marki."""
-    if not body_type_id:
-        return 0.0
+    """Korekta za rocznik z `ltr_admin_korekta_wr_roczniks` (per klasa SAMAR).
 
+    Aktualny schemat DB (2026-05-16):
+        klasa_samar_fk          : FK do samar_classes.id
+        rocznik_biezacy         : korekta dla "current" rocznika (zwykle 0.0)
+        korekta_za_ubiegly_rocznik : korekta dla "previous" (-1) rocznika (zwykle -0.08)
+
+    Wcześniejsza wersja querowała nieistniejące kolumny `rocznik`/`korekta_procent`
+    i cicho zwracała 0.0 dla każdego rocznika (catch Exception → 0.0).
+
+    Argumenty:
+        rocznik: "current" / "previous" / dowolny inny.
+        samar_class_id: opcjonalne — jeśli podane, filtruje per klasa. Bez
+            tego bierze pierwszy wiersz (wszystkie klasy w DB mają obecnie
+            identyczne wartości, ale design SOT pozwala na różnicowanie).
+    """
     from core.database import supabase
 
-    def _extract(rows: list[dict]) -> float:  # type: ignore[type-arg]
-        return float(rows[0].get("zabudowa_correction_percent") or 0.0)
-
+    column = "rocznik_biezacy" if rocznik == "current" else "korekta_za_ubiegly_rocznik"
     try:
-        tbl = "body_type_wr_corrections"
-        cols = "zabudowa_correction_percent"
-
-        # 1. Typ Zabudowy + Klasa SAMAR (brand='')
-        res = (
-            supabase.table(tbl)
-            .select(cols)
-            .eq("body_type_id", body_type_id)
-            .eq("samar_class_id", samar_class_id)
-            .eq("brand_name", "")
-            .limit(1)
-            .execute()
-        )
+        query = supabase.table("ltr_admin_korekta_wr_roczniks").select(column)
+        if samar_class_id:
+            query = query.eq("klasa_samar_fk", samar_class_id)
+        res = query.limit(1).execute()
         if res.data:
-            return _extract(res.data)
-
-        # 2. GLOBAL FALLBACK: tylko Typ Zabudowy (samar_class IS NULL)
-        res2 = (
-            supabase.table(tbl)
-            .select(cols)
-            .eq("body_type_id", body_type_id)
-            .is_("samar_class_id", "null")
-            .eq("brand_name", "")
-            .limit(1)
-            .execute()
-        )
-        if res2.data:
-            return _extract(res2.data)
-
+            val = res.data[0].get(column)
+            if val is not None:
+                return float(val)
     except Exception as exc:
-        logger.warning("Błąd zabudowa correction: %s", exc)
-
-    return 0.0
-
-
-@redis_cache(ttl_seconds=3600, prefix="samar_rv:")
-def fetch_vintage_correction_cached(rocznik: str) -> float:
-    """Korekta za rocznik z ltr_admin_korekta_wr_roczniks."""
-    from core.database import supabase
-
-    vintage_map = {"current": "bieżący", "previous": "bieżący-1"}
-    db_key = vintage_map.get(rocznik, rocznik)
-    try:
-        res = (
-            supabase.table("ltr_admin_korekta_wr_roczniks")
-            .select("korekta_procent")
-            .ilike("rocznik", f"%{db_key}%")
-            .limit(1)
-            .execute()
+        logger.warning(
+            "Błąd vintage correction (rocznik=%s, klasa=%s): %s",
+            rocznik,
+            samar_class_id,
+            exc,
         )
-        if res.data:
-            return float(res.data[0].get("korekta_procent", 0.0))
-    except Exception as exc:
-        logger.warning("Błąd vintage correction: %s", exc)
     return 0.0
 
 
 @redis_cache(ttl_seconds=900, prefix="samar_rv:")
 def fetch_lo_param_cached() -> float:
-    """PrzewidywanaCenaSprzedazyLO z control_center (kolumna)."""
-    from core.database import supabase
+    """PrzewidywanaCenaSprzedazyLO z control_center (klucz EAV)."""
+    from core.control_center import fetch_control_center_value
 
     try:
-        res = (
-            supabase.table("control_center")
-            .select("przewidywana_cena_sprzedazy_lo")
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            val = res.data[0].get("przewidywana_cena_sprzedazy_lo", 0.0)
-            return float(val) if val is not None else 0.0
+        val = fetch_control_center_value("przewidywana_cena_sprzedazy_lo", default=0.0)
+        return float(val) if val is not None else 0.0
     except Exception:
         logger.warning("Nie udało się pobrać PrzewidywanaCenaSprzedazyLO")
     return 0.0

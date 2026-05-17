@@ -284,8 +284,8 @@ class PipelineDebugger(LTRKalkulator):
         rv_res = rv_calc.calculate_values(
             months=months,
             total_km=total_km,
-            base_vehicle_capex_gross=base_price_net_full * vat_rate,
-            options_capex_gross=base_wr_options * vat_rate,
+            base_vehicle_catalog_gross=base_price_net_full * vat_rate,
+            options_catalog_gross=base_wr_options * vat_rate,
         )
 
         orig_vr_samar = float(rv_res["WR"])
@@ -316,14 +316,18 @@ class PipelineDebugger(LTRKalkulator):
                 "inputs": {
                     "months": months,
                     "total_km": total_km,
-                    "base_vehicle_capex_gross": base_price_net_full * vat_rate,
-                    "options_capex_gross": base_wr_options * vat_rate,
+                    "base_vehicle_catalog_gross": base_price_net_full * vat_rate,
+                    "options_catalog_gross": base_wr_options * vat_rate,
                     "wp_amortyzacja": wp_amortyzacja,
                 },
                 "outputs": {
                     "vr_samar": vr_samar,
                     "utrata_z_czynszem": utrata_z_czynszem,
                     "utrata_bez_czynszu": utrata_bez_czynszu,
+                    "rv_debug": rv_res.get("debug", {}),
+                    "wp_amortyzacja": wp_amortyzacja,
+                    "base_price_net_full": base_price_net_full,
+                    "discounted_factory_options": discounted_factory_options,
                 },
                 "metadata": {
                     "utrata_z_czynszem": {
@@ -409,6 +413,17 @@ class PipelineDebugger(LTRKalkulator):
                 "outputs": {
                     "insurance_base": insurance_base,
                     "insurance_total": insurance_total,
+                    "year_breakdown": insurance_res.get("year_breakdown", []),
+                    "srednia_szkoda_calosc": insurance_res.get(
+                        "srednia_szkoda_calosc", 0.0
+                    ),
+                    "wsp_sredni_przebieg": insurance_res.get(
+                        "wsp_sredni_przebieg", 0.0
+                    ),
+                    "wsp_wartosc_szkody": insurance_res.get(
+                        "wsp_wartosc_szkody", 0.0
+                    ),
+                    "klasa_id": klasa_id,
                 },
                 "metadata": {
                     "insurance_base": {
@@ -467,6 +482,16 @@ class PipelineDebugger(LTRKalkulator):
                     ),
                     "wykup_kwota": float(finance_res.WykupKwota),
                     "czynsz_procent": float(finance_res.CzynszInicjalnyProcent),
+                    "oprocentowanie": float(finance_res.Oprocentowanie),
+                    "rata_procent": (
+                        float(finance_res.WykupKwota / capex_for_financing)
+                        if capex_for_financing
+                        else 0.0
+                    ),
+                    "raty_z_czynszem": [vars(r) for r in finance_res.RatyZczynszem],
+                    "raty_bez_czynszu": [vars(r) for r in finance_res.RatyBezCzynszu],
+                    "wartosc_poczatkowa_netto": capex_for_financing,
+                    "wartosc_kredytu": capex_for_financing - czynsz_inicjalny,
                 },
                 "metadata": {
                     "koszt_finansowy": {
