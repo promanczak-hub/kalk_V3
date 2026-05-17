@@ -56,3 +56,13 @@ dev = [
     "types-requests (>=2.32.4.20260107,<3.0.0.0)",
     "sqlalchemy2-stubs (>=0.0.2a38,<0.0.3)"
 ]
+
+[tool.pytest.ini_options]
+# Add backend/ to sys.path so tests can `from main import app` and
+# `from core.X import Y` without needing the cwd on PATH.
+pythonpath = ["."]
+# Only collect tests under tests/ — prevents pytest from picking up
+# script_*_test.py in scripts/ and stray test_*.txt dumps in backend root.
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+norecursedirs = ["scripts", ".venv", "__pycache__", "extraction_pipeline"]
