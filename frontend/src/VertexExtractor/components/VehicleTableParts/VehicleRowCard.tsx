@@ -97,6 +97,7 @@ interface VehicleRowCardProps {
   paintTypes?: { id: number; name: string; [key: string]: unknown }[];
   driveTypes?: string[];
   transmissionTypes?: string[];
+  onOpenHITL?: () => void;
 
 }
 
@@ -113,6 +114,7 @@ export function VehicleRowCard({
   paintTypes,
   driveTypes,
   transmissionTypes,
+  onOpenHITL,
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const scrolledToMatrixRef = useRef(false);
@@ -771,6 +773,8 @@ export function VehicleRowCard({
         technicalDescription={technicalDescription}
         setCustomDiscountAmountNet={setCustomDiscountAmountNet}
         activeDiscountAmountNet={activeDiscountAmountNet}
+        onPriceFilled={onRefresh}
+        onOpenHITL={onOpenHITL}
       />
 
 

@@ -137,6 +137,53 @@ class DiscountOverrideRequest(BaseModel):
     audit_note: str | None = None
 
 
+class FillBasePriceRequest(BaseModel):
+    base_price: float
+    domain: str = "brutto"  # "brutto" | "netto"
+    options_price: float | None = None  # optional, same domain as base_price
+
+
+# ── HITL Wizard payload models ──
+
+class HITLPriceCorrection(BaseModel):
+    """Pojedyncza korekta pozycji cenowej z wizarda HITL."""
+    field_id: str
+    bucket: str  # "base" | "factory" | "zabudowa" | "agregat" | "skip"
+    price_value: float
+    price_type: str  # "netto" | "brutto"
+    vat_rate: float = 0.23
+
+
+class HITLDiscountCorrection(BaseModel):
+    """Korekta rabatu z wizarda HITL."""
+    rabat_type: str  # "kwotowo" | "procentowo"
+    rabat_basis: str  # "netto" | "brutto"
+    rabat_value: float  # kwota (PLN) lub procent (0-100)
+    discount_scope: list[str] = []  # ["base", "factory_options", ...]
+
+
+class HITLApplyPayload(BaseModel):
+    """Pełna paczka korekt z wizarda HITL — wysyłana z frontu na save."""
+    price_corrections: list[HITLPriceCorrection] = []
+    discount: HITLDiscountCorrection | None = None
+    zabudowa_sot_key: str | None = None  # "KONTENER" | "CHLODNIA" | "IZOTERMA" | ...
+    cabin_kind: str | None = None  # "podwozie" | "podwozie_brygadowe" | "furgon" | ...
+    catalog_id_override: str | None = None
+    trim_level_override: str | None = None
+    engine_class_override: str | None = None
+    duplicate_resolutions: Dict[str, str] = {}  # field_id → "keep" | "merge_into:<other_id>"
+    currency: str = "PLN"
+    user_notes: str = ""
+
+
+class HITLPreviewPayload(BaseModel):
+    """Dry-run preview — bez persist. Zwraca derived composite_body_style + WR%."""
+    zabudowa_sot_key: str | None = None
+    cabin_kind: str | None = None
+    price_corrections: list[HITLPriceCorrection] = []
+    discount: HITLDiscountCorrection | None = None
+
+
 @router.post("/extract/backfill-discount/{vehicle_id}")
 def backfill_discount_single(
     vehicle_id: str, request: DiscountBackfillRequest
@@ -353,6 +400,361 @@ def discount_override(
     cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
 
     return {"status": "ok", "vehicle_id": vehicle_id, "discount": new_breakdown}
+
+
+@router.post("/extract/fill-base-price/{vehicle_id}")
+def fill_base_price(
+    vehicle_id: str, request: FillBasePriceRequest
+) -> Dict[str, Any]:
+    """User manually fills the base catalog price when AI couldn't extract it.
+
+    Used for vehicles flagged with `card_summary._requires_user_input == ["base_price"]`
+    (typically Audi configurator PDFs where the catalogue price isn't printed
+    explicitly). Persists the price, re-runs the financial validator, and flips
+    `verification_status` to "completed" when no inputs remain missing.
+    """
+    if request.base_price <= 0:
+        raise HTTPException(
+            status_code=400, detail="base_price must be > 0"
+        )
+    if request.domain not in ("brutto", "netto"):
+        raise HTTPException(
+            status_code=400, detail="domain must be 'brutto' or 'netto'"
+        )
+
+    client = supabase_client
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    synthesis = resp.data.get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary")
+    if not isinstance(card_summary, dict):
+        card_summary = {}
+        synthesis["card_summary"] = card_summary
+
+    price_str = f"{int(round(request.base_price))} PLN {request.domain}"
+    card_summary["base_price"] = price_str
+    if request.options_price is not None and request.options_price >= 0:
+        card_summary["options_price"] = (
+            f"{int(round(request.options_price))} PLN {request.domain}"
+        )
+
+    # Clear the user-input requirement for base_price
+    requires = list(card_summary.get("_requires_user_input") or [])
+    if "base_price" in requires:
+        requires.remove("base_price")
+    if requires:
+        card_summary["_requires_user_input"] = requires
+    else:
+        card_summary.pop("_requires_user_input", None)
+
+    # Re-run validator so _validation.parsed_prices and _price_domain refresh
+    from core.pipeline_price_validator import validate_and_flag_prices
+
+    synthesis = validate_and_flag_prices(synthesis)
+
+    # Decide final verification_status
+    remaining = synthesis.get("card_summary", {}).get("_requires_user_input")
+    new_status = "needs_review" if remaining else "completed"
+
+    _direct_update_synthesis(vehicle_id, synthesis)
+    client.table("vehicle_synthesis").update(
+        {"verification_status": new_status}
+    ).eq("id", vehicle_id).execute()
+
+    cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
+    cache_invalidate_pattern("initial_data")
+    cache_invalidate_pattern("filters:*")
+
+    return {
+        "status": "ok",
+        "vehicle_id": vehicle_id,
+        "verification_status": new_status,
+        "base_price": price_str,
+        "remaining_user_inputs": remaining or [],
+    }
+
+
+# ── HITL Wizard endpoints ──
+
+def _compute_capex_from_corrections(
+    price_corrections: list[HITLPriceCorrection],
+) -> Dict[str, float]:
+    """Suma per bucket, znormalizowana do brutto (VAT-inclusive)."""
+    sums = {"base": 0.0, "factory": 0.0, "zabudowa": 0.0, "agregat": 0.0}
+    for pc in price_corrections:
+        if pc.bucket == "skip" or pc.bucket not in sums:
+            continue
+        gross = pc.price_value if pc.price_type == "brutto" else pc.price_value * (1 + pc.vat_rate)
+        sums[pc.bucket] += gross
+    sums["total_capex"] = sum(sums.values())
+    return sums
+
+
+def _resolve_body_type_for_composite(composite_name: str | None) -> Dict[str, Any] | None:
+    """Lookup body_types row dla composite SOT name (SOT-backed).
+
+    Używa `body_type_matcher.match_body_type` (fuzzy match → body_types.id) +
+    `samar_rv_fetchers.fetch_body_correction_cached` (utrata_wartosci per id).
+    Zwraca dict z body_type_id, matched_name, utrata_wartosci. None gdy brak match.
+    """
+    if not composite_name:
+        return None
+    try:
+        from core.body_type_matcher import match_body_type
+        from core.samar_rv_fetchers import fetch_body_correction_cached
+
+        match = match_body_type(composite_name)
+        if not match or not match.matched_body_type_id:
+            return None
+        utrata = fetch_body_correction_cached(match.matched_body_type_id)
+        return {
+            "body_type_id": match.matched_body_type_id,
+            "matched_name": match.matched_name,
+            "vehicle_class": match.vehicle_class,
+            "match_method": match.match_method,
+            "score": match.score,
+            "utrata_wartosci": utrata,
+        }
+    except Exception as e:
+        logger.warning("[HITL] body_type lookup failed for %r: %s", composite_name, e)
+        return None
+
+
+@router.post("/extract/hitl/preview/{vehicle_id}")
+def hitl_preview(vehicle_id: str, payload: HITLPreviewPayload) -> Dict[str, Any]:
+    """Dry-run preview wizarda HITL — zwraca derived composite_body_style, SAMAR-relevant
+    body_type lookup i CAPEX summary z user korekt, BEZ persist.
+
+    Wywoływany on-the-fly z UI po każdej zmianie drag-drop / wyboru zabudowy.
+    """
+    from core.composite_body_style import recompose_with_override
+
+    # Pull synthesis for context (KONTENER promotion uses body_style/service_equipment text)
+    resp = (
+        supabase_client.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    synthesis = resp.data.get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary") or {}
+
+    composite = recompose_with_override(
+        cabin_kind=payload.cabin_kind,
+        zabudowa_sot_key=payload.zabudowa_sot_key,
+        enable_llm_fallback=False,  # preview ma być szybki, bez LLM
+        card_summary=card_summary,
+    )
+
+    body_type_info = _resolve_body_type_for_composite(composite)
+    capex = _compute_capex_from_corrections(payload.price_corrections)
+
+    return {
+        "vehicle_id": vehicle_id,
+        "composite_body_style": composite,
+        "body_type": body_type_info,
+        "capex": capex,
+        "discount_preview": payload.discount.model_dump() if payload.discount else None,
+    }
+
+
+@router.post("/extract/hitl/apply/{vehicle_id}")
+def hitl_apply(vehicle_id: str, payload: HITLApplyPayload) -> Dict[str, Any]:
+    """Finalna aplikacja korekt z wizarda HITL.
+
+    Workflow:
+    1. Pobierz vehicle_synthesis.synthesis_data
+    2. Re-klasyfikuj paid_options per bucket assignment z payload
+    3. Re-run composite_body_style z override
+    4. Update card_summary.discount (rabat_type/basis/scope + computed_pct)
+    5. Update vehicle_synthesis, set verification_status='completed'
+    6. Log do extraction_corrections (training signal dla few-shot)
+    """
+    from core.composite_body_style import recompose_with_override
+    from core.pipeline_price_validator import validate_and_flag_prices
+
+    client = supabase_client
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data, brand, model")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    synthesis = resp.data.get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary")
+    if not isinstance(card_summary, dict):
+        raise HTTPException(
+            status_code=400, detail="No card_summary to apply HITL corrections to"
+        )
+    brand = resp.data.get("brand")
+    model = resp.data.get("model")
+
+    # ── 1. Re-classify paid_options per bucket ──
+    # field_id → bucket lookup
+    bucket_by_field: Dict[str, str] = {pc.field_id: pc.bucket for pc in payload.price_corrections}
+    price_by_field: Dict[str, tuple[float, str, float]] = {
+        pc.field_id: (pc.price_value, pc.price_type, pc.vat_rate)
+        for pc in payload.price_corrections
+    }
+
+    paid_options = card_summary.get("paid_options") or []
+    new_paid: list[dict[str, Any]] = []
+    new_service_components: list[dict[str, Any]] = []
+
+    for opt in paid_options:
+        if not isinstance(opt, dict):
+            continue
+        fid = opt.get("field_id", "")
+        bucket = bucket_by_field.get(fid)
+        if bucket == "skip":
+            continue  # drop
+        # Update price/type from user correction
+        if fid in price_by_field:
+            val, ptype, vat = price_by_field[fid]
+            opt["price"] = f"{val} PLN {ptype}"
+            opt["price_type"] = ptype
+            opt["confidence"] = 1.0  # user-confirmed
+        if bucket in ("zabudowa", "agregat"):
+            # Move to service_equipment.components
+            gross = (
+                opt_price_value(opt)
+                if opt.get("price_type") == "brutto"
+                else opt_price_value(opt) * (1 + 0.23)
+            )
+            new_service_components.append(
+                {
+                    "name": opt.get("name", ""),
+                    "price_net": str(opt_price_value(opt) / (1 + 0.23) if opt.get("price_type") == "brutto" else opt_price_value(opt)),
+                    "price_gross": str(gross),
+                    "confidence": 1.0,
+                    "field_id": fid,
+                }
+            )
+        else:
+            # bucket "base" / "factory" / None → stay in paid_options
+            if bucket == "base":
+                opt["category"] = "Bazowa"
+            elif bucket == "factory":
+                opt["category"] = "Fabryczna"
+            new_paid.append(opt)
+
+    card_summary["paid_options"] = new_paid
+
+    if new_service_components:
+        se = card_summary.get("service_equipment") or {}
+        if not isinstance(se, dict):
+            se = {}
+        existing_comps = se.get("components") or []
+        # Replace: HITL is authoritative
+        se["components"] = new_service_components
+        if not se.get("name"):
+            se["name"] = "Zabudowa specjalistyczna"
+        card_summary["service_equipment"] = se
+
+    # ── 2. Re-run composite_body_style ──
+    composite = recompose_with_override(
+        cabin_kind=payload.cabin_kind,
+        zabudowa_sot_key=payload.zabudowa_sot_key,
+        enable_llm_fallback=True,
+        card_summary=card_summary,
+    )
+    if composite:
+        card_summary["body_style"] = composite
+
+    # ── 3. Update discount ──
+    if payload.discount is not None:
+        existing = card_summary.get("discount") or {}
+        d = payload.discount
+        new_discount = dict(existing)
+        new_discount["rabat_type"] = d.rabat_type
+        new_discount["rabat_basis"] = d.rabat_basis
+        new_discount["discount_scope"] = d.discount_scope
+        new_discount["confidence"] = 1.0
+        new_discount["extraction_method"] = "explicit_amount" if d.rabat_type == "kwotowo" else "explicit_percentage"
+        if d.rabat_type == "kwotowo":
+            new_discount["explicit_rabat_pln"] = d.rabat_value
+        else:
+            new_discount["explicit_rabat_pct"] = d.rabat_value
+        audit = list(new_discount.get("audit_notes") or [])
+        audit.append(f"[HITL] rabat={d.rabat_type}:{d.rabat_value} basis={d.rabat_basis} scope={d.discount_scope}")
+        new_discount["audit_notes"] = audit
+        card_summary["discount"] = new_discount
+
+    # ── 4. Optional trim/engine/catalog override ──
+    if payload.trim_level_override:
+        card_summary["trim_level"] = payload.trim_level_override
+    if payload.engine_class_override:
+        mapped = synthesis.get("mapped_ai_data") or {}
+        mapped["engine_class"] = payload.engine_class_override
+        synthesis["mapped_ai_data"] = mapped
+    if payload.catalog_id_override:
+        synthesis["suggested_catalog"] = {"catalog_id": payload.catalog_id_override, "manual_override": True}
+
+    # ── 5. Re-validate after corrections ──
+    synthesis["card_summary"] = card_summary
+    synthesis = validate_and_flag_prices(synthesis)
+
+    # ── 6. Persist + flip status ──
+    _direct_update_synthesis(vehicle_id, synthesis)
+    client.table("vehicle_synthesis").update(
+        {"verification_status": "completed"}
+    ).eq("id", vehicle_id).execute()
+
+    # ── 7. Log do extraction_corrections (best-effort, admin client by-passuje RLS) ──
+    try:
+        _get_admin_client().table("extraction_corrections").insert(
+            {
+                "vehicle_id": vehicle_id,
+                "brand": brand,
+                "model": model,
+                "field_name": "hitl_bucket",
+                "old_value": "(see synthesis_data prior version)",
+                "new_value": payload.model_dump_json(),
+                "context_notes": payload.user_notes or None,
+            }
+        ).execute()
+    except Exception as log_err:
+        logger.warning("[HITL] extraction_corrections insert failed: %s", log_err)
+
+    cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
+    cache_invalidate_pattern("initial_data")
+    cache_invalidate_pattern("filters:*")
+
+    body_type_info = _resolve_body_type_for_composite(composite)
+    capex = _compute_capex_from_corrections(payload.price_corrections)
+
+    return {
+        "status": "ok",
+        "vehicle_id": vehicle_id,
+        "verification_status": "completed",
+        "composite_body_style": composite,
+        "body_type": body_type_info,
+        "capex": capex,
+    }
+
+
+def opt_price_value(opt: Dict[str, Any]) -> float:
+    """Pomocniczy parse float z pola price (z fallbackiem 0.0)."""
+    from core.price_parser import parse_price_string
+
+    parsed = parse_price_string(opt.get("price", ""))
+    return float(parsed.value) if parsed else 0.0
 
 
 @router.post("/extract/remap-classification")

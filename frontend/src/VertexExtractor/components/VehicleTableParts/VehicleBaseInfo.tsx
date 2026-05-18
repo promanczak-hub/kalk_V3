@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, Edit3, 
 import { format } from "date-fns";
 import type { FleetVehicleView } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
+import { FillBasePriceInput } from "./FillBasePriceInput";
 export interface MappedData {
   brand: string;
 model: string;
@@ -52,6 +53,9 @@ interface VehicleBaseInfoProps {
 
   setCustomDiscountAmountNet?: (val: number) => void;
   activeDiscountAmountNet?: number;
+
+  onPriceFilled?: () => void;
+  onOpenHITL?: () => void;
 }
 
 function hasValue(v: string | null | undefined): boolean {
@@ -285,6 +289,8 @@ export function VehicleBaseInfo({
   technicalDescription,
   setCustomDiscountAmountNet,
   activeDiscountAmountNet = 0,
+  onPriceFilled,
+  onOpenHITL,
 }: VehicleBaseInfoProps) {
   const VAT_RATE = 1.23;
   const [customInputMode, setCustomInputMode] = useState<"pct" | "pln">("pct");
@@ -361,6 +367,17 @@ export function VehicleBaseInfo({
               <span className="text-xs text-slate-500 max-w-full break-words" style={{ fontFamily: "'Geist Mono', monospace" }}>
                 {technicalDescription || (hasValue(vehicle.powertrain) ? vehicle.powertrain : "Brak danych specyfikacji")}
               </span>
+              {onOpenHITL && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenHITL(); }}
+                  className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300 transition-colors"
+                  title="Otwórz wizard HITL — przesuń kwoty, wybierz zabudowę, dopasuj rabat"
+                  data-testid="open-hitl-button"
+                >
+                  🔧 HITL Review
+                </button>
+              )}
             </div>
             
             {/* Sub-informacje w jednym rzędzie: napęd, kody, rabaty */}
@@ -529,9 +546,16 @@ export function VehicleBaseInfo({
                   {formatCalculatedPrice(activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet)} PLN NETTO
                 </span>
               </>
-            ) : (
-              <span className="text-sm text-slate-400 mt-1" style={{ fontFamily: "'Geist Mono', monospace" }}>Brak wyceny</span>
-            )}
+            ) : (() => {
+              const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+              const requires = cs?._requires_user_input;
+              const needsBasePrice = Array.isArray(requires) && requires.includes("base_price");
+              return needsBasePrice ? (
+                <FillBasePriceInput vehicleId={vehicle.id} onPriceFilled={onPriceFilled} />
+              ) : (
+                <span className="text-sm text-slate-400 mt-1" style={{ fontFamily: "'Geist Mono', monospace" }}>Brak wyceny</span>
+              );
+            })()}
           </div>
 
           <div className="text-slate-400 group-hover:text-blue-500 transition-colors bg-slate-50 group-hover:bg-blue-50 rounded-full p-1 border border-transparent group-hover:border-blue-100 mt-1">

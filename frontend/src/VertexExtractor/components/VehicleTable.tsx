@@ -33,6 +33,7 @@ interface VehicleTableProps {
   paintTypes?: { id: number; name: string; [key: string]: unknown; }[];
   driveTypes?: string[];
   transmissionTypes?: string[];
+  onOpenHITL?: (vehicle: FleetVehicleView) => void;
 }
 
 export function VehicleTable({
@@ -54,6 +55,7 @@ export function VehicleTable({
   paintTypes,
   driveTypes,
   transmissionTypes,
+  onOpenHITL,
 }: VehicleTableProps) {
   const {
     filters,
@@ -358,6 +360,7 @@ export function VehicleTable({
                   driveTypes={driveTypes}
                   transmissionTypes={transmissionTypes}
                   isHighlighted={vehicle.id === highlightVehicleId}
+                  onOpenHITL={onOpenHITL ? () => onOpenHITL(vehicle) : undefined}
                 />
               ))
             )}

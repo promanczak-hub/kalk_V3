@@ -276,6 +276,29 @@ class DiscountBreakdown(BaseModel):
             "'Zabudowa wywrotka 31732 zł oznaczona jako non-discountable'."
         ),
     )
+    rabat_type: Optional[Literal["kwotowo", "procentowo"]] = Field(
+        default=None,
+        description=(
+            "Typ rabatu wybrany przez użytkownika w HITL: 'kwotowo' (rabat to "
+            "stała kwota PLN) lub 'procentowo' (rabat to % od bazy). "
+            "Wypełniane przez wizard HITL, LLM zostawia null."
+        ),
+    )
+    rabat_basis: Optional[Literal["netto", "brutto"]] = Field(
+        default=None,
+        description=(
+            "Baza rabatu wybrana przez użytkownika w HITL: czy rabat liczony "
+            "od netto czy brutto. Wypełniane przez wizard HITL."
+        ),
+    )
+    discount_scope: list[Literal["base", "factory_options", "zabudowa", "agregat"]] = Field(
+        default_factory=list,
+        description=(
+            "Bucket-y do których stosuje się rabat (HITL): "
+            "['base', 'factory_options'] = klasyczny scope rabatu producenta; "
+            "lista pusta = ekstrakcja jeszcze nie potwierdzona przez user'a."
+        ),
+    )
 
 
 class PaidOption(BaseModel):
@@ -292,6 +315,26 @@ class PaidOption(BaseModel):
     category: str = Field(
         description="Kategoria opcji (np. 'Fabryczna' lub 'Serwisowa/Akcesoria')"
     )
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Pewność ekstrakcji tej pozycji (0.0-1.0). Skala: "
+            "1.0 = wartość wprost cytowana z PDF; "
+            "0.8 = wartość pochodna ale jednoznaczna (np. brutto policzone z netto + VAT); "
+            "0.5 = niejednoznaczna sekcja, dwie wartości w PDF lub niepewność duplikatu; "
+            "0.0 = HALUCYNACJA, brak źródła w PDF. NIE używaj 0.5 jako 'nie wiem' — "
+            "używaj wprost 0.0 jeśli pole nie zostało jednoznacznie potwierdzone."
+        ),
+    )
+    field_id: str = Field(
+        default="",
+        description=(
+            "Stabilny identyfikator pozycji dla HITL diff (uuid4). "
+            "Generowany backend-side po ekstrakcji — LLM zostawia puste."
+        ),
+    )
 
 
 class ServiceComponentItem(BaseModel):
@@ -300,6 +343,19 @@ class ServiceComponentItem(BaseModel):
     )
     price_net: str = Field(description="Cena netto elementu (z walutą)")
     price_gross: str = Field(description="Cena brutto elementu (z walutą)")
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Pewność ekstrakcji tego komponentu (0.0-1.0). Skala identyczna jak "
+            "PaidOption.confidence: 1.0/0.8/0.5/0.0. 0.0 = halucynacja, brak źródła."
+        ),
+    )
+    field_id: str = Field(
+        default="",
+        description="Stabilny identyfikator komponentu dla HITL diff (uuid4).",
+    )
 
 
 class ServiceEquipment(BaseModel):
@@ -588,6 +644,24 @@ class CardSummary(BaseModel):
     ai_warnings: list[str] = Field(
         default_factory=list,
         description="Lista potencjalnych nieścisłości zauważonych przez AI (np. 'Niepewność co do przynależności opcji do pakietu', 'Dwie różne ceny w tekście').",
+    )
+    confidence_breakdown: dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "Confidence per najważniejsze pole top-level (0.0-1.0). Klucze: "
+            "'base_price', 'options_price', 'total_price', 'body_style', "
+            "'discount.rabat_pct', 'engine_class', 'samar_category', 'trim_level'. "
+            "Skala: 1.0/0.8/0.5/0.0 (patrz PaidOption.confidence). "
+            "Pole z confidence 0.0 = halucynacja, ma trafić do _hallucinated_fields."
+        ),
+    )
+    hallucinated_fields: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Lista field_path-ów które LLM oznaczył confidence=0.0 (halucynacje). "
+            "Wypełniane backend-side post-process — LLM zostawia puste. "
+            "Wymusza verification_status='needs_review' niezależnie od innych pól."
+        ),
     )
 
 

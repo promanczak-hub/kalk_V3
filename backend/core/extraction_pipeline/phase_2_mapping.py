@@ -29,6 +29,75 @@ _PB_HINTS = ("benzyn", "pb", "tsi", "tfsi", "thp", "puretech", "ecoboost")
 _ON_HINTS = ("diesel", " on", "tdi", "hdi", "bluehdi", "dci", "cdi", "jtd")
 
 
+# ── HITL trigger heuristics ──
+
+_HITL_CONFIDENCE_THRESHOLD = 0.7
+_HITL_BLOCKING_RULES = frozenset(
+    {
+        "BASE_TOTAL_SWAPPED",
+        "TOTAL_BELOW_BASE",
+        "OPTION_PRICE_UNPARSEABLE",
+        "DEALER_EXTRA_NOT_IN_NON_DISCOUNTABLE",
+        "BASE_PLUS_OPTIONS_VS_TOTAL",
+        "SERVICE_EQUIPMENT_SUM_MISMATCH",
+        "PRICE_DOMAIN_UNKNOWN",
+    }
+)
+
+
+def _needs_hitl_review(card_summary: dict) -> tuple[bool, list[str]]:
+    """Decyduje czy ekstrakcja wymaga ręcznego review (HITL wizard).
+
+    Zwraca (needs_review: bool, reasons: list[str]) — reasons wprost wskazują
+    pola/reguły które spowodowały wymóg review.
+    """
+    if not isinstance(card_summary, dict):
+        return False, []
+
+    reasons: list[str] = []
+
+    # 1. Halucynacje — twardy trigger
+    hallucinated = card_summary.get("hallucinated_fields") or []
+    if hallucinated:
+        reasons.append(f"hallucinated_fields={hallucinated}")
+
+    # 2. Pole z confidence < threshold w confidence_breakdown
+    breakdown = card_summary.get("confidence_breakdown") or {}
+    for key, conf in breakdown.items():
+        if isinstance(conf, (int, float)) and conf < _HITL_CONFIDENCE_THRESHOLD:
+            reasons.append(f"low_confidence:{key}={conf:.2f}")
+
+    # 3. paid_options / service_equipment.components z confidence < threshold
+    for idx, opt in enumerate(card_summary.get("paid_options") or []):
+        if isinstance(opt, dict):
+            conf = opt.get("confidence", 1.0)
+            if isinstance(conf, (int, float)) and conf < _HITL_CONFIDENCE_THRESHOLD:
+                reasons.append(f"low_confidence:paid_options[{idx}]={conf:.2f}")
+
+    se = card_summary.get("service_equipment") or {}
+    for idx, comp in enumerate(se.get("components", []) if isinstance(se, dict) else []):
+        if isinstance(comp, dict):
+            conf = comp.get("confidence", 1.0)
+            if isinstance(conf, (int, float)) and conf < _HITL_CONFIDENCE_THRESHOLD:
+                reasons.append(f"low_confidence:service_equipment.components[{idx}]={conf:.2f}")
+
+    # 4. Validator z blocking severity / rule
+    validation = card_summary.get("_validation") or {}
+    for warn in validation.get("warnings") or []:
+        if not isinstance(warn, dict):
+            continue
+        rule = warn.get("rule", "")
+        severity = warn.get("severity", "")
+        if severity == "ERROR" or rule in _HITL_BLOCKING_RULES:
+            reasons.append(f"validator:{rule}({severity})")
+
+    # 5. Legacy: _requires_user_input (np. brak base_price)
+    if card_summary.get("_requires_user_input"):
+        reasons.append(f"requires_user_input={card_summary['_requires_user_input']}")
+
+    return (len(reasons) > 0, reasons)
+
+
 def detect_mhev_fuel_override(
     parsed_data: dict,
     card_summary: dict,
@@ -264,14 +333,14 @@ def finalize_vehicle_pipeline(
         update_progress(supabase, vehicle_id, "cancelled")
         return
 
-    # ── P0-A: Evaluate price readiness BEFORE DB save ──
+    # ── P0-A: Evaluate price readiness + HITL trigger BEFORE DB save ──
     validation_info = card_summary.get("_validation", {})
     parsed_prices = validation_info.get("parsed_prices", {})
     price_is_present = parsed_prices.get("base") is not None
 
-    if price_is_present:
-        initial_status = "enriching_features"
-    else:
+    hitl_needed, hitl_reasons = _needs_hitl_review(card_summary)
+
+    if not price_is_present:
         initial_status = "needs_review"
         logger.warning(
             "[BG TASK] Readiness Check (Soft): Brak ceny bazowej "
@@ -281,6 +350,17 @@ def finalize_vehicle_pipeline(
             model,
             vehicle_id,
         )
+    elif hitl_needed:
+        initial_status = "needs_review"
+        logger.info(
+            "[BG TASK] HITL trigger dla '%s %s' (vehicle_id=%s) — powody: %s",
+            brand,
+            model,
+            vehicle_id,
+            hitl_reasons[:8],  # cap to keep logs readable
+        )
+    else:
+        initial_status = "enriching_features"
 
     # ── Normalize model/trim/body to SOT before persisting ──
     # The LLM sometimes leaks trim, brand prefix, engine specs, year codes, or
@@ -359,20 +439,38 @@ def finalize_vehicle_pipeline(
         "id", vehicle_id
     ).execute()
 
-    # ── P0-B: If price missing, stop here — data is safe in DB ──
+    # ── P0-B: If price missing, flag for user fill-in but CONTINUE pipeline ──
+    # Rationale: Audi configurator PDFs don't print a catalog base price (only
+    # a final-after-options figure). Auto-promote from digital_twin.pricing
+    # already happens in pipeline_price_validator; if even that yielded nothing,
+    # we still want to enrich features, run samar mapping, generate embeddings,
+    # etc., so the user can finish the record by entering the missing price.
     if not price_is_present:
         logger.warning(
-            "[BG TASK] Pipeline zatrzymany na etapie 'needs_review' — "
-            "brak ceny bazowej. Dane częściowe (%s %s) zapisano. "
-            "Vehicle: %s",
+            "[BG TASK] Brak ceny bazowej dla %s %s — kontynuuję enrichment, "
+            "user musi ręcznie uzupełnić cenę. Vehicle: %s",
             brand,
             model,
             vehicle_id,
         )
-        # Still invalidate caches so the new row appears on frontend
+        cs_inplace = parsed_data.setdefault("card_summary", {})
+        requires = list(cs_inplace.get("_requires_user_input") or [])
+        if "base_price" not in requires:
+            requires.append("base_price")
+        cs_inplace["_requires_user_input"] = requires
+        # Persist flag immediately — downstream phases may crash on null price,
+        # we want the FE to see the input field regardless.
+        try:
+            supabase.table("vehicle_synthesis").update(
+                {"synthesis_data": parsed_data}
+            ).eq("id", vehicle_id).execute()
+        except Exception:
+            logger.exception(
+                "[BG TASK] Nie udało się zapisać flagi _requires_user_input dla %s",
+                vehicle_id,
+            )
         cache_invalidate_pattern("initial_data")
         cache_invalidate_pattern("filters:*")
-        return
 
     # ── 3. Wzbogacanie cech i ranga katalogu ──
     logger.info("[BG TASK] Szukam dopasowanego katalogu dla auto-enrichmentu...")
@@ -459,10 +557,18 @@ def finalize_vehicle_pipeline(
         logger.error(f"[BG TASK] Błąd wzbogacania cech dla {vehicle_id}: {enrich_err}")
 
     # ── 5. Final Completed Status ──
-    logger.info(f"[BG TASK] Oznaczam gotowość (stan: completed) dla {vehicle_id}")
-    supabase.table("vehicle_synthesis").update({"verification_status": "completed"}).eq(
-        "id", vehicle_id
-    ).execute()
+    # Stays in "needs_review" if HITL trigger fires (low confidence per field,
+    # hallucinated fields, validator with blocking severity, or legacy
+    # _requires_user_input). Otherwise marked "completed".
+    final_card_summary = parsed_data.get("card_summary", {})
+    final_hitl_needed, _ = _needs_hitl_review(final_card_summary)
+    final_status = "needs_review" if final_hitl_needed else "completed"
+    logger.info(
+        "[BG TASK] Oznaczam gotowość (stan: %s) dla %s", final_status, vehicle_id
+    )
+    supabase.table("vehicle_synthesis").update(
+        {"verification_status": final_status}
+    ).eq("id", vehicle_id).execute()
 
     # Trigger embedding generation. Strategia warstwowa, każda warstwa to
     # NIE-blokujące best-effort:

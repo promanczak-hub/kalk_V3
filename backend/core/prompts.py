@@ -295,10 +295,46 @@ Znajdź w sekcjach danych technicznych (Technical Data lub w dowolnych tabelach 
 - Bądź odważny! Wyciągaj absolutnie każdą fizyczną, mierzalną cechę techniczną z jednostką, jaką tylko znajdziesz w zestawieniach oraz na obrazkach.
 UWAGA KRYTYCZNA: Jeśli dokument to oferta na JEDEN KONKRETNY SAMOCHÓD (np. L3H3), a na końcu dokumentu znajduje się ogólna tabela/cennik z dziesiątkami innych wariantów (np. L2H2, L4H3) - BEZWZGLĘDNIE ODCZYTAJ WYMIARY TYLKO Z KOLUMNY/WIERSZA PASUJĄCEGO DO TWOJEGO KONKRETNEGO POJAZDU. Nie wypisuj wymiarów dla innych wersji nadwozia czy silnika.
 
-SAMOOCENA I PEWNOŚĆ (confidence_score i ai_warnings):
-Na sam koniec, oceń krytycznie jakość wyciągniętych przez siebie danych. Zwróć ludzko uwagę na spójność między ceną bazową, opcjami a ceną całkowitą, oraz czy w dokumencie mogły być pomyłki (np. wykluczające się informacje o roczniku, niejasna waluta). 
+SAMOOCENA I PEWNOŚĆ (confidence_score, ai_warnings, confidence_breakdown, confidence per pozycja):
+Na sam koniec, oceń krytycznie jakość wyciągniętych przez siebie danych. Zwróć ludzko uwagę na spójność między ceną bazową, opcjami a ceną całkowitą, oraz czy w dokumencie mogły być pomyłki (np. wykluczające się informacje o roczniku, niejasna waluta).
 - 'confidence_score': Wynik od 0.0 do 1.0. Jeśli wszystko jest klarowne, a wyliczenia "do grosza" poprawne = 1.0. Gdy musiałeś dużo zgadywać albo kwoty się nie zgadzają = obniż wynik (np. 0.60-0.85).
 - 'ai_warnings': Jeśli 'confidence_score' < 1.0, opisz krótko co jest nie tak (np. "Cena opcji matematycznie nie współgra z sumą", "Niejasny napęd", "Konflikt brutto/netto"). Rzucaj ostre ostrzeżenia.
+
+CONFIDENCE PER POZYCJA — TWARDA REGUŁA (wymagane dla HITL):
+Dla KAŻDEJ pozycji w 'paid_options' i KAŻDEGO komponentu w 'service_equipment.components' zwróć pole 'confidence': float w skali 0.0-1.0.
+
+Skala (BEZWZGLĘDNIE używaj tych progów):
+- 1.0 = wartość WPROST cytowana z PDF (widziałem ją w tekście jak jest)
+- 0.8 = wartość pochodna, ale jednoznaczna (np. brutto policzone z netto × 1.23, kwota z relacji w tabeli podsumowania)
+- 0.5 = niejednoznaczna sekcja — np. ta sama pozycja w 2 miejscach z różnymi cenami, lub etykieta sekcji niejasna
+- 0.0 = HALUCYNACJA. Wymyśliłem wartość lub zgadłem. Brak źródła w PDF.
+
+ZAKAZANE:
+- NIE używaj 0.5 jako "nie wiem co wybrać". Jeśli nie wiesz → 0.0.
+- NIE używaj 0.9 jako "prawie pewny". Albo 1.0 (cytat z PDF), albo 0.8 (jednoznaczna pochodna), albo niżej.
+- NIE pomijaj pola confidence. Każda pozycja MUSI mieć confidence.
+
+JEŚLI WYMYŚLAŁEŚ POZYCJĘ (HALUCYNACJA):
+- Ustaw confidence: 0.0
+- Dodaj wpis do 'ai_warnings' w formacie: "HALUCYNACJA: paid_options[<idx>].<nazwa> — brak źródła w PDF"
+- BACKEND USUNIE tę pozycję z payloadu, więc nie szkodzi ci to — wręcz przeciwnie, lepiej oznaczyć niż przemilczeć.
+
+CONFIDENCE_BREAKDOWN (top-level pola w confidence_breakdown dict):
+Zwróć dict z confidence dla tych kluczy:
+- "base_price": pewność ceny katalogowej bazowej
+- "options_price": pewność łącznej ceny opcji
+- "total_price": pewność ceny końcowej
+- "body_style": pewność rozpoznania typu nadwozia
+- "discount.rabat_pct": pewność rabatu
+- "engine_class": pewność klasyfikacji silnika
+- "samar_category": pewność klasy SAMAR (jeśli wnioskujesz)
+- "trim_level": pewność wersji wyposażeniowej
+
+Skala identyczna: 1.0/0.8/0.5/0.0. Brakujące klucze backend potraktuje jako 1.0 (pełna pewność).
+
+PRZYKŁAD złego vs dobrego confidence dla pojazdu dostawczego z zabudową:
+✗ ŹLE: paid_options=[{name: "Zabudowa kontener", price: "47970", confidence: 0.9}] gdy ten sam kontener jest w PODSUMOWANIU (47970 brutto) i w UWAGACH (39000 netto) — to NIE 0.9 tylko 0.5 (niepewność duplikatu)
+✓ DOBRZE: paid_options=[{name: "Zabudowa kontener z PODSUMOWANIA", price: "47970 brutto", confidence: 0.5}], ai_warnings=["Możliwy duplikat z UWAGAMI str.9 (39000 netto)"]
 """
 
 BROCHURE_SUMMARY_PROMPT = """

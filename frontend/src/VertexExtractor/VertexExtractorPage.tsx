@@ -1,8 +1,10 @@
 import { useVehicles } from "./hooks/useVehicles";
 import { useDocumentProcessing } from "./hooks/useDocumentProcessing";
+import { useHITLWizard } from "./hooks/useHITLWizard";
 import { DocumentList } from "./components/DocumentList";
 import { VehicleTable } from "./components/VehicleTable";
 import { JsonViewerModal } from "./components/JsonViewerModal";
+import { HITLWizardDialog } from "./components/HITLWizard/HITLWizardDialog";
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
@@ -142,6 +144,8 @@ export default function VertexExtractorPage() {
     removeDocument,
   } = useDocumentProcessing(fetchSavedVehicles);
 
+  const hitl = useHITLWizard();
+
   return (
     <Box sx={{ pb: 6, minHeight: "100vh" }}>
       <Container maxWidth="xl">
@@ -175,6 +179,15 @@ export default function VertexExtractorPage() {
               pageSize={pageSize}
               totalCount={totalCount}
               highlightVehicleId={highlightVehicleId}
+              onOpenHITL={(v) =>
+                hitl.openForVehicle({
+                  id: v.id,
+                  brand: v.brand ?? undefined,
+                  model: v.model ?? undefined,
+                  verification_status: v.verification_status ?? undefined,
+                  synthesis_data: v.synthesis_data as Record<string, unknown>,
+                })
+              }
             />
           </Box>
         </Stack>
@@ -238,6 +251,11 @@ export default function VertexExtractorPage() {
         onClose={() => setActiveJsonView(null)}
         onSaveToDatabase={handleSaveToDatabase}
         isSaving={isSaving}
+      />
+
+      <HITLWizardDialog
+        controller={hitl}
+        onSaved={() => fetchSavedVehicles()}
       />
     </Box>
   );
