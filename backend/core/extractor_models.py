@@ -372,14 +372,7 @@ class PaidOption(BaseModel):
         default=1.0,
         ge=0.0,
         le=1.0,
-        description=(
-            "Pewność ekstrakcji tej pozycji (0.0-1.0). Skala: "
-            "1.0 = wartość wprost cytowana z PDF; "
-            "0.8 = wartość pochodna ale jednoznaczna (np. brutto policzone z netto + VAT); "
-            "0.5 = niejednoznaczna sekcja, dwie wartości w PDF lub niepewność duplikatu; "
-            "0.0 = HALUCYNACJA, brak źródła w PDF. NIE używaj 0.5 jako 'nie wiem' — "
-            "używaj wprost 0.0 jeśli pole nie zostało jednoznacznie potwierdzone."
-        ),
+        description="Pewność (0.0-1.0): 1.0=z PDF, 0.8=jednoznaczna pochodna, 0.5=niejednoznaczna, 0.0=halucynacja.",
     )
     field_id: str = Field(
         default="",
@@ -544,15 +537,11 @@ class CargoAndDimensions(BaseModel):
 
 class CardSummary(BaseModel):
     financial_reasoning: str = Field(
-        description="SZCZEGÓŁOWA ANALIZA I UZASADNIENIE DLA CEN. Zanim wypiszesz kwoty, wyszczególnij tu krok po kroku wszystkie ceny znalezione w PDF / tekście. Testuj relacje (Czy A + B = C? Czy B to A pomnożone przez 1.23?). 1. Zidentyfikuj główną cenę bazową PRZED rabatami dealera. 2. Oblicz sumę opcji by sprawdzić, czy cena bazowa + opcje = cena pojazdu. 3. Jeśli kwota jest niższa, zidentyfikuj to jako po rabacie i nie używaj jako ceny bazowej."
+        description="Krótka analiza cen z dokumentu — relacje między base, options, total (szczegółowe zasady w system prompt).",
     )
     price_domain: str = Field(
         default="unknown",
-        description="Globalna domena cenowa całego dokumentu: 'netto' lub 'brutto'. "
-        "BARDZO WAŻNE: Zawsze gruntownie skanuj mały druk pod tabelami cenowymi (szukaj np. dopisków 'Oferta w cenach netto' lub 'Oferta w cenach brutto', 'Ceny netto', 'Bez VAT'). "
-        "Jeśli taki dopisek istnieje, BEZWZGLĘDNIE ustaw domenę zgodnie z nim. "
-        "Ustal na podstawie etykiet przy cenach głównych, relacji VAT (×1.23) między kwotami, lub kontekstu. "
-        "Dopiero jeśli nie da się ustalić żadną metodą → 'unknown'.",
+        description="Domena cenowa dokumentu: 'netto', 'brutto' lub 'unknown' (szczegółowe reguły w system prompt).",
     )
     base_price: str = Field(
         description="Cena katalogowa bazowa (bez rabatów i opustów) wraz z walutą i przyrostkiem 'netto' lub 'brutto' wywnioskowanym z relacji kwot lub wprost z dokumentu (np. '100 000 PLN netto'). Zwróć 'Brak' jeśli nie znaleziono."
@@ -587,13 +576,7 @@ class CardSummary(BaseModel):
         ),
     )
     powertrain: str = Field(
-        description=(
-            "Oznaczenie samego silnika i mocy. Jeśli brakuje pełnego ciągu w tabelach, "
-            "zbuduj go samodzielnie z pojemności, nazwy technologii (TDI, TSI, e-Tech) "
-            "i mocy (KM/kW). Zwracaj moc przeliczoną zawsze na KM/HP. BĄDŹ ODWAŻNY "
-            "W DEDUKCJI z nazwy wersji. Nigdy nie zwracaj 'Brak' dopóki nie wyczerpiesz "
-            "wszystkich możliwości zidentyfikowania cech silnika z nazwy auta lub wersji."
-        )
+        description="Silnik + moc (KM/HP). Buduj z pojemności + technologii (TDI/TSI/e-Tech) + mocy, jeśli brak w tabelach."
     )
     vehicle_class: str = Field(
         description="Klasa pojazdu na podstawie oceny całego dokumentu. Musi być to ściśle jedna z dwóch wartości: 'Osobowy' lub 'Dostawczy'."
@@ -605,30 +588,23 @@ class CardSummary(BaseModel):
     engine_designation: Optional[str] = Field(
         None,
         description=(
-            "Oznaczenie handlowe silnika / technologii, np. 'TSI', 'TDI', 'dCi', 'EcoBoost'. "
-            "WAŻNE: jeśli obok technologii widnieje znacznik miękkiej hybrydy "
-            "(m-HEV / mHEV / MHEV / 'miękka hybryda'), DOŁĄCZ go do oznaczenia, "
-            "np. 'TSI m-HEV', 'TDI mHEV', 'eTSI mHEV'. NIE pomijaj członu m-HEV — "
-            "ma kluczowe znaczenie dla mapowania paliwa. Zwróć 'Brak' lub null, jeśli brakuje."
+            "Oznaczenie handlowe silnika, np. 'TSI', 'TDI', 'dCi', 'EcoBoost'. "
+            "Dla m-HEV/mHEV — dołącz do oznaczenia (np. 'TSI m-HEV', 'TDI mHEV')."
         ),
     )
     engine_marketing_name: Optional[str] = Field(
         None,
         description=(
-            "Marketingowa, handlowa nazwa silnika lub technologii. "
-            "PRIORYTET: jeśli w dokumencie pojawia się 'm-HEV', 'mHEV', 'MHEV' lub "
-            "'miękka hybryda' — zwróć dokładnie 'm-HEV' (lub 'mHEV') tutaj, "
-            "nawet jeśli pole engine_designation już to zawiera. "
-            "Inne przykłady: 'ECO-G', 'BlueHDi', 'e-Tech', 'Hybrid 136'. Zwróć null jeśli brak."
+            "Marketingowa nazwa silnika/technologii (np. 'ECO-G', 'BlueHDi', 'e-Tech', 'Hybrid 136'). "
+            "Dla m-HEV/mHEV — wpisz dokładnie 'm-HEV' (lub 'mHEV') nawet jeśli już w engine_designation."
         ),
     )
-    engine_category: Optional[NapedTyp] = Field(
+    engine_category: Optional[str] = Field(
         None,
         description=(
-            "Przyporządkuj rodzaj i zasilanie napędu pojazdu z dokumentu ściśle do jednej z kategorii w Enum `NapedTyp`. "
-            "UWAGA na miękkie hybrydy: jeśli dokument zawiera 'm-HEV', 'mHEV', 'MHEV' lub 'miękka hybryda' — "
-            "wybierz `BENZYNA_MHEV` lub `DIESEL_MHEV` (zamiast `BENZYNA_ICE`/`DIESEL_ICE`), nawet jeśli "
-            "silnik jest opisany jako 'TSI'/'TFSI'/'TDI'/'HDi'. m-HEV to dedykowana kategoria — nie pomijaj jej."
+            "Kategoria napędu: jedna z wartości NapedTyp (np. 'Benzyna (PB)', "
+            "'Diesel (ON)', 'Benzyna mHEV (PB-mHEV)', 'Diesel mHEV (ON-mHEV)'). "
+            "Dla m-HEV/mHEV wybierz wariant mHEV nawet jeśli silnik to TSI/TDI."
         ),
     )
     power_hp: Optional[int] = Field(
@@ -640,20 +616,15 @@ class CardSummary(BaseModel):
             "103 kW'), wyciągnij i przelicz."
         ),
     )
-    power_range: Optional[PrzedzialMocy] = Field(
+    power_range: Optional[str] = Field(
         None,
-        description="Na podstawie odczytanej mocy w KM `power_hp`, przyporządkuj pojazd do odpowiedniego przedziału opisanego w Enum `PrzedzialMocy`.",
+        description="Przedział mocy w KM: 'LOW (do 130 KM)', 'MID (131 - 200 KM)' lub 'HIGH (201 KM i więcej)'.",
     )
     fuel: str = Field(
         description=(
-            "Rodzaj paliwa / zasilania, np. 'Diesel', 'Benzyna', 'Elektryczny', "
-            "'Hybryda PHEV', 'MHEV'. "
-            "REGUŁA KRYTYCZNA: jeśli w dokumencie widnieje 'm-HEV', 'mHEV', 'MHEV' "
-            "lub 'miękka hybryda' obok paliwa głównego — ZWRÓĆ 'Benzyna mHEV' "
-            "(gdy paliwo bazowe to benzyna/PB/TSI/TFSI) lub 'Diesel mHEV' "
-            "(gdy bazowe to diesel/TDI/HDi). NIE upraszczaj do samego 'Benzyna' — "
-            "różnica mHEV vs PB zmienia mapowanie do tabeli engines i kaskadę WR. "
-            "Zwróć 'Brak' jeśli nie znaleziono."
+            "Rodzaj paliwa, np. 'Diesel', 'Benzyna', 'Benzyna mHEV', 'Diesel mHEV', "
+            "'Hybryda PHEV', 'Elektryczny'. Dla mHEV/MHEV — użyj wariantu mHEV "
+            "(nie upraszczaj do 'Benzyna'). 'Brak' jeśli nie znaleziono."
         )
     )
     power_kw: Optional[int] = Field(
@@ -664,13 +635,11 @@ class CardSummary(BaseModel):
         None,
         description="Wyciągnięte wymiary, masy i ładowność bezpośrednio z PDF.",
     )
-    drive_type: Optional[NapedRodzaj] = Field(
+    drive_type: Optional[str] = Field(
         None,
         description=(
-            "Rodzaj napędu znormalizowany do (FWD, RWD, AWD). "
-            "Zasady: '4x4' i 'ALL' mapuj zawsze na 'AWD'. "
-            "'4x2' i '2x4' mapuj na 'FWD' (2x4 = dwa koła napędzane z czterech = napęd przedni). "
-            "Wynik musi być przyporządkowany do jednej z opcji Enum `NapedRodzaj` lub pozostać pusty."
+            "Rodzaj napędu: 'FWD', 'RWD' lub 'AWD'. "
+            "'4x4' i 'ALL' → 'AWD'. '4x2' i '2x4' → 'FWD' (2x4 = dwa koła napędzane z czterech)."
         ),
     )
     transmission: str = Field(
@@ -684,12 +653,8 @@ class CardSummary(BaseModel):
     )
     body_style: str = Field(
         description=(
-            "Typ nadwozia pojazdu. Jeśli w jakiejkolwiek sekcji (wersja, nazwa) widzisz "
-            "słowa takie jak: Furgon, Kombi, SUV, Hatchback, Pickup, Skrzykniowy, "
-            "Autolaweta, Liftback itp. - wypisz je. BĄDŹ ODWAŻNY W DEDUKCJI z nazwy auta "
-            "(np. Octavia Combi -> nadwozie Kombi, Crafter Furgon -> nadwozie Furgon). "
-            "Nie zwracaj 'Brak' dopóki nie wyczerpiesz wszystkich możliwości "
-            "zidentyfikowania bryły nadwozia."
+            "Typ nadwozia (Furgon, Kombi, SUV, Hatchback, Pickup, Liftback itd.). "
+            "Dedukuj z nazwy modelu jeśli brak wprost (Octavia Combi → Kombi)."
         )
     )
     trim_level: str = Field(
@@ -709,7 +674,7 @@ class CardSummary(BaseModel):
         description="Kolor lakieru nadwozia (wraz z dopłatą na rzecz lakieru, np. 'lakier metallic 3500 zł brutto' lub 'netto'). Zwróć 'Brak' jeśli nie znaleziono."
     )
     standard_equipment: list[str] = Field(
-        description="KOMPLETNA lista wyposażenia standardowego — wypisz KAŻDY element z KAŻDEJ sekcji dokumentu (Koła, Fotele, Multimedia, Zewnętrzne, Wewnętrzne, Elektryczne, Bezpieczeństwo, Wyposażenie dodatkowe itd.) zachowując oryginalne nazwy. NIE filtruj, NIE pomijaj 'trywialnych' pozycji (ABS, ESP, poduszki, ISOFIX, pasy, eCall, dywaniki, antena, głośniki itp.) — wszystkie są kluczowe dla wyszukiwarki cech pojazdów. Pomijaj WYŁĄCZNIE dokładne duplikaty."
+        description="Lista wyposażenia standardowego — wszystkie pozycje z wszystkich sekcji, oryginalne nazwy, bez filtrowania trywialnych (ABS/ESP/ISOFIX itd.). Tylko dokładne duplikaty pomiń.",
     )
     paid_options: list[PaidOption] = Field(
         description="Lista osobnych, płatnych opcji dodatkowych uwzględnionych w konfiguracji podanych w postaci listy z nazwą ew. kodem opcji i ceną dopłaty (wraz z 'netto' lub 'brutto')."
@@ -734,11 +699,8 @@ class CardSummary(BaseModel):
     is_current_year_vehicle: Optional[bool] = Field(
         None,
         description=(
-            "Czy pojazd jest z bieżącego rocznika produkcji (True) czy ubiegłego (False). "
-            "Oceń na podstawie: daty ważności oferty, roku modelowego, daty produkcji, "
-            "roku rejestracji lub innych wskazówek w dokumencie. Jeśli oferta jest "
-            "wystawiona na pojazd z roku bieżącego lub przyszłego — True. Jeśli pojazd "
-            "został wyprodukowany w roku poprzednim — False. Null jeśli brak danych."
+            "True jeśli pojazd z bieżącego/przyszłego rocznika, False jeśli poprzedni, null jeśli brak danych. "
+            "Bazuj na dacie oferty / roku modelowym / dacie produkcji."
         ),
     )
     vin: Optional[str] = Field(

@@ -5,6 +5,7 @@ import traceback
 import uuid
 from typing import Any
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from core.gemini_client import (
@@ -645,6 +646,28 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
 
         return pro_data
 
+    except genai_errors.ClientError as e:
+        if getattr(e, "status", None) == "INVALID_ARGUMENT":
+            logger.error(
+                "[CARD SUMMARY] Gemini rejected response_schema "
+                "(400 INVALID_ARGUMENT): %s. Both Pro and Flash use the SAME "
+                "schema so neither retry nor model fallback recovers — "
+                "surfacing as pipeline error so the vehicle record is marked "
+                "'error' instead of silently producing empty card_summary "
+                "(which downstream deterministic backfills would fill from "
+                "digital_twin, yielding a Frankenstein record mixing data "
+                "from unrelated parts of the document).",
+                e,
+            )
+            raise
+        tb = traceback.format_exc()
+        error_msg = f"[CARD SUMMARY ERROR] Błąd generatywnego tworzenia CardSummary (Structured Output) - wygenerowano pustą kartę, operacja zatrzymana. Log: {str(e)}\nTraceback:\n{tb}"
+        logger.error(error_msg)
+
+        if "card_summary" not in pro_data:
+            pro_data["card_summary"] = {}
+
+        return pro_data
     except Exception as e:
         tb = traceback.format_exc()
         error_msg = f"[CARD SUMMARY ERROR] Błąd generatywnego tworzenia CardSummary (Structured Output) - wygenerowano pustą kartę, operacja zatrzymana. Log: {str(e)}\nTraceback:\n{tb}"
