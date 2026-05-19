@@ -32,6 +32,26 @@ Operational guide for Claude (and humans) working in this repo. **Read this firs
 
 **Allowed:** `SELECT`, `INSERT`. `UPDATE` only after explicit user command. If user orders deletion → STOP → repeat command → wait for confirmation.
 
+### Allow List — zawsze OK bez pytania
+
+```
+poetry run pytest / ruff / mypy / black / isort
+poetry install / lock / show
+npm install / run dev / run build / run lint / test / test:e2e
+docker-compose up / down (bez -v) / logs / ps
+git add <konkretny-plik> / commit / status / log / diff / branch / pull
+SELECT, INSERT (Supabase ONLINE)
+```
+
+**Deny List** (uzupełnienie powyższej AI LOCKOUT — destrukcje shell/git/docker):
+
+```
+rm -rf, git push --force, git reset --hard, git clean -fd
+docker-compose down -v, docker volume rm
+git add -A / git add . (preferuj konkretne pliki — uniknij commitu .env / secretów)
+UPDATE/DELETE (Supabase ONLINE) — tylko po explicit zgodzie usera
+```
+
 ### 400 LOC max per source file
 
 Hard rule from README. Files over 400 lines require refactor. Currently `LTRKalkulator.py` is 1141 lines — that's *known debt*, not license to keep growing.
@@ -39,6 +59,17 @@ Hard rule from README. Files over 400 lines require refactor. Currently `LTRKalk
 ### Two-way (round-trip) test for DB-affecting changes
 
 Any change that writes to DB must verify both write AND read. POST returns 200 ≠ data is valid. Read the record back, deserialize, render — if it explodes, the write was wrong.
+
+### Priority order on conflict
+
+Gdy dwa wymagania kolidują (np. szybka dostawa vs full test coverage), trzymaj się tej kolejności:
+
+1. **Bezpieczeństwo i spójność danych** — AI LOCKOUT, two-way DB test, brak destrukcyjnych ops
+2. **Działający build + testy** — ruff + mypy + pytest clean; frontend tsc + ESLint clean
+3. **Zgodność z architekturą** — `TABLE_REGISTRY.md`, 12-stage pipeline order, body_types SOT
+4. **Funkcjonalność zgodna ze specyfikacją** — `docs/audit/calc_*.md`, V1 parity testy
+5. **Styl kodu i konwencje** — naming, komentarze, file structure
+6. **Szybkość dostarczenia** — najniższy priorytet; nigdy nie poświęcaj 1-3 na rzecz 6
 
 ## 12-stage calculation pipeline
 
@@ -151,6 +182,16 @@ Per [this plan](../../../../Users/proma/.claude/plans/spojrsysz-na-maja-apliakcj
 4. **Skills, not scripts.** If a debugging/fix task is repeated, codify it in `.claude/skills/` rather than another `fix_X.py` in `backend/scripts/`.
 5. **Verify before declaring done.** Backend: pytest + ruff + mypy clean. Frontend: typecheck + ESLint + relevant test pass. UI changes: actually open the browser (preview tools).
 6. **Evidence over claims.** Don't say "should work" — show output. For DB writes, do the two-way (round-trip) test.
+7. **Handover przed kompaktacją.** Przed kompaktacją sesji lub na koniec większej fazy zaktualizuj [`handover.md`](handover.md) (sekcje Status aktualny, Co zrobione, Następne kroki). To co git status nie pokaże — intencje, decyzje, WIP — zostaje tam.
+
+### Karpathy Guidelines — 4 zasady jakości kodu
+
+Cross-cuts całych anti-patterns poniżej. Stosuj jako szybki self-check przed PR. W rozmowie można odnosić się skrótem: „pamiętaj o Karpathy #3" = surgical.
+
+1. **Think Before Coding** — wypisz założenia wprost. Niepewne → zapytaj, nie zgaduj. Wiele interpretacji → zaprezentuj je, nie wybieraj cicho. Prostsze rozwiązanie istnieje → powiedz o tym przed pisaniem.
+2. **Simplicity First** — minimum kodu rozwiązujące problem. Bez funkcji których nie proszono, bez abstrakcji „na przyszłość", bez obsługi błędów dla scenariuszy które nie mogą się zdarzyć. Self-check: „Czy senior engineer powiedziałby że to za skomplikowane?"
+3. **Surgical Changes** — dotykaj tylko tego co musisz. Nie „ulepszaj" sąsiedniego kodu/komentarzy/formatowania. Nie refaktoruj rzeczy które nie są zepsute. Każda zmieniona linia = bezpośrednie uzasadnienie w żądaniu użytkownika.
+4. **Goal-Driven Execution** — zamień zadania na weryfikowalne cele: „napraw buga" → „test reprodukujący (czerwony) → fix → test zielony". Każdy krok ma `[co robię] → weryfikacja: [jak sprawdzam]`.
 
 ### Codified workflows — see `.claude/skills/`
 
