@@ -219,3 +219,39 @@ def test_flash_count_wins_when_higher_than_fallback(monkeypatch) -> None:
     assert result is not None
     assert len(result) == 3
     assert extract_calls[0] == 3  # Flash count wins
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Wiring regression — background_jobs must forward text_data
+# ═══════════════════════════════════════════════════════════════════
+
+
+def test_background_jobs_forwards_text_data_to_detector() -> None:
+    """The call site in background_jobs.process_and_save_document_bg must pass
+    text_data to detect_and_split_vehicles, otherwise the deterministic
+    "Cena specjalna" / "Kalkulacja dla" counter cannot override a Flash
+    miscount on same-model multi-variant offers (e.g. 2× Hilux in one PDF).
+    """
+    import ast
+    import inspect
+
+    from core import background_jobs
+
+    tree = ast.parse(inspect.getsource(background_jobs))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "detect_and_split_vehicles"
+    ]
+
+    assert calls, "Expected detect_and_split_vehicles to be called in background_jobs"
+    for call in calls:
+        kwargs = {kw.arg for kw in call.keywords}
+        assert "text_data" in kwargs, (
+            "detect_and_split_vehicles must be called with `text_data=...` "
+            "so the deterministic anchor counter can override a Flash miscount. "
+            "Without it, 2× same-model offers (2× Hilux, 2× Master) get merged "
+            "into a single Frankenstein vehicle."
+        )
