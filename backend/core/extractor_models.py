@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Annotated, List, Literal, Optional
 from pydantic import BaseModel, Field, WithJsonSchema
+from pydantic.json_schema import SkipJsonSchema
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -329,7 +330,7 @@ class DiscountBreakdown(BaseModel):
             "'Zabudowa wywrotka 31732 zł oznaczona jako non-discountable'."
         ),
     )
-    rabat_type: Optional[Literal["kwotowo", "procentowo"]] = Field(
+    rabat_type: SkipJsonSchema[Optional[Literal["kwotowo", "procentowo"]]] = Field(
         default=None,
         description=(
             "Typ rabatu wybrany przez użytkownika w HITL: 'kwotowo' (rabat to "
@@ -337,14 +338,16 @@ class DiscountBreakdown(BaseModel):
             "Wypełniane przez wizard HITL, LLM zostawia null."
         ),
     )
-    rabat_basis: Optional[Literal["netto", "brutto"]] = Field(
+    rabat_basis: SkipJsonSchema[Optional[Literal["netto", "brutto"]]] = Field(
         default=None,
         description=(
             "Baza rabatu wybrana przez użytkownika w HITL: czy rabat liczony "
             "od netto czy brutto. Wypełniane przez wizard HITL."
         ),
     )
-    discount_scope: list[Literal["base", "factory_options", "zabudowa", "agregat"]] = Field(
+    discount_scope: SkipJsonSchema[
+        list[Literal["base", "factory_options", "zabudowa", "agregat"]]
+    ] = Field(
         default_factory=list,
         description=(
             "Bucket-y do których stosuje się rabat (HITL): "
@@ -359,6 +362,10 @@ class PaidOption(BaseModel):
     price: str = Field(
         description="Cena płatnej opcji z walutą i typem netto/brutto "
         "(np. '2750 PLN netto' lub '5476 PLN brutto')"
+    )
+    option_code: Optional[str] = Field(
+        default=None,
+        description="Kod opcji producenta jeśli podany (np. '9AK', '1D4', 'C8K').",
     )
     price_type: str = Field(
         default="unknown",
@@ -406,7 +413,7 @@ class PaidOption(BaseModel):
             "null = nieznana, backend wyciąga z relacji net↔gross jeśli oba znane."
         ),
     )
-    conversion_source: Optional[ConversionSourceLiteral] = Field(
+    conversion_source: SkipJsonSchema[Optional[ConversionSourceLiteral]] = Field(
         default=None,
         description=(
             "Skąd wzięły się net_amount/gross_amount: 'explicit_both' (oba w PDF), "
@@ -429,7 +436,7 @@ class PaidOption(BaseModel):
             "tylko sygnał dla HITL (różowe obramowanie + opcja merge w UI)."
         ),
     )
-    source_offsets: Optional[List[OffsetSpan]] = Field(
+    source_offsets: SkipJsonSchema[Optional[List[OffsetSpan]]] = Field(
         default=None,
         description=(
             "Lista offsetów w PDF (page+bbox+quoted_text) uzasadniających tę pozycję. "
@@ -462,10 +469,10 @@ class ServiceComponentItem(BaseModel):
     net_amount: Optional[float] = Field(default=None, description="Cena netto (PLN, liczba)")
     gross_amount: Optional[float] = Field(default=None, description="Cena brutto (PLN, liczba)")
     vat_rate: Optional[float] = Field(default=None, description="Stawka VAT (ułamek; 0.23, 0.08, …)")
-    conversion_source: Optional[ConversionSourceLiteral] = Field(default=None)
+    conversion_source: SkipJsonSchema[Optional[ConversionSourceLiteral]] = Field(default=None)
     canonical_id: str = Field(default="")
     duplicate_of: Optional[str] = Field(default=None)
-    source_offsets: Optional[List[OffsetSpan]] = Field(default=None)
+    source_offsets: SkipJsonSchema[Optional[List[OffsetSpan]]] = Field(default=None)
 
 
 class ServiceEquipment(BaseModel):
@@ -486,10 +493,10 @@ class ServiceEquipment(BaseModel):
     net_amount: Optional[float] = Field(default=None, description="Cena netto całości (PLN, liczba)")
     gross_amount: Optional[float] = Field(default=None, description="Cena brutto całości (PLN, liczba)")
     vat_rate: Optional[float] = Field(default=None, description="Stawka VAT (ułamek)")
-    conversion_source: Optional[ConversionSourceLiteral] = Field(default=None)
+    conversion_source: SkipJsonSchema[Optional[ConversionSourceLiteral]] = Field(default=None)
     canonical_id: str = Field(default="")
     duplicate_of: Optional[str] = Field(default=None)
-    source_offsets: Optional[List[OffsetSpan]] = Field(default=None)
+    source_offsets: SkipJsonSchema[Optional[List[OffsetSpan]]] = Field(default=None)
 
 
 class UtilityFeatureItem(BaseModel):
@@ -797,7 +804,7 @@ class CardSummary(BaseModel):
     total_price_vat: Optional[float] = Field(default=None)
 
     # ── V3 source grounding (powers HITL highlight) ──
-    source_offsets_by_field: Optional[List[FieldOffset]] = Field(
+    source_offsets_by_field: SkipJsonSchema[Optional[List[FieldOffset]]] = Field(
         default=None,
         description=(
             "Mapowanie pole→offset(y) dla top-level fields. Powers PDF viewer "
