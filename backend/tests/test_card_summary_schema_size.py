@@ -25,7 +25,7 @@ from core.extractor_models import CardSummary
 from core.pipeline_digital_twin import VehicleExtractionSchema
 
 
-CARD_SUMMARY_CEILING_CHARS = 32_000
+CARD_SUMMARY_CEILING_CHARS = 28_000
 VEHICLE_EXTRACTION_CEILING_CHARS = 8_000
 
 
