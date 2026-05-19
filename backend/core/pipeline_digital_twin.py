@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Union
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from core.gemini_client import (
@@ -195,6 +196,21 @@ def _call_gemini_pro(client, contents) -> dict:
             unified_data["_extraction_metadata"] = usage_info
         logger.info("Pro standard JSON extraction succeeded.")
         return unified_data
+    except genai_errors.ClientError as e:
+        if getattr(e, "status", None) == "INVALID_ARGUMENT":
+            logger.error(
+                "[DIGITAL TWIN Pro] Gemini rejected response_schema "
+                "(400 INVALID_ARGUMENT): %s. Flash uses the same schema, so "
+                "neither retry nor model fallback recovers — re-raising so the "
+                "vehicle record is marked 'error' instead of silently producing "
+                "an empty digital twin.",
+                e,
+            )
+            raise
+        logger.exception(
+            f"Extraction failed with client error other than INVALID_ARGUMENT (Pro): {e}"
+        )
+        return {}
     except Exception as e:
         logger.exception(
             f"Extraction failed with JSONDecodeError or other error (Pro): {e}"
@@ -236,6 +252,20 @@ def _call_gemini_flash(client, contents) -> dict:
             }
         logger.info("Flash Structured Output extraction succeeded.")
         return unified_data
+    except genai_errors.ClientError as fallback_e:
+        if getattr(fallback_e, "status", None) == "INVALID_ARGUMENT":
+            logger.error(
+                "[DIGITAL TWIN Flash] Gemini rejected response_schema "
+                "(400 INVALID_ARGUMENT): %s. Same schema as Pro — recovery "
+                "impossible without a code change. Re-raising so the vehicle "
+                "record is marked 'error' instead of silently degrading.",
+                fallback_e,
+            )
+            raise
+        logger.exception(
+            f"Flash extraction client error other than INVALID_ARGUMENT: {fallback_e}"
+        )
+        return {}
     except Exception as fallback_e:
         logger.exception(f"Flash extraction completely failed: {fallback_e}")
         return {}
