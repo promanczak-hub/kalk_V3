@@ -171,7 +171,11 @@ def process_and_save_document_bg(
         # ── Phase 0: Multi-vehicle detection (Gemini Flash) ──
         update_progress(supabase, file_id, "detecting_vehicles")
         logger.info(f"[BG TASK] Faza 0: Wykrywanie liczby pojazdów w {file_name}...")
-        multi_vehicles = detect_and_split_vehicles(gemini_data, gemini_mime)
+        multi_vehicles = detect_and_split_vehicles(
+            gemini_data,
+            gemini_mime,
+            text_data=router_data if router_mime == "text/plain" else None,
+        )
         logger.info(
             f"[BG TASK] Faza 0 wynik: {len(multi_vehicles) if multi_vehicles else 'single'}"
         )
