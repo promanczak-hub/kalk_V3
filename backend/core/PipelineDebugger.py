@@ -1,10 +1,10 @@
 import json
 from html import escape
 from typing import Any, Dict, List
-from core.LTRKalkulator import (
-    LTRKalkulator,
-    get_insurance_rates_from_db,
+from core.LTRKalkulator import LTRKalkulator
+from core.ltr_db_fetchers import (
     get_damage_coefficients_from_db,
+    get_insurance_rates_from_db,
     get_replacement_car_rate_from_db,
 )
 from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
@@ -18,7 +18,11 @@ from core.LTRSubCalculatorBudzetMarketingowy import (
 from core.LTRSubCalculatorKosztDzienny import KosztDziennyCalculator, KosztDziennyInput
 from core.LTRSubCalculatorStawka import StawkaCalculator, StawkaInput
 from core.LTRSubCalculatorUtrataWartosciNew import LTRSubCalculatorUtrataWartosciNew
-from core.LTRSubCalculatorFinanse import FinanseCalculator, FinanseInput
+from core.LTRSubCalculatorFinanse import (
+    FinanseCalculator,
+    FinanseInput,
+    resolve_czynsz_inicjalny_netto,
+)
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
 
 
@@ -281,25 +285,45 @@ class PipelineDebugger(LTRKalkulator):
         if vat_rate > 10.0:
             vat_rate = 1.0 + (vat_rate / 100.0)
 
+        # Czynsz inicjalny — liczymy upfront (przed WR), V1 parity (cs:54-55):
+        # UtrataZCzynszem = max(UtrataBez - CzynszNetto, 0)
+        _initial_deposit_pct_pre = float(
+            getattr(self.input_data, "initial_deposit_pct", 0.0) or 0.0
+        )
+        _rodzaj_czynszu_pre = (
+            "Procentowo" if _initial_deposit_pct_pre > 0 else "Kwotowo"
+        )
+        _czynsz_inicjalny_netto_pre = resolve_czynsz_inicjalny_netto(
+            wartosc_poczatkowa_netto=capex_for_financing,
+            rodzaj_czynszu=_rodzaj_czynszu_pre,
+            czynsz_inicjalny_brutto=0.0,
+            czynsz_procent=_initial_deposit_pct_pre,
+            stawka_vat=vat_rate,
+        )
+
         rv_res = rv_calc.calculate_values(
             months=months,
             total_km=total_km,
             base_vehicle_catalog_gross=base_price_net_full * vat_rate,
             options_catalog_gross=base_wr_options * vat_rate,
+            czynsz_inicjalny_netto=_czynsz_inicjalny_netto_pre,
         )
 
         orig_vr_samar = float(rv_res["WR"])
-        orig_utrata_bez_czynszu = wp_amortyzacja - orig_vr_samar
-        orig_utrata_z_czynszem = orig_utrata_bez_czynszu  # Legacy V1 parity, no initial rent reduction for technical utrata yet
+        orig_utrata_bez_czynszu = float(rv_res["UtrataWartosciBEZczynszu"])
+        orig_utrata_z_czynszem = float(rv_res["UtrataWartosciZCzynszemInicjalnym"])
 
         vr_samar = float(overrides.get("step_6_wr", orig_vr_samar))
 
         if "step_6_wr" in overrides:
+            # Override WR → re-derive utrata fresh from wp_amortyzacja, czynsz redukuje
+            base_utrata_bez = max(wp_amortyzacja - vr_samar, 0.0)
             utrata_z_czynszem = overrides.get(
-                "step_6_utrata_z_czynszem", wp_amortyzacja - vr_samar
+                "step_6_utrata_z_czynszem",
+                max(base_utrata_bez - _czynsz_inicjalny_netto_pre, 0.0),
             )
             utrata_bez_czynszu = overrides.get(
-                "step_6_utrata_bez_czynszu", wp_amortyzacja - vr_samar
+                "step_6_utrata_bez_czynszu", base_utrata_bez
             )
         else:
             utrata_z_czynszem = overrides.get(
@@ -331,8 +355,12 @@ class PipelineDebugger(LTRKalkulator):
                 },
                 "metadata": {
                     "utrata_z_czynszem": {
-                        "source": "PipelineDebugger.py",
-                        "formula": "WP_Amortyzacji (Auto+OpcjeF) - Wartość Końcowa (WR)",
+                        "source": "LTRSubCalculatorUtrataWartosciNew.py (V1 cs:54-55)",
+                        "formula": "max(UtrataBezCzynszu - CzynszInicjalnyNetto, 0)",
+                    },
+                    "czynsz_inicjalny_netto_pre_wr": {
+                        "source": "LTRSubCalculatorFinanse.resolve_czynsz_inicjalny_netto",
+                        "value": _czynsz_inicjalny_netto_pre,
                     },
                 },
                 "trace": rv_res.get("trace", []),

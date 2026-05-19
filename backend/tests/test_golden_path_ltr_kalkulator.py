@@ -45,6 +45,11 @@ def test_golden_path_standard_car(mock_db_responses):
     # Target values for parity verification
     # Excel Baseline: ~3298.0
     # Current V3 Baseline: 4574.0 (established 2026-03-26)
+    # Rebaseline 2026-05-18: czynsz_inicjalny WR-fallback bug fix
+    #   — utrata_z_czynszem now uses samar_rv.utrata_wartosci_net
+    #     (catalog - WR) instead of the legacy fallback
+    #     (capex_for_financing - vr_samar) which wrongly included tires_capex.
+    #   Effect: kf_laczne drops by tires_capex (~2000 PLN), CF moves accordingly.
 
     calc_input = CalculatorInput(
         vehicle_id="golden-vehicle-1",
@@ -80,16 +85,18 @@ def test_golden_path_standard_car(mock_db_responses):
                 "core.LTRKalkulator.get_vehicle_from_db",
                 return_value=mock_db_responses["vehicle"],
             ),
+            # Post-refactor 2026-05-19: per-cell calc lives in ltr_cell_calculator;
+            # patches must target where the call actually happens.
             patch(
-                "core.LTRKalkulator.get_insurance_rates_from_db",
+                "core.ltr_cell_calculator.get_insurance_rates_from_db",
                 return_value=mock_db_responses["insurance_rates"],
             ),
             patch(
-                "core.LTRKalkulator.get_damage_coefficients_from_db",
+                "core.ltr_cell_calculator.get_damage_coefficients_from_db",
                 return_value=mock_db_responses["damage_coeffs"],
             ),
             patch(
-                "core.LTRKalkulator.get_replacement_car_rate_from_db",
+                "core.ltr_cell_calculator.get_replacement_car_rate_from_db",
                 return_value=mock_db_responses["replacement_car"],
             ),
             patch(
@@ -158,12 +165,12 @@ def test_golden_path_standard_car(mock_db_responses):
             print(f"MarzaMiesiac: {target_cell.get('MarzaMiesiac')}")
 
             # Baseline Assertions (60 months, Year 0 Depr: 0.15)
-            assert target_cell["LacznaStawka"] == 2736.0
-            assert target_cell["CzynszFinansowy"] == 1855.0
+            assert target_cell["LacznaStawka"] == 2753.0
+            assert target_cell["CzynszFinansowy"] == 1872.0
             assert target_cell["CzynszTechniczny"] == 881.0
             assert target_cell["Ubezpieczenie"] == 73.0
             assert target_cell["Serwis"] == 632.0
             assert target_cell["Opony"] == 79.0
             assert target_cell["SamochodZastepczy"] == 66.0
-            assert target_cell["MarzaMiesiac"] == 137.0
+            assert target_cell["MarzaMiesiac"] == 138.0
             assert target_cell["CenaKatalogowaNetto"] == 120000.0

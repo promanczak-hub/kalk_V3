@@ -100,15 +100,17 @@ def test_pipeline_debugger_no_overrides_matches_kalkulator(
             "power_kw": 100,
         },
     )
+    # Post-refactor 2026-05-19: per-cell calc lives in ltr_cell_calculator;
+    # the test must patch where the function is actually called from.
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_insurance_rates_from_db", lambda *a, **kw: []
+        "core.ltr_cell_calculator.get_insurance_rates_from_db", lambda *a, **kw: []
     )
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_replacement_car_rate_from_db",
+        "core.ltr_cell_calculator.get_replacement_car_rate_from_db",
         lambda *a, **kw: {"average_days_per_year": 15.0, "daily_rate_net": 100.0},
     )
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_damage_coefficients_from_db", lambda *a, **kw: {}
+        "core.ltr_cell_calculator.get_damage_coefficients_from_db", lambda *a, **kw: {}
     )
 
     # Bypass broken InsuranceCalculator completely
@@ -119,7 +121,7 @@ def test_pipeline_debugger_no_overrides_matches_kalkulator(
         def calculate_cost(self, *a, **kw):
             return {"monthly_insurance": 100, "total_insurance": 1200}
 
-    monkeypatch.setattr("core.LTRKalkulator.InsuranceCalculator", DummyInsuranceCalc)
+    monkeypatch.setattr("core.ltr_cell_calculator.InsuranceCalculator", DummyInsuranceCalc)
     monkeypatch.setattr("core.PipelineDebugger.InsuranceCalculator", DummyInsuranceCalc)
 
     # ServiceCalculator's get_service_multiplier raises ValueError for unknown
@@ -189,15 +191,16 @@ def test_pipeline_debugger_with_override(mock_input_data, mock_settings, monkeyp
             "power_kw": 100,
         },
     )
+    # Post-refactor 2026-05-19: per-cell calc lives in ltr_cell_calculator.
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_insurance_rates_from_db", lambda *a, **kw: []
+        "core.ltr_cell_calculator.get_insurance_rates_from_db", lambda *a, **kw: []
     )
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_replacement_car_rate_from_db",
+        "core.ltr_cell_calculator.get_replacement_car_rate_from_db",
         lambda *a, **kw: {"average_days_per_year": 15.0, "daily_rate_net": 100.0},
     )
     monkeypatch.setattr(
-        "core.LTRKalkulator.get_damage_coefficients_from_db", lambda *a, **kw: {}
+        "core.ltr_cell_calculator.get_damage_coefficients_from_db", lambda *a, **kw: {}
     )
 
     class DummyInsuranceCalc:
@@ -207,7 +210,7 @@ def test_pipeline_debugger_with_override(mock_input_data, mock_settings, monkeyp
         def calculate_cost(self, *a, **kw):
             return {"monthly_insurance": 100, "total_insurance": 1200}
 
-    monkeypatch.setattr("core.LTRKalkulator.InsuranceCalculator", DummyInsuranceCalc)
+    monkeypatch.setattr("core.ltr_cell_calculator.InsuranceCalculator", DummyInsuranceCalc)
     monkeypatch.setattr("core.PipelineDebugger.InsuranceCalculator", DummyInsuranceCalc)
 
     # ServiceCalculator's get_service_multiplier raises ValueError for unknown

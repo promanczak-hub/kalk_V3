@@ -35,6 +35,7 @@ class ValidationWarning:
     expected: float | None = None
     actual: float | None = None
     diff_pct: float | None = None
+    field_path: str | None = None  # dot-path do pola (np. "paid_options.3.price", "base_price")
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -48,6 +49,8 @@ class ValidationWarning:
             result["actual"] = self.actual
         if self.diff_pct is not None:
             result["diff_pct"] = round(self.diff_pct, 2)
+        if self.field_path is not None:
+            result["field_path"] = self.field_path
         return result
 
 
@@ -150,6 +153,42 @@ def validate_card_summary_prices(
     return report
 
 
+def _promote_prices_from_digital_twin(pro_data: dict[str, Any]) -> None:
+    """Fill card_summary.{base,total,options}_price from digital_twin.pricing when missing.
+
+    Why: Audi configurator PDFs print prices without a netto/brutto suffix.
+    CARD_SUMMARY_PROMPT then refuses to extract them (refuses ambiguous domain),
+    leaving card_summary.base_price=None. The digital twin extractor is more
+    lenient and still catches the raw strings in digital_twin.pricing.
+    Polish premium catalogues without explicit suffix default to BRUTTO — same
+    convention the existing PRICE_DOMAIN_UNKNOWN warning already announces.
+    """
+    card_summary = pro_data.get("card_summary")
+    if not isinstance(card_summary, dict):
+        return
+
+    dt_pricing = (pro_data.get("digital_twin") or {}).get("pricing") or {}
+    if not isinstance(dt_pricing, dict):
+        return
+
+    label = pro_data.get("offer_number") or pro_data.get("model") or "?"
+    for field_name in ("base_price", "total_price", "options_price"):
+        if card_summary.get(field_name):
+            continue
+        dt_val = dt_pricing.get(field_name)
+        if not isinstance(dt_val, str) or not dt_val.strip():
+            continue
+
+        dt_str = dt_val.strip()
+        has_domain = "netto" in dt_str.lower() or "brutto" in dt_str.lower()
+        promoted = dt_str if has_domain else f"{dt_str} brutto"
+        card_summary[field_name] = promoted
+        logger.info(
+            "[PRICE PROMOTE] %s: card_summary.%s pusty, skopiowano z digital_twin.pricing → %r",
+            label, field_name, promoted,
+        )
+
+
 def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     """
     Pipeline integration point.
@@ -162,6 +201,10 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     card_summary = pro_data.get("card_summary")
     if not isinstance(card_summary, dict):
         return pro_data
+
+    # Promote prices from digital_twin BEFORE validation — fills the gap when
+    # CARD_SUMMARY_PROMPT skipped them due to missing netto/brutto suffix.
+    _promote_prices_from_digital_twin(pro_data)
 
     # Allow empty dict to still get _validation flags
     report = validate_card_summary_prices(card_summary)
@@ -180,6 +223,9 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
     report.summary = generate_price_summary(validation_dict, card_summary)
 
     card_summary["_validation"] = report.to_dict()
+
+    # ── Boost confidence_breakdown / paid_options.confidence based on warnings ──
+    _apply_validator_penalties(card_summary, report)
 
     # ── User-facing warning when price domain cannot be determined ──
     if detected_domain == "unknown":
@@ -692,6 +738,7 @@ def _check_sum_consistency(
             expected=expected_total,
             actual=total.value,
             diff_pct=diff_pct,
+            field_path="total_price",
         )
     )
 
@@ -793,6 +840,7 @@ def _check_base_vs_total(
                 severity="ERROR",
                 expected=base.value,
                 actual=total.value,
+                field_path="total_price",
             )
         )
 
@@ -848,6 +896,7 @@ def _check_base_total_swap(
                     expected=total.value,
                     actual=base.value,
                     diff_pct=diff_pct,
+                    field_path="base_price",
                 )
             )
             return
@@ -862,32 +911,30 @@ def _check_unparseable_options(
 ) -> None:
     """Flag paid_options with missing or unparseable prices.
 
-    These require manual verification.
+    These require manual verification. Emits one warning per unparseable option
+    with field_path pointing to that option's price slot.
     """
     if not paid_options:
         return
 
-    unparseable: list[str] = []
-    for opt in paid_options:
+    for idx, opt in enumerate(paid_options):
         if not isinstance(opt, dict):
             continue
         price_str = opt.get("price", "")
         name = opt.get("name", "<brak nazwy>")
         parsed = parse_price_string(price_str)
         if parsed is None:
-            unparseable.append(name)
-
-    if unparseable:
-        report.add(
-            ValidationWarning(
-                rule="OPTION_PRICE_UNPARSEABLE",
-                message=(
-                    f"{len(unparseable)} opcji z brakującą ceną — "
-                    f"wymaga weryfikacji: {', '.join(unparseable)}"
-                ),
-                severity="WARNING",
+            report.add(
+                ValidationWarning(
+                    rule="OPTION_PRICE_UNPARSEABLE",
+                    message=(
+                        f"Opcja '{name}' (idx {idx}) ma nieparsowalną cenę "
+                        f"'{price_str}' — wymaga weryfikacji."
+                    ),
+                    severity="WARNING",
+                    field_path=f"paid_options.{idx}.price",
+                )
             )
-        )
 
 
 _DEALER_EXTRA_KEYWORDS = (
@@ -979,8 +1026,8 @@ def _detect_dealer_extras(
     if not paid_options:
         return
 
-    suspect: list[tuple[str, float]] = []
-    for opt in paid_options:
+    suspect: list[tuple[int, str, float]] = []
+    for idx, opt in enumerate(paid_options):
         if not isinstance(opt, dict):
             continue
         name = (opt.get("name") or "").lower()
@@ -989,13 +1036,14 @@ def _detect_dealer_extras(
         if any(kw in haystack for kw in _DEALER_EXTRA_KEYWORDS):
             parsed = parse_price_string(opt.get("price", ""))
             price_val = parsed.value if parsed else 0.0
-            suspect.append((opt.get("name", "?"), price_val))
+            suspect.append((idx, opt.get("name", "?"), price_val))
 
     if not suspect:
         return
 
-    suspect_sum = sum(p for _, p in suspect)
-    suspect_names = ", ".join(name for name, _ in suspect)
+    suspect_sum = sum(p for _, _, p in suspect)
+    suspect_names = ", ".join(name for _, name, _ in suspect)
+    suspect_paths = ",".join(f"paid_options.{idx}" for idx, _, _ in suspect)
 
     discount = card_summary.get("discount")
     declared_non_discountable = (
@@ -1018,6 +1066,7 @@ def _detect_dealer_extras(
                 severity="WARNING",
                 expected=suspect_sum,
                 actual=declared_non_discountable,
+                field_path=suspect_paths,
             )
         )
     else:
@@ -1029,6 +1078,7 @@ def _detect_dealer_extras(
                     f"{suspect_names} (Σ {suspect_sum:.0f} PLN)."
                 ),
                 severity="INFO",
+                field_path=suspect_paths,
             )
         )
 
@@ -1217,6 +1267,7 @@ def _check_service_equipment_sum_integrity(
                 expected=declared.value,
                 actual=components_sum,
                 diff_pct=diff_pct,
+                field_path=f"service_equipment.{field_total}",
             )
         )
 
@@ -1250,5 +1301,91 @@ def _check_power_consistency(
                 severity="WARNING",
                 expected=expected_hp,
                 actual=float(power_hp),
+                field_path="power_hp",
             )
         )
+
+
+# ── HITL confidence boost / penalty machinery ──
+
+_SEVERITY_PENALTY = {"ERROR": 0.5, "WARNING": 0.2, "INFO": 0.05}
+
+# Top-level fields w confidence_breakdown — bezpośrednie odwzorowanie field_path
+_TOP_LEVEL_CONFIDENCE_KEYS = {
+    "base_price",
+    "options_price",
+    "total_price",
+    "body_style",
+    "discount.rabat_pct",
+    "engine_class",
+    "samar_category",
+    "trim_level",
+    "power_hp",
+    "power_kw",
+    "service_equipment.total_price_net",
+    "service_equipment.total_price_gross",
+}
+
+
+def _decrement_confidence(card_summary: dict[str, Any], field_path: str, penalty: float) -> None:
+    """Obniż confidence pola wskazanego przez field_path o `penalty`.
+
+    Obsługuje 3 kształty field_path:
+    - "paid_options.<idx>" lub "paid_options.<idx>.<subfield>" → paid_options[idx].confidence
+    - "service_equipment.components.<idx>" → service_equipment.components[idx].confidence
+    - dowolne inne → confidence_breakdown[field_path]
+    """
+    if not field_path:
+        return
+
+    parts = field_path.split(".")
+    if parts[0] == "paid_options" and len(parts) >= 2 and parts[1].isdigit():
+        idx = int(parts[1])
+        options = card_summary.get("paid_options", [])
+        if 0 <= idx < len(options) and isinstance(options[idx], dict):
+            current = options[idx].get("confidence", 1.0)
+            options[idx]["confidence"] = max(0.0, current - penalty)
+        return
+
+    if (
+        parts[0] == "service_equipment"
+        and len(parts) >= 3
+        and parts[1] == "components"
+        and parts[2].isdigit()
+    ):
+        idx = int(parts[2])
+        se = card_summary.get("service_equipment") or {}
+        components = se.get("components", []) if isinstance(se, dict) else []
+        if 0 <= idx < len(components) and isinstance(components[idx], dict):
+            current = components[idx].get("confidence", 1.0)
+            components[idx]["confidence"] = max(0.0, current - penalty)
+        return
+
+    # Top-level: zapisuj zarówno do confidence_breakdown jak i pełnego field_path
+    # (zachowuje subfields jak "paid_options.3.price" dla diagnostyki UI)
+    breakdown = card_summary.setdefault("confidence_breakdown", {})
+    current = breakdown.get(field_path, 1.0)
+    breakdown[field_path] = max(0.0, current - penalty)
+
+
+def _apply_validator_penalties(card_summary: dict[str, Any], report: ValidationReport) -> None:
+    """Po wygenerowaniu raportu walidatora, obniż confidence pól odpowiadających warningom.
+
+    Każdy warning z `field_path` powoduje obniżkę:
+    - ERROR: −0.5 od bieżącej wartości confidence
+    - WARNING: −0.2
+    - INFO: −0.05
+
+    Pola tekstowe w `field_path` mogą być comma-separated (np. DEALER_EXTRA_DETECTED
+    "paid_options.0,paid_options.3"). Każda ścieżka dostaje osobną obniżkę.
+    """
+    for warning in report.warnings:
+        if not warning.field_path:
+            continue
+        penalty = _SEVERITY_PENALTY.get(warning.severity, 0.0)
+        if penalty == 0.0:
+            continue
+        for path in warning.field_path.split(","):
+            path = path.strip()
+            if path:
+                _decrement_confidence(card_summary, path, penalty)
