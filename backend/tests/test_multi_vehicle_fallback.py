@@ -255,3 +255,63 @@ def test_background_jobs_forwards_text_data_to_detector() -> None:
             "Without it, 2× same-model offers (2× Hilux, 2× Master) get merged "
             "into a single Frankenstein vehicle."
         )
+        assert "count_text" in kwargs, (
+            "detect_and_split_vehicles must be called with `count_text=...` "
+            "(the RAW pre-reformat markdown) so the section count is "
+            "deterministic. Counting on the LLM-reformatted text_data made the "
+            "override flaky — same PDF detected 2 vehicles one run, 1 the next."
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# count_text — deterministic counting source (raw markdown)
+# ═══════════════════════════════════════════════════════════════════
+
+
+def test_count_text_preferred_over_text_data(monkeypatch) -> None:
+    """count_text (raw markdown) must drive the section count, not text_data
+    (the reformatted markdown). Here raw has 2 sections but the reformatted
+    text has 0 — the split MUST still fire."""
+    from core import pipeline_multi_vehicle as pmv
+
+    monkeypatch.setattr(pmv, "detect_vehicle_count", lambda *a, **kw: 1)
+
+    extract_calls: list[int] = []
+
+    def _fake_extract(document_data, mime_type, expected_count, text_data=None):
+        extract_calls.append(expected_count)
+        return [{"brand": "Toyota"}, {"brand": "Toyota"}]
+
+    monkeypatch.setattr(pmv, "extract_multi_vehicle_twins", _fake_extract)
+
+    raw_with_two = (
+        "Hilux MY24\nCena specjalna: 142000\n\nHilux NG26\nCena specjalna: 155000"
+    )
+    reformatted_with_none = "Toyota Hilux — oferta zbiorcza, jeden cennik."
+
+    result = pmv.detect_and_split_vehicles(
+        b"pdf",
+        mime_type="application/pdf",
+        text_data=reformatted_with_none,
+        count_text=raw_with_two,
+    )
+    assert result is not None and len(result) == 2
+    assert extract_calls[0] == 2
+
+
+def test_count_text_falls_back_to_text_data_when_absent(monkeypatch) -> None:
+    """Backward compatible: when count_text is None, counting uses text_data."""
+    from core import pipeline_multi_vehicle as pmv
+
+    monkeypatch.setattr(pmv, "detect_vehicle_count", lambda *a, **kw: 1)
+    monkeypatch.setattr(
+        pmv,
+        "extract_multi_vehicle_twins",
+        lambda *a, **kw: [{"brand": "A"}, {"brand": "B"}],
+    )
+
+    text = "Kalkulacja dla A\nCena specjalna: 1\n\nKalkulacja dla B\nCena specjalna: 2"
+    result = pmv.detect_and_split_vehicles(
+        b"pdf", mime_type="application/pdf", text_data=text
+    )
+    assert result is not None and len(result) == 2

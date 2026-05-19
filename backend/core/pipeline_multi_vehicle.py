@@ -282,6 +282,7 @@ def detect_and_split_vehicles(
     document_data: Union[str, bytes],
     mime_type: str = "application/pdf",
     text_data: str | None = None,
+    count_text: str | None = None,
 ) -> list[dict] | None:
     """
     Main entry point for Phase 0.
@@ -296,13 +297,24 @@ def detect_and_split_vehicles(
         anchor phrases in raw PDF text.
       - We use MAX(flash, heuristic). Flash > heuristic when Flash is right,
         heuristic catches Flash false-negatives on same-model multi-variant.
+
+    `count_text` vs `text_data`:
+      - `count_text` is the RAW (pre-LLM-reformat) markdown — used for the
+        deterministic section count. The Gemini Flash reformatter is
+        non-deterministic and sometimes collapses repeated "Cena specjalna"
+        anchors, so counting on the reformatted `text_data` made the override
+        flaky (same PDF → 2 vehicles one run, 1 the next). Counting on the
+        raw text is stable.
+      - `text_data` is the (possibly reformatted) markdown passed to Pro as
+        extraction context. Falls back to it for counting when `count_text`
+        is not supplied (backward compatible).
     """
     count = detect_vehicle_count(document_data, mime_type)
 
     # Deterministic fallback: if Flash says 1, check the text for separate
     # calculation sections. This catches "2× Hilux in one PDF" cases where
     # Flash mistakes the same-model offer for a general price list.
-    section_count = count_calculation_sections(text_data)
+    section_count = count_calculation_sections(count_text or text_data)
     if section_count >= 2 and section_count > count:
         logger.warning(
             "[MULTI-VEHICLE] Flash returned %d but found %d calculation sections "

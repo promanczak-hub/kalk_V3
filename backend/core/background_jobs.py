@@ -107,6 +107,10 @@ def process_and_save_document_bg(
         router_data = gemini_data
         router_mime = gemini_mime
         tmp_pdf_path = None
+        # Raw (pre-LLM-reformat) markdown. The Gemini Flash reformatter is
+        # non-deterministic, so the multi-vehicle section counter must run on
+        # this stable text — not on `router_data` (the reformatted version).
+        raw_markdown = None
         if mime_type == "application/pdf":
             from core.pdf_pipeline.extractor import PDFExtractor
             import tempfile
@@ -126,6 +130,10 @@ def process_and_save_document_bg(
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(pdf_extractor.extract_hybrid, tmp_pdf_path)
                     markdown_content, pdf_bytes = future.result(timeout=600)
+
+                # Keep the raw extraction for deterministic section counting
+                # BEFORE the LLM reformat mutates it.
+                raw_markdown = markdown_content
 
                 from core.markdown_formatter import format_markdown_with_llm
 
@@ -175,6 +183,7 @@ def process_and_save_document_bg(
             gemini_data,
             gemini_mime,
             text_data=router_data if router_mime == "text/plain" else None,
+            count_text=raw_markdown,
         )
         logger.info(
             f"[BG TASK] Faza 0 wynik: {len(multi_vehicles) if multi_vehicles else 'single'}"
