@@ -50,11 +50,19 @@ def handle_multi_vehicles(
             )
         else:
             current_id = str(uuid.uuid4())
+            # vehicle_synthesis.file_hash has a UNIQUE constraint, so sibling
+            # rows split from ONE document cannot all carry the parent's hash.
+            # Suffix each child with its index → unique, still prefixed with the
+            # parent hash for traceability. The parent (idx==0) keeps the bare
+            # md5 so the frontend dedup query (`.eq(file_hash, md5)`) still
+            # matches on re-upload. A child hash ("{md5}#1") is 34 chars and can
+            # never collide with a real 32-char md5.
+            child_hash = f"{parent_hash}#{idx}" if parent_hash else None
             supabase.table("vehicle_synthesis").insert(
                 {
                     "id": current_id,
                     "verification_status": "processing",
-                    "file_hash": parent_hash,
+                    "file_hash": child_hash,
                 }
             ).execute()
             logger.info(
