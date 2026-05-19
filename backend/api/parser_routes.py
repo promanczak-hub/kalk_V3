@@ -321,7 +321,7 @@ async def extract_images_from_pdf(req: PDFImageExtractionRequest):
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
         extracted_image_urls = []
-        bucket_name = "vehicles"
+        bucket_name = "raw-vehicle-pdfs"
 
         # Iteracja po stronach i wbudowanych obrazach
         for page_index in range(len(doc)):
