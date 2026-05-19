@@ -108,6 +108,12 @@ class TestInitialDataCache:
             patch(
                 "api.scoring_search_routes._get_client", return_value=mock_redis_client
             ),
+            # Post-refactor 2026-05-19: redis_get/redis_set live in helpers;
+            # `_get_client` is imported into that module at import time so the
+            # binding needs to be patched there explicitly.
+            patch(
+                "api.scoring_search_helpers._get_client", return_value=mock_redis_client
+            ),
             patch("api.scoring_search_routes.supabase") as mock_sb,
         ):
             from api.scoring_search_routes import get_initial_data
@@ -148,6 +154,9 @@ class TestInitialDataCache:
             patch("core.redis_cache._get_client", return_value=mock_redis_client),
             patch(
                 "api.scoring_search_routes._get_client", return_value=mock_redis_client
+            ),
+            patch(
+                "api.scoring_search_helpers._get_client", return_value=mock_redis_client
             ),
             patch(
                 "api.scoring_search_routes._supabase_execute_with_retry",
@@ -229,6 +238,7 @@ class TestSearchCache:
         with (
             patch("core.redis_cache._get_client", return_value=None),
             patch("api.scoring_search_routes._get_client", return_value=None),
+            patch("api.scoring_search_helpers._get_client", return_value=None),
             patch(
                 "api.scoring_search_routes._supabase_execute_with_retry",
                 return_value=synthesis_resp,

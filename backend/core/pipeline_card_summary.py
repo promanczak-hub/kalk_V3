@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import traceback
+import uuid
 from typing import Any
 from google import genai
 from google.genai import types
@@ -24,6 +25,98 @@ from core.prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_HALLUCINATION_THRESHOLD = 0.0  # confidence == 0.0 → usuń pozycję
+_FLOAT_EPS = 1e-9
+
+
+def _is_hallucinated(confidence: Any) -> bool:
+    """Pozycja oznaczona przez LLM confidence=0.0 to halucynacja (do usunięcia)."""
+    return isinstance(confidence, (int, float)) and confidence <= _HALLUCINATION_THRESHOLD + _FLOAT_EPS
+
+
+def _post_process_hitl_metadata(card_summary: dict[str, Any]) -> None:
+    """Po deserializacji odpowiedzi LLM:
+
+    1. Generuje stabilny `field_id` (uuid4) dla każdej pozycji w paid_options /
+       service_equipment.components — używany przez HITL wizard do diff i bucket assignment.
+    2. Wyłapuje pozycje z confidence == 0.0 (halucynacje), usuwa je z payloadu,
+       a ich field_path lądowuje w card_summary["hallucinated_fields"].
+
+    Mutuje card_summary in-place. Bezpieczne dla brakujących pól (LLM
+    pominął confidence lub field_id) — default confidence=1.0, field_id=uuid4.
+    """
+    if not isinstance(card_summary, dict):
+        return
+
+    hallucinated: list[str] = []
+
+    # paid_options
+    paid = card_summary.get("paid_options") or []
+    cleaned_paid: list[dict[str, Any]] = []
+    for idx, opt in enumerate(paid):
+        if not isinstance(opt, dict):
+            continue
+        conf = opt.get("confidence", 1.0)
+        name = opt.get("name", "<brak nazwy>")
+        if _is_hallucinated(conf):
+            hallucinated.append(f"paid_options.{idx}:{name}")
+            logger.info(
+                "[HITL] Usuwam halucynację z paid_options[%d]: %r (confidence=%r)",
+                idx, name, conf,
+            )
+            continue
+        # Stabilny field_id
+        if not opt.get("field_id"):
+            opt["field_id"] = str(uuid.uuid4())
+        cleaned_paid.append(opt)
+    card_summary["paid_options"] = cleaned_paid
+
+    # service_equipment.components
+    se = card_summary.get("service_equipment")
+    if isinstance(se, dict):
+        components = se.get("components") or []
+        cleaned_comps: list[dict[str, Any]] = []
+        for idx, comp in enumerate(components):
+            if not isinstance(comp, dict):
+                continue
+            conf = comp.get("confidence", 1.0)
+            name = comp.get("name", "<brak nazwy>")
+            if _is_hallucinated(conf):
+                hallucinated.append(f"service_equipment.components.{idx}:{name}")
+                logger.info(
+                    "[HITL] Usuwam halucynację z service_equipment.components[%d]: %r (confidence=%r)",
+                    idx, name, conf,
+                )
+                continue
+            if not comp.get("field_id"):
+                comp["field_id"] = str(uuid.uuid4())
+            cleaned_comps.append(comp)
+        se["components"] = cleaned_comps
+
+    # confidence_breakdown — usuń klucze z conf=0.0, doklej do hallucinated
+    breakdown = card_summary.get("confidence_breakdown") or {}
+    if isinstance(breakdown, dict):
+        kept: dict[str, float] = {}
+        for key, conf in breakdown.items():
+            if _is_hallucinated(conf):
+                hallucinated.append(f"top_level:{key}")
+                logger.info(
+                    "[HITL] confidence_breakdown[%r] = 0.0 → halucynacja",
+                    key,
+                )
+                continue
+            if isinstance(conf, (int, float)):
+                kept[key] = float(conf)
+        card_summary["confidence_breakdown"] = kept
+
+    if hallucinated:
+        existing = card_summary.get("hallucinated_fields") or []
+        if isinstance(existing, list):
+            card_summary["hallucinated_fields"] = list(existing) + hallucinated
+        else:
+            card_summary["hallucinated_fields"] = hallucinated
 
 
 def _extract_price_str(raw: Any) -> str:
@@ -534,6 +627,10 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
 
         summary_json_str = getattr(summary_response, "text", "{}") or "{}"
         summary_data = json.loads(clean_json_response(str(summary_json_str)))
+
+        # HITL post-process: usuń halucynacje (confidence=0.0), wygeneruj field_id
+        if doc_type_str == "Oferta na samochód" and isinstance(summary_data, dict):
+            _post_process_hitl_metadata(summary_data)
 
         # Merge the CardSummary into the main output
         pro_data["card_summary"] = summary_data

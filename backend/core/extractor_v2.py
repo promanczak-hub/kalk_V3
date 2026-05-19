@@ -1,12 +1,19 @@
 import json
 import logging
+import os
 from typing import Union, Callable, Optional
 
 from core.pipeline_digital_twin import extract_digital_twin_from_pdf
 from core.pipeline_card_summary import generate_card_summary_from_twin
+from core.pipeline_deterministic_normalize import (
+    normalize_card_summary_from_digital_twin,
+)
 from core.pipeline_discounts import match_fleet_discount
 from core.pipeline_overrides import process_manual_override
 from core.pipeline_price_validator import validate_and_flag_prices
+from core.pipeline_v3_integration import (
+    apply_v3_enrichment_or_shadow,
+)
 
 # Type alias for progress/cancel callbacks
 ProgressCallback = Callable[[str], None]
@@ -57,6 +64,42 @@ def extract_vehicle_data_v2(
         # 2. Card Summary classification and mapping (Gemini Flash)
         _progress("generating_summary")
         pro_data = generate_card_summary_from_twin(pro_data)
+
+        # 2.05 DETERMINISTIC NORMALIZE — Warstwa 3 (added 2026-05-19).
+        # Flash reliably drops 80% of digital_twin.optional_equipment when
+        # mapping to card_summary.paid_options / service_equipment. Real-world
+        # cases: Renault Master izoterma (Pro=7 items → Flash=0), Toyota Hilux
+        # (Pro=4 items → Flash=0). This deterministic post-processor fills the
+        # gap by partitioning digital_twin.optional_equipment into paid_options
+        # vs service_equipment.components using service-keyword regex (zabudowa/
+        # izoterma/kontener/agregat/...). IDEMPOTENT — only fills missing
+        # fields, never overwrites Flash output when present.
+        card_summary = pro_data.get("card_summary")
+        digital_twin = pro_data.get("digital_twin") or pro_data.get("digital_twin_data") or {}
+        if isinstance(card_summary, dict) and isinstance(digital_twin, dict):
+            pro_data["card_summary"] = normalize_card_summary_from_digital_twin(
+                card_summary,
+                digital_twin,
+                # Real-world rows often have brand/model on top-level synthesis_data
+                # while digital_twin.brand is null. Fall back so vehicle_class
+                # classification still works.
+                brand_fallback=pro_data.get("brand"),
+                model_fallback=pro_data.get("model"),
+            )
+
+        # 2.1 V3 enrichment — three modes via EXTRACTION_PROMPTS_V3 env var:
+        #   - "1" / "live"   → LIVE: run RAW + NORMALIZE, merge into pro_data
+        #   - "shadow"       → SHADOW: run V3 in background, log diff (NO merge)
+        #   - anything else  → SKIP (default): zero overhead per upload
+        # SHADOW is OPT-IN because it ADDS a Gemini 2.5 Pro call (~10-30s) per
+        # extraction. Use it during the migration window, then disable.
+        v3_mode = (os.environ.get("EXTRACTION_PROMPTS_V3") or "").strip().lower()
+        if v3_mode in ("1", "live", "shadow") and isinstance(document_data, (bytes, bytearray)):
+            pro_data = apply_v3_enrichment_or_shadow(
+                pro_data,
+                pdf_bytes=bytes(document_data),
+                live=v3_mode in ("1", "live"),
+            )
 
         # 2.2 Deterministic Netto Override
         if text_data:
@@ -118,6 +161,20 @@ def process_single_twin(
     try:
         _progress("generating_summary")
         pro_data = generate_card_summary_from_twin(pro_data)
+
+        # 2.05 DETERMINISTIC NORMALIZE (multi-vehicle path)
+        # Same Flash-gap fix as in `extract_vehicle_data_v2` — each split twin
+        # gets its paid_options / service_equipment / vehicle_class / body_style
+        # populated from digital_twin where Flash dropped them.
+        card_summary = pro_data.get("card_summary")
+        digital_twin = pro_data.get("digital_twin") or pro_data.get("digital_twin_data") or {}
+        if isinstance(card_summary, dict) and isinstance(digital_twin, dict):
+            pro_data["card_summary"] = normalize_card_summary_from_digital_twin(
+                card_summary,
+                digital_twin,
+                brand_fallback=pro_data.get("brand"),
+                model_fallback=pro_data.get("model"),
+            )
 
         # 2.5 Deterministic financial validation
         _progress("validating_prices")

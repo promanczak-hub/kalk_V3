@@ -43,6 +43,12 @@ class ApiClient {
       if (!(fetchOptions.body instanceof FormData) && !headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json");
       }
+      // Generate a per-request ID so FE and BE logs can be correlated.
+      // Backend's request_id middleware (`main.py:request_id_middleware`)
+      // honours an inbound X-Request-ID; otherwise it generates one.
+      if (!headers.has("X-Request-ID") && typeof crypto !== "undefined" && crypto.randomUUID) {
+        headers.set("X-Request-ID", crypto.randomUUID());
+      }
 
       const response = await fetch(url, {
         ...fetchOptions,

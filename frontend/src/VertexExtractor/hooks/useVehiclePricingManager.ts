@@ -159,8 +159,15 @@ export function useVehiclePricingManager({
 
   if (discountMode === "offer" && isDealerOfferExtended) {
     activeDiscountPct = offerDiscountPercentage;
-    if (parsedOfferDiscountPct && !hasOfferFinalPrice) {
-      activeFinalPriceNet = 
+    // Honour the stated priority (see comment above offerDiscountPercentage):
+    //   DiscountBreakdown > legacy pct > legacy pln > implicit z final_price.
+    // When we have a structured rabat (breakdown or legacy pct), compute the
+    // total from base+options minus rabat. Only fall back to the AI-extracted
+    // offerFinalPriceNet when we have NOTHING better — that path inherits the
+    // domain (netto/brutto) of card_summary.total_price, which is brittle when
+    // base_price's "netto" suffix mislabels a brutto total.
+    if (hasBreakdownDiscount || parsedOfferDiscountPct) {
+      activeFinalPriceNet =
         discountableBaseNet * (1 - offerDiscountPercentage / 100)
         + nonDiscountableOptionsTotal
         + customServiceOptionsPriceTotal;

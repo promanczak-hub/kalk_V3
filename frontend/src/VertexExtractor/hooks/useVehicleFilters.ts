@@ -527,12 +527,15 @@ export function useVehicleFilters(vehicles: FleetVehicleView[]) {
       return ts >= dMin && ts <= dMax;
     });
 
-    // Price range filter
+    // Price range filter. Below MIN_VALID_PRICE we treat the value as noise
+    // (PDF extraction sometimes yields "1 PLN netto"). Those rows are excluded
+    // from aggregate min/max already, so they fall outside the auto-computed
+    // slider range — never silently hide them.
     const [pMin, pMax] = activePriceRange;
     if (pMin > 0 || pMax < Infinity) {
       result = result.filter((v) => {
         const price = filters.priceFilterMode === "catalog" ? getBasePrice(v) : getDiscountedPrice(v);
-        if (price === 0) return true; // Keep unpriced
+        if (price < MIN_VALID_PRICE) return true; // unpriced or anomalous data
         return price >= pMin && price <= pMax;
       });
     }

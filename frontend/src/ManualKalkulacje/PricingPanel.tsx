@@ -54,8 +54,24 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
 }) => {
   const [state, setState] = useState<PricingState>(initialState);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const result = useMemo(() => computeResult(state), [state]);
+
+  const validationErrors = useMemo<string[]>(() => {
+    const errs: string[] = [];
+    state.components.forEach((c, i) => {
+      if (!Number.isFinite(c.amount_net)) {
+        errs.push(`Składowa #${i + 1} (${c.label}): kwota nie jest liczbą.`);
+      } else if (c.amount_net < 0) {
+        errs.push(`Składowa #${i + 1} (${c.label}): kwota netto < 0 (${c.amount_net}).`);
+      }
+    });
+    if (!Number.isFinite(state.discount_pct) || state.discount_pct < 0 || state.discount_pct > 100) {
+      errs.push(`Rabat musi być w zakresie 0–100% (aktualnie ${state.discount_pct}).`);
+    }
+    return errs;
+  }, [state]);
 
   const updateComponent = useCallback(
     (idx: number, field: keyof PricingComponent, value: string | number | boolean) => {
@@ -86,6 +102,11 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
   }, []);
 
   const handleSave = useCallback(async () => {
+    setSaveError(null);
+    if (validationErrors.length > 0) {
+      setSaveError(validationErrors.join('\n'));
+      return;
+    }
     if (embedMode) {
       onSave?.(result);
       return;
@@ -93,7 +114,7 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
     if (!kalkulacjaId) return;
     setSaving(true);
     try {
-      await apiClient.fetch(`/api/kalkulacje/${kalkulacjaId}/pricing`, {
+      const patchResp = await apiClient.fetch(`/api/kalkulacje/${kalkulacjaId}/pricing`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,11 +122,29 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
           discount_pct: state.discount_pct,
         }),
       });
-      onSave?.(result);
+      if (!patchResp.ok) {
+        throw new Error(`PATCH ${patchResp.status} ${patchResp.statusText}`);
+      }
+      // Two-way (round-trip) verification per CLAUDE.md: re-fetch the saved
+      // record and trust the server's view, so silent backend rejection
+      // (e.g. schema mismatch returning 200 with a stripped payload) surfaces
+      // here rather than mislead the user with stale local state.
+      const freshResp = await apiClient.fetch(`/api/kalkulacje/${kalkulacjaId}`);
+      let persisted: PricingResult = result;
+      if (freshResp.ok) {
+        const body = (await freshResp.json()) as {
+          stan_json?: { pricing?: PricingResult };
+        };
+        persisted = body?.stan_json?.pricing ?? result;
+      }
+      onSave?.(persisted);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setSaveError(`Zapis nieudany: ${msg}`);
     } finally {
       setSaving(false);
     }
-  }, [embedMode, kalkulacjaId, state, result, onSave]);
+  }, [embedMode, kalkulacjaId, state, result, onSave, validationErrors]);
 
   const rowSx = {
     display: 'grid',
@@ -213,12 +252,28 @@ export const PricingPanel: React.FC<PricingPanelProps> = ({
         </Stack>
       </Paper>
 
+      {(saveError || validationErrors.length > 0) && (
+        <Box
+          sx={{
+            mt: 2,
+            p: 1.5,
+            bgcolor: 'error.50',
+            border: '1px solid',
+            borderColor: 'error.light',
+            borderRadius: 1,
+          }}
+        >
+          <Typography variant="caption" color="error.main" sx={{ whiteSpace: 'pre-line' }}>
+            {saveError ?? validationErrors.join('\n')}
+          </Typography>
+        </Box>
+      )}
       {!embedMode && (
         <Button
           variant="contained"
           startIcon={<SaveIcon />}
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || validationErrors.length > 0}
           fullWidth
           sx={{ mt: 2, fontWeight: 600 }}
         >

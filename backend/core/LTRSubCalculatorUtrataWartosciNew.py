@@ -133,11 +133,16 @@ class LTRSubCalculatorUtrataWartosciNew:
         total_km: int,
         base_vehicle_catalog_gross: float,
         options_catalog_gross: float,
+        czynsz_inicjalny_netto: float = 0.0,
     ) -> Dict[str, Any]:
-        """Zwraca słownik z WR, WRdlaLO, UtrataWartosciBEZczynszu.
+        """Zwraca słownik z WR, WRdlaLO, UtrataWartosciBEZczynszu, UtrataWartosciZCzynszemInicjalnym.
 
         LTRKalkulator przekazuje ceny BRUTTO. Konwertujemy na netto
         dla SamarRVCalculator, a wynik zwracamy w netto.
+
+        ``czynsz_inicjalny_netto`` redukuje pulę amortyzacji (V1 parity,
+        LTRSubCalculatorUtrataWartosciNew.cs:54-55):
+            UtrataWartosciZCzynszem = max(UtrataWartosciBEZczynszu - CzynszNetto, 0)
         """
         # Konwersja brutto → netto
         base_net = base_vehicle_catalog_gross / self.vat_rate
@@ -234,11 +239,25 @@ class LTRSubCalculatorUtrataWartosciNew:
             }
         )
 
+        # V1 parity (LTRSubCalculatorUtrataWartosciNew.cs:54-55):
+        # czynsz inicjalny redukuje pulę amortyzacji (z dolnym ogr. 0).
+        utrata_z_czynszem_net = max(
+            result.utrata_wartosci_net - czynsz_inicjalny_netto, 0.0
+        )
+        trace.append(
+            {
+                "krok": "WR: Utrata Wartości Z Czynszem Inicjalnym",
+                "rownanie": f"MAX(UtrataBezCzynszu {result.utrata_wartosci_net:.2f} - CzynszNetto {czynsz_inicjalny_netto:.2f}, 0)",
+                "wynik": utrata_z_czynszem_net,
+            }
+        )
+
         return {
             "WR_Gross": result.wr_net * self.vat_rate,
             "WR": result.wr_net,
             "WRdlaLO": result.wr_lo_net,
             "UtrataWartosciBEZczynszu": result.utrata_wartosci_net,
+            "UtrataWartosciZCzynszemInicjalnym": utrata_z_czynszem_net,
             "WR_percent": result.wr_percent,
             "debug": result.debug,
             "trace": trace,

@@ -123,6 +123,28 @@ export const useOfferCartStore = create<OfferCartState>()(
     }),
     {
       name: 'ltr-offer-cart-storage',
+      version: 1,
+      // Migration handler — bump `version` above + add a case here whenever the
+      // OfferItem or ClientData shape changes in a breaking way. Without this,
+      // rehydrating an old shape silently leaves missing/stale fields and
+      // downstream code (PDF export, summary cards) crashes on undefined.
+      migrate: (persistedState: unknown, version: number) => {
+        const state = (persistedState ?? {}) as Partial<OfferCartState>;
+        if (version < 1) {
+          // v0 → v1: ensure clientData has all four fields and items is an array.
+          return {
+            ...state,
+            items: Array.isArray(state.items) ? state.items : [],
+            clientData: {
+              companyName: state.clientData?.companyName ?? '',
+              nip: state.clientData?.nip ?? '',
+              address: state.clientData?.address ?? '',
+              representative: state.clientData?.representative ?? '',
+            },
+          } as OfferCartState;
+        }
+        return state as OfferCartState;
+      },
     }
   )
 );

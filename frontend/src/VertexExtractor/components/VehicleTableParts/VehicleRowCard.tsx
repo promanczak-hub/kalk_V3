@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { Loader2, X, AlertTriangle } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
@@ -6,7 +6,12 @@ import { parsePriceToNumber } from "./PriceDualFormat";
 import { VehicleBaseInfo, normalizeBodyTypeValue } from "./VehicleBaseInfo";
 import type { MappedData } from "./VehicleBaseInfo";
 import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
-import BrochureBuilderModal from "../brochure/BrochureBuilderModal";
+// Lazy-load BrochureBuilderModal — pulls in @react-pdf/renderer (~1 MB)
+// and pdfjs worker (~1.2 MB). Only needed when the user actually opens
+// the brochure builder, not on every page load.
+const BrochureBuilderModal = lazy(
+  () => import("../brochure/BrochureBuilderModal"),
+);
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleServiceOptionsCard } from "./VehicleServiceOptionsCard";
@@ -97,7 +102,6 @@ interface VehicleRowCardProps {
   paintTypes?: { id: number; name: string; [key: string]: unknown }[];
   driveTypes?: string[];
   transmissionTypes?: string[];
-
 }
 
 export function VehicleRowCard({
@@ -771,6 +775,7 @@ export function VehicleRowCard({
         technicalDescription={technicalDescription}
         setCustomDiscountAmountNet={setCustomDiscountAmountNet}
         activeDiscountAmountNet={activeDiscountAmountNet}
+        onPriceFilled={onRefresh}
       />
 
 
@@ -778,21 +783,36 @@ export function VehicleRowCard({
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out relative">
           <div className="flex flex-col gap-6 items-start w-full">
 
-            {/* P0-B: Warning banner for missing base price */}
-            {vehicle.verification_status === "needs_review" && (
-              <div className="w-full flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-semibold text-amber-800">
-                    Wymaga uzupełnienia — brak ceny bazowej
-                  </h4>
-                  <p className="text-xs text-amber-700 mt-0.5">
-                    Pipeline nie wyekstrahował ceny katalogowej. Dane pojazdu (marka, model, silnik, wyposażenie) zostały zachowane.
-                    Uzupełnij cenę ręcznie w sekcji finansowej poniżej, aby odblokować kalkulator.
-                  </p>
+            {/* Warning banner — ONLY when base_price is ACTUALLY missing.
+                Previously this fired on any needs_review status regardless of
+                whether the price was already populated; that produced a mock
+                "brak ceny bazowej" banner on rows where the price was 167 218 zł.
+                Now it checks card_summary.base_price (string), base_price_net,
+                and base_price_gross — banner appears only when ALL are empty. */}
+            {(() => {
+              if (vehicle.verification_status !== "needs_review") return null;
+              const cs = ((vehicle.synthesis_data as Record<string, unknown> | undefined)
+                ?.card_summary as Record<string, unknown> | undefined) || {};
+              const basePriceStr = String(cs.base_price ?? "").trim();
+              const hasStr = basePriceStr && basePriceStr.toLowerCase() !== "brak";
+              const hasNet = typeof cs.base_price_net === "number" && (cs.base_price_net as number) > 0;
+              const hasGross = typeof cs.base_price_gross === "number" && (cs.base_price_gross as number) > 0;
+              if (hasStr || hasNet || hasGross) return null;
+              return (
+                <div className="w-full flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-amber-800">
+                      Wymaga uzupełnienia — brak ceny bazowej
+                    </h4>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Pipeline nie wyekstrahował ceny katalogowej. Dane pojazdu (marka, model, silnik, wyposażenie) zostały zachowane.
+                      Uzupełnij cenę ręcznie w sekcji finansowej poniżej, aby odblokować kalkulator.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Section 2 (moved to top): Summary and Details */}
             <div className="w-full flex flex-col gap-6">
@@ -976,6 +996,7 @@ export function VehicleRowCard({
                  crossCardAlerts={crossCardAlerts}
                  paramPreview={paramPreview}
                  controlCenter={controlCenter}
+                 onRefresh={onRefresh}
               />
               <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 bg-slate-50/50 rounded-b-xl">
                  <VehicleActionButtons
@@ -1059,12 +1080,23 @@ export function VehicleRowCard({
         </div>
       )}
       {isBrochureModalOpen && brochureData && (
-         <BrochureBuilderModal 
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-lg px-6 py-4 shadow-lg flex items-center gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+                <span className="text-sm text-slate-700">Ładowanie kreatora broszury…</span>
+              </div>
+            </div>
+          }
+        >
+          <BrochureBuilderModal
             vehicle={vehicle}
             initialBrochureData={brochureData}
             initialImages={brochureImages}
-            onClose={() => setIsBrochureModalOpen(false)} 
-         />
+            onClose={() => setIsBrochureModalOpen(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

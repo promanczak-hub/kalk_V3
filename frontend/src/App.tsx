@@ -1,7 +1,8 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, lazy, Suspense } from "react";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
@@ -13,6 +14,7 @@ import {
   Box,
   Typography,
   Alert,
+  CircularProgress,
 } from "@mui/material";
 import {
   Routes,
@@ -22,16 +24,41 @@ import {
   Navigate,
   Link,
 } from "react-router-dom";
-import VertexExtractorPage from "./VertexExtractor/VertexExtractorPage";
 import CommandPalette from "./components/CommandPalette";
-import { ScoringSearchPage } from "./ScoringSearch/ScoringSearchPage";
-import { CalculationsHistoryPage } from "./CalculationsHistory/CalculationsHistoryPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 import { NotificationProvider } from "./components/NotificationProvider";
 import { useAppStore } from "./stores/useAppStore";
 import OfferCartFab from "./components/OfferCart/OfferCartFab";
-// Removed ThemeToggle
+
+// Lazy-load route components to split the initial bundle. Each page lives
+// in its own chunk and only downloads when the user navigates to it.
+// Pre-refactor: single 5.0 MB bundle. Target: 1.5–2 MB initial + per-route chunks.
+const VertexExtractorPage = lazy(
+  () => import("./VertexExtractor/VertexExtractorPage"),
+);
+const ScoringSearchPage = lazy(() =>
+  import("./ScoringSearch/ScoringSearchPage").then((m) => ({
+    default: m.ScoringSearchPage,
+  })),
+);
+const CalculationsHistoryPage = lazy(() =>
+  import("./CalculationsHistory/CalculationsHistoryPage").then((m) => ({
+    default: m.CalculationsHistoryPage,
+  })),
+);
+const PipelineMapPage = lazy(() => import("./PipelineMap/PipelineMapPage"));
+
+function RouteFallback() {
+  return (
+    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 10 }}>
+      <CircularProgress size={32} />
+      <Typography variant="body2" sx={{ ml: 2, color: "text.secondary" }}>
+        Ładowanie sekcji…
+      </Typography>
+    </Box>
+  );
+}
 
 /**
  * Route definitions — single source of truth for navigation.
@@ -47,6 +74,7 @@ const ROUTES = [
   { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" />, external: false },
   { path: "/search", label: "Szukaj Ofert", icon: <SearchOutlinedIcon fontSize="small" />, external: false },
   { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" />, external: false },
+  { path: "/pipeline-map", label: "Mapa Pipeline", icon: <AccountTreeOutlinedIcon fontSize="small" />, external: false },
   ...(ADMIN_URL
     ? [{
         path: ADMIN_URL,
@@ -240,13 +268,16 @@ function AppContent({ mode }: AppContentProps) {
       {/* ── Main Content ── */}
       <Box sx={{ px: { xs: 2, md: 4 }, pb: 3, pt: globalError ? "112px" : "80px", maxWidth: 1920, mx: "auto", transition: 'padding-top 0.2s ease' }}>
         <ErrorBoundary fallbackTitle="Błąd ładowania sekcji">
-          <Routes>
-            <Route path="/" element={<VertexExtractorPage />} />
-            <Route path="/calculations" element={<CalculationsHistoryPage />} />
-            <Route path="/search" element={<ScoringSearchPage />} />
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<VertexExtractorPage />} />
+              <Route path="/calculations" element={<CalculationsHistoryPage />} />
+              <Route path="/search" element={<ScoringSearchPage />} />
+              <Route path="/pipeline-map" element={<PipelineMapPage />} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </ErrorBoundary>
       </Box>
     </div>

@@ -3,6 +3,14 @@ import { ChevronUp, ChevronDown, Check, AlertTriangle, Copy, CheckCheck, Edit3, 
 import { format } from "date-fns";
 import type { FleetVehicleView } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
+import { FillBasePriceInput } from "./FillBasePriceInput";
+import { parsePriceToNumber } from "./PriceDualFormat";
+
+// PDF extraction sometimes yields "1 PLN netto" (or other anomalies under 1000)
+// for the base price even when the total catalog price is correct. Surface a
+// visible warning so the user can open HITL and correct it, rather than letting
+// it silently break price-range filters and downstream calculations.
+const MIN_VALID_BASE_PRICE = 1000;
 export interface MappedData {
   brand: string;
 model: string;
@@ -52,6 +60,8 @@ interface VehicleBaseInfoProps {
 
   setCustomDiscountAmountNet?: (val: number) => void;
   activeDiscountAmountNet?: number;
+
+  onPriceFilled?: () => void;
 }
 
 function hasValue(v: string | null | undefined): boolean {
@@ -285,11 +295,24 @@ export function VehicleBaseInfo({
   technicalDescription,
   setCustomDiscountAmountNet,
   activeDiscountAmountNet = 0,
+  onPriceFilled,
 }: VehicleBaseInfoProps) {
   const VAT_RATE = 1.23;
   const [customInputMode, setCustomInputMode] = useState<"pct" | "pln">("pct");
   const [localDiscountNetRaw, setLocalDiscountNetRaw] = useState<string>("");
   const [localDiscountBruttoRaw, setLocalDiscountBruttoRaw] = useState<string>("");
+
+  const basePriceNum = useMemo(
+    () => parsePriceToNumber(vehicle.base_price),
+    [vehicle.base_price],
+  );
+  // Anomaly: a non-zero base under MIN_VALID_BASE_PRICE while the total catalog
+  // looks healthy — extraction definitely produced garbage for the base alone.
+  // We keep zero (missing) on the existing "Brak wyceny"/FillBasePriceInput path.
+  const hasSuspiciousBasePrice =
+    basePriceNum > 0 &&
+    basePriceNum < MIN_VALID_BASE_PRICE &&
+    totalCatalogPriceNet >= MIN_VALID_BASE_PRICE;
 
   const handleNettoChange = (val: string) => {
     setLocalDiscountNetRaw(val);
@@ -361,6 +384,16 @@ export function VehicleBaseInfo({
               <span className="text-xs text-slate-500 max-w-full break-words" style={{ fontFamily: "'Geist Mono', monospace" }}>
                 {technicalDescription || (hasValue(vehicle.powertrain) ? vehicle.powertrain : "Brak danych specyfikacji")}
               </span>
+              {hasSuspiciousBasePrice && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-orange-100 text-orange-800 border border-orange-300"
+                  title={`Cena bazowa wygląda na uszkodzoną (${basePriceNum} PLN przy katalogu ${totalCatalogPriceNet} PLN). Popraw w sekcji finansowej poniżej.`}
+                  data-testid="suspicious-base-price-warning"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Cena bazowa {basePriceNum} PLN — popraw
+                </span>
+              )}
             </div>
             
             {/* Sub-informacje w jednym rzędzie: napęd, kody, rabaty */}
@@ -529,9 +562,16 @@ export function VehicleBaseInfo({
                   {formatCalculatedPrice(activeFinalPriceNet > 0 ? activeFinalPriceNet : totalCatalogPriceNet)} PLN NETTO
                 </span>
               </>
-            ) : (
-              <span className="text-sm text-slate-400 mt-1" style={{ fontFamily: "'Geist Mono', monospace" }}>Brak wyceny</span>
-            )}
+            ) : (() => {
+              const cs = (vehicle.synthesis_data as Record<string, unknown> | undefined)?.card_summary as Record<string, unknown> | undefined;
+              const requires = cs?._requires_user_input;
+              const needsBasePrice = Array.isArray(requires) && requires.includes("base_price");
+              return needsBasePrice ? (
+                <FillBasePriceInput vehicleId={vehicle.id} onPriceFilled={onPriceFilled} />
+              ) : (
+                <span className="text-sm text-slate-400 mt-1" style={{ fontFamily: "'Geist Mono', monospace" }}>Brak wyceny</span>
+              );
+            })()}
           </div>
 
           <div className="text-slate-400 group-hover:text-blue-500 transition-colors bg-slate-50 group-hover:bg-blue-50 rounded-full p-1 border border-transparent group-hover:border-blue-100 mt-1">

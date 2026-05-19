@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { apiClient } from '../../lib/apiClient';
 import type { FleetVehicleView } from "../types";
 import type { MappedData } from "../components/VehicleTableParts/VehicleBaseInfo";
+import { revalidateVehicleQuiet } from "./useRevalidateVehicle";
 
 export function useVehicleDataSync(
   vehicle: FleetVehicleView,
@@ -107,6 +108,12 @@ export function useVehicleDataSync(
         .eq("id", vehicle.id);
 
       if (error) throw error;
+
+      // Re-validate verification_status: rerun validator + HITL review heuristic.
+      // If user resolved all blocking issues, status flips from "needs_review"
+      // to "completed" (persistent amber border disappears).
+      await revalidateVehicleQuiet(vehicle.id);
+
       onRefresh();
 
       // Trigger cache refresh in background after classification updates

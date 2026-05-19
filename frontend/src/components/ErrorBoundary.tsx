@@ -33,6 +33,15 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error('[ErrorBoundary] Uncaught error:', error, errorInfo);
+    // Ship to Sentry if it was initialised. Wrapped in try/import so this
+    // file stays free of a hard dependency — works whether Sentry is wired
+    // or not.
+    void import('../lib/sentryInit').then(({ Sentry }) => {
+      Sentry.withScope((scope) => {
+        scope.setExtras({ componentStack: errorInfo.componentStack });
+        Sentry.captureException(error);
+      });
+    });
   }
 
   handleRetry = (): void => {

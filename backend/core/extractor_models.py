@@ -1,6 +1,59 @@
 from enum import Enum
-from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Annotated, List, Literal, Optional
+from pydantic import BaseModel, Field, WithJsonSchema
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# V3 EXTRACTION HELPERS — source grounding + price reconciliation
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class OffsetSpan(BaseModel):
+    """Page+bbox grounding for a value extracted from a PDF.
+
+    Used by V3 extraction pipeline (langextract or fallback) to record WHERE in
+    the source PDF a value came from. Powers HITL highlight in the frontend
+    PDF viewer.
+    """
+
+    page: int = Field(description="1-indexed PDF page number where the value appears")
+    bbox: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "[x1, y1, x2, y2] bounding box on the page (PDF coordinates). "
+            "None when only page-level grounding is available (fallback path)."
+        ),
+    )
+    quoted_text: Optional[str] = Field(
+        default=None,
+        description="Literal text excerpt from the PDF that justifies the value.",
+    )
+    from_visual: bool = Field(
+        default=False,
+        description=(
+            "True if the value came from a diagram/drawing (not a text layer). "
+            "UI highlights the whole page in this case."
+        ),
+    )
+
+
+class FieldOffset(BaseModel):
+    """Mapping of a top-level CardSummary field name → its source offsets."""
+
+    field_path: str = Field(
+        description="Dot-path to the field (e.g. 'base_price', 'dimensions.length_mm')"
+    )
+    spans: List[OffsetSpan] = Field(default_factory=list)
+
+
+# Conversion provenance for net/gross/vat reconciliation. Mirrors
+# `core.price_inference.ConversionSource` Literal type.
+ConversionSourceLiteral = Literal[
+    "explicit_both",
+    "computed_from_net",
+    "computed_from_gross",
+    "unknown",
+]
 
 
 class PackageItem(BaseModel):
@@ -276,6 +329,29 @@ class DiscountBreakdown(BaseModel):
             "'Zabudowa wywrotka 31732 zł oznaczona jako non-discountable'."
         ),
     )
+    rabat_type: Optional[Literal["kwotowo", "procentowo"]] = Field(
+        default=None,
+        description=(
+            "Typ rabatu wybrany przez użytkownika w HITL: 'kwotowo' (rabat to "
+            "stała kwota PLN) lub 'procentowo' (rabat to % od bazy). "
+            "Wypełniane przez wizard HITL, LLM zostawia null."
+        ),
+    )
+    rabat_basis: Optional[Literal["netto", "brutto"]] = Field(
+        default=None,
+        description=(
+            "Baza rabatu wybrana przez użytkownika w HITL: czy rabat liczony "
+            "od netto czy brutto. Wypełniane przez wizard HITL."
+        ),
+    )
+    discount_scope: list[Literal["base", "factory_options", "zabudowa", "agregat"]] = Field(
+        default_factory=list,
+        description=(
+            "Bucket-y do których stosuje się rabat (HITL): "
+            "['base', 'factory_options'] = klasyczny scope rabatu producenta; "
+            "lista pusta = ekstrakcja jeszcze nie potwierdzona przez user'a."
+        ),
+    )
 
 
 class PaidOption(BaseModel):
@@ -292,6 +368,82 @@ class PaidOption(BaseModel):
     category: str = Field(
         description="Kategoria opcji (np. 'Fabryczna' lub 'Serwisowa/Akcesoria')"
     )
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Pewność ekstrakcji tej pozycji (0.0-1.0). Skala: "
+            "1.0 = wartość wprost cytowana z PDF; "
+            "0.8 = wartość pochodna ale jednoznaczna (np. brutto policzone z netto + VAT); "
+            "0.5 = niejednoznaczna sekcja, dwie wartości w PDF lub niepewność duplikatu; "
+            "0.0 = HALUCYNACJA, brak źródła w PDF. NIE używaj 0.5 jako 'nie wiem' — "
+            "używaj wprost 0.0 jeśli pole nie zostało jednoznacznie potwierdzone."
+        ),
+    )
+    field_id: str = Field(
+        default="",
+        description=(
+            "Stabilny identyfikator pozycji dla HITL diff (uuid4). "
+            "Generowany backend-side po ekstrakcji — LLM zostawia puste."
+        ),
+    )
+    # ── V3 fields (price_inference + dedup; backend-filled or LLM-provided) ──
+    net_amount: Optional[float] = Field(
+        default=None,
+        description=(
+            "Cena netto jako liczba (PLN). LLM zwraca jeśli widzi wprost w PDF; "
+            "w przeciwnym razie backend wylicza z `price` + `price_type` przez "
+            "`price_inference.infer_price_pair`. NIGDY nie zakładaj VAT=23% — "
+            "polegaj na `vat_rate`."
+        ),
+    )
+    gross_amount: Optional[float] = Field(
+        default=None,
+        description=(
+            "Cena brutto jako liczba (PLN). Analogicznie do net_amount — "
+            "albo z PDF (explicit), albo wyliczona z `net_amount * (1+vat_rate)`."
+        ),
+    )
+    vat_rate: Optional[float] = Field(
+        default=None,
+        description=(
+            "Stawka VAT jako ułamek dziesiętny (0.23 = 23%, 0.08 = 8%, 0.0 = export). "
+            "LLM wyciąga DOKŁADNIE z dokumentu — nie zakłada 23% domyślnie. "
+            "null = nieznana, backend wyciąga z relacji net↔gross jeśli oba znane."
+        ),
+    )
+    conversion_source: Optional[ConversionSourceLiteral] = Field(
+        default=None,
+        description=(
+            "Skąd wzięły się net_amount/gross_amount: 'explicit_both' (oba w PDF), "
+            "'computed_from_net' (gross policzony), 'computed_from_gross' (net policzony), "
+            "'unknown' (jedna wartość bez VAT). Wypełnia backend (price_inference)."
+        ),
+    )
+    canonical_id: str = Field(
+        default="",
+        description=(
+            "Hash znormalizowanej nazwy + ceny — sygnał dla HITL że dwa kafelki "
+            "wyglądają jak duplikat. Wypełnia backend (dedup.compute_canonical_id), "
+            "LLM zostawia puste."
+        ),
+    )
+    duplicate_of: Optional[str] = Field(
+        default=None,
+        description=(
+            "Inny field_id wykryty jako prawdopodobny duplikat. NIE oznacza auto-drop — "
+            "tylko sygnał dla HITL (różowe obramowanie + opcja merge w UI)."
+        ),
+    )
+    source_offsets: Optional[List[OffsetSpan]] = Field(
+        default=None,
+        description=(
+            "Lista offsetów w PDF (page+bbox+quoted_text) uzasadniających tę pozycję. "
+            "Frontend HITL używa do highlightowania w PDF viewerze. "
+            "None jeśli ekstrakcja nie produkowała offsetów."
+        ),
+    )
 
 
 class ServiceComponentItem(BaseModel):
@@ -300,6 +452,27 @@ class ServiceComponentItem(BaseModel):
     )
     price_net: str = Field(description="Cena netto elementu (z walutą)")
     price_gross: str = Field(description="Cena brutto elementu (z walutą)")
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Pewność ekstrakcji tego komponentu (0.0-1.0). Skala identyczna jak "
+            "PaidOption.confidence: 1.0/0.8/0.5/0.0. 0.0 = halucynacja, brak źródła."
+        ),
+    )
+    field_id: str = Field(
+        default="",
+        description="Stabilny identyfikator komponentu dla HITL diff (uuid4).",
+    )
+    # ── V3 fields ──
+    net_amount: Optional[float] = Field(default=None, description="Cena netto (PLN, liczba)")
+    gross_amount: Optional[float] = Field(default=None, description="Cena brutto (PLN, liczba)")
+    vat_rate: Optional[float] = Field(default=None, description="Stawka VAT (ułamek; 0.23, 0.08, …)")
+    conversion_source: Optional[ConversionSourceLiteral] = Field(default=None)
+    canonical_id: str = Field(default="")
+    duplicate_of: Optional[str] = Field(default=None)
+    source_offsets: Optional[List[OffsetSpan]] = Field(default=None)
 
 
 class ServiceEquipment(BaseModel):
@@ -312,6 +485,18 @@ class ServiceEquipment(BaseModel):
         default_factory=list,
         description="Składowe komponentu (jeśli suma składa się z elementów lub relacja kwot na to wskazuje). Gemini powinien zwrócić każdą opcję osobno z netto/brutto.",
     )
+    # ── V3 fields ──
+    field_id: str = Field(
+        default="",
+        description="Stabilny identyfikator dla HITL (backend-filled jeśli LLM zostawi puste).",
+    )
+    net_amount: Optional[float] = Field(default=None, description="Cena netto całości (PLN, liczba)")
+    gross_amount: Optional[float] = Field(default=None, description="Cena brutto całości (PLN, liczba)")
+    vat_rate: Optional[float] = Field(default=None, description="Stawka VAT (ułamek)")
+    conversion_source: Optional[ConversionSourceLiteral] = Field(default=None)
+    canonical_id: str = Field(default="")
+    duplicate_of: Optional[str] = Field(default=None)
+    source_offsets: Optional[List[OffsetSpan]] = Field(default=None)
 
 
 class UtilityFeatureItem(BaseModel):
@@ -588,6 +773,148 @@ class CardSummary(BaseModel):
     ai_warnings: list[str] = Field(
         default_factory=list,
         description="Lista potencjalnych nieścisłości zauważonych przez AI (np. 'Niepewność co do przynależności opcji do pakietu', 'Dwie różne ceny w tekście').",
+    )
+    confidence_breakdown: Annotated[
+        dict[str, float],
+        WithJsonSchema(
+            {
+                "type": "object",
+                "properties": {
+                    "base_price": {"type": "number"},
+                    "options_price": {"type": "number"},
+                    "total_price": {"type": "number"},
+                    "body_style": {"type": "number"},
+                    "discount.rabat_pct": {"type": "number"},
+                    "engine_class": {"type": "number"},
+                    "samar_category": {"type": "number"},
+                    "trim_level": {"type": "number"},
+                },
+            }
+        ),
+    ] = Field(
+        default_factory=dict,
+        description=(
+            "Confidence per najważniejsze pole top-level (0.0-1.0). Klucze: "
+            "'base_price', 'options_price', 'total_price', 'body_style', "
+            "'discount.rabat_pct', 'engine_class', 'samar_category', 'trim_level'. "
+            "Skala: 1.0/0.8/0.5/0.0 (patrz PaidOption.confidence). "
+            "Pole z confidence 0.0 = halucynacja, ma trafić do _hallucinated_fields."
+        ),
+    )
+    hallucinated_fields: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Lista field_path-ów które LLM oznaczył confidence=0.0 (halucynacje). "
+            "Wypełniane backend-side post-process — LLM zostawia puste. "
+            "Wymusza verification_status='needs_review' niezależnie od innych pól."
+        ),
+    )
+    # ────────────────────────────────────────────────────────────────────
+    # V3 NUMERIC PRICE FIELDS (deterministic VAT triangulation)
+    # ────────────────────────────────────────────────────────────────────
+    # Old `base_price: str` ("100 000 PLN netto") stays for backward compat.
+    # New numeric fields are populated by pipeline_normalization via
+    # price_inference.infer_price_pair. Allow None when LLM/PDF don't supply.
+    base_price_net: Optional[float] = Field(
+        default=None,
+        description="Cena katalogowa bazowa netto (liczba PLN). Wypełnia backend z `base_price` przez price_inference.",
+    )
+    base_price_gross: Optional[float] = Field(
+        default=None,
+        description="Cena katalogowa bazowa brutto (liczba PLN).",
+    )
+    base_price_vat: Optional[float] = Field(
+        default=None,
+        description="Stawka VAT zastosowana dla base_price (ułamek; 0.23/0.08/0.0). null=nieznana.",
+    )
+    options_price_net: Optional[float] = Field(default=None)
+    options_price_gross: Optional[float] = Field(default=None)
+    options_price_vat: Optional[float] = Field(default=None)
+    total_price_net: Optional[float] = Field(default=None)
+    total_price_gross: Optional[float] = Field(default=None)
+    total_price_vat: Optional[float] = Field(default=None)
+
+    # ── V3 source grounding (powers HITL highlight) ──
+    source_offsets_by_field: Optional[List[FieldOffset]] = Field(
+        default=None,
+        description=(
+            "Mapowanie pole→offset(y) dla top-level fields. Powers PDF viewer "
+            "highlight w HITL. None gdy ekstrakcja v2/legacy (bez offsetów)."
+        ),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# V3 RAW EXTRACTION (PASS A) — literal quotes from PDF, pre-normalization
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class RawPriceLine(BaseModel):
+    """One literal price/value line as quoted from the PDF.
+
+    Pass A output — Gemini Pro extracts these verbatim with grounding offsets,
+    Pass B (pipeline_normalization) then VAT-triangulates, categorizes,
+    dedup-flags and maps them onto CardSummary fields.
+    """
+
+    quoted_text: str = Field(description="Literalny fragment tekstu z PDF")
+    role: str = Field(
+        description=(
+            "Rola tej kwoty: 'base_price', 'options_total', 'total_price', "
+            "'discount', 'paid_option', 'service_total', 'service_component', "
+            "'other'."
+        )
+    )
+    net_amount: Optional[float] = Field(default=None)
+    gross_amount: Optional[float] = Field(default=None)
+    vat_rate: Optional[float] = Field(default=None)
+    label: Optional[str] = Field(
+        default=None,
+        description="Etykieta przy kwocie z PDF (np. 'netto', 'brutto', 'po rabacie')",
+    )
+    offsets: List[OffsetSpan] = Field(default_factory=list)
+
+
+class RawOptionLine(BaseModel):
+    """One literal option/equipment line from the PDF (paid option, component)."""
+
+    name: str
+    quoted_text: Optional[str] = Field(default=None)
+    net_amount: Optional[float] = Field(default=None)
+    gross_amount: Optional[float] = Field(default=None)
+    vat_rate: Optional[float] = Field(default=None)
+    category_hint: Optional[str] = Field(
+        default=None,
+        description="Heurystyczna kategoria z PDF: 'fabryczna' | 'serwisowa' | 'zabudowa' | None",
+    )
+    offsets: List[OffsetSpan] = Field(default_factory=list)
+
+
+class RawExtractionResult(BaseModel):
+    """Pass A output — RAW literal quotes from a PDF, pre-normalization."""
+
+    document_language: Optional[str] = Field(
+        default=None,
+        description="Wykryty język oferty (ISO 639-1 lub None gdy niepewne).",
+    )
+    document_currency: Optional[str] = Field(
+        default=None, description="Waluta dominująca w PDF (PLN/EUR/USD/…). None gdy niepewne."
+    )
+    raw_prices: List[RawPriceLine] = Field(default_factory=list)
+    raw_options: List[RawOptionLine] = Field(default_factory=list)
+    raw_dimension_lines: List[RawPriceLine] = Field(
+        default_factory=list,
+        description=(
+            "Wartości techniczne/fizyczne wyciągnięte z rysunków (długość, szerokość, "
+            "wysokość, masa). role='dimension', offsets z `from_visual=true` gdy z rysunku."
+        ),
+    )
+    multi_vehicle_evidence: Optional[str] = Field(
+        default=None,
+        description=(
+            "Cytat z PDF wskazujący na obecność wielu RÓŻNYCH pojazdów "
+            "(np. 'oferta na 3 modele: Caddy 1.5, Caddy 2.0, Transporter')."
+        ),
     )
 
 

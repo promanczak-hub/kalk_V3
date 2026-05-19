@@ -78,7 +78,7 @@ export function VehicleEquipmentCard({
                   <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-400 py-3 pr-2 w-40">
                     Brutto
                   </th>
-                  <th className="w-8"></th>
+                  <th className="w-20"></th>
                 </tr>
               </thead>
               <tbody>

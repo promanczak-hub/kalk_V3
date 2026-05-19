@@ -5,6 +5,7 @@ import {
   RefreshCw,
   History,
   ExternalLink,
+  Workflow,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import type { FleetVehicleView } from "../VertexExtractor/types";
@@ -137,12 +138,14 @@ function VehicleCellRenderer(params: ICellRendererParams<HistoryRow>) {
 export function CalculationsHistoryPage() {
   const [vehicles, setVehicles] = useState<FleetVehicleView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [quickFilter, setQuickFilter] = useState("");
   const gridRef = useRef<AgGridReact<HistoryRow>>(null);
   const navigate = useNavigate();
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const { data, error } = await supabase
         .from("fleet_management_view")
@@ -152,11 +155,16 @@ export function CalculationsHistoryPage() {
 
       if (error) {
         console.error("Error fetching history:", error);
+        setFetchError(
+          `Nie udało się załadować historii kalkulacji: ${error.message}. Spróbuj ponownie.`,
+        );
       } else {
         setVehicles((data as FleetVehicleView[]) || []);
       }
     } catch (err) {
       console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setFetchError(`Błąd sieci: ${msg}. Sprawdź połączenie i odśwież stronę.`);
     } finally {
       setLoading(false);
     }
@@ -247,7 +255,7 @@ export function CalculationsHistoryPage() {
       {
         headerName: "",
         field: "id",
-        width: 90,
+        width: 120,
         sortable: false,
         filter: false,
         resizable: false,
@@ -255,6 +263,7 @@ export function CalculationsHistoryPage() {
         cellRendererParams: {
           onDelete: handleDeleteSetup,
           onOpen: handleOpenVertexExtractor,
+          onShowMap: handleShowOnMap,
         },
       },
     ],
@@ -302,8 +311,37 @@ export function CalculationsHistoryPage() {
     }
   }
 
-  function handleOpenVertexExtractor(vehicleId: string) {
+  async function handleOpenVertexExtractor(vehicleId: string) {
+    // Verify the vehicle still exists in vehicle_synthesis before navigating.
+    // Orphan vehicle_ids are a documented feature (memory `kalkulacja_vehicle_synthesis_link`)
+    // — a kalkulacja can outlive its source vehicle. Without this guard,
+    // /?highlight={vehicleId} loads VertexExtractor which then crashes on
+    // missing data. Instead, show a clear message and offer to delete the
+    // orphan setup record.
+    try {
+      const { data, error } = await supabase
+        .from("vehicle_synthesis")
+        .select("id")
+        .eq("id", vehicleId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        const proceed = window.confirm(
+          "Pojazd źródłowy tej kalkulacji został usunięty.\n\n" +
+          "Otworzyć Ekstraktor mimo to (możliwy błąd)?\n\n" +
+          "OK = otwórz; Anuluj = wróć do listy.",
+        );
+        if (!proceed) return;
+      }
+    } catch (err) {
+      console.error("Orphan check failed:", err);
+      // Network blip — don't block navigation, but warn in console.
+    }
     navigate(`/?highlight=${vehicleId}`);
+  }
+
+  function handleShowOnMap(vehicleId: string) {
+    navigate(`/pipeline-map?kalk=${vehicleId}`);
   }
 
   /* ── Grid Callbacks ── */
@@ -318,6 +356,25 @@ export function CalculationsHistoryPage() {
       <div className="flex items-center justify-center py-20 text-slate-400">
         <Loader2 className="w-6 h-6 animate-spin mr-3" />
         <span>Ładowanie historii kalkulacji...</span>
+      </div>
+    );
+  }
+
+  /* ── Error state ── */
+  if (fetchError) {
+    return (
+      <div className="max-w-2xl mx-auto mt-20 p-6 border border-red-200 bg-red-50 rounded-lg">
+        <h2 className="text-lg font-semibold text-red-700 mb-2">
+          Błąd ładowania historii
+        </h2>
+        <p className="text-sm text-red-600 mb-4 whitespace-pre-line">{fetchError}</p>
+        <button
+          type="button"
+          onClick={() => fetchHistory()}
+          className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
+        >
+          Spróbuj ponownie
+        </button>
       </div>
     );
   }
@@ -385,6 +442,7 @@ function ActionsCellRenderer(
   params: ICellRendererParams<HistoryRow> & {
     onDelete: (id: string) => void;
     onOpen: (id: string) => void;
+    onShowMap: (id: string) => void;
   },
 ) {
   const row = params.data;
@@ -400,6 +458,16 @@ function ActionsCellRenderer(
         title="Otwórz w edytorze"
       >
         <ExternalLink className="w-3.5 h-3.5" />
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          params.onShowMap(row.id);
+        }}
+        className="p-1.5 text-violet-500 hover:text-violet-700 hover:bg-violet-50 rounded-md transition-colors"
+        title="Pokaż na mapie pipeline"
+      >
+        <Workflow className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={(e) => {

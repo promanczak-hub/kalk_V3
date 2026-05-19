@@ -48,6 +48,8 @@ export default function VertexExtractorPage() {
   const {
     savedVehicles,
     isLoadingSaved,
+    loadError,
+    hasActiveHighlight,
     liveSearchText,
     setLiveSearchText,
     fetchSavedVehicles,
@@ -159,6 +161,8 @@ export default function VertexExtractorPage() {
             <VehicleTable
               savedVehicles={savedVehicles}
               isLoadingSaved={isLoadingSaved}
+              loadError={loadError}
+              hasActiveHighlight={hasActiveHighlight}
 
               liveSearchText={liveSearchText}
               setLiveSearchText={setLiveSearchText}

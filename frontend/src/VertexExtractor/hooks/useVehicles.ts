@@ -1,15 +1,23 @@
 import { useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { apiClient } from '../../lib/apiClient';
 import { supabase } from "../../lib/supabaseClient";
 import type { FleetVehicleView } from "../types";
 
+// Read `?highlight=<id>` synchronously from the live URL, not via react-router's
+// useSearchParams. VertexExtractorPage strips the param in a useEffect right
+// after mount, so a router-based read can race and miss it on slower renders.
+function readHighlightFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const v = new URLSearchParams(window.location.search).get("highlight");
+  return v && v.length > 0 ? v : null;
+}
+
 export function useVehicles() {
-  const [searchParams] = useSearchParams();
-  const initialId = searchParams.get("highlight");
+  const [initialId] = useState<string | null>(() => readHighlightFromUrl());
 
   const [savedVehicles, setSavedVehicles] = useState<FleetVehicleView[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [liveSearchText, setLiveSearchText] = useState("");
@@ -68,6 +76,7 @@ export function useVehicles() {
 
   const loadData = useCallback(async () => {
     setIsLoadingSaved(true);
+    setLoadError(null);
     try {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -108,6 +117,13 @@ export function useVehicles() {
       setTotalCount(count || 0);
     } catch (err) {
       console.error("Failed to fetch vehicles:", err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      setLoadError(message || "Nieznany błąd podczas ładowania pojazdów.");
     } finally {
       setIsLoadingSaved(false);
     }
@@ -372,6 +388,9 @@ export function useVehicles() {
   return {
     savedVehicles,
     isLoadingSaved,
+    loadError,
+    initialHighlightId: initialId,
+    hasActiveHighlight: searchMatchingIds !== null && initialId !== null,
     globalSearchQuery,
     setGlobalSearchQuery,
     isSearching,

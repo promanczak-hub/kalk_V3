@@ -10,6 +10,7 @@ import logging
 from typing import Dict, Optional
 
 from core.redis_cache import redis_cache
+from core.supabase_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -141,12 +142,11 @@ def fetch_base_rv_percent_cached(samar_class_id: int, engine_type_id: int) -> fl
 
     col_name = COLUMN_MAP.get(engine_type_id, "benzyna_pb")
     try:
-        res = (
+        res = execute_with_retry(
             supabase.table("samar_class_depreciation_rates")
             .select(col_name)
             .eq("klasa_samar", samar_class_id)
             .limit(1)
-            .execute()
         )
         if res.data and len(res.data) > 0:
             val = res.data[0].get(col_name)
@@ -174,7 +174,7 @@ def fetch_depreciation_rates_cached(
 
     try:
         fuel_norm = _normalize_fuel_name(brand_name, engine_name)
-        res = (
+        res = execute_with_retry(
             supabase.table("tab_okres_final")
             .select(
                 "km_35000, km_70000, km_105000, km_140000, km_175000, km_210000, km_245000"
@@ -182,7 +182,6 @@ def fetch_depreciation_rates_cached(
             .eq("klasa_samar", samar_class_id)
             .ilike("rodzaj_silnika", f"%{fuel_norm}%")
             .limit(1)
-            .execute()
         )
         if res.data:
             return dict(res.data[0])
@@ -209,7 +208,7 @@ def fetch_brand_correction_cached(
 
         # 1. Exact match with model + fuel
         if model_norm:
-            res_exact = (
+            res_exact = execute_with_retry(
                 supabase.table("samar_brand_corrections")
                 .select("korekta")
                 .eq("klasa_samar", samar_class_id)
@@ -217,13 +216,12 @@ def fetch_brand_correction_cached(
                 .ilike("model", model_norm)
                 .ilike("silnik", f"%{fuel_norm}%")
                 .limit(1)
-                .execute()
             )
             if res_exact.data:
                 return float(res_exact.data[0].get("korekta") or 0.0)
 
         # 2. Fallback: general brand + fuel (model IS NULL)
-        res_gen = (
+        res_gen = execute_with_retry(
             supabase.table("samar_brand_corrections")
             .select("korekta")
             .eq("klasa_samar", samar_class_id)
@@ -231,7 +229,6 @@ def fetch_brand_correction_cached(
             .is_("model", "null")
             .ilike("silnik", f"%{fuel_norm}%")
             .limit(1)
-            .execute()
         )
         if res_gen.data:
             return float(res_gen.data[0].get("korekta") or 0.0)
@@ -258,7 +255,7 @@ def fetch_color_correction_cached(
 
     if not paint_type_id:
         try:
-            res = supabase.table("paint_types").select("name, wr_correction").execute()
+            res = execute_with_retry(supabase.table("paint_types").select("name, wr_correction"))
             for row in res.data or []:
                 name_upper = str(row.get("name") or "").upper()
                 if not is_metalic and name_upper.startswith("NIEMETAL"):
@@ -270,12 +267,11 @@ def fetch_color_correction_cached(
         return 0.0
 
     try:
-        res = (
+        res = execute_with_retry(
             supabase.table("paint_types")
             .select("wr_correction")
             .eq("id", paint_type_id)
             .limit(1)
-            .execute()
         )
         if res.data:
             return float(res.data[0].get("wr_correction") or 0.0)
@@ -298,12 +294,11 @@ def fetch_body_correction_cached(body_type_id: Optional[int]) -> float:
     from core.database import supabase
 
     try:
-        res = (
+        res = execute_with_retry(
             supabase.table("body_types")
             .select("utrata_wartosci")
             .eq("id", body_type_id)
             .limit(1)
-            .execute()
         )
         if res.data:
             return float(res.data[0].get("utrata_wartosci") or 0.0)
@@ -340,7 +335,7 @@ def fetch_vintage_correction_cached(
         query = supabase.table("ltr_admin_korekta_wr_roczniks").select(column)
         if samar_class_id:
             query = query.eq("klasa_samar_fk", samar_class_id)
-        res = query.limit(1).execute()
+        res = execute_with_retry(query.limit(1))
         if res.data:
             val = res.data[0].get(column)
             if val is not None:
@@ -385,13 +380,12 @@ def fetch_mileage_corrections_cached(
 
     try:
         fuel_norm = _normalize_fuel_name(brand_name, engine_name)
-        res = (
+        res = execute_with_retry(
             supabase.table("samar_class_mileage_corrections")
             .select("korekta_lt_prog, korekta_gt_prog, prog_przebiegu_km")
             .eq("klasa_samar", samar_class_id)
             .ilike("rodzaj_silnika", f"%{fuel_norm}%")
             .limit(1)
-            .execute()
         )
         if res.data:
             row = res.data[0]
@@ -431,14 +425,13 @@ def fetch_base_options_rate_cached(
     try:
         from core.database import supabase
 
-        res = (
+        res = execute_with_retry(
             supabase.table("samar_class_options_rv")
             .select("options_rv_percent")
             .eq("samar_class_id", samar_class_id)
             .eq("engine_type_id", engine_type_id)
             .eq("year", years)
             .limit(1)
-            .execute()
         )
         if res.data:
             return float(res.data[0].get("options_rv_percent") or 0.0)

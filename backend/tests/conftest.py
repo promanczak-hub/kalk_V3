@@ -72,6 +72,39 @@ def _reset_redis_singleton() -> None:
         logger.debug("Could not reset redis_cache singleton: %s", exc)
 
 
+_supabase_reset_counter = 0
+
+
+def _maybe_refresh_supabase_singleton() -> None:
+    """Recreate the global Supabase client every N tests to flush exhausted HTTP/2 connections.
+
+    The supabase singleton in `core.database` holds a long-lived HTTP/2 connection.
+    Under Windows test load (~500 tests/run), Supabase / the local TCP stack
+    exhausts ephemeral ports → `httpx.ConnectError: [WinError 10061]` cascade,
+    causing fetcher tests (Skoda parity, golden path, pipeline_debugger) to fail.
+
+    Refreshing the client every 25 tests rotates the HTTP connection pool and
+    yields fresh ephemeral ports, eliminating the cascade. Cheap: create_client
+    is ~50ms; the saving is making a previously-flaky suite deterministic.
+    """
+    global _supabase_reset_counter
+    _supabase_reset_counter += 1
+    if _supabase_reset_counter % 25 != 1:  # refresh on test #1, #26, #51, ...
+        return
+    try:
+        import core.database as db_module
+        from supabase import create_client
+
+        db_module.supabase = create_client(
+            db_module.SUPABASE_URL,
+            db_module.SUPABASE_KEY,
+            options=db_module.options,
+        )
+        db_module._supabase_admin = None
+    except Exception as exc:
+        logger.debug("Could not refresh supabase singleton: %s", exc)
+
+
 @pytest.fixture(autouse=True)
 def _reset_caches_between_tests() -> Any:
     """Autouse — clear lru_caches + redis singleton before every test.
@@ -83,5 +116,6 @@ def _reset_caches_between_tests() -> Any:
     for module_name in _LRU_CACHED_MODULES:
         _clear_lru_caches_in_module(module_name)
     _reset_redis_singleton()
+    _maybe_refresh_supabase_singleton()
     yield
     # Post-test cleanup is implicit via the next test's pre-yield reset.

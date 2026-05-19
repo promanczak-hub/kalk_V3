@@ -30,6 +30,7 @@ from supabase import Client
 
 from core.database import supabase as _default_client
 from core.models import ControlCenterSettings
+from core.supabase_retry import execute_with_retry
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def fetch_control_center_row(
         if not keys_list:
             return {"id": LEGACY_ID, "updated_at": _now_iso()}
         query = query.in_("key", keys_list)
-    res = query.execute()
+    res = execute_with_retry(query)
     rows = res.data or []
     out: Dict[str, Any] = {"id": LEGACY_ID}
     max_ts: Optional[str] = None
@@ -86,12 +87,11 @@ def fetch_control_center_value(
 ) -> Any:
     """Selektywny read pojedynczego klucza (taniej niz pelny scan)."""
     sb = _client(client)
-    res = (
+    res = execute_with_retry(
         sb.table("control_center")
         .select("value")
         .eq("key", key)
         .limit(1)
-        .execute()
     )
     rows = res.data or []
     if not rows:

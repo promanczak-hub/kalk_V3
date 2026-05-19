@@ -117,7 +117,7 @@ def diagnose_vehicle(
     settings: ControlCenterSettings,
 ) -> Dict[str, str]:
     """Uruchamia 12 sub-kalkulatorów dla jednego pojazdu. Zwraca raport."""
-    from core.LTRKalkulator import get_vehicle_from_db
+    from core.ltr_db_fetchers import get_vehicle_from_db
 
     vid = vehicle.get("id", "?")
 
@@ -206,7 +206,7 @@ def diagnose_vehicle(
     # ── KROK 3: SAMOCHÓD ZASTĘPCZY ──
     try:
         from core.LTRSubCalculatorSamochodZastepczy import ReplacementCarCalculator
-        from core.LTRKalkulator import get_replacement_car_rate_from_db
+        from core.ltr_db_fetchers import get_replacement_car_rate_from_db
 
         rc_rate = get_replacement_car_rate_from_db(klasa_id)
         rc_calc = ReplacementCarCalculator(rc_rate)
@@ -301,13 +301,11 @@ def diagnose_vehicle(
             base_vehicle_catalog_gross=vehicle_capex * vat_rate,
             options_catalog_gross=float(tires_res.get("capex_initial_set", 0))
             * vat_rate,
+            # Diagnostyka — baseline bez czynszu inicjalnego
+            czynsz_inicjalny_netto=0.0,
         )
         vr_samar = rv_res["WR"]
-        utrata_z_czynszem = float(
-            rv_res.get(
-                "UtrataWartosciZCzynszemInicjalnym", capex_for_financing - vr_samar
-            )
-        )
+        utrata_z_czynszem = float(rv_res["UtrataWartosciZCzynszemInicjalnym"])
         utrata_bez_czynszu = float(rv_res["UtrataWartosciBEZczynszu"])
         msg = (
             f"WR_net={vr_samar:.2f}, "
@@ -350,7 +348,7 @@ def diagnose_vehicle(
     # ── KROK 8: UBEZPIECZENIE ──
     try:
         from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
-        from core.LTRKalkulator import (
+        from core.ltr_db_fetchers import (
             get_insurance_rates_from_db,
             get_damage_coefficients_from_db,
         )

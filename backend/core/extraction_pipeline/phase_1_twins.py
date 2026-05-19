@@ -73,26 +73,64 @@ def handle_multi_vehicles(
         def _child_cancel(fid: str = file_id, sup: Client = supabase) -> bool:
             return is_cancelled(fid, sup)
 
-        twin_json = process_single_twin(
-            vehicle_twin,
-            on_progress=_child_progress,
-            is_cancelled=_child_cancel,
-        )
+        try:
+            twin_json = process_single_twin(
+                vehicle_twin,
+                on_progress=_child_progress,
+                is_cancelled=_child_cancel,
+            )
 
-        if _child_cancel():
-            update_progress(supabase, current_id, "cancelled")
-            return
+            if _child_cancel():
+                update_progress(supabase, current_id, "cancelled")
+                return
 
-        parsed_data = json.loads(clean_json_response(twin_json))
+            try:
+                parsed_data = json.loads(clean_json_response(twin_json))
+            except (ValueError, TypeError) as parse_err:
+                # Surface the per-vehicle parse failure on its OWN record so
+                # the user can re-run / inspect just this twin instead of the
+                # whole multi-vehicle loop silently crashing. Continue to the
+                # next vehicle.
+                logger.exception(
+                    "[BG TASK] JSON parse failed for vehicle %s (%s/%s): %s",
+                    vehicle_label, idx + 1, vehicle_count, parse_err,
+                )
+                supabase.table("vehicle_synthesis").update(
+                    {
+                        "verification_status": "error",
+                        "notes": f"JSON parse failed for {vehicle_label}: {parse_err}",
+                    }
+                ).eq("id", current_id).execute()
+                continue
 
-        finalize_vehicle_pipeline(
-            supabase,
-            current_id,
-            parsed_data,
-            raw_pdf_url,
-            file_id,
-            router_data if isinstance(router_data, str) else None,
-        )
+            finalize_vehicle_pipeline(
+                supabase,
+                current_id,
+                parsed_data,
+                raw_pdf_url,
+                file_id,
+                router_data if isinstance(router_data, str) else None,
+            )
+        except Exception as vehicle_err:
+            # Don't let one vehicle's failure abort the entire batch. Mark this
+            # record as error, log, and move to the next twin.
+            logger.exception(
+                "[BG TASK] Pipeline failed for vehicle %s (%s/%s): %s",
+                vehicle_label, idx + 1, vehicle_count, vehicle_err,
+            )
+            try:
+                supabase.table("vehicle_synthesis").update(
+                    {
+                        "verification_status": "error",
+                        "notes": f"Pipeline error for {vehicle_label}: {vehicle_err}",
+                    }
+                ).eq("id", current_id).execute()
+            except Exception as mark_err:
+                logger.error(
+                    "[BG TASK] Failed to mark vehicle %s as error: %s",
+                    current_id, mark_err,
+                )
+            continue
 
     logger.info(
         f"[BG TASK] ★ Zakończono przetwarzanie {vehicle_count} pojazdów z {file_name}"

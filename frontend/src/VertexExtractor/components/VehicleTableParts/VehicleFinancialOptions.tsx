@@ -1,4 +1,4 @@
-import { Banknote, CircleDot, AlertTriangle } from "lucide-react";
+import { Banknote, CircleDot, AlertTriangle, ArrowLeftRight, Loader2, Check } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { FleetVehicleView } from "../../types";
 export interface ExtractedServiceOption {
@@ -13,6 +13,8 @@ import { useMemo, useState } from "react";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { parsePriceToNumber } from "./PriceDualFormat";
 import { AccordionCard } from "./AccordionCard";
+import { apiClient } from "../../../lib/apiClient";
+import { revalidateVehicleQuiet } from "../../hooks/useRevalidateVehicle";
 
 interface VehicleFinancialOptionsProps {
   vehicle: FleetVehicleView;
@@ -109,6 +111,8 @@ interface VehicleFinancialOptionsProps {
     cost_gsm_subscription_monthly: number;
     cost_hook_installation: number;
   } | null;
+  // Refresh callback po POST /api/extract/price-domain — przekazywane z VehicleRowCard (onRefresh).
+  onRefresh?: () => void;
 }
 
 const TIRE_CLASS_OPTIONS = [
@@ -173,11 +177,16 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     pakietSerwisowy, setPakietSerwisowy,
     odkupOpon, setOdkupOpon,
     uwagi, setUwagi,
+    onRefresh,
   } = props;
 
   const crossCardAlerts = props.crossCardAlerts ?? [];
 
   const [depositMode, setDepositMode] = useState<"%" | "PLN">("%");
+  const [isFlippingDomain, setIsFlippingDomain] = useState(false);
+  const [isSavingBasePrice, setIsSavingBasePrice] = useState(false);
+  const [basePriceSaveError, setBasePriceSaveError] = useState<string | null>(null);
+  const [basePriceJustSaved, setBasePriceJustSaved] = useState(false);
   // Pakiet serwisowy: state trzyma netto, UI prezentuje brutto (V1-parity: V1 dzieli wartość przez VAT 1.23 przed użyciem).
   const pakietSerwisowyBrutto = Math.round(pakietSerwisowy * 1.23);
 
@@ -212,12 +221,87 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
     ? catalogBasePriceNet
     : Math.round(catalogBasePriceNet * 1.23);
 
+  // Flip price_domain (netto ↔ brutto). Reinterpretuje istniejące wartości
+  // bez zmiany liczb — wszędzie w UI dostosuje się traktowanie sumy katalog+opcje+rabat.
+  const handleFlipDomain = async () => {
+    if (isFlippingDomain) return;
+    const nextDomain = detectedPriceDomain === "netto" ? "brutto" : "netto";
+    const confirmMsg =
+      detectedPriceDomain === "unknown"
+        ? `Ustawić domenę cen na "${nextDomain}"? Wartości pozostaną bez zmian, tylko ich interpretacja.`
+        : `Zmienić źródło cen z "${detectedPriceDomain}" na "${nextDomain}"?\n\nLiczby z PDF NIE są przeliczane — tylko ich interpretacja (suma×1.23 vs ÷1.23) odwraca się w całym UI.`;
+    if (!window.confirm(confirmMsg)) return;
+    setIsFlippingDomain(true);
+    try {
+      const res = await apiClient.fetch(`/api/extract/price-domain/${vehicle.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: nextDomain }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      onRefresh?.();
+    } catch (e) {
+      console.error("price-domain flip failed:", e);
+      alert("Nie udało się zmienić domeny cen — sprawdź konsolę.");
+    } finally {
+      setIsFlippingDomain(false);
+    }
+  };
+
   // AI-extracted base price (converted to netto for comparison)
   const aiBasePriceRaw = parsePriceToNumber(aiExtractedBasePrice || "0");
   const aiBasePriceNetto = isSourceNetto
     ? aiBasePriceRaw
     : Math.round((aiBasePriceRaw / 1.23) * 100) / 100;
   const basePriceWasEdited = Math.abs(catalogBasePriceNet - aiBasePriceNetto) > 10;
+
+  // Persist the edited base price to card_summary.base_price + re-run validator.
+  // Same endpoint as FillBasePriceInput, but used here for the "fix an existing
+  // wrong price" flow (e.g. PDF extracted "1 PLN netto" for a 200k vehicle).
+  // We send in the source domain so card_summary stays consistent with the
+  // existing price_domain — the editable input is netto, so brutto source
+  // requires *1.23 before sending.
+  const handleSaveBasePrice = async () => {
+    if (isSavingBasePrice || catalogBasePriceNet <= 0) return;
+    setIsSavingBasePrice(true);
+    setBasePriceSaveError(null);
+    setBasePriceJustSaved(false);
+    try {
+      const domain: "netto" | "brutto" = isSourceNetto ? "netto" : "brutto";
+      const value = isSourceNetto
+        ? catalogBasePriceNet
+        : Math.round(catalogBasePriceNet * 1.23);
+      const res = await apiClient.fetch(
+        `/api/extract/fill-base-price/${vehicle.id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base_price: value, domain }),
+        },
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      // /fill-base-price already flips status when _requires_user_input is empty,
+      // but only checks that legacy gate. Run the full revalidate to also apply
+      // confidence/HITL rules — for consistency with other save handlers.
+      await revalidateVehicleQuiet(vehicle.id);
+      setBasePriceJustSaved(true);
+      onRefresh?.();
+      setTimeout(() => setBasePriceJustSaved(false), 2500);
+    } catch (e) {
+      console.error("save base_price failed:", e);
+      setBasePriceSaveError(
+        e instanceof Error ? e.message : "Nieznany błąd zapisu",
+      );
+    } finally {
+      setIsSavingBasePrice(false);
+    }
+  };
 
   return (
     <>
@@ -260,22 +344,33 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
           <div>
             <h5 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
               Rozkład ceny
-              {detectedPriceDomain === "netto" && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 uppercase tracking-wider">
-                  źródło: netto
-                </span>
-              )}
-              {detectedPriceDomain === "brutto" && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase tracking-wider">
-                  źródło: brutto
-                </span>
-              )}
-              {detectedPriceDomain === "unknown" && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wider flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleFlipDomain}
+                disabled={isFlippingDomain}
+                title={
+                  detectedPriceDomain === "unknown"
+                    ? "AI nie rozpoznało domeny — kliknij aby ustawić jaką domenę przyjmuje PDF (netto/brutto)"
+                    : `Kliknij aby zmienić źródło na "${detectedPriceDomain === "netto" ? "brutto" : "netto"}" (reinterpretacja, NIE konwersja wartości)`
+                }
+                className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-60",
+                  detectedPriceDomain === "netto" && "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
+                  detectedPriceDomain === "brutto" && "bg-blue-100 text-blue-700 hover:bg-blue-200",
+                  detectedPriceDomain === "unknown" && "bg-amber-100 text-amber-700 hover:bg-amber-200",
+                )}
+              >
+                {isFlippingDomain ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : detectedPriceDomain === "unknown" ? (
                   <AlertTriangle className="w-3 h-3" />
-                  domena nieznana (brutto)
-                </span>
-              )}
+                ) : (
+                  <ArrowLeftRight className="w-3 h-3" />
+                )}
+                {detectedPriceDomain === "unknown"
+                  ? "domena nieznana — ustaw"
+                  : `źródło: ${detectedPriceDomain}`}
+              </button>
             </h5>
             <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
               <colgroup>
@@ -316,27 +411,59 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                     </div>
                   </td>
                   <td colSpan={2} className="py-2.5 pl-2 align-top">
-                    <div className="flex w-full justify-between items-center gap-1">
+                    <div className="flex w-full justify-between items-center gap-2 flex-wrap">
                       <NetGrossInput
                         netValue={catalogBasePriceNet}
                         onChangeNet={setCatalogBasePriceNet}
                       />
+                      {basePriceWasEdited && (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <button
+                            type="button"
+                            onClick={handleSaveBasePrice}
+                            disabled={isSavingBasePrice || catalogBasePriceNet <= 0}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
+                              basePriceJustSaved
+                                ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                                : "bg-blue-600 text-white hover:bg-blue-700 border border-blue-700",
+                            )}
+                            title={
+                              basePriceJustSaved
+                                ? "Zapisano w bazie — kalkulator przeliczy po odświeżeniu"
+                                : "Zapisz cenę do bazy (card_summary.base_price) i przelej do kalkulatora"
+                            }
+                            data-testid="save-base-price-button"
+                          >
+                            {isSavingBasePrice ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Zapisuję…
+                              </>
+                            ) : basePriceJustSaved ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                Zapisano
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3 h-3" />
+                                Zapisz cenę
+                              </>
+                            )}
+                          </button>
+                          {basePriceSaveError && (
+                            <span className="text-[9px] text-red-600 max-w-[220px] text-right leading-tight">
+                              {basePriceSaveError}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
 
-                {/* Suma przed rabatem (Katalog + Opcje + Serwis) */}
-                <tr className="border-b border-slate-200 bg-slate-50/30">
-                  <td className="py-2.5 pr-2 text-xs font-bold text-slate-600">Suma przed rabatem</td>
-                  <td className="py-2.5 px-2 text-right tabular-nums text-sm font-bold text-slate-600">
-                    {fmtPLN(totalCatalogPriceNet + serviceOptionsTotal)}
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums text-sm font-bold text-slate-800">
-                    {fmtPLN((totalCatalogPriceNet + serviceOptionsTotal) * 1.23)}
-                  </td>
-                </tr>
-
-                {/* Opcje rabatowane */}
+                {/* Opcje rabatowane — bezpośrednio pod ceną bazową */}
                 {discountableOptionsTotal > 0 && (
                   <tr className="border-b border-slate-100">
                     <td className="py-2.5 text-xs text-slate-500">Opcje rabatowane</td>
@@ -344,6 +471,40 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                     <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{fmtPLN(discountableOptionsTotal * 1.23)}</td>
                   </tr>
                 )}
+
+                {/* Opcje fabryczne nierabatowane — wciąż część katalogu, dlatego przed sumą */}
+                {nonDiscountableOptionsTotal > 0 && (
+                  <tr className="border-b border-slate-100">
+                    <td className="py-2.5 text-xs text-slate-500 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 hover:text-blue-600 transition-colors cursor-pointer group/link"
+                        onClick={() => {
+                          const el = document.getElementById("factory-options-section");
+                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                        title="Przejdź do sekcji Opcje Fabryczne"
+                      >
+                        Opcje fabryczne nierabatowane
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover/link:text-blue-500 transition-colors"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
+                      </button>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wider">bez rabatu</span>
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{fmtPLN(nonDiscountableOptionsTotal)}</td>
+                    <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{fmtPLN(nonDiscountableOptionsTotal * 1.23)}</td>
+                  </tr>
+                )}
+
+                {/* Suma przed rabatem (Katalog + Opcje rabatowane + nierabatowane). Serwisy idą NIŻEJ — nie wchodzą do bazy rabatu. */}
+                <tr className="border-b border-slate-200 bg-slate-50/30">
+                  <td className="py-2.5 pr-2 text-xs font-bold text-slate-600">Suma przed rabatem</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums text-sm font-bold text-slate-600">
+                    {fmtPLN(totalCatalogPriceNet)}
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-sm font-bold text-slate-800">
+                    {fmtPLN(totalCatalogPriceNet * 1.23)}
+                  </td>
+                </tr>
 
                 {/* Rabat */}
                 {activeDiscountPct > 0 && (
@@ -372,30 +533,7 @@ export function VehicleFinancialOptions(props: VehicleFinancialOptionsProps) {
                   </>
                 )}
 
-                {/* Opcje fabryczne nierabatowane */}
-                {nonDiscountableOptionsTotal > 0 && (
-                  <tr className="border-b border-slate-100">
-                    <td className="py-2.5 text-xs text-slate-500 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        className="flex items-center gap-1.5 hover:text-blue-600 transition-colors cursor-pointer group/link"
-                        onClick={() => {
-                          const el = document.getElementById("factory-options-section");
-                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                        }}
-                        title="Przejdź do sekcji Opcje Fabryczne"
-                      >
-                        Opcje fabryczne nierabatowane
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover/link:text-blue-500 transition-colors"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
-                      </button>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase tracking-wider">bez rabatu</span>
-                    </td>
-                    <td className="py-2.5 text-right tabular-nums text-sm text-slate-400">{fmtPLN(nonDiscountableOptionsTotal)}</td>
-                    <td className="py-2.5 text-right tabular-nums text-sm font-medium text-slate-700">{fmtPLN(nonDiscountableOptionsTotal * 1.23)}</td>
-                  </tr>
-                )}
-
-                {/* Usługi serwisowe */}
+                {/* Usługi serwisowe — poza bazą rabatu, dodawane po rabacie do ceny końcowej */}
                 {serviceOptionsTotal > 0 && (
                   <tr className="border-b border-slate-100">
                     <td className="py-2.5 text-xs text-slate-500">Usługi serwisowe</td>

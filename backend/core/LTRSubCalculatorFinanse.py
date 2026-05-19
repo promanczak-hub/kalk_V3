@@ -45,6 +45,26 @@ class FinanseInput:
     StawkaVAT: float = 1.23  # Do konwersji brutto → netto
 
 
+def resolve_czynsz_inicjalny_netto(
+    wartosc_poczatkowa_netto: float,
+    rodzaj_czynszu: str = "Procentowo",
+    czynsz_inicjalny_brutto: float = 0.0,
+    czynsz_procent: float = 0.0,
+    stawka_vat: float = 1.23,
+) -> float:
+    """Resolve czynsz inicjalny netto z trybu Procentowo lub Kwotowo.
+
+    Współdzielona logika V1 — wywoływana przez FinanseCalculator
+    oraz przez orchestrator (LTRKalkulator) zanim policzymy WR, żeby
+    móc zredukować pulę amortyzacji o wpłatę własną.
+    """
+    if rodzaj_czynszu == "Procentowo":
+        return wartosc_poczatkowa_netto * (czynsz_procent / 100.0)
+    if stawka_vat <= 0:
+        return czynsz_inicjalny_brutto
+    return czynsz_inicjalny_brutto / stawka_vat
+
+
 @dataclass
 class FinanseResult:
     """Wynik — V1 Result + harmonogram rat."""
@@ -151,13 +171,14 @@ class FinanseCalculator:
         self.data = data
 
     def _resolve_czynsz_netto(self) -> float:
-        """Rozwiązuje czynsz netto z kwoty brutto lub %."""
-        if self.data.RodzajCzynszu == "Procentowo":
-            return self.data.WartoscPoczatkowaNetto * (self.data.CzynszProcent / 100.0)
-        # Kwotowo: brutto / VAT = netto (V1 L61)
-        if self.data.StawkaVAT <= 0:
-            return self.data.CzynszInicjalny
-        return self.data.CzynszInicjalny / self.data.StawkaVAT
+        """Rozwiązuje czynsz netto z kwoty brutto lub % — deleguje do helpera."""
+        return resolve_czynsz_inicjalny_netto(
+            wartosc_poczatkowa_netto=self.data.WartoscPoczatkowaNetto,
+            rodzaj_czynszu=self.data.RodzajCzynszu,
+            czynsz_inicjalny_brutto=self.data.CzynszInicjalny,
+            czynsz_procent=self.data.CzynszProcent,
+            stawka_vat=self.data.StawkaVAT,
+        )
 
     def calculate(self) -> FinanseResult:
         wp = self.data.WartoscPoczatkowaNetto

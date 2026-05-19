@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Database, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, Database, Info, RefreshCw, X } from "lucide-react";
 import Skeleton from "@mui/material/Skeleton";
 import { cn } from "../../lib/utils";
 import type { FleetVehicleView } from "../types";
@@ -17,6 +17,8 @@ import Pagination from "@mui/material/Pagination";
 interface VehicleTableProps {
   savedVehicles: FleetVehicleView[];
   isLoadingSaved: boolean;
+  loadError?: string | null;
+  hasActiveHighlight?: boolean;
 
   liveSearchText: string;
   setLiveSearchText: (query: string) => void;
@@ -38,6 +40,8 @@ interface VehicleTableProps {
 export function VehicleTable({
   savedVehicles,
   isLoadingSaved,
+  loadError,
+  hasActiveHighlight,
 
   liveSearchText,
   setLiveSearchText,
@@ -205,6 +209,31 @@ export function VehicleTable({
         </div>
       </div>
 
+      {hasActiveHighlight && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 flex-shrink-0 text-blue-600" />
+            <span>
+              Pokazany tylko pojazd przekierowany z wyszukiwarki
+              {highlightVehicleId ? (
+                <span className="ml-1 font-mono text-xs text-blue-700">
+                  ({highlightVehicleId.slice(0, 8)}…)
+                </span>
+              ) : null}
+              .
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={fetchSavedVehicles}
+            className="inline-flex items-center gap-1 rounded-md border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+          >
+            <X className="h-3 w-3" />
+            Pokaż wszystkie
+          </button>
+        </div>
+      )}
+
       {isLoadingSaved && savedVehicles.length === 0 ? (
         <div className="flex flex-col gap-4">
           {[1, 2, 3].map((i) => (
@@ -223,6 +252,42 @@ export function VehicleTable({
               </div>
             </div>
           ))}
+        </div>
+      ) : loadError ? (
+        <div className="border border-red-200 bg-red-50 rounded-2xl p-10 text-center flex flex-col items-center justify-center shadow-inner">
+          <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+          <p className="text-red-800 text-base font-semibold">
+            Nie udało się załadować listy pojazdów.
+          </p>
+          <p className="text-sm text-red-700 mt-2 max-w-lg font-mono break-all">
+            {loadError}
+          </p>
+          <button
+            type="button"
+            onClick={fetchSavedVehicles}
+            className="mt-4 inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Spróbuj ponownie
+          </button>
+        </div>
+      ) : savedVehicles.length === 0 && hasActiveHighlight ? (
+        <div className="border border-dashed border-amber-300 bg-amber-50 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-inner">
+          <Database className="w-10 h-10 text-amber-400 mb-4" />
+          <p className="text-amber-900 text-base font-semibold">
+            Nie znaleziono pojazdu o wskazanym identyfikatorze.
+          </p>
+          <p className="text-sm text-amber-800 mt-2 max-w-md">
+            Pojazd istnieje w wyszukiwarce, ale nie jest dostępny w tym widoku.
+            Mógł zostać przeniesiony do biblioteki, usunięty lub jego dane są ograniczone uprawnieniami.
+          </p>
+          <button
+            type="button"
+            onClick={fetchSavedVehicles}
+            className="mt-4 inline-flex items-center gap-2 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+          >
+            Pokaż wszystkie pojazdy
+          </button>
         </div>
       ) : savedVehicles.length === 0 ? (
         <div className="border border-dashed border-slate-300 bg-slate-50 rounded-2xl p-16 text-center flex flex-col items-center justify-center shadow-inner">

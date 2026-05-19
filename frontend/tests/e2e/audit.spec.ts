@@ -1,4 +1,4 @@
-import { test, expect, Page, ConsoleMessage, Request, Response } from '@playwright/test';
+import { test, Page, ConsoleMessage, Request, Response } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -214,7 +214,20 @@ test.describe('Stability Audit', () => {
       'utf-8'
     );
 
-    // Always pass — the goal is to collect data, not assert. Findings are written to disk.
-    expect(true).toBe(true);
+    // Findings are written to disk for the full audit. We still fail the
+    // test on the hard-failure kinds (page crashes, server errors, network
+    // failures, navigation timeouts) so CI catches real regressions.
+    // Soft-noise kinds (console.error from third-party libs) are tolerated.
+    const FATAL_KINDS = new Set(['pageerror', 'http_failed', 'timeout']);
+    const fatal = findings.filter(f => FATAL_KINDS.has(f.kind));
+    const httpServerErrors = findings.filter(
+      f => f.kind === 'http_error' && typeof f.status === 'number' && f.status >= 500,
+    );
+    if (fatal.length || httpServerErrors.length) {
+      const summary = [...fatal, ...httpServerErrors]
+        .map(f => `[${f.kind}] ${f.route}/${f.phase}: ${f.detail}`)
+        .join('\n');
+      throw new Error(`Stability audit found ${fatal.length + httpServerErrors.length} fatal issues:\n${summary}`);
+    }
   });
 });

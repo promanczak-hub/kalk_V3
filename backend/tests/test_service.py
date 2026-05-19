@@ -123,26 +123,33 @@ class TestServiceCalculator(unittest.TestCase):
         expected = 12000 / 36 + 50.0
         self.assertAlmostEqual(self._monthly(result), expected, places=2)
 
-    def test_fake_brand_multiplier_fail_fast(self) -> None:
-        """`get_service_multiplier` musi być fail-fast dla nieznanej marki (no silent 1.0 fallback).
+    def test_fake_brand_multiplier_falls_back_to_neutral(self) -> None:
+        """Nieznana marka → POZOSTAŁE fallback (1.0) lub neutralny domyślny 1.0.
 
-        Historia: poprzedni test oczekiwał `multiplier == 1.0` ("Rule 4 — fake
-        marka nie wyrzuca wyjątku"). Production *od dawna* raise'uje ValueError
-        gdy w `samar_service_brand_multipliers` brakuje wiersza dla brand_normalized
-        i brakuje POZOSTAŁE fallback. To celowe — wykrywa data-quality issues
-        zamiast cicho liczyć dalej z mnożnikiem 1.0.
-
-        Memory note `feedback_service_multipliers_neutral` mówi że W PRODUKCJI
-        mnożniki są trzymane na 1.0 (różnicowanie w base rate) — ale to o
-        wartościach w DB, nie o silent fallback gdy wiersz brakuje.
+        Memory note `feedback_service_multipliers_neutral`: wszystkie mnożniki
+        serwisowe trzymane na 1.0; różnicowanie tylko w base rate. Brak wiersza
+        dla nieznanej marki nie może wywalić całej kalkulacji — `POZOSTAŁE` w DB
+        łapie ten przypadek, a soft-default w kodzie chroni przed brakiem nawet
+        POZOSTAŁE.
         """
+        from core.LTRSubCalculatorSerwisNew import get_service_multiplier
+
+        result = get_service_multiplier(
+            "samar_service_brand_multipliers",
+            "brand_normalized",
+            "MarkaX_Zmyslona",
+        )
+        self.assertEqual(result, 1.0)
+
+    def test_empty_key_still_fail_fast(self) -> None:
+        """Pusty/None klucz dalej raise'uje — to bug w wywołującym kodzie, nie data gap."""
         from core.LTRSubCalculatorSerwisNew import get_service_multiplier
 
         with self.assertRaises(ValueError):
             get_service_multiplier(
                 "samar_service_brand_multipliers",
                 "brand_normalized",
-                "MarkaX_Zmyslona",
+                "",
             )
 
     # --- Floor normatywny ---

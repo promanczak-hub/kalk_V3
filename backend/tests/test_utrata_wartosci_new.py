@@ -168,3 +168,72 @@ def test_manual_wr_correction(mocker):
 
     # WR brutto = 50000 + 1000 * 1.23 = 51230
     assert res["WR_Gross"] == pytest.approx(51230.0, 0.01)
+
+
+def _mock_samar_rv(mocker, utrata_net: float) -> None:
+    """Helper: mockuje SamarRVCalculator.calculate na zadanym utrata_net."""
+    from core.samar_rv import RVOutput
+
+    mocker.patch(
+        "core.LTRSubCalculatorUtrataWartosciNew.SamarRVCalculator.calculate",
+        return_value=RVOutput(
+            wr_net=50000.0,
+            wr_lo_net=0.0,
+            utrata_wartosci_net=utrata_net,
+            wr_percent=0.0,
+            debug={},
+        ),
+    )
+
+
+def _make_calc() -> LTRSubCalculatorUtrataWartosciNew:
+    """Helper: tworzy WR calculator z minimalnym pojazdem."""
+    vehicle_data = {
+        "Paliwo": "Benzyna",
+        "Segment": "C",
+        "MinRokProd": 2024,
+        "samar_class_id": 1,
+        "engine_type_id": 1,
+        "fuel_name": "BENZYNA",
+    }
+    calc = LTRSubCalculatorUtrataWartosciNew(vehicle_data, MockInputData())
+    calc.vat_rate = 1.23
+    calc.przewidywana_cena_lo = 0.0
+    return calc
+
+
+def test_utrata_z_czynszem_default_zero(mocker):
+    """Domyślny czynsz=0 ⇒ UtrataZCzynszem == UtrataBezCzynszu."""
+    _mock_samar_rv(mocker, utrata_net=46000.0)
+    calc = _make_calc()
+
+    res = calc.calculate_values(36, 60000, 123000.0, 24600.0)
+
+    assert res["UtrataWartosciBEZczynszu"] == pytest.approx(46000.0, 0.01)
+    assert res["UtrataWartosciZCzynszemInicjalnym"] == pytest.approx(46000.0, 0.01)
+
+
+def test_utrata_z_czynszem_reduces_pool(mocker):
+    """Czynsz inicjalny netto redukuje pulę amortyzacji (V1 cs:54-55)."""
+    _mock_samar_rv(mocker, utrata_net=46000.0)
+    calc = _make_calc()
+
+    res = calc.calculate_values(
+        36, 60000, 123000.0, 24600.0, czynsz_inicjalny_netto=10000.0
+    )
+
+    assert res["UtrataWartosciBEZczynszu"] == pytest.approx(46000.0, 0.01)
+    assert res["UtrataWartosciZCzynszemInicjalnym"] == pytest.approx(36000.0, 0.01)
+
+
+def test_utrata_z_czynszem_floor_zero(mocker):
+    """Gdy czynsz > utrata, wynik nie schodzi poniżej 0."""
+    _mock_samar_rv(mocker, utrata_net=5000.0)
+    calc = _make_calc()
+
+    res = calc.calculate_values(
+        36, 60000, 123000.0, 24600.0, czynsz_inicjalny_netto=20000.0
+    )
+
+    assert res["UtrataWartosciBEZczynszu"] == pytest.approx(5000.0, 0.01)
+    assert res["UtrataWartosciZCzynszemInicjalnym"] == pytest.approx(0.0, abs=1e-9)

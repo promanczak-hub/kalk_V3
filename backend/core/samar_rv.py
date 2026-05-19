@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from core.database import supabase
+from core.supabase_retry import execute_with_retry
 from core.samar_rv_fetchers import (
     fetch_base_options_rate_cached,
     fetch_base_rv_percent_cached,
@@ -50,7 +51,7 @@ def get_samar_class_id(class_name: str) -> Optional[int]:
     global _SAMAR_CACHE
     if not _SAMAR_CACHE:
         try:
-            res = supabase.table("samar_classes").select("id, name").execute()
+            res = execute_with_retry(supabase.table("samar_classes").select("id, name"))
             for row in res.data or []:
                 nazwa = str(row.get("name", "")).strip()
                 row_id = int(row.get("id", 0))
@@ -427,6 +428,10 @@ class SamarRVCalculator:
         debug["krok4_korekta_sign"] = korekta_sign
         debug["krok4_korekta_przebieg_netto"] = round(korekta_sign * korekta_przebieg_netto, 2)
         debug["krok4_active"] = krok4_active
+        # Per CLAUDE.md "Golden Rule" — emit the spec-named flag so external
+        # consumers (parity tests, debug surfaces) can rely on a stable key:
+        # 1.0 ↔ Krok 4 disabled because body type has its own utrata_wartosci.
+        debug["krok4_korekta_disabled_per_sot"] = 0.0 if krok4_active else 1.0
         debug["krok4_body_correction_pct"] = body_correction_pct_for_krok4
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

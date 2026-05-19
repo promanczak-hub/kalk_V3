@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, ScanSearch, AlertTriangle, CheckCircle2, HelpCircle, Pencil, Save, X, Loader2, RefreshCw } from "lucide-react";
 import type { DiscountBreakdown, DiscountExtractionMethod, PriceValidation } from "../../types";
 import { apiClient } from "../../../lib/apiClient";
+import { revalidateVehicleQuiet } from "../../hooks/useRevalidateVehicle";
 
 interface DiscountAuditCardProps {
   vehicleId: string;
@@ -95,22 +96,71 @@ interface EditFormProps {
   saving: boolean;
 }
 
+type Domain = "netto" | "brutto";
+
+/** Konwertuje wpisaną wartość do netto na podstawie wybranej domeny.
+ * Backend (`/api/extract/discount-override`) oczekuje wszystkich kwot w netto. */
+const toNet = (raw: number | null, domain: Domain): number | null =>
+  raw === null ? null : domain === "brutto" ? +(raw / 1.23).toFixed(2) : raw;
+
+function DomainToggle({
+  value,
+  onChange,
+  disabled,
+}: { value: Domain; onChange: (d: Domain) => void; disabled?: boolean }) {
+  return (
+    <div className="inline-flex border border-slate-300 rounded overflow-hidden text-[9px] font-bold">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange("netto")}
+        className={`px-2 py-0.5 transition-colors ${
+          value === "netto"
+            ? "bg-emerald-100 text-emerald-700"
+            : "bg-white text-slate-400 hover:bg-slate-50"
+        }`}
+      >
+        NETTO
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange("brutto")}
+        className={`px-2 py-0.5 transition-colors ${
+          value === "brutto"
+            ? "bg-blue-100 text-blue-700"
+            : "bg-white text-slate-400 hover:bg-slate-50"
+        }`}
+      >
+        BRUTTO
+      </button>
+    </div>
+  );
+}
+
 function EditForm({ initialPln, initialBase, initialNonDisc, onSave, onCancel, saving }: EditFormProps) {
   const [pln, setPln] = useState<string>(initialPln !== null ? String(initialPln) : "");
   const [base, setBase] = useState<string>(initialBase !== null ? String(initialBase) : "");
   const [nonDisc, setNonDisc] = useState<string>(initialNonDisc !== null ? String(initialNonDisc) : "");
   const [note, setNote] = useState("");
+  const [plnDomain, setPlnDomain] = useState<Domain>("netto");
+  const [baseDomain, setBaseDomain] = useState<Domain>("netto");
+  const [nonDiscDomain, setNonDiscDomain] = useState<Domain>("netto");
+
+  const parsedPlnNet = toNet(parseInputNumber(pln), plnDomain);
+  const parsedBaseNet = toNet(parseInputNumber(base), baseDomain);
+  const parsedNonDiscNet = toNet(parseInputNumber(nonDisc), nonDiscDomain);
 
   const previewPct =
-    parseInputNumber(pln) !== null && parseInputNumber(base) !== null && parseInputNumber(base)! > 0
-      ? ((parseInputNumber(pln)! / parseInputNumber(base)!) * 100).toFixed(2)
+    parsedPlnNet !== null && parsedBaseNet !== null && parsedBaseNet > 0
+      ? ((parsedPlnNet / parsedBaseNet) * 100).toFixed(2)
       : null;
 
   const handleSubmit = async () => {
     await onSave({
-      pln: parseInputNumber(pln),
-      base: parseInputNumber(base),
-      nonDisc: parseInputNumber(nonDisc),
+      pln: parsedPlnNet,
+      base: parsedBaseNet,
+      nonDisc: parsedNonDiscNet,
       note: note.trim(),
     });
   };
@@ -118,52 +168,70 @@ function EditForm({ initialPln, initialBase, initialNonDisc, onSave, onCancel, s
   const inputCls =
     "w-full text-xs font-mono border border-slate-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white";
 
+  // Podgląd "= X PLN netto" gdy user wpisał w brutto.
+  const fmtNetHint = (n: number | null, d: Domain): string | null =>
+    d === "brutto" && n !== null && !Number.isNaN(n)
+      ? `= ${n.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} PLN netto (÷1.23)`
+      : null;
+
   return (
     <div className="space-y-2 p-3 bg-amber-50/40 border border-amber-200 rounded">
       <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
-        Manualna korekta — zostanie zapisana z ekstraction_method=explicit_amount, confidence=1.0
+        Manualna korekta — zapis: extraction_method=explicit_amount, confidence=1.0. Wartości w brutto konwertowane ÷1.23 przed POST.
       </div>
 
       <div>
-        <label className="text-[10px] font-medium text-slate-600 block mb-0.5">
-          Kwota rabatu netto (PLN)
-        </label>
+        <div className="flex items-center justify-between mb-0.5">
+          <label className="text-[10px] font-medium text-slate-600">Kwota rabatu (PLN)</label>
+          <DomainToggle value={plnDomain} onChange={setPlnDomain} disabled={saving} />
+        </div>
         <input
           type="text"
           inputMode="decimal"
           value={pln}
           onChange={(e) => setPln(e.target.value)}
-          placeholder="np. 42317"
+          placeholder={plnDomain === "brutto" ? "np. 52050" : "np. 42317"}
           className={inputCls}
         />
+        {fmtNetHint(parsedPlnNet, plnDomain) && (
+          <div className="text-[9px] text-slate-400 mt-0.5 font-mono">{fmtNetHint(parsedPlnNet, plnDomain)}</div>
+        )}
       </div>
 
       <div>
-        <label className="text-[10px] font-medium text-slate-600 block mb-0.5">
-          Podstawa rabatu netto (PLN) — base + opcje fabryczne
-        </label>
+        <div className="flex items-center justify-between mb-0.5">
+          <label className="text-[10px] font-medium text-slate-600">Podstawa rabatu (PLN) — base + opcje fabryczne</label>
+          <DomainToggle value={baseDomain} onChange={setBaseDomain} disabled={saving} />
+        </div>
         <input
           type="text"
           inputMode="decimal"
           value={base}
           onChange={(e) => setBase(e.target.value)}
-          placeholder="np. 145485"
+          placeholder={baseDomain === "brutto" ? "np. 178946" : "np. 145485"}
           className={inputCls}
         />
+        {fmtNetHint(parsedBaseNet, baseDomain) && (
+          <div className="text-[9px] text-slate-400 mt-0.5 font-mono">{fmtNetHint(parsedBaseNet, baseDomain)}</div>
+        )}
       </div>
 
       <div>
-        <label className="text-[10px] font-medium text-slate-600 block mb-0.5">
-          Poza rabatem (PLN) — zabudowy / dealer extras
-        </label>
+        <div className="flex items-center justify-between mb-0.5">
+          <label className="text-[10px] font-medium text-slate-600">Poza rabatem (PLN) — zabudowy / dealer extras</label>
+          <DomainToggle value={nonDiscDomain} onChange={setNonDiscDomain} disabled={saving} />
+        </div>
         <input
           type="text"
           inputMode="decimal"
           value={nonDisc}
           onChange={(e) => setNonDisc(e.target.value)}
-          placeholder="np. 31732"
+          placeholder={nonDiscDomain === "brutto" ? "np. 39031" : "np. 31732"}
           className={inputCls}
         />
+        {fmtNetHint(parsedNonDiscNet, nonDiscDomain) && (
+          <div className="text-[9px] text-slate-400 mt-0.5 font-mono">{fmtNetHint(parsedNonDiscNet, nonDiscDomain)}</div>
+        )}
       </div>
 
       <div>
@@ -181,7 +249,7 @@ function EditForm({ initialPln, initialBase, initialNonDisc, onSave, onCancel, s
 
       {previewPct && (
         <div className="text-[11px] text-emerald-700 font-mono pt-1">
-          Przeliczony rabat: <strong>{previewPct}%</strong>
+          Przeliczony rabat: <strong>{previewPct}%</strong> (z wartości netto)
         </div>
       )}
 
@@ -273,6 +341,9 @@ export function DiscountAuditCard({
       });
       if (!res.ok) throw new Error("Nie udało się zapisać korekty rabatu");
       setIsEditing(false);
+      // Re-validate after discount edit — rabat changes often resolve
+      // DISCOUNT_PCT_LOW / DEALER_EXTRA warnings → status flips to completed
+      await revalidateVehicleQuiet(vehicleId);
       onUpdated?.();
     } catch (e) {
       console.error(e);
@@ -291,6 +362,7 @@ export function DiscountAuditCard({
         body: JSON.stringify({ overwrite_existing: false }),
       });
       if (!res.ok) throw new Error("Backfill failed");
+      await revalidateVehicleQuiet(vehicleId);
       onUpdated?.();
     } catch (e) {
       console.error(e);
@@ -350,6 +422,7 @@ export function DiscountAuditCard({
                   <button
                     onClick={() => setIsEditing(true)}
                     className="text-[10px] px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded font-medium inline-flex items-center gap-1"
+                    title="Skoryguj rabat inline"
                   >
                     <Pencil className="w-3 h-3" />
                     Skoryguj ręcznie

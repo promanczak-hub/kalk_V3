@@ -34,11 +34,15 @@ _ZABUDOWA_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 # Composite output table. Key = (cabin_kind, zabudowa_key) → SOT body_style.
 # cabin_kind: "podwozie_brygadowe" | "podwozie" | "furgon" | "furgon_brygadowy"
+# Wpisy muszą odpowiadać wierszom w tabeli `body_types` (Supabase SOT,
+# konsolidacja 2026-05-16 — memory `body_types_sot`).
 _COMPOSITE_TABLE: dict[tuple[str, str], str] = {
     ("podwozie_brygadowe", "SKRZYNIA"): "Podwozie Brygadowe Skrzynia",
     ("podwozie_brygadowe", "KONTENER"): "Podwozie Brygadowe Kontener",
     ("podwozie_brygadowe", "WYWROTKA"): "Podwozie Brygadowe Wywrotka",
     ("podwozie_brygadowe", "PLANDEKA"): "Podwozie Brygadowe Plandeka",
+    ("podwozie_brygadowe", "CHLODNIA"): "Podwozie Brygadowe Chłodnia",
+    ("podwozie_brygadowe", "IZOTERMA"): "Podwozie Brygadowe Izoterma",
     ("podwozie", "SKRZYNIA"): "Podwozie Skrzynia",
     ("podwozie", "KONTENER"): "Podwozie Kontener",
     ("podwozie", "WYWROTKA"): "Podwozie Wywrotka",
@@ -46,6 +50,7 @@ _COMPOSITE_TABLE: dict[tuple[str, str], str] = {
     ("podwozie", "CHLODNIA"): "Podwozie Chłodnia",
     ("podwozie", "IZOTERMA"): "Podwozie Izoterma",
     ("furgon", "CHLODNIA"): "Furgon Chłodnia",
+    ("furgon", "IZOTERMA"): "Furgon Izoterma",
 }
 
 
@@ -221,6 +226,71 @@ def _compose_deterministic(
 
     composite = _COMPOSITE_TABLE.get((cabin, zabudowa))
     return composite or body_style
+
+
+def recompose_with_override(
+    cabin_kind: Optional[str],
+    zabudowa_sot_key: Optional[str],
+    enable_llm_fallback: bool = False,
+    card_summary: Optional[dict] = None,
+) -> Optional[str]:
+    """Bypass auto-detection — przyjmij user input cabin_kind + zabudowa_sot_key bezpośrednio.
+
+    Używane przez HITL wizard endpoint `/extract/hitl/apply` gdy użytkownik
+    wybrał z UI palette: cabin = "podwozie_brygadowe", zabudowa = "CHLODNIA".
+    Zamiast skanować body_style i service_equipment, lookuje composite od razu
+    z _COMPOSITE_TABLE.
+
+    Strategy (mirror compose_body_style logic):
+    1. Jeśli oba inputs są None → None (user nie wybrał nic).
+    2. Jeśli cabin_kind only (no zabudowa) → fallback do "Furgon brygadowy"
+       dla furgon_brygadowy, inaczej raw cabin name.
+    3. Jeśli zabudowa only (no cabin) → assume cabin = "podwozie".
+    4. Lookup w _COMPOSITE_TABLE; jeśli brak → optional LLM fallback;
+       inaczej zwróć fallback string ("Podwozie KONTENER" itp.).
+    """
+    if not cabin_kind and not zabudowa_sot_key:
+        return None
+
+    # Promote KONTENER → IZOTERMA/CHLODNIA na podstawie sygnałów w card_summary,
+    # ale TYLKO gdy user wybrał generyczny KONTENER. Jeśli user świadomie wybrał
+    # IZOTERMA/CHLODNIA z palety, szanuj wybór.
+    if zabudowa_sot_key == "KONTENER" and card_summary is not None:
+        zabudowa_sot_key = _promote_kontener(
+            card_summary.get("body_style"),
+            card_summary.get("service_equipment"),
+        )
+
+    # Cabin-only fallback
+    if cabin_kind and not zabudowa_sot_key:
+        if cabin_kind == "furgon_brygadowy":
+            return "Furgon brygadowy"
+        return None  # samo "podwozie" nie ma sensu jako SOT body_style
+
+    # Zabudowa-only → assume podwozie
+    if zabudowa_sot_key and not cabin_kind:
+        cabin_kind = "podwozie"
+
+    # Furgon brygadowy używa zabudów z mapy 'furgon'
+    lookup_cabin = "furgon" if cabin_kind == "furgon_brygadowy" else cabin_kind
+
+    composite = _COMPOSITE_TABLE.get((lookup_cabin, zabudowa_sot_key))
+    if composite is not None:
+        return composite
+
+    # LLM fallback gdy mapa nie zawiera takiej kombinacji
+    if enable_llm_fallback and card_summary is not None:
+        resolved = _try_llm_fallback(card_summary)
+        if resolved is not None:
+            return resolved
+
+    # Surowy fallback — backend logger ostrzeże ale nie crashuje
+    logger.warning(
+        "[COMPOSER] recompose_with_override: no mapping for (%s, %s)",
+        cabin_kind,
+        zabudowa_sot_key,
+    )
+    return None
 
 
 def _try_llm_fallback(card_summary: dict) -> Optional[str]:

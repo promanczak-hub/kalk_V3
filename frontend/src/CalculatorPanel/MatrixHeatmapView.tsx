@@ -84,6 +84,8 @@ function buildV1SummaryRows(cell: MiniMatrixCell): V1SummaryRow[] {
 
   return [
     { label: "Stawka laczna", kind: "money", net: cell.LacznaStawka, emphasize: true },
+    { label: "Czynsz inicjalny (%)", kind: "percent", net: cell.CzynszInicjalnyProcent ?? 0 },
+    { label: "Czynsz inicjalny (kwota)", kind: "money", net: cell.CzynszInicjalnyNetto ?? 0 },
     { label: "Czynsz finansowy", kind: "money", net: cell.CzynszFinansowy },
     { label: "Czynsz techniczny", kind: "money", net: cell.CzynszTechniczny },
     { label: "Ubezpieczenie", kind: "money", net: cell.Ubezpieczenie },

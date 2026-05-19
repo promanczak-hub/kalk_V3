@@ -4,6 +4,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, field_validator
 
 from core.database import supabase
+from core.supabase_retry import execute_with_retry, _is_transient
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +13,11 @@ logger = logging.getLogger(__name__)
 def get_base_service_rate(samar_class_id: int, target_mileage: int) -> dict[str, Any]:
     """Pobiera bazową stawkę serwisową za km opartą o klasę SAMAR i prób przebiegu."""
     try:
-        response = (
+        response = execute_with_retry(
             supabase.table("samar_class_service_rates")
             .select("przebieg_do, stawka_aso_per_km, stawka_non_aso_per_km")
             .eq("klasa_samar_fk", samar_class_id)
             .order("przebieg_do")
-            .execute()
         )
         if response.data:
             data = cast(list[dict[str, Any]], response.data)
@@ -37,12 +37,11 @@ def get_base_service_rate(samar_class_id: int, target_mileage: int) -> dict[str,
 def get_all_service_rates(samar_class_id: int) -> list[dict[str, Any]]:
     """Pobiera wszystkie progi serwisowe dla klasy, posortowane od najmniejszego."""
     try:
-        response = (
+        response = execute_with_retry(
             supabase.table("samar_class_service_rates")
             .select("przebieg_do, stawka_aso_per_km, stawka_non_aso_per_km")
             .eq("klasa_samar_fk", samar_class_id)
             .order("przebieg_do")
-            .execute()
         )
         if response.data:
             return cast(list[dict[str, Any]], response.data)
@@ -70,11 +69,10 @@ def get_service_multiplier(
             f"Brak wartości klucza ({key_column}) przy próbie pobrania mnożnika z tabeli {table_name} (Fail-Fast)."
         )
     try:
-        response = (
+        response = execute_with_retry(
             supabase.table(table_name)
             .select("multiplier")
             .eq(key_column, key_val)
-            .execute()
         )
         if response.data and len(response.data) > 0:
             data = cast(list[dict[str, Any]], response.data)
@@ -85,11 +83,10 @@ def get_service_multiplier(
             logger.warning(
                 f"Brak wartości '{key_val}' w {table_name}. Próba użycia fallbacku: '{fallback_val}'."
             )
-            fallback_response = (
+            fallback_response = execute_with_retry(
                 supabase.table(table_name)
                 .select("multiplier")
                 .eq(key_column, fallback_val)
-                .execute()
             )
             if fallback_response.data and len(fallback_response.data) > 0:
                 logger.warning(
@@ -97,16 +94,32 @@ def get_service_multiplier(
                 )
                 return float(fallback_response.data[0]["multiplier"])
 
-        raise ValueError(
+        logger.warning(
             f"Brak mnożnika w tabeli {table_name} dla {key_column} = '{key_val}' "
-            f"(Klucz ratunkowy '{fallback_val}' również nie istnieje) (Fail-Fast)."
+            f"(klucz ratunkowy '{fallback_val}' również nie istnieje). "
+            f"Domyślny neutralny mnożnik 1.0."
         )
+        return 1.0
     except Exception as e:
+        if isinstance(e, ValueError):
+            raise
+        # Per memory `feedback_service_multipliers_neutral`: service multipliers stay
+        # at 1.0; differentiation lives in the base rate. If the DB is transiently
+        # unreachable (Windows TCP port exhaustion under load, Supabase 5xx, etc.),
+        # treat as "data unavailable" and return the neutral default instead of
+        # crashing the whole calculation.
+        if _is_transient(e):
+            logger.warning(
+                "Transient DB error fetching service multiplier from %s for '%s' "
+                "after retry exhausted; falling back to neutral 1.0. Error: %s",
+                table_name,
+                key_val,
+                e,
+            )
+            return 1.0
         logger.error(
             f"Error fetching service multiplier from {table_name} for '{key_val}': {e!s}"
         )
-        if isinstance(e, ValueError):
-            raise
         raise ValueError(
             f"Błąd bazy podczas pobierania mnożnika z {table_name} dla '{key_val}': {e!s}"
         )

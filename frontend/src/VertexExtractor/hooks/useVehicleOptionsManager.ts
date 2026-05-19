@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { apiClient } from '../../lib/apiClient';
 import type { FleetVehicleView, ModificationEffect, HomologationResponse } from "../types";
 import { parsePriceToNumber } from "../components/VehicleTableParts/PriceDualFormat";
+import { revalidateVehicleQuiet } from "./useRevalidateVehicle";
 
 export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: () => void) {
   // Determine price domain from deterministic backend detection
@@ -283,7 +284,7 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
         .eq("id", vehicle.id);
 
       if (error) throw error;
-      
+
       // Optymalizacja UX: Po zapisaniu opcji, automatycznie wyzwalamy weryfikację cech w tle,
       // żeby sekcja "Cechy Użytkowe" nadążyła za ewentualnymi zmianami w opcjach (np. polem Hak Holowniczy)
       try {
@@ -292,6 +293,11 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
       } catch {
         // silently ignore error
       }
+
+      // Re-validate verification_status (rerun validator + HITL review heuristic).
+      // Edits to paid_options / service_equipment frequently resolve confidence
+      // gaps that were keeping the vehicle in "needs_review".
+      await revalidateVehicleQuiet(vehicle.id);
 
       onRefresh();
     } catch (err) {
