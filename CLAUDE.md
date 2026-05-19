@@ -96,7 +96,11 @@ WR_po_Kroku_5 = WR_po_Krok_3 + Korekta_Wartosc
 | API routes | `backend/api/*_routes.py` |
 | Extraction pipeline | `backend/core/extractor_v2.py`, `extraction_pipeline/phase_*.py` |
 | Pipeline debugger | `backend/core/PipelineDebugger.py` |
-| Celery tasks | `backend/core/celery_app.py`, `matrix_cache_job.py`, `background_jobs.py` |
+| Celery tasks | `backend/core/celery_app.py`, `matrix_cache_job.py`, `background_jobs.py`, `backend/tasks/` |
+| Service layer | `backend/services/` (`ai_mapper_service`, `classification_service`, `document_storage_service`) |
+| DB helpers | `backend/db/`, `backend/core/control_center.py`, `backend/core/database.py` |
+| Eval / experiments | `backend/eval/discount_eval/` — extraction quality harness (real PDFs) |
+| Templates | `backend/templates/` — XLSX / HTML offer templates |
 | Tests | `backend/tests/` (pytest), `frontend/tests/e2e/` (Playwright) |
 | Frontend pages | `frontend/src/{VertexExtractor,ScoringSearch,ManualKalkulacje,CalculationsHistory,CalculatorPanel}/` |
 | Shared components | `frontend/src/components/` |
@@ -112,7 +116,7 @@ WR_po_Kroku_5 = WR_po_Krok_3 + Korekta_Wartosc
 
 ```powershell
 poetry install
-poetry run python run_dev.py              # FastAPI dev → http://localhost:8000
+poetry run python run_dev.py              # FastAPI dev (uvicorn) → http://localhost:8000
 poetry run celery -A core.celery_app worker --pool=solo --loglevel=info  # Windows
 poetry run pytest                          # tests
 poetry run ruff check .                    # lint
@@ -172,6 +176,7 @@ Read-only agent that knows the 12-stage pipeline + `docs/audit/calc_*.md` as spe
 - ❌ **Recreating `_calc_exact_price` in reverse-search endpoints.** Use cache. See Reverse Search section.
 - ❌ **Bypassing `TABLE_REGISTRY.md`** when renaming tables/columns. The registry is the impact-analysis SOT.
 - ❌ **Treating `control_center` as wide-row.** It's EAV (key/value) now — go through `core/control_center.py` adapter. Memory note `control_center_eav`.
+- ❌ **Silent fallbacks w pipeline kalkulacji** (`getattr(settings, "default_wibor", 5.0)`, `value or 0.0`, `multiplier or 1.0`). 12-stage LTR calc = sztywna matematyka transakcyjna — brak inputu = `raise ValueError`, nie literal default. Pattern dopuszczony: **input → Control Center → raise**. Memory note `feedback_no_calc_fallbacks`. Wyjątek: udokumentowana neutralna polityka (np. `feedback_service_multipliers_neutral`).
 
 ## Memory and references
 

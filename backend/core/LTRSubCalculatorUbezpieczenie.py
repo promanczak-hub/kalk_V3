@@ -1,5 +1,7 @@
 from typing import Any, Dict, List
 
+from core.finance_input_resolver import _require_setting
+
 
 class InsuranceCalculator:
     def __init__(
@@ -33,21 +35,17 @@ class InsuranceCalculator:
         year_breakdown: list[dict[str, Any]] = []
         total_cost_period = 0.0
 
+        # Per `feedback_no_calc_fallbacks` — fail-fast jeśli brak w Control Center.
         average_damage_value_base = float(
-            getattr(self.settings, "ins_avg_damage_value", 0.0) or 0.0
+            _require_setting(self.settings, "ins_avg_damage_value", "Średnia wartość szkody")
         )
         average_damage_mileage = float(
-            getattr(self.settings, "ins_avg_damage_mileage", 0.0) or 0.0
+            _require_setting(self.settings, "ins_avg_damage_mileage", "Średni przebieg szkody")
         )
-
         if average_damage_value_base <= 0:
-            raise ValueError(
-                "Brak poprawnego parametru `ins_avg_damage_value` w Control Center."
-            )
+            raise ValueError("Parametr `ins_avg_damage_value` w Control Center musi być > 0.")
         if average_damage_mileage <= 0:
-            raise ValueError(
-                "Brak poprawnego parametru `ins_avg_damage_mileage` w Control Center."
-            )
+            raise ValueError("Parametr `ins_avg_damage_mileage` w Control Center musi być > 0.")
 
         if not self.damage_coefficients:
             raise ValueError(

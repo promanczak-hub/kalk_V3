@@ -26,6 +26,7 @@ from core.ltr_cell_calculator import (
     calculate_cell,
     fetch_transport_fee_net,
 )
+from core.finance_input_resolver import _require_setting  # noqa: F401 (export for future use)
 from core.ltr_db_fetchers import get_vehicle_from_db
 from core.ltr_vehicle_resolvers import (
     _resolve_body_type_id_from_name,
@@ -251,8 +252,8 @@ class LTRKalkulator:
             discount_pct=self.input_data.discount_pct,
             tires_capex_net=tires_capex,
             add_gsm_to_capex=True,
-            gsm_device_cost_net=float(getattr(self.settings, "cost_gsm_device", 469.0)),
-            gsm_installation_cost_net=float(getattr(self.settings, "cost_gsm_installation", 150.0)),
+            gsm_device_cost_net=float(_require_setting(self.settings, "cost_gsm_device", "GPS/GSM device cost")),
+            gsm_installation_cost_net=float(_require_setting(self.settings, "cost_gsm_installation", "GPS/GSM instalacja")),
             pakiet_serwisowy_net=float(getattr(self.input_data, "pakiet_serwisowy", 0.0)),
             transport_fee_net=transport_fee_net,
         )

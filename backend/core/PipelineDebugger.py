@@ -24,6 +24,7 @@ from core.LTRSubCalculatorFinanse import (
     resolve_czynsz_inicjalny_netto,
 )
 from core.LTRSubCalculatorUbezpieczenie import InsuranceCalculator
+from core.finance_input_resolver import _resolve_finance_rate, _require_setting
 
 
 class PipelineDebugger(LTRKalkulator):
@@ -170,7 +171,11 @@ class PipelineDebugger(LTRKalkulator):
         )
 
         # KROK 4: Serwis (Srw)
-        normatywny_przebieg = getattr(self.settings, "normatywny_przebieg_mc", 1667)
+        normatywny_przebieg = int(
+            _require_setting(self.settings, "normatywny_przebieg_mc", "Normatywny przebieg mc")
+        )
+        if normatywny_przebieg <= 0:
+            raise ValueError("`normatywny_przebieg_mc` w Control Center musi być > 0.")
         pakiet_serwisowy_val = float(getattr(self.input_data, "pakiet_serwisowy", 0.0))
         inne_koszty_val = float(
             getattr(self.input_data, "inne_koszty_serwisowania_netto", 0.0)
@@ -281,7 +286,7 @@ class PipelineDebugger(LTRKalkulator):
         discounted_factory_options = base_wr_options * (1 - discount_pct)
         wp_amortyzacja = vehicle_capex + discounted_factory_options
 
-        vat_rate = getattr(self.settings, "vat_rate", 1.23)
+        vat_rate = _require_setting(self.settings, "vat_rate", "VAT rate")
         if vat_rate > 10.0:
             vat_rate = 1.0 + (vat_rate / 100.0)
 
@@ -468,7 +473,7 @@ class PipelineDebugger(LTRKalkulator):
         )
 
         # KROK 9: Finanse (PMT) (Fi) — V1 parity
-        vat_rate_fin = getattr(self.settings, "vat_rate", 1.23)
+        vat_rate_fin = _require_setting(self.settings, "vat_rate", "VAT rate")
         if vat_rate_fin > 10.0:
             vat_rate_fin = 1.0 + (vat_rate_fin / 100.0)
         finance_input = FinanseInput(
@@ -479,9 +484,11 @@ class PipelineDebugger(LTRKalkulator):
             RodzajCzynszu=str(getattr(self.input_data, "RodzajCzynszu", "Kwotowo")),
             StawkaVAT=vat_rate_fin,
             Okres=months,
-            WIBORProcent=float(getattr(self.input_data, "wibor_pct", 0.0) or 0.0),
-            MarzaFinansowaProcent=float(
-                getattr(self.input_data, "margin_pct", 0.0) or 0.0
+            WIBORProcent=_resolve_finance_rate(
+                "wibor_pct", self.input_data, self.settings, "default_wibor"
+            ),
+            MarzaFinansowaProcent=_resolve_finance_rate(
+                "margin_pct", self.input_data, self.settings, "bank_spread"
             ),
         )
         finance_calc = FinanseCalculator(finance_input)
@@ -640,11 +647,13 @@ class PipelineDebugger(LTRKalkulator):
         )
 
         # KROK 12: Budżet Marketingowy (Bm)
-        vat_rate_mult = getattr(self.settings, "vat_rate", 1.23)
+        vat_rate_mult = _require_setting(self.settings, "vat_rate", "VAT rate")
         if vat_rate_mult > 10.0:
             vat_rate_mult = 1.0 + (vat_rate_mult / 100.0)
 
-        budzet_mktg_ltr = getattr(self.settings, "budzet_marketingowy_ltr", 0.0)
+        budzet_mktg_ltr = _require_setting(
+            self.settings, "budzet_marketingowy_ltr", "Budżet marketingowy LTR"
+        )
         bm_input = BudzetMarketingowyInput(
             wr_przewidywana_cena_sprzedazy=vr_samar,
             stawka_vat=vat_rate_mult,

@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Tuple
 
 from core.database import supabase
 from core.supabase_retry import execute_with_retry
+from core.finance_input_resolver import _resolve_finance_rate, _require_setting
 from core.LTRSubCalculatorAmortyzacja import AmortyzacjaCalculator, AmortyzacjaInput
 from core.LTRSubCalculatorBudzetMarketingowy import (
     BudzetMarketingowyCalculator,
@@ -206,8 +207,8 @@ def calculate_cell(  # noqa: PLR0915 — per-cell calc; further split would obsc
         + ctx.wr_service_in_wr
     )
 
-    # 3. VAT multiplier (1.23 lub similar)
-    vat_rate = resolve_vat_multiplier(getattr(kalk.settings, "vat_rate", 1.23))
+    # 3. VAT multiplier — wymagane w Control Center (brak literal-default 1.23).
+    vat_rate = resolve_vat_multiplier(_require_setting(kalk.settings, "vat_rate", "VAT rate"))
 
     # 4. Czynsz inicjalny — upfront, żeby V1 mógł zredukować pulę amortyzacji
     _initial_deposit_pct = float(getattr(kalk.input_data, "initial_deposit_pct", 0.0) or 0.0)
@@ -240,15 +241,11 @@ def calculate_cell(  # noqa: PLR0915 — per-cell calc; further split would obsc
         RodzajCzynszu=_rodzaj_czynszu,
         StawkaVAT=vat_rate,
         Okres=months,
-        WIBORProcent=float(
-            kalk.input_data.wibor_pct
-            if getattr(kalk.input_data, "wibor_pct", None) is not None
-            else getattr(kalk.settings, "default_wibor", 5.0)
+        WIBORProcent=_resolve_finance_rate(
+            "wibor_pct", kalk.input_data, kalk.settings, "default_wibor"
         ),
-        MarzaFinansowaProcent=float(
-            kalk.input_data.margin_pct
-            if getattr(kalk.input_data, "margin_pct", None) is not None
-            else getattr(kalk.settings, "bank_spread", 2.0)
+        MarzaFinansowaProcent=_resolve_finance_rate(
+            "margin_pct", kalk.input_data, kalk.settings, "bank_spread"
         ),
     )
     finance_res = FinanseCalculator(finance_input).calculate()
@@ -391,7 +388,9 @@ def calculate_cell(  # noqa: PLR0915 — per-cell calc; further split would obsc
     bm_result = BudzetMarketingowyCalculator(BudzetMarketingowyInput(
         wr_przewidywana_cena_sprzedazy=vr_samar,
         stawka_vat=vat_rate,
-        budzet_marketingowy_ltr=getattr(kalk.settings, "budzet_marketingowy_ltr", 0.0),
+        budzet_marketingowy_ltr=_require_setting(
+            kalk.settings, "budzet_marketingowy_ltr", "Budżet marketingowy LTR"
+        ),
     )).calculate()
 
     logger.debug(

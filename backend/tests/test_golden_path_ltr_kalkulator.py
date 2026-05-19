@@ -64,7 +64,14 @@ def test_golden_path_standard_car(mock_db_responses):
 
     from types import SimpleNamespace
 
+    # Per memory `feedback_no_calc_fallbacks`: pipeline kalkulacji wymaga jawnych
+    # parametrów (brak silent fallback do 5.0/2.0). Test musi deklarować wszystkie
+    # pipeline-critical settings — wartości zachowują dotychczasowy baseline.
     mock_settings = SimpleNamespace(
+        default_wibor=5.0,
+        bank_spread=2.0,
+        vat_rate=1.23,
+        budzet_marketingowy_ltr=0.0,
         cost_gsm_subscription_monthly=2.5,
         cost_gsm_device=200.0,
         cost_gsm_installation=100.0,
