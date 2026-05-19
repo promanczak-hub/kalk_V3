@@ -1237,3 +1237,237 @@ class TestPowerConsistency:
         assert "TOTAL_BELOW_BASE" in rules_fired
         assert "SINGLE_OPTION_SUSPICIOUSLY_EXPENSIVE" in rules_fired
         assert "OPTIONS_SUM_MISMATCH" in rules_fired
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Auto-promote base_price from digital_twin.pricing when missing in
+# card_summary. Triggered by Audi configurator PDFs which omit
+# netto/brutto suffix — CARD_SUMMARY_PROMPT then leaves card_summary
+# prices null, but the digital twin extractor still catches them.
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestPromoteBasePriceFromDigitalTwin:
+    def _audi_pro_data(self) -> dict:
+        # Real shape from GOA-25-381231 (AUDI A6) — base_price extracted by
+        # Gemini Pro into digital_twin.pricing, but absent in card_summary.
+        return {
+            "brand": "Audi",
+            "model": "A6",
+            "card_summary": {"base_price": None, "total_price": None, "options_price": None},
+            "digital_twin": {
+                "pricing": {
+                    "base_price": "241 000 PLN",
+                    "total_price": "218 819 PLN",
+                    "options_price": "46 920 PLN",
+                }
+            },
+        }
+
+    def test_promotes_when_card_summary_empty(self) -> None:
+        result = validate_and_flag_prices(self._audi_pro_data())
+        cs = result["card_summary"]
+        assert cs["base_price"] == "241 000 PLN brutto"
+        assert cs["total_price"] == "218 819 PLN brutto"
+        assert cs["options_price"] == "46 920 PLN brutto"
+
+    def test_validation_succeeds_after_promote(self) -> None:
+        result = validate_and_flag_prices(self._audi_pro_data())
+        cs = result["card_summary"]
+        # After promotion the validator should parse base/total/options correctly
+        assert cs["_price_domain"] == "brutto"
+        parsed = cs["_validation"]["parsed_prices"]
+        assert parsed["base"] == 241000.0
+        assert parsed["total"] == 218819.0
+        assert parsed["options"] == 46920.0
+        # PRICE_DOMAIN_UNKNOWN warning should NOT fire after promotion
+        rules = {w["rule"] for w in cs["_validation"]["warnings"]}
+        assert "PRICE_DOMAIN_UNKNOWN" not in rules
+
+    def test_does_not_overwrite_existing_card_summary_prices(self) -> None:
+        data = self._audi_pro_data()
+        data["card_summary"]["base_price"] = "200 000 PLN netto"  # already set
+        result = validate_and_flag_prices(data)
+        # Existing card_summary value wins
+        assert result["card_summary"]["base_price"] == "200 000 PLN netto"
+
+    def test_preserves_existing_domain_suffix_in_digital_twin(self) -> None:
+        data = self._audi_pro_data()
+        data["digital_twin"]["pricing"]["base_price"] = "241 000 PLN netto"
+        result = validate_and_flag_prices(data)
+        # If digital_twin string already declared netto, don't blindly append " brutto"
+        assert result["card_summary"]["base_price"] == "241 000 PLN netto"
+
+    def test_no_digital_twin_pricing_is_safe(self) -> None:
+        # Skoda-shape: card_summary already has prices, no digital_twin section
+        data = {
+            "card_summary": {
+                "base_price": "143500 PLN brutto",
+                "options_price": "0 PLN brutto",
+                "total_price": "143500 PLN brutto",
+            }
+        }
+        result = validate_and_flag_prices(data)
+        assert result["card_summary"]["base_price"] == "143500 PLN brutto"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Rule 14: FULL_SUM_INTEGRITY — total = base + paid_options + service_equipment
+# Memory: extractor_price_quirks (Renault Master 2026-05-19)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestFullSumIntegrity:
+    """AI sometimes returns `total_price` that excludes `service_equipment`
+    (zabudowa, agregat). Rule 14 catches this against the field-by-field sum.
+    """
+
+    def _renault_master_shape(self, total_price: str) -> dict:
+        """Dual-component service_equipment shape from Renault Master case."""
+        return {
+            "base_price": "167218.50 PLN brutto",
+            "total_price": total_price,
+            "options_price": None,  # AUTO_FIX may rewrite
+            "_price_domain": "brutto",
+            "paid_options": [
+                {"name": "Pakiet Conversion 2", "price": "738.00 PLN brutto", "category": "Fabryczna"},
+                {"name": "światła przeciwmgłowe", "price": "738.00 PLN brutto", "category": "Fabryczna"},
+                {"name": "asystent świateł", "price": "553.50 PLN brutto", "category": "Fabryczna"},
+            ],
+            "service_equipment": {
+                "name": "Agregat + Zabudowa",
+                "total_price_net": "69510.00 PLN netto",
+                "total_price_gross": "85497.30 PLN brutto",
+                "components": [
+                    {
+                        "name": "Agregat Zanotti Z380",
+                        "price_net": "30510.00 PLN netto",
+                        "price_gross": "37527.30 PLN brutto",
+                    },
+                    {
+                        "name": "Zabudowa Kontener Izotermiczny",
+                        "price_net": "39000.00 PLN netto",
+                        "price_gross": "47970.00 PLN brutto",
+                    },
+                ],
+            },
+        }
+
+    def test_total_excludes_service_equipment_triggers_error(self) -> None:
+        """Realny case: Gemini zwrócił total=204 817 (cena pojazdu, bez
+        zabudowy). Pełna suma powinna być 254 745 (= 167 218 + 2 030 + 85 497).
+        FULL_SUM_INTEGRITY musi to wykryć i zwrócić ERROR."""
+        card = self._renault_master_shape("204817.14 PLN brutto")
+        report = validate_card_summary_prices(card)
+
+        flagged = [w for w in report.warnings if w.rule == "FULL_SUM_INTEGRITY"]
+        assert len(flagged) == 1
+        assert flagged[0].severity == "ERROR"
+        # Spodziewana suma: 167218.50 + 2029.50 + 85497.30 = 254745.30
+        assert flagged[0].expected is not None
+        assert abs(flagged[0].expected - 254745.30) < 1.0
+        assert abs(flagged[0].actual - 204817.14) < 0.01
+        assert flagged[0].field_path == "total_price"
+
+    def test_total_matches_field_sum_no_warning(self) -> None:
+        """Healthy: total = base + paid + service → brak FULL_SUM_INTEGRITY."""
+        card = self._renault_master_shape("254745.30 PLN brutto")
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "FULL_SUM_INTEGRITY"]
+        assert flagged == []
+
+    def test_unknown_domain_skips_rule(self) -> None:
+        """Bez sufiksu netto/brutto w cenach i bez `_price_domain` — pasywnie
+        pomijamy (PRICE_DOMAIN_UNKNOWN flaguje to osobno)."""
+        card = self._renault_master_shape("204817.14 PLN brutto")
+        # Strip netto/brutto suffix from all prices to defeat the inline inferer.
+        card["base_price"] = "167218.50 PLN"
+        card["total_price"] = "204817.14 PLN"
+        card["_price_domain"] = "unknown"
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "FULL_SUM_INTEGRITY"]
+        assert flagged == []
+
+    def test_no_service_equipment_skips_rule(self) -> None:
+        """Bez service_equipment i bez paid_options — Rule 2 wystarczy."""
+        card = {
+            "base_price": "100000 PLN brutto",
+            "options_price": "20000 PLN brutto",
+            "total_price": "120000 PLN brutto",
+            "_price_domain": "brutto",
+            "paid_options": [],
+            "service_equipment": None,
+        }
+        report = validate_card_summary_prices(card)
+        flagged = [w for w in report.warnings if w.rule == "FULL_SUM_INTEGRITY"]
+        assert flagged == []
+
+    def test_routes_to_hitl_via_validate_and_flag(self) -> None:
+        """End-to-end: Renault Master shape przez `validate_and_flag_prices`
+        kończy z `is_valid=False` co kieruje pojazd do `needs_review`."""
+        card = self._renault_master_shape("204817.14 PLN brutto")
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+        rules = [w["rule"] for w in cs["_validation"]["warnings"]]
+        assert "FULL_SUM_INTEGRITY" in rules
+        assert cs["_validation"]["is_valid"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════
+# AUTO_FIX guard: service_equipment included in derivation equation
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestAutoFixWithServiceEquipment:
+    """Per memory `extractor_price_quirks` (2026-05-19) — AUTO_FIX
+    options-derivation musi uwzględniać `service_equipment.total` w równaniu,
+    inaczej regeneruje fałszywe options_price które pasują do niepełnego total.
+    """
+
+    def test_auto_fix_subtracts_service_equipment(self) -> None:
+        """Gdy total ZAWIERA service_equipment, AUTO_FIX powinno wyliczyć
+        options_price = total - service_total - base (rabat=0).
+
+        Setup: base=167218.50, total=254745.30 (= base + 2030 paid + 85497 service).
+        Oczekiwane: options_price ≈ 2030 (= 254745 - 85497 - 167218)."""
+        card = {
+            "base_price": "167218.50 PLN brutto",
+            "options_price": "999999 PLN brutto",  # zła wartość — wymusza BASE_PLUS_OPTIONS_VS_TOTAL
+            "total_price": "254745.30 PLN brutto",
+            "service_equipment": {
+                "name": "Zabudowa + Agregat",
+                "total_price_gross": "85497.30 PLN brutto",
+                "total_price_net": "69510.00 PLN netto",
+                "components": [],
+            },
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+        # 254745 - 85497 - 167218 = 2030
+        opts = str(cs.get("options_price", ""))
+        assert "2029" in opts or "2030" in opts, f"got: {opts}"
+
+    def test_auto_fix_skipped_when_negative(self) -> None:
+        """Gdy service_total odjęty od total daje ujemną pulę opcji,
+        AUTO_FIX powinien się wstrzymać (a FULL_SUM_INTEGRITY flagować w HITL).
+
+        Renault Master shape: total=204817 (cena pojazdu bez service_equipment).
+        204817 - 85497 - 167218 = -47898 < 0 → AUTO_FIX wstrzymany.
+        """
+        card = {
+            "base_price": "167218.50 PLN brutto",
+            "options_price": "Brak",
+            "total_price": "204817.14 PLN brutto",
+            "service_equipment": {
+                "name": "Zabudowa + Agregat",
+                "total_price_gross": "85497.30 PLN brutto",
+                "total_price_net": "69510.00 PLN netto",
+                "components": [],
+            },
+        }
+        result = validate_and_flag_prices({"card_summary": card})
+        cs = result["card_summary"]
+        rules = [w["rule"] for w in cs["_validation"]["warnings"]]
+        assert "AUTO_FIX_APPLIED" not in rules
+        # Hard validator powinien wziąć tę sprawę
+        assert "FULL_SUM_INTEGRITY" in rules

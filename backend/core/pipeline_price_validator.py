@@ -149,6 +149,9 @@ def validate_card_summary_prices(
     # ── Rule 13: service_equipment.total ≈ sum(components) ──
     _check_service_equipment_sum_integrity(report, card_summary)
 
+    # ── Rule 14: total = base + Σ(paid_options) + service_equipment.total ──
+    _check_full_sum_integrity(report, card_summary)
+
     _log_report(report)
     return report
 
@@ -208,6 +211,15 @@ def validate_and_flag_prices(pro_data: dict[str, Any]) -> dict[str, Any]:
 
     # Allow empty dict to still get _validation flags
     report = validate_card_summary_prices(card_summary)
+
+    # V3 rules — only fire when card_summary has the V3 numeric/dedup fields
+    # populated (i.e. came from pipeline_normalization or HITL fixup). On
+    # legacy records they're no-ops because all checks bail on missing data.
+    try:
+        from core.pipeline_validator_v3 import run_v3_rules
+        run_v3_rules(card_summary, report)
+    except Exception as e:  # pragma: no cover — defensive
+        logger.warning("V3 rules failed: %s", e)
 
     # Detect domain BEFORE self-healing — derived base_price needs the
     # netto/brutto suffix to be formatted correctly, and the self-heal
@@ -298,12 +310,29 @@ def _apply_self_healing(card_summary: dict[str, Any], report: ValidationReport) 
                 except (TypeError, ValueError):
                     non_disc = 0.0
 
-            corrected_options_val = (
-                report.parsed_total + rabat - non_disc - report.parsed_base
+            # Per memory `extractor_price_quirks` (Renault Master 2026-05-19):
+            # service_equipment.total też redukuje pulę opcji. AI zwraca często
+            # "cenę pojazdu" w total bez zabudowy/agregatu, ale czasem WŁĄCZA
+            # service_equipment w total — różnica decyduje czy AUTO_FIX dziala
+            # czy musi się wstrzymać.
+            domain = card_summary.get("_price_domain", "unknown")
+            service_total = (
+                _service_equipment_total_in_domain(card_summary, domain)
+                if domain in ("netto", "brutto")
+                else 0.0
             )
 
-            # Jeśli korekta dałaby ujemną kwotę opcji → coś jest poważnie nie
-            # tak, lepiej pozostawić warning niż maskować błąd.
+            corrected_options_val = (
+                report.parsed_total
+                + rabat
+                - non_disc
+                - service_total
+                - report.parsed_base
+            )
+
+            # Jeśli korekta dałaby ujemną kwotę opcji → niespójność danych:
+            # zostawiamy `BASE_PLUS_OPTIONS_VS_TOTAL` jako warning i pozwalamy
+            # FULL_SUM_INTEGRITY (Rule 14) skierować pojazd do HITL.
             if corrected_options_val < 0:
                 return
 
@@ -427,8 +456,16 @@ def _try_derive_base_price(
         except (TypeError, ValueError):
             non_disc = 0.0
 
+    # Per memory `extractor_price_quirks` (Renault Master 2026-05-19):
+    # service_equipment.total też redukuje pulę bazy, jeśli total_price ją obejmuje.
+    service_total = _service_equipment_total_in_domain(card_summary, domain)
+
     derived_base = (
-        report.parsed_total + rabat - non_disc - report.parsed_options
+        report.parsed_total
+        + rabat
+        - non_disc
+        - service_total
+        - report.parsed_options
     )
 
     # G3 & G4: sanity range. Negative or implausibly small derived base means
@@ -1270,6 +1307,143 @@ def _check_service_equipment_sum_integrity(
                 field_path=f"service_equipment.{field_total}",
             )
         )
+
+
+def _service_equipment_total_in_domain(
+    card_summary: dict[str, Any], domain: str
+) -> float:
+    """Zwraca service_equipment.total_price_(net|gross) sparsowane w żądanej domenie.
+
+    Preferuje pole zgodne z domeną; jeśli puste, parsuje drugie i konwertuje VAT-em.
+    Jeśli `service_equipment.total_*` nie jest podane ale `components` istnieją,
+    sumuje komponenty. Zwraca 0.0 gdy nic nie ma.
+    """
+    se = card_summary.get("service_equipment")
+    if not isinstance(se, dict):
+        return 0.0
+
+    preferred = "total_price_net" if domain == "netto" else "total_price_gross"
+    fallback = "total_price_gross" if domain == "netto" else "total_price_net"
+
+    parsed = parse_price_string(str(se.get(preferred)) if se.get(preferred) else None)
+    if parsed and parsed.value > 0:
+        return parsed.value
+
+    parsed_alt = parse_price_string(str(se.get(fallback)) if se.get(fallback) else None)
+    if parsed_alt and parsed_alt.value > 0:
+        return parsed_alt.value_net if domain == "netto" else parsed_alt.value_gross
+
+    # Fallback: sum components in matching domain
+    comp_field = "price_net" if domain == "netto" else "price_gross"
+    comp_total = 0.0
+    seen = False
+    for comp in se.get("components", []) or []:
+        if not isinstance(comp, dict):
+            continue
+        p = parse_price_string(str(comp.get(comp_field)) if comp.get(comp_field) else None)
+        if p:
+            comp_total += p.value
+            seen = True
+    return comp_total if seen else 0.0
+
+
+def _paid_options_total_in_domain(
+    card_summary: dict[str, Any], domain: str
+) -> float:
+    """Suma `paid_options[].price` sparsowana zgodnie z domeną.
+
+    Dla każdej opcji: jeśli string ma jawny sufiks netto/brutto inny niż domain,
+    konwertuje przez VAT. Inaczej zakłada domain ze stringa.
+    """
+    total = 0.0
+    for opt in card_summary.get("paid_options", []) or []:
+        if not isinstance(opt, dict):
+            continue
+        category = (opt.get("category") or "").lower()
+        if "serwis" in category or "akcesor" in category:
+            # Service / accessory items are captured in service_equipment instead
+            # to avoid double-counting (memory: extractor_price_quirks 2026-05-06).
+            continue
+        parsed = parse_price_string(opt.get("price", ""))
+        if parsed is None:
+            continue
+        if parsed.tax_type == domain or parsed.tax_type == "unknown":
+            total += parsed.value
+        elif domain == "netto":
+            total += parsed.value_net
+        else:
+            total += parsed.value_gross
+    return total
+
+
+def _check_full_sum_integrity(
+    report: ValidationReport,
+    card_summary: dict[str, Any],
+) -> None:
+    """Rule 14 — pełna spójność: total = base + Σ(paid_options) + service_equipment.total.
+
+    Łapie case gdy Gemini zwróci `total_price` jako "cenę pojazdu" pomijając
+    usługi serwisowe (zabudowa, agregat), a sumę całej oferty trzeba dopiero
+    poskładać z pól field-by-field. Bez tej reguły AUTO_FIX `BASE_PLUS_OPTIONS_VS_TOTAL`
+    rekonstruuje fałszywe `options_price` dopasowane do niepełnego total
+    (memory: extractor_price_quirks — Renault Master 2026-05-19).
+
+    Sprawdzenie po stronie domeny ustalonej przez `_price_domain` — jeśli
+    domena nie jest znana, reguła pasywna (inne reguły flagują domenę osobno).
+    """
+    if report.parsed_base is None or report.parsed_total is None:
+        return
+
+    # Reguła odpalana wewnątrz `validate_card_summary_prices`, gdzie
+    # `card_summary["_price_domain"]` jest jeszcze NIE ustawione
+    # (wypełniane dopiero przez `validate_and_flag_prices` po walidacji).
+    # Inferujemy lokalnie z tax_type na base/total, żeby reguła działała
+    # niezależnie od orkiestracji.
+    domain = card_summary.get("_price_domain", "unknown")
+    if domain not in ("netto", "brutto"):
+        base_parsed = parse_price_string(card_summary.get("base_price"))
+        total_parsed = parse_price_string(card_summary.get("total_price"))
+        for p in (base_parsed, total_parsed):
+            if p and p.tax_type in ("netto", "brutto"):
+                domain = p.tax_type
+                break
+    if domain not in ("netto", "brutto"):
+        return
+
+    paid_sum = _paid_options_total_in_domain(card_summary, domain)
+    service_sum = _service_equipment_total_in_domain(card_summary, domain)
+
+    if service_sum <= 0 and paid_sum <= 0:
+        # Nic do sprawdzenia — Rule 2 (BASE_PLUS_OPTIONS_VS_TOTAL) wystarczy
+        return
+
+    expected_total = report.parsed_base + paid_sum + service_sum
+    diff = abs(expected_total - report.parsed_total)
+
+    # 0.5% lub minimum 5 PLN tolerance (zaokrąglenia VAT przy paru pozycjach)
+    tolerance = max(5.0, report.parsed_total * 0.005)
+    if diff <= tolerance:
+        return
+
+    diff_pct = (diff / report.parsed_total * 100) if report.parsed_total else 0.0
+    report.add(
+        ValidationWarning(
+            rule="FULL_SUM_INTEGRITY",
+            message=(
+                f"Niespójna suma końcowa ({domain}): "
+                f"base({report.parsed_base:.0f}) + Σ(paid_options){paid_sum:.0f} "
+                f"+ service_equipment({service_sum:.0f}) = {expected_total:.0f}, "
+                f"ale total_price = {report.parsed_total:.0f} (Δ {diff:.0f} / {diff_pct:.1f}%). "
+                "AI prawdopodobnie podało 'cenę pojazdu' a nie sumę całej oferty — "
+                "weryfikacja ręczna wymagana."
+            ),
+            severity="ERROR",
+            expected=expected_total,
+            actual=report.parsed_total,
+            diff_pct=diff_pct,
+            field_path="total_price",
+        )
+    )
 
 
 def _check_power_consistency(

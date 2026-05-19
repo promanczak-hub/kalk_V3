@@ -40,7 +40,21 @@ _HITL_BLOCKING_RULES = frozenset(
         "DEALER_EXTRA_NOT_IN_NON_DISCOUNTABLE",
         "BASE_PLUS_OPTIONS_VS_TOTAL",
         "SERVICE_EQUIPMENT_SUM_MISMATCH",
+        "FULL_SUM_INTEGRITY",
         "PRICE_DOMAIN_UNKNOWN",
+        # V3 (added 2026-05-19) — net/gross/vat triangulation conflict.
+        "VAT_TRIANGULATION_FAILED",
+    }
+)
+
+# V3 rules that OPEN the HITL wizard but do NOT block pipeline continuation.
+# Severity is typically INFO or WARNING. User reviews in wizard at their
+# leisure — ekstrakcja idzie do bazy.
+_HITL_RECOMMENDED_RULES = frozenset(
+    {
+        "CANONICAL_DUPLICATE_DETECTED",       # dedup signal — user picks which copy stays
+        "MULTI_VEHICLE_TWIN_INCOMPLETE",      # one twin missing base_price
+        "VAT_RATE_NON_STANDARD",              # non-{0/0.05/0.08/0.23} — may be legit
     }
 )
 
@@ -81,7 +95,7 @@ def _needs_hitl_review(card_summary: dict) -> tuple[bool, list[str]]:
             if isinstance(conf, (int, float)) and conf < _HITL_CONFIDENCE_THRESHOLD:
                 reasons.append(f"low_confidence:service_equipment.components[{idx}]={conf:.2f}")
 
-    # 4. Validator z blocking severity / rule
+    # 4. Validator z blocking / recommended severity / rule
     validation = card_summary.get("_validation") or {}
     for warn in validation.get("warnings") or []:
         if not isinstance(warn, dict):
@@ -90,6 +104,8 @@ def _needs_hitl_review(card_summary: dict) -> tuple[bool, list[str]]:
         severity = warn.get("severity", "")
         if severity == "ERROR" or rule in _HITL_BLOCKING_RULES:
             reasons.append(f"validator:{rule}({severity})")
+        elif rule in _HITL_RECOMMENDED_RULES:
+            reasons.append(f"validator_recommended:{rule}({severity})")
 
     # 5. Legacy: _requires_user_input (np. brak base_price)
     if card_summary.get("_requires_user_input"):
