@@ -7,6 +7,7 @@ from core.gemini_client import (
     get_gemini_client,
     SAFETY_SETTINGS_PERMISSIVE,
     generate_content_with_retry,
+    resolve_max_output_tokens,
 )
 from core.json_utils import clean_json_response
 
@@ -63,7 +64,7 @@ def classify_document(
 
     config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=8192,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="application/json",
         system_instruction=ROUTER_SYSTEM_PROMPT,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,

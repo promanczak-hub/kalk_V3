@@ -12,6 +12,7 @@ from core.gemini_client import (
     get_gemini_client,
     SAFETY_SETTINGS_PERMISSIVE,
     generate_content_with_retry,
+    resolve_max_output_tokens,
 )
 
 from core.json_utils import clean_json_response
@@ -508,7 +509,7 @@ def classify_document_type(pro_data: dict, client: genai.Client) -> str:
 
     doc_type_config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=8192,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="text/plain",
         system_instruction=DOC_TYPE_PROMPT,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,
@@ -608,7 +609,7 @@ def generate_card_summary_from_twin(pro_data: dict) -> dict:
 
         summary_config = types.GenerateContentConfig(
             temperature=0.0,
-            max_output_tokens=8192,
+            max_output_tokens=resolve_max_output_tokens(),
             response_mime_type="application/json",
             response_schema=chosen_schema,
             system_instruction=instruction,

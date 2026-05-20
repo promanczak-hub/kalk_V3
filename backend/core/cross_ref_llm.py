@@ -14,7 +14,11 @@ from core.cross_ref_models import (
     CrossRefLLMError,
     VariantMatchResult,
 )
-from core.gemini_client import SAFETY_SETTINGS_PERMISSIVE, get_gemini_client
+from core.gemini_client import (
+    SAFETY_SETTINGS_PERMISSIVE,
+    get_gemini_client,
+    resolve_max_output_tokens,
+)
 
 try:
     from google.genai import types  # type: ignore[import-untyped]
@@ -155,7 +159,7 @@ def match_variant_with_llm(
 
     config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=8192,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="application/json",
         response_schema=VariantMatchResult,
         system_instruction=CROSS_REF_SYSTEM_PROMPT,
@@ -218,7 +222,7 @@ def rank_catalogs_for_vehicle(
 
     config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=4096,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="application/json",
         response_schema=CatalogRankingResult,
         system_instruction=RANKING_SYSTEM_PROMPT,

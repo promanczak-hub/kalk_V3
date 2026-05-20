@@ -23,6 +23,7 @@ from core.gemini_client import (
     get_gemini_client,
     SAFETY_SETTINGS_PERMISSIVE,
     generate_content_with_retry,
+    resolve_max_output_tokens,
 )
 from core.json_utils import clean_json_response
 from core.prompts import MULTI_VEHICLE_DETECTION_PROMPT
@@ -201,7 +202,7 @@ def extract_multi_vehicle_twins(
 
     config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=65536,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="application/json",
         system_instruction=MULTI_VEHICLE_DETECTION_PROMPT,
         safety_settings=SAFETY_SETTINGS_PERMISSIVE,

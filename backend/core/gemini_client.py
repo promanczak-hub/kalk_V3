@@ -18,6 +18,49 @@ from tenacity import (
 logger = logging.getLogger(__name__)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Central max_output_tokens knob
+# ──────────────────────────────────────────────────────────────────────
+# Main extraction calls route their output-token limit through
+# resolve_max_output_tokens() so a single env var (GEMINI_MAX_OUTPUT_TOKENS)
+# tunes all of them at once — no code change needed.
+#
+# Default 65536 = Gemini 2.5 Pro/Flash maximum. You pay only for tokens
+# ACTUALLY generated, so a high ceiling does not raise cost — it only prevents
+# truncation of long outputs (e.g. ~60-item standard_equipment lists).
+#
+# Deliberately-tiny calls (vehicle count=16, body-style=256, price-summary=512)
+# keep their own hardcoded limits and intentionally do NOT use this resolver.
+DEFAULT_GEMINI_MAX_OUTPUT_TOKENS = 65536
+
+
+def resolve_max_output_tokens(default: int = DEFAULT_GEMINI_MAX_OUTPUT_TOKENS) -> int:
+    """Resolve max_output_tokens for a main Gemini extraction call.
+
+    Honors the ``GEMINI_MAX_OUTPUT_TOKENS`` env override when set to a positive
+    integer; otherwise returns ``default``. Invalid values fall back to
+    ``default`` with a warning (never raises — config typos must not break
+    extraction).
+    """
+    raw = os.environ.get("GEMINI_MAX_OUTPUT_TOKENS")
+    if raw is not None and raw.strip():
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning(
+                "[GEMINI] GEMINI_MAX_OUTPUT_TOKENS=%r is not an integer — using %d",
+                raw, default,
+            )
+            return default
+        if value > 0:
+            return value
+        logger.warning(
+            "[GEMINI] GEMINI_MAX_OUTPUT_TOKENS=%r is not positive — using %d",
+            raw, default,
+        )
+    return default
+
+
 def get_vertex_client() -> genai.Client:
     """Force creation of a Vertex AI client. Essential for Embeddings
     because public GEMINI_API_KEY fails with 404 on text-embedding-004.

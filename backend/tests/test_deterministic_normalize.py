@@ -24,6 +24,8 @@ import copy
 
 from core.pipeline_deterministic_normalize import (
     SERVICE_EQUIPMENT_KEYWORDS,
+    _km_to_kw,
+    _parse_int_from_unit,
     classify_vehicle_class,
     derive_body_style_hint,
     is_service_equipment_name,
@@ -448,3 +450,215 @@ class TestNormalizeCardSummary:
         card: dict = {"paid_options": []}
         result = normalize_card_summary_from_digital_twin(card, {})
         assert result == card or result.get("paid_options") == []
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Primitive parsers: _parse_int_from_unit + _km_to_kw
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestParseIntFromUnit:
+    def test_parses_power_with_km_unit(self) -> None:
+        assert _parse_int_from_unit("204 KM", unit_hint="KM") == 204
+
+    def test_parses_capacity_without_unit(self) -> None:
+        # capacity comes as plain int-string ("2755")
+        assert _parse_int_from_unit("2755") == 2755
+
+    def test_rejects_when_unit_hint_does_not_match(self) -> None:
+        # "10.1 l/100km" must NOT be parsed as "10 KM"
+        assert _parse_int_from_unit("10.1 l/100km", unit_hint="KM") is None
+
+    def test_returns_none_on_empty_or_missing(self) -> None:
+        assert _parse_int_from_unit(None) is None
+        assert _parse_int_from_unit("") is None
+        assert _parse_int_from_unit("   ") is None
+
+    def test_passes_through_int_input(self) -> None:
+        assert _parse_int_from_unit(150) == 150
+        assert _parse_int_from_unit(150.0) == 150
+
+
+class TestKmToKw:
+    def test_iso_80000_conversion_204_km(self) -> None:
+        # 204 KM × 0.7355 = 150.042 → round to 150
+        assert _km_to_kw(204) == 150
+
+    def test_iso_80000_conversion_150_km(self) -> None:
+        # 150 × 0.7355 = 110.325 → round to 110
+        assert _km_to_kw(150) == 110
+
+    def test_none_in_none_out(self) -> None:
+        assert _km_to_kw(None) is None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# normalize_card_summary_from_digital_twin — digital_twin.{technical,features,dimensions}
+# Real-world Hilux payload (id e1e2c459 observed 2026-05-19).
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _hilux_digital_twin_with_nested_specs() -> dict:
+    """Replica of the actual Hilux digital_twin (e1e2c459) showing the nested
+    technical/features/dimensions shape that current Pro extraction produces."""
+    return {
+        "brand": None,
+        "model": None,
+        "optional_equipment": [],
+        "technical": {
+            "power": "204 KM",
+            "transmission": "6-stopniowa automatyczna",
+            "co2": "265 g/km",
+            "drive": "Mild-Hybrid 48V (MHEV)",
+            "capacity": "2755",
+            "fuel_consumption": "10.1 l/100km",
+        },
+        "features": {
+            "color": "6X1 Oxide Bronze",
+            "wheels": '18" felgi aluminiowe z oponami 265/60 R18',
+            "upholstery": "Tapicerka materiałowa w kolorze czarnym",
+        },
+        "dimensions": {
+            "length_mm": 5325,
+            "width_mm": 1855,
+            "height_mm": 1865,
+            "wheelbase_mm": 3085,
+            "payload_kg": 1010,
+            "curb_weight_kg": 2125,
+            "gross_vehicle_weight_kg": 3130,
+            "fuel_tank_capacity_l": 80,
+            "cargo_length_mm": None,
+            "cargo_width_mm": None,
+            "cargo_height_mm": None,
+            "cargo_volume_m3": None,
+        },
+    }
+
+
+class TestNestedTechnicalFeaturesDimensions:
+    def test_fills_power_hp_from_technical_power(self) -> None:
+        card: dict = {"power_hp": None}
+        twin = _hilux_digital_twin_with_nested_specs()
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["power_hp"] == 204
+
+    def test_derives_power_kw_from_power_hp_when_missing(self) -> None:
+        # No explicit power_kw in twin → derive from KM via ISO 80000 (0.7355)
+        card: dict = {"power_hp": None, "power_kw": None}
+        twin = _hilux_digital_twin_with_nested_specs()
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        # 204 × 0.7355 = 150.042 → 150
+        assert result["power_kw"] == 150
+
+    def test_fills_transmission_and_emissions_and_capacity(self) -> None:
+        card: dict = {"transmission": None, "emissions": None, "engine_capacity": None}
+        twin = _hilux_digital_twin_with_nested_specs()
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["transmission"] == "6-stopniowa automatyczna"
+        assert result["emissions"] == "265 g/km"
+        assert result["engine_capacity"] == 2755
+
+    def test_fills_exterior_color_and_wheels_from_features(self) -> None:
+        card: dict = {"exterior_color": None, "wheels": None}
+        twin = _hilux_digital_twin_with_nested_specs()
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["exterior_color"] == "6X1 Oxide Bronze"
+        assert result["wheels"] == '18" felgi aluminiowe z oponami 265/60 R18'
+
+    def test_passes_through_dimensions_unchanged(self) -> None:
+        card: dict = {"dimensions": None}
+        twin = _hilux_digital_twin_with_nested_specs()
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        # 1:1 passthrough — keys match CargoAndDimensions Pydantic exactly
+        assert result["dimensions"]["length_mm"] == 5325
+        assert result["dimensions"]["width_mm"] == 1855
+        assert result["dimensions"]["payload_kg"] == 1010
+        assert result["dimensions"]["fuel_tank_capacity_l"] == 80
+        # None entries from twin are preserved (no silent transform)
+        assert result["dimensions"]["cargo_length_mm"] is None
+
+    def test_idempotent_preserves_existing_flash_values(self) -> None:
+        # User edited transmission manually — must NOT be overwritten by twin
+        card: dict = {
+            "power_hp": 250,
+            "transmission": "Manualna (user-edited)",
+            "engine_capacity": 1968,
+        }
+        twin = _hilux_digital_twin_with_nested_specs()
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["power_hp"] == 250
+        assert result["transmission"] == "Manualna (user-edited)"
+        assert result["engine_capacity"] == 1968
+        # But empty fields ARE filled
+        assert result["emissions"] == "265 g/km"
+
+    def test_handles_missing_nested_dicts(self) -> None:
+        # digital_twin with no technical/features/dimensions
+        card: dict = {"power_hp": None, "wheels": None, "dimensions": None}
+        twin: dict = {"brand": "TOYOTA", "model": "Hilux", "optional_equipment": []}
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        # No crash, fields stay None
+        assert result["power_hp"] is None
+        assert result["wheels"] is None
+        assert result["dimensions"] is None
+
+    def test_explicit_power_kw_in_twin_wins_over_derived(self) -> None:
+        # If Pro ever extracts power_kw separately, prefer it over KM×0.7355
+        card: dict = {"power_hp": None, "power_kw": None}
+        twin = _hilux_digital_twin_with_nested_specs()
+        twin["technical"]["power_kw"] = "151 kW"  # different from 204×0.7355=150
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["power_kw"] == 151  # explicit wins
+
+
+# ═══════════════════════════════════════════════════════════════════
+# standard_equipment passthrough — clarification 2026-05-19:
+# "cechy użytkowe" = comprehensive (standard + service + paid + dims)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestStandardEquipmentPassthrough:
+    def test_fills_standard_equipment_from_digital_twin(self) -> None:
+        card: dict = {"standard_equipment": []}
+        twin = _hilux_digital_twin_with_nested_specs()
+        twin["standard_equipment"] = [
+            "Reflektory TOP LED Matrix",
+            "Climatronic - automatyczna klimatyzacja dwustrefowa",
+            "Virtual Cockpit",
+        ]
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["standard_equipment"] == [
+            "Reflektory TOP LED Matrix",
+            "Climatronic - automatyczna klimatyzacja dwustrefowa",
+            "Virtual Cockpit",
+        ]
+
+    def test_strips_whitespace_and_filters_blanks(self) -> None:
+        card: dict = {"standard_equipment": []}
+        twin = _hilux_digital_twin_with_nested_specs()
+        twin["standard_equipment"] = [
+            "  Reflektory TOP LED Matrix  ",
+            "",
+            "   ",
+            None,  # type: ignore[list-item]
+            "Climatronic",
+        ]
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["standard_equipment"] == ["Reflektory TOP LED Matrix", "Climatronic"]
+
+    def test_idempotent_preserves_existing_standard_equipment(self) -> None:
+        existing = ["Already-set item from Flash"]
+        card: dict = {"standard_equipment": existing}
+        twin = _hilux_digital_twin_with_nested_specs()
+        twin["standard_equipment"] = ["From twin — should NOT overwrite"]
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["standard_equipment"] == existing
+
+    def test_no_crash_when_twin_standard_equipment_missing(self) -> None:
+        card: dict = {"standard_equipment": []}
+        twin = _hilux_digital_twin_with_nested_specs()
+        # twin has no standard_equipment key at all
+        twin.pop("standard_equipment", None)
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        # Stays empty, no crash
+        assert result.get("standard_equipment") == []

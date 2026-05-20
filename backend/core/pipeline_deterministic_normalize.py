@@ -307,11 +307,15 @@ def _build_paid_option_payload(
     name = item.get("name") or ""
     gross = parse_price_to_float(item.get("price"))
     triple = infer_price_pair(net=None, gross=gross, vat_rate=default_vat)
+    code = item.get("code")
     return {
         "name": name,
         "price": _format_price(gross, "brutto"),
         "price_type": "brutto",
         "category": "Fabryczna",
+        # Phase C: carry manufacturer option code (e.g. "9AK") through from
+        # digital_twin.optional_equipment so HITL/feature-matching can use it.
+        "option_code": code if isinstance(code, str) and code.strip() else None,
         "confidence": 0.8,  # deterministic but Flash dropped it → moderate
         "field_id": str(uuid.uuid4()),
         # V3 numeric fields
@@ -379,6 +383,53 @@ def _is_empty(value: Any) -> bool:
     if isinstance(value, list) and len(value) == 0:
         return True
     return False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Primitive scalar parsers for digital_twin.technical/features strings
+# ─────────────────────────────────────────────────────────────────────
+
+_INT_RE = re.compile(r"-?\d+")
+
+# 1 mechanical horsepower (KM = PS, ISO 80000-4) = 0.7355 kW.
+# Deterministic unit conversion — not an inference, not an estimate.
+_KM_TO_KW = 0.7355
+
+
+def _parse_int_from_unit(value: Any, unit_hint: str | None = None) -> int | None:
+    """Extract first integer from a string like '204 KM' or '2755'.
+
+    ``unit_hint`` is informational only — used to assert the matched substring
+    actually appears with that unit. When the unit is given and the parsed number
+    is not adjacent to it (within the same string), returns None to avoid
+    grabbing the wrong number (e.g. parsing '10.1 l/100km' as 10 KM).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    s = str(value).strip()
+    if not s:
+        return None
+    m = _INT_RE.search(s)
+    if not m:
+        return None
+    if unit_hint:
+        # Look for the unit token following the number (case-insensitive)
+        tail = s[m.end():].lstrip()
+        if not tail.lower().startswith(unit_hint.lower()):
+            return None
+    try:
+        return int(m.group(0))
+    except (TypeError, ValueError):
+        return None
+
+
+def _km_to_kw(km: int | None) -> int | None:
+    """Convert horsepower (KM/PS) to kilowatts — deterministic ISO 80000 ratio."""
+    if km is None:
+        return None
+    return round(km * _KM_TO_KW)
 
 
 def normalize_card_summary_from_digital_twin(
@@ -491,5 +542,80 @@ def normalize_card_summary_from_digital_twin(
             out["base_price"] = _format_price(float(base_gross), "brutto")
         if _is_empty(out.get("total_price")) and isinstance(final_gross, (int, float)):
             out["total_price"] = _format_price(float(final_gross), "brutto")
+
+    # ── digital_twin.technical → card_summary scalar fields ──────────
+    # Pro VLM extracts raw strings (e.g. "204 KM", "265 g/km", "2755") into
+    # digital_twin.technical; deterministic parsers lift them into typed
+    # card_summary fields so UI dropdowns + downstream calc see the data.
+    technical = digital_twin.get("technical") or {}
+    if isinstance(technical, dict):
+        if _is_empty(out.get("power_hp")):
+            hp = _parse_int_from_unit(technical.get("power"), unit_hint="KM")
+            if hp is not None:
+                out["power_hp"] = hp
+
+        if _is_empty(out.get("power_kw")):
+            # Prefer an explicit power_kw from the twin if Pro ever writes one;
+            # otherwise derive deterministically from power_hp (KM × 0.7355 — ISO 80000).
+            explicit_kw = _parse_int_from_unit(technical.get("power_kw"), unit_hint="kW")
+            if explicit_kw is not None:
+                out["power_kw"] = explicit_kw
+            else:
+                derived_kw = _km_to_kw(out.get("power_hp"))
+                if derived_kw is not None:
+                    out["power_kw"] = derived_kw
+
+        if _is_empty(out.get("transmission")):
+            t = technical.get("transmission")
+            if isinstance(t, str) and t.strip():
+                out["transmission"] = t.strip()
+
+        if _is_empty(out.get("emissions")):
+            co2 = technical.get("co2")
+            if isinstance(co2, str) and co2.strip():
+                out["emissions"] = co2.strip()
+
+        if _is_empty(out.get("engine_capacity")):
+            cap = _parse_int_from_unit(technical.get("capacity"))
+            if cap is not None:
+                out["engine_capacity"] = cap
+
+    # ── digital_twin.features → card_summary scalar fields ───────────
+    features = digital_twin.get("features") or {}
+    if isinstance(features, dict):
+        if _is_empty(out.get("exterior_color")):
+            color = features.get("color")
+            if isinstance(color, str) and color.strip():
+                out["exterior_color"] = color.strip()
+
+        if _is_empty(out.get("wheels")):
+            wheels = features.get("wheels")
+            if isinstance(wheels, str) and wheels.strip():
+                out["wheels"] = wheels.strip()
+
+    # ── digital_twin.dimensions → card_summary.dimensions (1:1 passthrough) ──
+    # CargoAndDimensions Pydantic schema matches digital_twin.dimensions keys
+    # exactly (length_mm/width_mm/height_mm/wheelbase_mm/cargo_*/curb_weight_kg/
+    # payload_kg/gross_vehicle_weight_kg/fuel_tank_capacity_l). No reshape needed.
+    dims = digital_twin.get("dimensions")
+    if _is_empty(out.get("dimensions")) and isinstance(dims, dict) and dims:
+        out["dimensions"] = dims
+
+    # ── digital_twin.standard_equipment → card_summary.standard_equipment ──
+    # Frontend useVehicleFeaturesCache reads card_summary.standard_equipment to
+    # render the "Konfiguracja (PDF)" chips in CECHY UŻYTKOWE POJAZDU.
+    # Per user 2026-05-19: "cechy użytkowe" = EVERY feature the car has
+    # (standard + service + paid + dimensions), NOT only paid_options. Pro
+    # writes a list[str] of ~50 standard-equipment names to digital_twin;
+    # without this passthrough card_summary.standard_equipment stays empty.
+    std_eq = digital_twin.get("standard_equipment")
+    if _is_empty(out.get("standard_equipment")) and isinstance(std_eq, list) and std_eq:
+        # Filter to non-empty strings only — Pro occasionally emits None/""
+        cleaned = [
+            s.strip() for s in std_eq
+            if isinstance(s, str) and s.strip()
+        ]
+        if cleaned:
+            out["standard_equipment"] = cleaned
 
     return out

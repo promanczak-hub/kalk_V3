@@ -84,36 +84,135 @@ export async function fetchFeaturesForCache(vehicleId: string) {
           category_name: "⭐ Konfiguracja (PDF)"
         }));
 
-        const dims = (synthDataRaw.digital_twin?.dimensions || {}) as Record<string, number | null>;
+        // Dimension chips — clarified 2026-05-19: "cechy użytkowe" should cover
+        // ALL vehicle features including masses/dimensions, not just paid options.
+        // Reads card_summary.dimensions FIRST (filled by deterministic_normalize),
+        // then falls back to digital_twin.dimensions (legacy/pre-V3 records).
+        const dims = (
+          (synthData.dimensions as Record<string, number | null> | undefined)
+          ?? (synthDataRaw.digital_twin?.dimensions as Record<string, number | null> | undefined)
+          ?? {}
+        );
         const dimensionFeatures: FeatureItem[] = [];
 
-        if (typeof dims.payload_kg === "number" && dims.payload_kg > 0) {
-          dimensionFeatures.push({
-            feature_key: "dim_payload_kg",
-            display_name: "Ładowność",
+        const pushDim = (key: string, label: string, value: number | null | undefined, unit: string) => {
+          if (typeof value === "number" && value > 0) {
+            dimensionFeatures.push({
+              feature_key: `dim_${key}`,
+              display_name: label,
+              resolved_status: "present_confirmed_primary",
+              resolved_value_bool: null,
+              resolved_value_text: `${value} ${unit}`,
+              resolved_value_num: null,
+              confidence_score: 1.0,
+              category_name: "Wymiary",
+            });
+          }
+        };
+
+        // Vehicle envelope (mm)
+        pushDim("length_mm",     "Długość",      dims.length_mm,     "mm");
+        pushDim("width_mm",      "Szerokość",    dims.width_mm,      "mm");
+        pushDim("height_mm",     "Wysokość",     dims.height_mm,     "mm");
+        pushDim("wheelbase_mm",  "Rozstaw osi",  dims.wheelbase_mm,  "mm");
+
+        // Cargo bay (LCV/pickups)
+        pushDim("cargo_length_mm", "Długość bagażnika",   dims.cargo_length_mm, "mm");
+        pushDim("cargo_width_mm",  "Szerokość bagażnika", dims.cargo_width_mm,  "mm");
+        pushDim("cargo_height_mm", "Wysokość bagażnika",  dims.cargo_height_mm, "mm");
+        pushDim("cargo_volume_m3", "Pojemność bagażnika", dims.cargo_volume_m3, "m³");
+
+        // Masses (kg)
+        pushDim("payload_kg",              "Ładowność",     dims.payload_kg,              "kg");
+        pushDim("curb_weight_kg",          "Masa własna",   dims.curb_weight_kg,          "kg");
+        pushDim("gross_vehicle_weight_kg", "DMC",           dims.gross_vehicle_weight_kg, "kg");
+
+        // Fuel tank
+        pushDim("fuel_tank_capacity_l", "Zbiornik paliwa", dims.fuel_tank_capacity_l, "l");
+
+        // Extended specs chips — purely informational data from the isolated
+        // Flash pass (digital_twin.extended_specs): engine detail, transmission,
+        // towing, chassis, WLTP cycles, tire labels, offer metadata.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ext = (synthDataRaw.digital_twin?.extended_specs ?? {}) as Record<string, any>;
+        const extendedFeatures: FeatureItem[] = [];
+
+        const pushSpec = (
+          key: string,
+          label: string,
+          value: string | number | boolean | null | undefined,
+          category: string,
+          unit = "",
+        ) => {
+          if (value === null || value === undefined || value === "") return;
+          const text =
+            typeof value === "boolean"
+              ? (value ? "Tak" : "Nie")
+              : `${value}${unit ? " " + unit : ""}`;
+          extendedFeatures.push({
+            feature_key: `ext_${key}`,
+            display_name: label,
             resolved_status: "present_confirmed_primary",
-            resolved_value_bool: null,
-            resolved_value_text: `${dims.payload_kg} kg`,
+            resolved_value_bool: typeof value === "boolean" ? value : null,
+            resolved_value_text: text,
             resolved_value_num: null,
             confidence_score: 1.0,
-            category_name: "Wymiary",
+            category_name: category,
           });
-        }
+        };
 
-        if (typeof dims.wheelbase_mm === "number" && dims.wheelbase_mm > 0) {
-          dimensionFeatures.push({
-            feature_key: "dim_wheelbase_mm",
-            display_name: "Rozstaw osi",
-            resolved_status: "present_confirmed_primary",
-            resolved_value_bool: null,
-            resolved_value_text: `${dims.wheelbase_mm} mm`,
-            resolved_value_num: null,
-            confidence_score: 1.0,
-            category_name: "Wymiary",
-          });
-        }
+        const eng = ext.engine ?? {};
+        pushSpec("eng_cyl",   "Liczba cylindrów",     eng.cylinders,            "Silnik");
+        pushSpec("eng_torq",  "Moment obrotowy",      eng.max_torque_nm,        "Silnik", "Nm");
+        pushSpec("eng_prpm",  "Obroty maks. mocy",    eng.max_power_rpm,        "Silnik", "obr./min");
+        pushSpec("eng_trpm",  "Obroty maks. momentu", eng.max_torque_rpm,       "Silnik", "obr./min");
+        pushSpec("eng_vmax",  "Prędkość maksymalna",  eng.top_speed_kmh,        "Silnik", "km/h");
+        pushSpec("eng_acc",   "Przyspieszenie 0-100", eng.acceleration_0_100_s, "Silnik", "s");
+        pushSpec("eng_emis",  "Norma emisji",         eng.emission_standard,    "Silnik");
 
-        instantFeatures = [...stdEq, ...paidEq, ...dimensionFeatures];
+        const trm = ext.transmission ?? {};
+        pushSpec("trm_name",  "Skrzynia biegów",      trm.name,                 "Napęd");
+        pushSpec("trm_gears", "Liczba biegów",        trm.gears,                "Napęd");
+        pushSpec("trm_clutch","Sprzęgło",             trm.clutch,               "Napęd");
+
+        const tow = ext.towing ?? {};
+        pushSpec("tow_br",    "Przyczepa z hamulcem",  tow.trailer_braked_kg,   "Holowanie", "kg");
+        pushSpec("tow_unbr",  "Przyczepa bez hamulca", tow.trailer_unbraked_kg, "Holowanie", "kg");
+        pushSpec("tow_roof",  "Obciążenie dachu",      tow.roof_load_kg,        "Holowanie", "kg");
+        pushSpec("tow_hitch", "Nacisk na hak",         tow.hitch_load_kg,       "Holowanie", "kg");
+
+        const ch = ext.chassis ?? {};
+        pushSpec("ch_turn",   "Średnica zawracania",  ch.turning_radius_m,      "Podwozie", "m");
+        pushSpec("ch_front",  "Zawieszenie przednie", ch.front_suspension,      "Podwozie");
+        pushSpec("ch_rear",   "Zawieszenie tylne",    ch.rear_suspension,       "Podwozie");
+
+        const wltp = ext.wltp ?? {};
+        pushSpec("wltp_low",  "WLTP cykl niski",        wltp.low,       "Zużycie WLTP", "l/100km");
+        pushSpec("wltp_med",  "WLTP cykl średni",       wltp.medium,    "Zużycie WLTP", "l/100km");
+        pushSpec("wltp_high", "WLTP cykl wysoki",       wltp.high,      "Zużycie WLTP", "l/100km");
+        pushSpec("wltp_vh",   "WLTP cykl b. wysoki",    wltp.very_high, "Zużycie WLTP", "l/100km");
+        pushSpec("wltp_comb", "WLTP cykl mieszany",     wltp.combined,  "Zużycie WLTP", "l/100km");
+
+        pushSpec("model_year",   "Rok modelowy",      ext.model_year,        "Oferta");
+        pushSpec("prod_year",    "Rok produkcji",     ext.production_year,   "Oferta");
+        pushSpec("valid_until",  "Oferta ważna do",   ext.offer_valid_until, "Oferta");
+
+        // Tire labels (EU 2020/740) — one chip per tire, informational
+        const tires = Array.isArray(ext.tire_labels) ? ext.tire_labels : [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tires.forEach((t: Record<string, any>, i: number) => {
+          const parts = [t.manufacturer, t.name, t.size].filter(Boolean).join(" ");
+          const label = parts || `Opona ${i + 1}`;
+          const classes = [
+            t.fuel_class ? `paliwo ${t.fuel_class}` : null,
+            t.wet_grip_class ? `mokro ${t.wet_grip_class}` : null,
+            t.noise_class ? `hałas ${t.noise_class}` : null,
+            typeof t.noise_db === "number" ? `${t.noise_db} dB` : null,
+          ].filter(Boolean).join(" · ");
+          pushSpec(`tire_${i}`, label, classes || "—", "Opony (etykieta UE)");
+        });
+
+        instantFeatures = [...stdEq, ...paidEq, ...dimensionFeatures, ...extendedFeatures];
     }
 
     const response = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/state`);

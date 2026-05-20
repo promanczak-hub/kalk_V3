@@ -8,6 +8,7 @@ from core.gemini_client import (
     get_gemini_client,
     SAFETY_SETTINGS_PERMISSIVE,
     generate_content_with_retry,
+    resolve_max_output_tokens,
 )
 from core.json_utils import clean_json_response
 from core.prompts import (
@@ -29,6 +30,9 @@ class EquipmentItem(BaseModel):
     name: str = Field(description="Nazwa wyposażenia rzetelnie odczytana z dokumentu")
     price: Optional[str] = Field(
         None, description="Cena wyposażenia, jeśli przypisana wprost"
+    )
+    code: Optional[str] = Field(
+        None, description="Kod opcji producenta jeśli widoczny (np. '9AK', '1D4', 'PWM')"
     )
 
 
@@ -151,7 +155,7 @@ def _call_gemini_pro(client, contents) -> dict:
     config = types.GenerateContentConfig(
         temperature=0.0,
         seed=42,
-        max_output_tokens=65536,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="application/json",
         response_schema=VehicleExtractionSchema,
         system_instruction=MASTER_PROMPT_V2,
@@ -222,7 +226,7 @@ def _call_gemini_flash(client, contents) -> dict:
     fallback_model_id = "gemini-2.5-flash"
     fallback_config = types.GenerateContentConfig(
         temperature=0.0,
-        max_output_tokens=8192,
+        max_output_tokens=resolve_max_output_tokens(),
         response_mime_type="application/json",
         response_schema=VehicleExtractionSchema,
         system_instruction=FALLBACK_STRUCTURED_PROMPT_FLASH,
@@ -298,14 +302,26 @@ def extract_digital_twin_from_pdf(
 
     twin_pro = _call_gemini_pro(client, contents)
 
-    if twin_pro:
-        return twin_pro
+    twin = twin_pro
+    if not twin:
+        logger.warning("[DIGITAL TWIN] Pro failed — falling back to Flash.")
+        twin = _call_gemini_flash(client, contents)
 
-    logger.warning("[DIGITAL TWIN] Pro failed — falling back to Flash.")
-    twin_flash = _call_gemini_flash(client, contents)
+    if not twin:
+        logger.error("[DIGITAL TWIN] Both Pro and Flash failed entirely.")
+        return {}
 
-    if twin_flash:
-        return twin_flash
+    # Isolated, non-fatal extended-specs pass (tire labels, engine/towing/chassis
+    # detail, offer metadata). Stored under digital_twin.extended_specs — purely
+    # informational, never feeds the calculation. Failure here MUST NOT affect
+    # the primary twin we already have.
+    try:
+        from core.pipeline_extended_specs import extract_extended_specs
 
-    logger.error("[DIGITAL TWIN] Both Pro and Flash failed entirely.")
-    return {}
+        extended = extract_extended_specs(client, contents)
+        if extended and isinstance(twin.get("digital_twin"), dict):
+            twin["digital_twin"]["extended_specs"] = extended
+    except Exception as e:  # noqa: BLE001 — isolation guarantee
+        logger.warning("[DIGITAL TWIN] extended-specs pass skipped: %s", e)
+
+    return twin
