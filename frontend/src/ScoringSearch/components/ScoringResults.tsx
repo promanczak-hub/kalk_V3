@@ -1,13 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Typography, FormControl, Select, MenuItem, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Box, Typography, FormControl, Select, MenuItem } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import type { SearchContext, SelectedFeature, ScoredVehicle } from '../types';
 import { useBatchPrices, useBatchSimilarVehicles } from '../hooks/useBatchData';
 import { VehicleResultCard } from './Results/VehicleResultCard';
 import { computeSearchRanges } from '../utils/computeSearchRanges';
-import { ComparisonView } from './Comparison/ComparisonView';
-
-type ViewMode = 'list' | 'chart';
 
 export type SortOption = 'budget_margin_desc' | 'score_desc' | 'price_asc' | 'price_desc' | 'brand_asc';
 
@@ -34,7 +31,6 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   const [sortBy, setSortBy] = useState<SortOption>(
     matrixActive ? 'budget_margin_desc' : 'score_desc',
   );
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const similarityMode = 'semantic';
 
   const {
@@ -163,23 +159,8 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
-      {/* Sort + View Toolbar */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={viewMode}
-          onChange={(_e, v) => v && setViewMode(v as ViewMode)}
-          aria-label="Widok wyników"
-        >
-          <ToggleButton value="list" sx={{ textTransform: 'none', fontSize: '0.8rem', px: 1.5, py: 0.25 }}>
-            Lista
-          </ToggleButton>
-          <ToggleButton value="chart" sx={{ textTransform: 'none', fontSize: '0.8rem', px: 1.5, py: 0.25 }}>
-            Wykres
-          </ToggleButton>
-        </ToggleButtonGroup>
-
+      {/* Sort Toolbar */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="caption" color="textSecondary">Sortuj:</Typography>
           <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -196,13 +177,11 @@ export const ScoringResults: React.FC<ScoringResultsProps> = ({ results, loading
         </Box>
       </Box>
 
-      {viewMode === 'chart' && <ComparisonView results={sortedResults} />}
-
       {/* Results mapped to isolated Card Component.
           When a vehicle has pinned calculations (multi-select on Ekstrakcja),
           we render one card per pinned calc — each fetches its own price.
           No pins → one default card backed by the batch-prices result. */}
-      {viewMode === 'list' && sortedResults.flatMap((car) => {
+      {sortedResults.flatMap((car) => {
         const vehicleId = car.vehicle_id as string;
         const pinned = car.selected_kalkulacja_ids ?? [];
 
