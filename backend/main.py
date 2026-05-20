@@ -10,6 +10,7 @@ from core.sentry_init import init_sentry
 init_sentry()
 
 from api.parser_routes import router as parser_router
+from api.image_routes import router as image_router
 from api.kalkulacje_routes import router as kalkulacje_router
 from api.extract_routes import router as extract_router
 from api.extract_hitl_v3_routes import router as extract_hitl_v3_router
@@ -67,6 +68,7 @@ async def health_check() -> dict[str, str]:
 
 
 app.include_router(parser_router, prefix="/api")
+app.include_router(image_router, prefix="/api")
 app.include_router(extract_router, prefix="/api")
 app.include_router(extract_hitl_v3_router, prefix="/api")
 app.include_router(extract_manual_verify_router, prefix="/api")

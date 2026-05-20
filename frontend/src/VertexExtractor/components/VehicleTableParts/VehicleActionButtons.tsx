@@ -6,6 +6,7 @@ import { API_BASE_URL } from "../../../config/env";
 import { apiClient } from '../../../lib/apiClient';
 import { supabase } from "../../../lib/supabaseClient";
 import { buildCalculationPayload } from "./calculations/payloadBuilder";
+import { buildBrochureData, type BrochureData } from "../brochure/buildBrochureData";
 
 
 interface VehicleActionButtonsProps {
@@ -32,11 +33,11 @@ interface VehicleActionButtonsProps {
   activeFinalPrice: number;
   pakietSerwisowy?: number;
   odkupOpon?: boolean;
-  brochureData: Record<string, unknown> | null;
+  brochureData: BrochureData | null;
   setIsBrochureModalOpen: (val: boolean) => void;
   isGeneratingBrochure: boolean;
   setIsGeneratingBrochure: (val: boolean) => void;
-  setBrochureData: (val: Record<string, unknown> | null) => void;
+  setBrochureData: (val: BrochureData | null) => void;
   setBrochureImages: (val: string[]) => void;
   handleOpenSavedJson: (id: string, name: string) => void;
   isViewerOpen: boolean;
@@ -259,40 +260,26 @@ export function VehicleActionButtons({
     }
     setIsGeneratingBrochure(true);
     try {
-      const baseUrl = API_BASE_URL;
-      const rawText = JSON.stringify(vehicle.synthesis_data || {});
-      
-      const brochurePromise = apiClient.fetch(`${baseUrl}/api/parse-offer/extract-brochure`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw_text: rawText }),
-      }).then(r => {
-        if (!r.ok) throw new Error("Brochure extraction failed");
-        return r.json();
-      });
+      // Build the brochure client-side from the already-normalized vehicle row
+      // (fleet_management_view + synthesis_data). RAW values, no LLM round-trip.
+      setBrochureData(buildBrochureData(vehicle));
 
+      // Best-effort: pull embedded photos from the original PDF (optional).
       const isPdfUrl = vehicle.raw_pdf_url && /\.pdf$/i.test(vehicle.raw_pdf_url);
-      const imagesPromise = isPdfUrl
-        ? apiClient.fetch(`${baseUrl}/api/parse-offer/extract-images`, {
+      if (isPdfUrl) {
+        try {
+          const r = await apiClient.fetch(`${API_BASE_URL}/api/parse-offer/extract-images`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pdf_url: vehicle.raw_pdf_url }),
-          }).then(r => {
-            if (!r.ok) throw new Error("Image extraction failed");
-            return r.json();
-          })
-        : Promise.resolve({ images: [] });
-
-      const [brochureResult, imagesResult] = await Promise.allSettled([brochurePromise, imagesPromise]);
-
-      if (brochureResult.status === 'fulfilled') {
-        setBrochureData(brochureResult.value);
-      } else {
-        throw new Error("Nie uda\u0142o si\u0119 wygenerowa\u0107 broszury z AI.");
-      }
-
-      if (imagesResult.status === 'fulfilled') {
-        setBrochureImages(imagesResult.value.images || []);
+          });
+          if (r.ok) {
+            const imgs = await r.json();
+            setBrochureImages(imgs.images || []);
+          }
+        } catch {
+          // Images are optional \u2014 proceed without them.
+        }
       }
 
       setIsBrochureModalOpen(true);

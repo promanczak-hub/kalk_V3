@@ -12,6 +12,7 @@ import { VehicleFinancialOptions } from "./VehicleFinancialOptions";
 const BrochureBuilderModal = lazy(
   () => import("../brochure/BrochureBuilderModal"),
 );
+import type { BrochureData } from "../brochure/buildBrochureData";
 import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleServiceOptionsCard } from "./VehicleServiceOptionsCard";
@@ -128,7 +129,7 @@ export function VehicleRowCard({
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
-  const [brochureData, setBrochureData] = useState<Record<string, unknown> | null>(null);
+  const [brochureData, setBrochureData] = useState<BrochureData | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
   const [isGeneratingBrochure, setIsGeneratingBrochure] = useState(false);
 
