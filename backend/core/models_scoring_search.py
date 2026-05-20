@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScoringRequirement(BaseModel):
@@ -147,6 +147,12 @@ class ComparisonSnapshotResponse(BaseModel):
 
 
 class ScoringSearchMatch(BaseModel):
+    # DB rows feed many str fields from untyped row.get() (engine_capacity is
+    # stored as int cc e.g. 2755; offer_number/configuration_code/version may
+    # also arrive numeric). Coerce numbers→str so this display DTO accepts them
+    # without Pydantic v2 string_type errors. Read-only DTO, not the calc pipeline.
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     vehicle_id: str
     brand: Optional[str] = None
     model: Optional[str] = None
