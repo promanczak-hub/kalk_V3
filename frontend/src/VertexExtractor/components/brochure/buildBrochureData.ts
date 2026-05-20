@@ -31,10 +31,24 @@ export interface BrochureDimensions {
 
 export type EquipmentGroup = "standard" | "paid" | "service";
 
+export interface BrochureEquipmentItem {
+  label: string;
+  price?: string;
+}
+
 export interface BrochureEquipmentCategory {
   category_name: string;
   group: EquipmentGroup;
-  items: string[];
+  items: BrochureEquipmentItem[];
+}
+
+// Catalog prices only (no discount / dealer-special / monthly rate). `domain`
+// flags netto vs brutto so the PDF can mark exactly what the figures mean.
+export interface BrochurePrices {
+  base: string | null;
+  options: string | null;
+  totalCatalog: string | null;
+  domain: "netto" | "brutto" | null;
 }
 
 export interface BrochureData {
@@ -51,8 +65,12 @@ export interface BrochureData {
   wheels: string;
   number_of_seats: string;
   exterior_color: string;
+  engine_capacity: string;
+  power_kw: string;
   // Masses & dimensions
   dimensions: BrochureDimensions;
+  // Catalog prices
+  prices: BrochurePrices;
   // Equipment (3 groups, reuses generic category structure)
   equipment_categories: BrochureEquipmentCategory[];
 }
@@ -63,7 +81,72 @@ const asRecord = (v: unknown): Record<string, unknown> =>
 const str = (v: unknown): string =>
   v === null || v === undefined ? "" : String(v).trim();
 
-// Extract horsepower from card_summary.power_hp, else parse "… 265 KM" from powertrain.
+// Parse a price string into a number. Handles mixed formats seen in the data:
+// "185 600 PLN brutto", "167 218.50 zł" (dot decimal), "1.234,56" (dot thousands,
+// comma decimal), "126 200". Returns null for "Brak"/empty.
+function parsePrice(s: string): number | null {
+  if (!s) return null;
+  if (s.toLowerCase().includes("brak")) return null;
+  let t = s.replace(/[^\d.,]/g, ""); // drop spaces, currency words
+  if (!t) return null;
+  const hasComma = t.includes(",");
+  const hasDot = t.includes(".");
+  if (hasComma && hasDot) {
+    t = t.replace(/\./g, "").replace(",", "."); // dot=thousands, comma=decimal
+  } else if (hasComma) {
+    t = t.replace(",", ".");
+  } else if (hasDot) {
+    const m = t.match(/\.(\d+)$/);
+    if (m && m[1].length === 3) t = t.replace(/\./g, ""); // ".200" → thousands
+  }
+  const n = parseFloat(t);
+  return isNaN(n) ? null : n;
+}
+
+// Format a number as Polish currency "126 200 zł" (manual space thousands separator,
+// no locale — avoids non-breaking spaces that break @react-pdf text + ESLint).
+function formatZl(n: number): string {
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " zł";
+}
+
+function detectDomain(cardSummary: Record<string, unknown>, blob: string): "netto" | "brutto" | null {
+  const pd = str(cardSummary.price_domain).toLowerCase();
+  if (pd.includes("netto")) return "netto";
+  if (pd.includes("brutto")) return "brutto";
+  const b = blob.toLowerCase();
+  if (b.includes("netto")) return "netto";
+  if (b.includes("brutto")) return "brutto";
+  return null;
+}
+
+function buildPrices(vehicle: FleetVehicleView, cardSummary: Record<string, unknown>): BrochurePrices {
+  const baseRaw = str(vehicle.base_price);
+  const optRaw = str(vehicle.options_price);
+  const baseN = parsePrice(baseRaw);
+  const optN = parsePrice(optRaw);
+  return {
+    base: baseN != null ? formatZl(baseN) : null,
+    options: optN != null ? formatZl(optN) : null,
+    totalCatalog: baseN != null ? formatZl(baseN + (optN ?? 0)) : null,
+    domain: detectDomain(cardSummary, `${baseRaw} ${optRaw}`),
+  };
+}
+
+// Resolve a catalog amount from a paid-option / service object (number fields first, then strings).
+function amountOf(obj: Record<string, unknown>): string | undefined {
+  const g = obj.gross_amount;
+  if (typeof g === "number" && g > 0) return formatZl(g);
+  const pg = parsePrice(str(obj.price_gross));
+  if (pg != null && pg > 0) return formatZl(pg);
+  const raw = parsePrice(str(obj.price));
+  if (raw != null) return formatZl(raw);
+  const n = obj.net_amount;
+  if (typeof n === "number" && n > 0) return formatZl(n);
+  const pn = parsePrice(str(obj.price_net));
+  if (pn != null && pn > 0) return formatZl(pn);
+  return undefined;
+}
+
 function resolveHorsepower(cardSummary: Record<string, unknown>, powertrain: string): string {
   const hp = cardSummary.power_hp;
   if (typeof hp === "number" && hp > 0) return String(hp);
@@ -75,7 +158,6 @@ function resolveHorsepower(cardSummary: Record<string, unknown>, powertrain: str
 function buildDimensions(synthesis: Record<string, unknown>): BrochureDimensions {
   const digitalTwin = asRecord(synthesis.digital_twin);
   const cardSummary = asRecord(synthesis.card_summary);
-  // Prefer digital_twin.dimensions (the surface the UI already displays), fall back to card_summary.dimensions.
   const dt = asRecord(digitalTwin.dimensions);
   const cs = asRecord(cardSummary.dimensions);
   const pick = (k: string): number | null => {
@@ -107,31 +189,41 @@ function buildEquipment(
 ): BrochureEquipmentCategory[] {
   const categories: BrochureEquipmentCategory[] = [];
 
-  // 1) Standard equipment — list[str]
+  // 1) Standard equipment — list[str], no prices.
   const std = (vehicle.standard_equipment || [])
     .map((s) => str(s))
-    .filter((s) => s !== "");
+    .filter((s) => s !== "")
+    .map((label) => ({ label }));
   if (std.length > 0) {
     categories.push({ category_name: "Wyposażenie standardowe", group: "standard", items: std });
   }
 
-  // 2) Paid options — {name, price, category}[] → names only (white-label, no prices)
+  const toItem = (rec: Record<string, unknown>): BrochureEquipmentItem | null => {
+    const label = str(rec.name);
+    if (!label) return null;
+    const price = amountOf(rec);
+    return price ? { label, price } : { label };
+  };
+
+  // 2) Paid options — {name, price}[] with catalog price per item.
   const paid = (vehicle.paid_options || [])
-    .map((o) => str(o?.name))
-    .filter((s) => s !== "");
+    .map((o) => toItem(asRecord(o)))
+    .filter((x): x is BrochureEquipmentItem => x !== null);
   if (paid.length > 0) {
-    categories.push({ category_name: "Dodatki płatne (opcje fabryczne)", group: "paid", items: paid });
+    categories.push({ category_name: "Wyposażenie opcjonalne i usługi", group: "paid", items: paid });
   }
 
-  // 3) Service equipment / zabudowa — card_summary.service_equipment {name, components[]}
+  // 3) Service equipment / zabudowa — components (name + catalog price), else the single entry.
   const service = asRecord(cardSummary.service_equipment);
-  const serviceItems: string[] = [];
-  const serviceName = str(service.name);
-  if (serviceName) serviceItems.push(serviceName);
   const components = Array.isArray(service.components) ? service.components : [];
-  for (const c of components) {
-    const n = str(asRecord(c).name);
-    if (n && n !== serviceName) serviceItems.push(n);
+  let serviceItems: BrochureEquipmentItem[] = [];
+  if (components.length > 0) {
+    serviceItems = components
+      .map((c) => toItem(asRecord(c)))
+      .filter((x): x is BrochureEquipmentItem => x !== null);
+  } else {
+    const item = toItem(service);
+    if (item) serviceItems = [item];
   }
   if (serviceItems.length > 0) {
     categories.push({
@@ -148,6 +240,7 @@ export function buildBrochureData(vehicle: FleetVehicleView): BrochureData {
   const synthesis = asRecord(vehicle.synthesis_data);
   const cardSummary = asRecord(synthesis.card_summary);
   const powertrain = str(vehicle.powertrain);
+  const powerKw = cardSummary.power_kw;
 
   return {
     vehicle_name: {
@@ -168,7 +261,10 @@ export function buildBrochureData(vehicle: FleetVehicleView): BrochureData {
     wheels: str(vehicle.wheels),
     number_of_seats: vehicle.number_of_seats ? String(vehicle.number_of_seats) : "",
     exterior_color: str(vehicle.exterior_color),
+    engine_capacity: str(cardSummary.engine_capacity),
+    power_kw: typeof powerKw === "number" && powerKw > 0 ? String(powerKw) : str(powerKw),
     dimensions: buildDimensions(synthesis),
+    prices: buildPrices(vehicle, cardSummary),
     equipment_categories: buildEquipment(vehicle, cardSummary),
   };
 }
