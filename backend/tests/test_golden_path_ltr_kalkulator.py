@@ -172,12 +172,15 @@ def test_golden_path_standard_car(mock_db_responses):
             print(f"MarzaMiesiac: {target_cell.get('MarzaMiesiac')}")
 
             # Baseline Assertions (60 months, Year 0 Depr: 0.15)
-            assert target_cell["LacznaStawka"] == 2753.0
-            assert target_cell["CzynszFinansowy"] == 1872.0
+            # Rebaseline 2026-05-21: class-10 PB base RV% 0.36→0.39 (2005 Excel SOT)
+            #   → wyższe RV → niższy czynsz finansowy. CzynszTechniczny/Ubezpieczenie/
+            #   Serwis/Opony/SamochodZastepczy/CenaKatalogowaNetto bez zmian (nie zależą od WR).
+            assert target_cell["LacznaStawka"] == 2701.0
+            assert target_cell["CzynszFinansowy"] == 1820.0
             assert target_cell["CzynszTechniczny"] == 881.0
             assert target_cell["Ubezpieczenie"] == 73.0
             assert target_cell["Serwis"] == 632.0
             assert target_cell["Opony"] == 79.0
             assert target_cell["SamochodZastepczy"] == 66.0
-            assert target_cell["MarzaMiesiac"] == 138.0
+            assert target_cell["MarzaMiesiac"] == 135.0
             assert target_cell["CenaKatalogowaNetto"] == 120000.0

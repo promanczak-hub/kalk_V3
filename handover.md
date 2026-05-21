@@ -38,7 +38,7 @@
 
 - `LTRKalkulator.py` ma 1141 linii — known debt, refactor pending z TDD.
 - 70+ skryptów w `backend/scripts/` (`fix_*.py`, `repair_*.py`, `diagnose_*.py`) — audit i kategoryzacja w toku (Faza D z SUPERPOWERS planu).
-- Skoda Octavia RS class-10 SAMAR: **61 046,00 PLN brutto** per current 2503 SOT (legacy Excel baseline `81 185,76 PLN` jest superseded; parity validator: `test_skoda_octavia_rs_v1_parity`).
+- Skoda Octavia RS class-10 SAMAR (48mc/120k, niemetalik): **81 185,76 PLN brutto** (36,42 %) per **2005 Excel SOT** (decyzja usera 2026-05-21: `2005_wynik_SAMAR_PANCZAK.xlsx` = SOT kalkulatora WR; odwraca kalibrację V1 RMS — base% klasy 10 PB/mHEV 0,360555→0,39, przebieg→0,0143/0,03, opcje Path A). Parity validator: `test_skoda_octavia_rs_v1_parity`. Szczegóły: CLAUDE.md „Golden Rule: 2005 Excel SOT".
 
 ---
 

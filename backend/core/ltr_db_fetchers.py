@@ -101,8 +101,8 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
     from core.ltr_vehicle_resolvers import (
         _infer_zabudowa_type_id,
         _resolve_body_type_id_from_name,
-        _resolve_engine_type_id,
         _resolve_samar_class_id_from_name,
+        resolve_engine_type_id,
     )
 
     try:
@@ -128,7 +128,21 @@ def get_vehicle_from_db(vid: str) -> Dict[str, Any]:
         engine_category = str(
             cs.get("engine_category", "") or mai.get("fuel", "") or ""
         )
-        engine_type_id = _resolve_engine_type_id(engine_category)
+        # Silnik: ufamy wynikowi mappera LLM zapisanemu jako engine_type_id
+        # (nowe ekstrakcje). Dla starych rekordów rozwiązujemy z kandydatów w
+        # kolejności: mapped fuel (wynik mappera) → card fuel → engine_category.
+        # Reguła „LPG wygrywa" siedzi w resolve_engine_type_id; krucha heurystyka
+        # to tylko ostateczność.
+        try:
+            stored_eid = int(mai.get("engine_type_id"))
+        except (TypeError, ValueError):
+            stored_eid = 0
+        if 1 <= stored_eid <= 9:
+            engine_type_id = stored_eid
+        else:
+            engine_type_id = resolve_engine_type_id(
+                mai.get("fuel"), cs.get("fuel"), engine_category
+            )
 
         body_type_name = str(mai.get("body_type") or cs.get("body_style") or "")
         body_type_id = cs.get("body_type_id") or _resolve_body_type_id_from_name(

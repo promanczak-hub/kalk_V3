@@ -10,6 +10,7 @@ admin updates reference data.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.redis_cache import redis_cache
@@ -92,12 +93,17 @@ def _resolve_engine_type_id(engine_category: str) -> int:
     if upper in mapping:
         return mapping[upper]
 
-    # 2. Logika heurystyczna dla skrótów i wariantów (V1 Parity)
+    # 2. Logika heurystyczna dla skrótów i wariantów (V1 Parity).
+    # UWAGA: 2-literowe skróty (ON, PB) MUSZĄ być dopasowane z granicą słowa
+    # (\bON\b), inaczej "ON" łapie się w środku słów typu "kONwencjonalne"
+    # i auto benzynowe "Benzyna (PB) (Konwencjonalne (ICE))" wychodziło jako
+    # Diesel (bug 2026-05-21). LPG sprawdzane PRZED benzyną/dieslem — obecność
+    # LPG wygrywa (decyzja usera: auto z instalacją LPG wyceniamy jako LPG).
     if "PHEV" in upper or "PLUG-IN" in upper:
         return 6
-    if "MHEV" in upper and ("DIESEL" in upper or "ON" in upper):
+    if "MHEV" in upper and ("DIESEL" in upper or re.search(r"\bON\b", upper)):
         return 4
-    if "MHEV" in upper and ("BENZYNA" in upper or "PB" in upper):
+    if "MHEV" in upper and ("BENZYNA" in upper or re.search(r"\bPB\b", upper)):
         return 3
     if "FCEV" in upper or "WODOR" in upper or "WODÓR" in upper:
         return 8
@@ -107,9 +113,9 @@ def _resolve_engine_type_id(engine_category: str) -> int:
         return 7
     if "LPG" in upper:
         return 9
-    if "DIESEL" in upper or "ON" in upper:
+    if "DIESEL" in upper or re.search(r"\bON\b", upper):
         return 2
-    if "BENZYNA" in upper or "PB" in upper:
+    if "BENZYNA" in upper or re.search(r"\bPB\b", upper):
         return 1
 
     # 3. Próba znalezienia klucza wewnątrz nazwy
@@ -121,6 +127,31 @@ def _resolve_engine_type_id(engine_category: str) -> int:
         f"Nieznana kategoria silnika: '{engine_category}'. "
         "Brak mapowania na engine_type_id w bazie danych."
     )
+
+
+def resolve_engine_type_id(*candidates: Optional[str]) -> int:
+    """Wyznacza engine_type_id z kilku kandydatów (np. mapped fuel, card fuel, engine_category).
+
+    Reguła biznesowa (decyzja usera 2026-05-21): **obecność LPG/Autogaz w
+    DOWOLNYM kandydacie wygrywa** → LPG (9), niezależnie od bazowego silnika
+    benzynowego. Inaczej próbuje kandydatów po kolei przez `_resolve_engine_type_id`
+    (czyste nazwy SOT z `engines` trafiają exact-matchem; heurystyka tylko gdy
+    string jest „brudny"). Pierwszy kandydat powinien być najbardziej miarodajny
+    (wynik mappera LLM), `engine_category` z card-summary jako ostatni fallback.
+    """
+    joined = " ".join(str(c) for c in candidates if c).strip()
+    if not joined:
+        raise ValueError("Brak danych silnika do rozwiązania engine_type_id.")
+    upper = joined.upper()
+    if "LPG" in upper or "AUTOGAZ" in upper:
+        return 9
+    for cand in candidates:
+        if cand:
+            try:
+                return _resolve_engine_type_id(str(cand))
+            except ValueError:
+                continue
+    raise ValueError(f"Nie rozwiązano engine_type_id z kandydatów: {candidates!r}")
 
 
 # ── SAMAR class ID resolution ───────────────────────────────────────

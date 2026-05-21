@@ -337,6 +337,20 @@ def finalize_vehicle_pipeline(
                 model,
             )
 
+        # Czysty engine_type_id z mappera LLM (+ reguła „LPG wygrywa") — kalkulacja
+        # czyta to zamiast zgadywać heurystyką z free-textu engine_category.
+        # Fail-soft: gdy się nie uda, zostaw bez id (calc ma własny fallback).
+        try:
+            from core.ltr_vehicle_resolvers import resolve_engine_type_id
+
+            mapped_data["engine_type_id"] = resolve_engine_type_id(
+                mapped_data.get("fuel"),
+                card_summary.get("fuel"),
+                card_summary.get("engine_category"),
+            )
+        except Exception as eng_err:
+            logger.info("[BG TASK] Nie zapisano engine_type_id: %s", eng_err)
+
         # Assign mapped data BEFORE readiness check — ensures data is
         # always persisted to DB regardless of price availability.
         parsed_data["mapped_ai_data"] = mapped_data

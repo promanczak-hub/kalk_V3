@@ -92,27 +92,40 @@ Canonical order from V1 (`LTRKalkulator.cs:250-398`). Steps 1-4 are independent 
 
 Orchestrator: `backend/core/LTRKalkulator.py:Calculate()`. Step-by-step debugger: `backend/core/PipelineDebugger.py:calculate_steps()`. V1 parity reference: [v1_calcreport_reference.md](docs/audit/v1_calcreport_reference.md).
 
-### 🛡️ Golden Rule: Residual Value (WR) corrections — **2503 SOT**
+### 🛡️ Golden Rule: Residual Value (WR) corrections — **2005 Excel SOT**
 
-WR calculation per current **2503 SOT** (Source of Truth — Supabase `body_types.utrata_wartosci`):
+WR per current **2005 SOT** = `2005_wynik_SAMAR_PANCZAK.xlsx`, arkusz `Kalkulator_V3` (decyzja usera 2026-05-21: 2005 Excel = SOT kalkulatora WR; supersedes wcześniejszy „2503 SOT" + kalibrację „V1 RMS"). Współczynniki z arkuszy słownikowych → tabele Supabase:
 
-- **Krok 1-3:** depreciation curve (multiplicative year cascade `base × Π(1 ± δ)` per SOT — formerly additive `base + Σ deltas` in legacy `2503_wynik_JŁ.xlsx` Excel; *post k2 fix*).
-- **Krok 4 (korekta przebiegu):** **WYŁĄCZONY w samar_rv.py per 2503 SOT** (*post k4 fix*). Korekta przebiegu jest teraz częścią `body_types.utrata_wartosci` tabeli (per body type). Debug surface: `result.debug["krok4_korekta_disabled_per_sot"] == 1.0`.
-- **Krok 5 (admin corrections — kolor, nadwozie):** operuje na **base catalogue price (net, no options)**, additive po Krok 3:
+| Krok | Arkusz Excel | Tabela DB | Klasa C / PB (przykład) |
+|---|---|---|---|
+| Base RV% (rok 4) | TAB.WR KLASA | `samar_class_depreciation_rates` | **0,39** |
+| Opcje (Path A) | TAB.DOPOSAŻENIA | `samar_class_options_rv` (per rok) | Y4 = **0,24** |
+| Korekta przebiegu | TAB.PRZEBIEG | `samar_class_mileage_corrections` | 0,0143 / 0,03, próg 190k |
+| Rocznik | ROCZNIK | `ltr_admin_korekta_wr_roczniks` | bieżący 0 / poprzedni −8% |
+| Kolor | KOLOR | `paint_types.wr_correction` | niemetalik −1% |
+| Nadwozie | body_types | `body_types.utrata_wartosci` | per nadwozie |
+
+- **Krok 1-2:** base RV% × multiplicative year cascade `base × Π(1 ± δ)` (kaskada z `tab_okres_final`; dla 48mc = kotwica roku 4 = base%).
+- **Krok 3 (opcje — Path A):** `opcje × stawka_opcji[rok]` (osobna stawka z `samar_class_options_rv`, **NIE** base%). Po tym `rv_total == BE` z Excela (base×0,39 + opcje×0,24). Fetcher jest Fail-Fast (raise, nie `return 0.0`).
+- **Krok 4 (korekta przebiegu):** **AKTYWNA** dla nadwozi z `body_types.utrata_wartosci == 0`; liczona na `BE` (`AF × BE × Δkm/10`). Dla nadwozi z utrata_wartosci ≠ 0 wyłączona (korekta zbundlowana w body). Debug: `result.debug["krok4_active"]`.
+- **Krok 5 (kolor, nadwozie):** additive na **base catalogue price (net, no options)** po Krok 4:
 
 ```python
 Korekta_Wartosc = (Kolor_% + Nadwozie_%) * Cena_Katalogowa_Baza_Netto
-WR_po_Kroku_5 = WR_po_Krok_3 + Korekta_Wartosc
+WR = WR_po_Krok_4 + Korekta_Wartosc
 ```
 
   Zabudowa correction została przeniesiona do `body_types` (memory `body_types_sot`) — nie liczyć jej tutaj.
+- **Krok 6 (rocznik):** additive od ceny katalogowej; `'current'`/`'bieżący'` → 0, tylko jawnie poprzedni rocznik → −8%.
 
-**Parity validator:** `backend/tests/test_v1_parity_samar_rv.py::test_skoda_octavia_rs_v1_parity` — Skoda Octavia RS class-10 SAMAR daje **61 046,00 PLN brutto** per current SOT (legacy Excel baseline `81 185,76 PLN` jest superseded).
+**Parity validator:** `backend/tests/test_v1_parity_samar_rv.py::test_skoda_octavia_rs_v1_parity` — Skoda Octavia RS class-10 SAMAR, 48mc/120k, niemetalik → **81 185,76 PLN brutto** (36,42 %) per 2005 SOT. (Historia: legacy 81 185,76 → kalibracja V1 RMS 63 076,20 — superseded; 2005 SOT wraca do Excela.)
 
 **FORBIDDEN:**
-- Re-enabling Krok 4 w samar_rv.py bez zmiany `body_types.utrata_wartosci` (podwójna korekta).
+- Path B (`opcje × base_pct`) — opcje mają WŁASNĄ stawkę z `samar_class_options_rv` (2005 SOT).
+- Przywracanie kalibracji „V1 RMS" dla klasy 10 PB/mHEV (base 0,360555, przebieg 0,014642) — 2005 SOT = 0,39 / 0,0143.
 - Multiplying corrections on the WR pool (`WR * (1 - korekta_pct)`) zamiast additive on base — krok 5 jest additive.
 - Zabudowa correction w samar_rv.py — należy do `body_types`.
+- `return 0.0` zamiast `raise` w fetcherach WR — `@redis_cache` cache'uje 0.0 i zatruwa cache (incydent 2026-05-21: poisoned options rate → fail-fast w kółko).
 
 ### Reverse Search uses CACHE — does NOT recompute
 

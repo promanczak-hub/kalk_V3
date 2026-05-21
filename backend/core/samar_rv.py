@@ -34,6 +34,7 @@ from core.samar_rv_fetchers import (
     fetch_depreciation_rates_cached,
     fetch_lo_param_cached,
     fetch_mileage_corrections_cached,
+    fetch_resale_time_days_cached,
     fetch_vintage_correction_cached,
 )
 
@@ -181,6 +182,12 @@ class SamarRVCalculator:
             self.data.samar_class_id, self.data.brand_name, engine_name
         )
 
+    def _fetch_base_options_rate(self, years: int) -> float:
+        """Stawka amortyzacji opcji per rok z samar_class_options_rv (2005 SOT)."""
+        return fetch_base_options_rate_cached(
+            self.data.samar_class_id, self.data.engine_id, years
+        )
+
     def fetch_color_correction(self) -> float:
         """Korekta za kolor z paint_types.wr_correction."""
         return fetch_color_correction_cached(
@@ -219,13 +226,9 @@ class SamarRVCalculator:
         """
         from datetime import date
         from dateutil.relativedelta import relativedelta
-        from core.control_center import fetch_control_center_row
 
-        try:
-            cc = fetch_control_center_row(keys=["resale_time_days"])
-            resale_days = int(cc.get("resale_time_days") or 60)
-        except Exception:
-            resale_days = 60  # fallback per current control_center default
+        # Cache'owane — czytane raz na komórkę matrycy (patrz fetcher docstring).
+        resale_days = fetch_resale_time_days_cached()
         prep_months = round(resale_days / 30)
 
         today = date.today()
@@ -352,25 +355,28 @@ class SamarRVCalculator:
         debug["krok1_wr_value_netto"] = round(rv_base_netto, 2)
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # KROK 3:  Amortyzacja Opcji — Path B (V1 RMS parity)
+        # KROK 3:  Amortyzacja Opcji — Path A (2005 Excel SOT)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # V1 RMS stosuje **catalog_total × WR_pct** płasko — opcje fabryczne nie mają
-        # osobnej stawki amortyzacji, są deprecjonowane tą samą stawką co baza.
-        # Z naszej kalibracji V1 sweep (KALK 172207 Octavia) WR_raw = catalog × base_pct
-        # z dokładnością ~88 PLN cushion (≈ 0.5% per opcje_z_WR — pomijalne).
-        #
-        # Wcześniej Krok 3 używał osobnego options_rate z `samar_class_options_rv`
-        # (Excel SOT TAB.DOPOSAŻENIA — np. CPb Y4 = 0.24). To było zgodne z arkuszem
-        # Excelowym, ale rozjeżdżało się z V1 produkcyjnym (Excel TAB.DOPOSAŻENIA jest
-        # NIEUŻYWANY przez V1 RMS). Decyzja 2026-05-17: priorytet V1 parity nad Excel.
-        rv_options_netto = options_netto * effective_pct  # same rate as base
+        # 2005 SOT (arkusz TAB.DOPOSAŻENIA, kolumna BC51): opcje amortyzują się
+        # WŁASNĄ stawką per rok z `samar_class_options_rv` — NIE stawką bazy.
+        # Dla klasy C / Benzyna PB / rok 4 = 0.24. Po tej zmianie rv_total == BE
+        # z Excela (base×0.39 + opcje×0.24), więc baza korekty przebiegu się zgadza.
+        # (Wcześniej "Path B" = options × base_pct dla V1 RMS parity — porzucone
+        # decyzją usera 2026-05-21: 2005 Excel = SOT kalkulatora WR.)
+        # Opcje: osobna stawka per rok (Path A). Pobieramy tylko gdy auto MA opcje —
+        # pojazd bez doposażenia nie może zależeć od samar_class_options_rv.
+        # _fetch_base_options_rate jest Fail-Fast (raise przy braku rekordu).
+        options_rate = (
+            self._fetch_base_options_rate(liczba_lat) if options_netto > 0 else 0.0
+        )
+        rv_options_netto = options_netto * options_rate
         rv_total_netto = rv_base_netto + rv_options_netto
 
         debug["krok3_years"] = years
         debug["krok3_rv_base_netto"] = round(rv_base_netto, 2)
         debug["krok3_rv_options_netto"] = round(rv_options_netto, 2)
         debug["krok3_rv_total_netto"] = round(rv_total_netto, 2)
-        debug["krok3_options_rate_used"] = effective_pct  # Path B marker
+        debug["krok3_options_rate_used"] = options_rate
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # KROK 4: Korekta przebiegu — V1 RMS parity formula

@@ -330,7 +330,17 @@ def fetch_vintage_correction_cached(
     """
     from core.database import supabase
 
-    column = "rocznik_biezacy" if rocznik == "current" else "korekta_za_ubiegly_rocznik"
+    # 2005 Excel SOT (arkusz ROCZNIK): 'bieżący' → 0, 'bieżący -1' (poprzedni) → -0.08.
+    # Karę poprzedniego rocznika stosujemy TYLKO dla jawnie poprzedniego rocznika;
+    # bieżący / nieznany / pusty / rok kalendarzowy → traktuj jak bieżący (0).
+    # (Wcześniej każdy rocznik ≠ dosłownie "current" dostawał karę — np. "2026"
+    #  czy "bieżący" → -8%. Bug naprawiony 2026-05-21.)
+    _previous_markers = {
+        "previous", "prev", "ubiegly", "ubiegły", "poprzedni",
+        "bieżący -1", "biezacy -1", "bieżący-1", "biezacy-1", "-1",
+    }
+    is_previous = str(rocznik).strip().lower() in _previous_markers
+    column = "korekta_za_ubiegly_rocznik" if is_previous else "rocznik_biezacy"
     try:
         query = supabase.table("ltr_admin_korekta_wr_roczniks").select(column)
         if samar_class_id:
@@ -361,6 +371,24 @@ def fetch_lo_param_cached() -> float:
     except Exception:
         logger.warning("Nie udało się pobrać PrzewidywanaCenaSprzedazyLO")
     return 0.0
+
+
+@redis_cache(ttl_seconds=900, prefix="samar_rv:")
+def fetch_resale_time_days_cached() -> int:
+    """resale_time_days z control_center (EAV).
+
+    Cache'owane bo `SamarRVCalculator._calculate_liczba_lat_v1` czyta tę stałą
+    raz NA KOMÓRKĘ matrycy — bez cache to setki round-tripów do Supabase na jedną
+    matrycę (objaw: matryca ~2 min → timeout "Failed to fetch" w UI).
+    """
+    from core.control_center import fetch_control_center_value
+
+    try:
+        val = fetch_control_center_value("resale_time_days", default=60)
+        return int(val) if val is not None else 60
+    except Exception:
+        logger.warning("Nie udało się pobrać resale_time_days; fallback 60")
+    return 60
 
 
 @redis_cache(ttl_seconds=1800, prefix="samar_rv:")
@@ -421,20 +449,28 @@ def fetch_mileage_corrections_cached(
 def fetch_base_options_rate_cached(
     samar_class_id: int, engine_type_id: int, years: int
 ) -> float:
-    """Pobiera stawkę amortyzacji opcji z samar_class_options_rv."""
-    try:
-        from core.database import supabase
+    """Pobiera stawkę amortyzacji opcji z samar_class_options_rv (Fail-Fast).
 
-        res = execute_with_retry(
-            supabase.table("samar_class_options_rv")
-            .select("options_rv_percent")
-            .eq("samar_class_id", samar_class_id)
-            .eq("engine_type_id", engine_type_id)
-            .eq("year", years)
-            .limit(1)
-        )
-        if res.data:
-            return float(res.data[0].get("options_rv_percent") or 0.0)
-    except Exception as exc:
-        logger.warning("Błąd options rate fetch: %s", exc)
-    return 0.0
+    NIE łapie wyjątków i NIE zwraca 0.0 przy braku rekordu — bo @redis_cache
+    cache'owałby tę 0.0 (nie jest "empty"), zatruwając cache na cały TTL
+    (incydent 2026-05-21: transient → 0.0 → fail-fast w kółko). Wyjątek/brak
+    rekordu propaguje się jak w fetch_mileage_corrections_cached.
+    """
+    from core.database import supabase
+
+    res = execute_with_retry(
+        supabase.table("samar_class_options_rv")
+        .select("options_rv_percent")
+        .eq("samar_class_id", samar_class_id)
+        .eq("engine_type_id", engine_type_id)
+        .eq("year", years)
+        .limit(1)
+    )
+    if res.data:
+        val = res.data[0].get("options_rv_percent")
+        if val is not None:
+            return float(val)
+    raise ValueError(
+        f"Brak stawki opcji w `samar_class_options_rv` dla klasy={samar_class_id}, "
+        f"silnik={engine_type_id}, rok={years} (Reguła Fail-Fast)."
+    )
