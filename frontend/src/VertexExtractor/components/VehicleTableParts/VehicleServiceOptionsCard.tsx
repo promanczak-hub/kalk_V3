@@ -1,4 +1,4 @@
-import { Database, Loader2, Wrench } from "lucide-react";
+import { Database, Loader2, Trash2, Wrench } from "lucide-react";
 import type { FleetVehicleView } from "../../types";
 import { NetGrossInput } from "./NetGrossInput";
 import { AccordionCard } from "./AccordionCard";
@@ -61,8 +61,8 @@ export function VehicleServiceOptionsCard({
                     Dolicz do WR
                   </label>
                   <NetGrossInput netValue={opt.price_net} onChangeNet={(newVal) => handleUpdateServiceOptionPrice(opt.id, newVal)} />
-                  <button onClick={() => handleRemoveServiceOption(opt.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Usuń pozycję">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <button onClick={() => handleRemoveServiceOption(opt.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Usuń pozycję">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </li>
