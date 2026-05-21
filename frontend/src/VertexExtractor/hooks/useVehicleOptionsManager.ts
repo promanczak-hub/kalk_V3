@@ -51,13 +51,32 @@ export function useVehicleOptionsManager(vehicle: FleetVehicleView, onRefresh: (
           (opt: any) => opt.name?.toLowerCase().includes(serviceEquipment.name!.toLowerCase().substring(0, 15))
         );
         if (!alreadyAdded) {
-          fromPaidOptions.push({
-            id: crypto.randomUUID(),
-            name: serviceEquipment.name,
-            price_net: Math.round(rawPrice * 100) / 100,
-            category: "Zabudowa / Wyposażenie serwisowe",
-            include_in_wr: true,  // zabudowa traci wartość razem z pojazdem
-          });
+          // Jeśli zabudowa ma rozbite komponenty z własnymi cenami (np. Kontener
+          // ORAZ Agregat) — pokaż je jako ODRĘBNE pozycje. Inaczej jedna zbiorcza.
+          const compNet = (c: any): number =>
+            typeof c?.net_amount === "number" && c.net_amount > 0
+              ? c.net_amount
+              : parsePriceToNumber(String(c?.price_net ?? ""));
+          const comps = (serviceEquipment.components || []).filter((c: any) => compNet(c) > 0);
+          if (comps.length >= 2) {
+            for (const c of comps) {
+              fromPaidOptions.push({
+                id: crypto.randomUUID(),
+                name: c.name || serviceEquipment.name,
+                price_net: Math.round(compNet(c) * 100) / 100,
+                category: "Zabudowa / Wyposażenie serwisowe",
+                include_in_wr: true,  // zabudowa traci wartość razem z pojazdem
+              });
+            }
+          } else {
+            fromPaidOptions.push({
+              id: crypto.randomUUID(),
+              name: serviceEquipment.name,
+              price_net: Math.round(rawPrice * 100) / 100,
+              category: "Zabudowa / Wyposażenie serwisowe",
+              include_in_wr: true,  // zabudowa traci wartość razem z pojazdem
+            });
+          }
         }
       }
     }

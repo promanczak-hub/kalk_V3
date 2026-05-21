@@ -17,8 +17,7 @@ import { VehicleSummaryCard } from "./VehicleSummaryCard";
 import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleServiceOptionsCard } from "./VehicleServiceOptionsCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
-import { DiscountAuditCard } from "./DiscountAuditCard";
-import { PriceAuditCard } from "./PriceAuditCard";
+import { AuditChipPopover } from "./AuditChipPopover";
 import { ValidationWarningsCard } from "./ValidationWarningsCard";
 import type { DiscountBreakdown } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
@@ -810,6 +809,31 @@ export function VehicleRowCard({
         setCustomDiscountAmountNet={setCustomDiscountAmountNet}
         activeDiscountAmountNet={activeDiscountAmountNet}
         onPriceFilled={onRefresh}
+        auditSlot={
+          <AuditChipPopover
+            vehicleId={vehicle.id}
+            discount={
+              ((vehicle.synthesis_data as Record<string, unknown> | undefined)
+                ?.card_summary as Record<string, unknown> | undefined)
+                ?.discount as DiscountBreakdown | null | undefined
+            }
+            priceValidation={vehicle.price_validation}
+            activeMode={discountMode}
+            activeDiscountPct={activeDiscountPct}
+            activeDiscountAmountNet={activeDiscountAmountNet}
+            discountableBaseNet={catalogBasePriceNet + discountableOptionsTotal}
+            nonDiscountableTotalNet={nonDiscountableOptionsTotal + customServiceOptionsPriceTotal}
+            cardSummary={
+              (vehicle.synthesis_data as Record<string, unknown> | undefined)
+                ?.card_summary as Record<string, unknown> | null | undefined
+            }
+            catalogBasePriceNet={catalogBasePriceNet}
+            discountableOptionsNet={discountableOptionsTotal}
+            nonDiscountableOptionsNet={nonDiscountableOptionsTotal}
+            serviceTotalNet={customServiceOptionsPriceTotal}
+            onUpdated={onRefresh}
+          />
+        }
       />
 
 
@@ -925,35 +949,8 @@ export function VehicleRowCard({
                   onRemapClassification={handleRemapClassification}
                   isRemapping={isRemappingClassification}
                 />
-                <DiscountAuditCard
-                  vehicleId={vehicle.id}
-                  discount={
-                    ((vehicle.synthesis_data as Record<string, unknown> | undefined)
-                      ?.card_summary as Record<string, unknown> | undefined)
-                      ?.discount as DiscountBreakdown | null | undefined
-                  }
-                  priceValidation={vehicle.price_validation}
-                  activeMode={discountMode}
-                  activeDiscountPct={activeDiscountPct}
-                  activeDiscountAmountNet={activeDiscountAmountNet}
-                  discountableBaseNet={catalogBasePriceNet + discountableOptionsTotal}
-                  nonDiscountableTotalNet={nonDiscountableOptionsTotal + customServiceOptionsPriceTotal}
-                  onUpdated={onRefresh}
-                />
-                <PriceAuditCard
-                  vehicleId={vehicle.id}
-                  cardSummary={
-                    (vehicle.synthesis_data as Record<string, unknown> | undefined)
-                      ?.card_summary as Record<string, unknown> | null | undefined
-                  }
-                  priceValidation={vehicle.price_validation}
-                  catalogBasePriceNet={catalogBasePriceNet}
-                  discountableOptionsNet={discountableOptionsTotal}
-                  nonDiscountableOptionsNet={nonDiscountableOptionsTotal}
-                  serviceTotalNet={customServiceOptionsPriceTotal}
-                  activeDiscountAmountNet={activeDiscountAmountNet}
-                  onUpdated={onRefresh}
-                />
+                {/* Audyt rabatu + ceny scalone w jeden chip+popover obok SUMA
+                    CAŁKOWITA (VehicleBaseInfo auditSlot). */}
                 <ValidationWarningsCard validation={vehicle.price_validation} />
                 <VehicleEquipmentCard
                   vehicle={vehicle}

@@ -62,6 +62,9 @@ interface VehicleBaseInfoProps {
   activeDiscountAmountNet?: number;
 
   onPriceFilled?: () => void;
+
+  /** Compact audit chip rendered next to SUMA CAŁKOWITA (combined rabat+cena popover). */
+  auditSlot?: React.ReactNode;
 }
 
 function hasValue(v: string | null | undefined): boolean {
@@ -296,6 +299,7 @@ export function VehicleBaseInfo({
   setCustomDiscountAmountNet,
   activeDiscountAmountNet = 0,
   onPriceFilled,
+  auditSlot,
 }: VehicleBaseInfoProps) {
   const VAT_RATE = 1.23;
   const [customInputMode, setCustomInputMode] = useState<"pct" | "pln">("pct");
@@ -572,6 +576,7 @@ export function VehicleBaseInfo({
                 <span className="text-sm text-slate-400 mt-1" style={{ fontFamily: "'Geist Mono', monospace" }}>Brak wyceny</span>
               );
             })()}
+            {auditSlot && <div className="mt-2">{auditSlot}</div>}
           </div>
 
           <div className="text-slate-400 group-hover:text-blue-500 transition-colors bg-slate-50 group-hover:bg-blue-50 rounded-full p-1 border border-transparent group-hover:border-blue-100 mt-1">

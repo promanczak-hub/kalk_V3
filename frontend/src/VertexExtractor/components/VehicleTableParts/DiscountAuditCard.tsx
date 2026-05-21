@@ -14,6 +14,7 @@ interface DiscountAuditCardProps {
   discountableBaseNet: number;
   nonDiscountableTotalNet: number;
   onUpdated?: () => void;
+  defaultExpanded?: boolean;
 }
 
 const METHOD_LABEL: Record<DiscountExtractionMethod, string> = {
@@ -289,8 +290,9 @@ export function DiscountAuditCard({
   discountableBaseNet,
   nonDiscountableTotalNet,
   onUpdated,
+  defaultExpanded = false,
 }: DiscountAuditCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [backfilling, setBackfilling] = useState(false);

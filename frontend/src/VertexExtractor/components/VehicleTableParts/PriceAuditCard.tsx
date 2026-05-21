@@ -29,6 +29,7 @@ interface PriceAuditCardProps {
   serviceTotalNet: number;
   activeDiscountAmountNet: number;
   onUpdated?: () => void;
+  defaultExpanded?: boolean;
 }
 
 type Domain = "netto" | "brutto";
@@ -123,8 +124,9 @@ export function PriceAuditCard({
   serviceTotalNet,
   activeDiscountAmountNet,
   onUpdated,
+  defaultExpanded = false,
 }: PriceAuditCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [deducing, setDeducing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [showForm, setShowForm] = useState(false);
