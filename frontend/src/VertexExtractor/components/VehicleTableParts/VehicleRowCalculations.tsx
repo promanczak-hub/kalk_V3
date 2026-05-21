@@ -237,9 +237,12 @@ export function VehicleRowCalculations({
                   if (1 + z === 0) return;
                   let m = z / (1 + z);
                   m = Math.max(Math.min(m, 0.9999), -0.5);
-                  handleOverridesChange(cell.Okres, { pricing_margin_pct: m * 100 });
-                  // recalculateSingleCell uses cellOverrides via closure - defer 1 tick to let state settle
-                  setTimeout(() => recalculateSingleCell(cell.Okres), 0);
+                  const newMargin = { pricing_margin_pct: m * 100 };
+                  handleOverridesChange(cell.Okres, newMargin);
+                  // Pass the freshly-computed margin AND the selected cell's km
+                  // explicitly: avoids the stale-closure race and recomputes/
+                  // replaces only this exact (term, km) cell instead of the row.
+                  recalculateSingleCell(cell.Okres, newMargin, cell.Przebieg);
                 }}
                 onAddToCart={(cell: MiniMatrixCell) => {
                   const contractKm = cell.PrzebiegKontrakt ?? Math.round((cell.Okres / 12) * cell.Przebieg);

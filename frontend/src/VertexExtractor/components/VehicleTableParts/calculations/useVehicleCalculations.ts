@@ -356,17 +356,26 @@ export function useVehicleCalculations({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kalkulacjaId, vehicleId, mileageMode]);
 
-  const recalculateSingleCell = useCallback(async (months: number) => {
+  const recalculateSingleCell = useCallback(async (months: number, overrideOverrides?: Partial<CellOverrides>, cellAnnualKm?: number) => {
     if (!basePayload) return;
-    const ov = cellOverrides[months];
+    // When called with explicit overrides (e.g. Goal Seek), merge them onto the
+    // current/default overrides and use immediately. Relying on cellOverrides
+    // from the closure + setTimeout raced: the recalc ran before the state
+    // commit, so it bailed at !ov or applied the previous click's margin.
+    const existing = cellOverrides[months];
+    const ov = overrideOverrides
+      ? { ...(existing ?? buildDefaultOverrides(basePayload)), ...overrideOverrides }
+      : existing;
     if (!ov) return;
 
     setRecalculating(months);
     try {
       const effectiveMonths = ov.custom_months ?? months;
-      const effectiveKmYear = ov.custom_km_per_year;
-      const targetKm = effectiveKmYear != null 
-        ? Math.round((effectiveKmYear / 12) * effectiveMonths) 
+      // cellAnnualKm (heatmap Goal Seek) targets the SELECTED cell's km instead
+      // of the base km, so we recompute the exact cell the user clicked.
+      const effectiveKmYear = cellAnnualKm ?? ov.custom_km_per_year;
+      const targetKm = effectiveKmYear != null
+        ? Math.round((effectiveKmYear / 12) * effectiveMonths)
         : Math.round(kmPerMonthRef.current * effectiveMonths);
 
       const modifiedPayload: Payload = {
@@ -410,9 +419,19 @@ export function useVehicleCalculations({
       const newCells: MiniMatrixCell[] = data.cells || [];
 
       const foundMonths = ov.custom_months ?? months;
-      const targetCell = newCells.find(c => c.Okres === foundMonths);
+      const contractKm = (c: MiniMatrixCell) => c.PrzebiegKontrakt ?? Math.round((c.Okres / 12) * c.Przebieg);
+      // km-aware path (heatmap Goal Seek): match and replace ONLY the specific
+      // (term, km) cell. Replacing by term alone collapsed the whole row.
+      const targetCell = cellAnnualKm != null
+        ? (newCells.find(c => c.Okres === foundMonths && contractKm(c) === targetKm) ?? newCells.find(c => c.Okres === foundMonths))
+        : newCells.find(c => c.Okres === foundMonths);
       if (targetCell) {
-        setCells(prev => prev.map(c => c.Okres === months ? targetCell : c));
+        setCells(prev => prev.map(c => {
+          if (cellAnnualKm != null) {
+            return c.Okres === months && contractKm(c) === targetKm ? targetCell : c;
+          }
+          return c.Okres === months ? targetCell : c;
+        }));
         setModifiedCells(prev => new Set([...prev, months]));
       }
     } catch (err) {
