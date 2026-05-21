@@ -147,6 +147,70 @@ class PriceDomainOverrideRequest(BaseModel):
     domain: str  # "netto" | "brutto"
 
 
+class PriceDeduceRequest(BaseModel):
+    """Częściowe kotwice cenowe od usera (wszystkie opcjonalne).
+
+    Puste = dedukuj z obecnego card_summary. Read-only (preview) — nie zapisuje.
+    """
+
+    base_net: float | None = None
+    base_gross: float | None = None
+    options_net: float | None = None
+    options_gross: float | None = None
+    total_net: float | None = None
+    total_gross: float | None = None
+    service_net: float | None = None
+    service_gross: float | None = None
+    rabat_pln: float | None = None
+    hint: str | None = None
+
+
+class OptionDiscountFlag(BaseModel):
+    field_id: str
+    no_discount: bool
+
+
+class ConfirmServiceComponent(BaseModel):
+    """Składnik zabudowy/serwisu (np. Agregat, Kontener) — net+gross."""
+
+    name: str
+    net: float
+    gross: float | None = None
+
+
+class ConfirmFactoryOption(BaseModel):
+    """Opcja fabryczna z poprawnym net/gross — aktualizuje pasującą paid_option."""
+
+    field_id: str = ""
+    name: str = ""
+    net: float = 0.0
+    gross: float | None = None
+    no_discount: bool = False
+
+
+class PriceConfirmRequest(BaseModel):
+    """Finalne, zatwierdzone ceny — trwały zapis nadpisujący ekstrakcję."""
+
+    domain: str = "netto"  # "netto" | "brutto"
+    base_net: float
+    base_gross: float | None = None
+    discountable_options_net: float = 0.0
+    non_discountable_options_net: float = 0.0
+    service_net: float = 0.0
+    service_gross: float | None = None
+    total_net: float | None = None
+    total_gross: float | None = None
+    rabat_pln: float | None = None
+    option_discount_flags: list[OptionDiscountFlag] = []
+    # Optional: correct each factory paid_option's net/gross (matched by field_id
+    # or exact name) so per-line prices agree with the totals.
+    factory_options: list[ConfirmFactoryOption] = []
+    # Optional: rewrite service_equipment (zabudowa) with its component split.
+    service_name: str | None = None
+    service_components: list[ConfirmServiceComponent] = []
+    audit_note: str | None = None
+
+
 # ── HITL Wizard payload models ──
 
 class HITLPriceCorrection(BaseModel):
@@ -450,6 +514,13 @@ def fill_base_price(
             f"{int(round(request.options_price))} PLN {request.domain}"
         )
 
+    # Keep price_domain in sync with the user-confirmed domain — without this
+    # the UI's price-split widget (NETTO/BRUTTO columns) reads price_domain
+    # rather than the suffix, and shows the entered brutto value in the netto
+    # column (mismatched display, matrix calc misreads, etc.). The validator
+    # rewrites _price_domain below, but the canonical price_domain stays.
+    card_summary["price_domain"] = request.domain
+
     # Clear the user-input requirement for base_price
     requires = list(card_summary.get("_requires_user_input") or [])
     if "base_price" in requires:
@@ -566,6 +637,278 @@ def override_price_domain(
         "new_domain": request.domain,
         "base_price": synthesis["card_summary"].get("base_price"),
         "total_price": synthesis["card_summary"].get("total_price"),
+    }
+
+
+@router.post("/extract/price-deduce/{vehicle_id}")
+def price_deduce(vehicle_id: str, request: PriceDeduceRequest) -> Dict[str, Any]:
+    """LLM rekonstrukcja pełnego rozkładu ceny z częściowych danych (read-only preview).
+
+    Uruchamiana na żądanie z panelu Audyt ceny dla luk, których deterministyczny
+    walidator nie domyka (mieszane domeny netto/brutto, brakujące komponenty,
+    brand-specyficzne nierabatowane opcje fabryczne). NIE zapisuje — zwraca
+    sugestię; trwały zapis dopiero przez `/extract/price-confirm`.
+    """
+    from core.pipeline_price_deduction import deduce_prices
+
+    client = supabase_client
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data, raw_pdf_url")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    card_summary = (resp.data.get("synthesis_data") or {}).get("card_summary")
+    if not isinstance(card_summary, dict):
+        raise HTTPException(status_code=400, detail="No card_summary to deduce from")
+
+    # Fetch the source PDF so the LLM can read the netto/VAT/brutto summary and
+    # determine the TRUE price domain (extraction frequently mislabels it). Best
+    # effort — fall back to text-only deduction when the download fails.
+    pdf_bytes: bytes | None = None
+    raw_pdf_url = resp.data.get("raw_pdf_url")
+    if raw_pdf_url:
+        try:
+            pdf_resp = requests.get(raw_pdf_url, timeout=30)
+            if pdf_resp.ok and pdf_resp.content:
+                pdf_bytes = pdf_resp.content
+        except Exception as e:  # pragma: no cover — network best-effort
+            logger.warning("[PRICE DEDUCE] PDF fetch failed (%s) — text-only", e)
+
+    deduced = deduce_prices(
+        card_summary, request.model_dump(exclude_none=True), pdf_bytes=pdf_bytes
+    )
+    if deduced is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Dedukcja LLM nieudana — spróbuj ponownie lub wpisz ceny ręcznie.",
+        )
+
+    return {"status": "ok", "vehicle_id": vehicle_id, "deduction": deduced}
+
+
+@router.post("/extract/price-confirm/{vehicle_id}")
+def price_confirm(vehicle_id: str, request: PriceConfirmRequest) -> Dict[str, Any]:
+    """Trwały zapis zatwierdzonych cen — nadpisuje niepełną/wadliwą ekstrakcję + lock.
+
+    Zapisuje finalne kwoty (stringi + pola V3 net/gross/vat), przelicza split rabatu
+    (discountable vs non_discountable), oznacza opcje `no_discount` po field_id,
+    ustawia lock `_price_confirmed`, re-uruchamia deterministyczny walidator
+    (kontrola domknięcia — nie ufamy ślepo) i — gdy brak braków — flipuje status
+    na 'completed' (wzór: fill_base_price).
+    """
+    if request.domain not in ("netto", "brutto"):
+        raise HTTPException(status_code=400, detail="domain must be 'netto' or 'brutto'")
+    if request.base_net <= 0:
+        raise HTTPException(status_code=400, detail="base_net must be > 0")
+
+    _VAT = 1.23
+
+    client = supabase_client
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    synthesis = resp.data.get("synthesis_data") or {}
+    card_summary = synthesis.get("card_summary")
+    if not isinstance(card_summary, dict):
+        card_summary = {}
+        synthesis["card_summary"] = card_summary
+
+    base_net = float(request.base_net)
+    base_gross = float(request.base_gross) if request.base_gross else round(base_net * _VAT, 2)
+    disc_opt_net = float(request.discountable_options_net or 0.0)
+    nondisc_opt_net = float(request.non_discountable_options_net or 0.0)
+    service_net = float(request.service_net or 0.0)
+    rabat = float(request.rabat_pln or 0.0)
+
+    options_net = disc_opt_net + nondisc_opt_net
+    options_gross = round(options_net * _VAT, 2)
+
+    total_net = (
+        float(request.total_net)
+        if request.total_net is not None
+        else base_net + options_net + service_net - rabat
+    )
+    total_gross = (
+        float(request.total_gross) if request.total_gross else round(total_net * _VAT, 2)
+    )
+
+    def _vat_of(net: float, gross: float) -> float:
+        return round(gross / net - 1.0, 4) if net > 0 else 0.23
+
+    def _fmt(net: float, gross: float) -> str:
+        val = net if request.domain == "netto" else gross
+        return f"{int(round(val))} PLN {request.domain}"
+
+    card_summary["base_price"] = _fmt(base_net, base_gross)
+    card_summary["options_price"] = _fmt(options_net, options_gross)
+    card_summary["total_price"] = _fmt(total_net, total_gross)
+    card_summary["price_domain"] = request.domain
+
+    card_summary["base_price_net"] = base_net
+    card_summary["base_price_gross"] = base_gross
+    card_summary["base_price_vat"] = _vat_of(base_net, base_gross)
+    card_summary["options_price_net"] = options_net
+    card_summary["options_price_gross"] = options_gross
+    card_summary["options_price_vat"] = 0.23
+    card_summary["total_price_net"] = total_net
+    card_summary["total_price_gross"] = total_gross
+    card_summary["total_price_vat"] = _vat_of(total_net, total_gross)
+
+    # ── Discount split (discountable = base + opcje rabatowane) ──
+    existing_discount = card_summary.get("discount") or {}
+    discountable_base = base_net + disc_opt_net
+    non_discountable_total = nondisc_opt_net + service_net
+    computed_pct = (
+        round((rabat / discountable_base) * 100, 2)
+        if (rabat and discountable_base)
+        else existing_discount.get("computed_pct")
+    )
+    notes = list(existing_discount.get("audit_notes") or [])
+    notes.append(
+        f"[ZATWIERDZONE] {request.audit_note}"
+        if request.audit_note
+        else "[ZATWIERDZONE] Cena zatwierdzona ręcznie z panelu Audyt ceny"
+    )
+    card_summary["discount"] = {
+        "explicit_rabat_pln": rabat if rabat else existing_discount.get("explicit_rabat_pln"),
+        "explicit_rabat_pct": existing_discount.get("explicit_rabat_pct"),
+        "discountable_base_net": discountable_base,
+        "non_discountable_total_net": non_discountable_total,
+        "computed_pct": computed_pct,
+        "extraction_method": "explicit_amount",
+        "confidence": 1.0,
+        "audit_notes": notes,
+    }
+    if computed_pct is not None:
+        card_summary["offer_discount_pct"] = str(computed_pct)
+    if rabat:
+        card_summary["offer_discount_pln"] = f"{int(rabat)} PLN"
+
+    # ── Write service_equipment (zabudowa) with component split + net/gross ──
+    # Only when there is service data; otherwise the existing block is left
+    # untouched (additive — never blanks an existing zabudowa).
+    if request.service_components or service_net > 0:
+        service_gross = (
+            float(request.service_gross)
+            if request.service_gross
+            else round(service_net * _VAT, 2)
+        )
+        se = card_summary.get("service_equipment")
+        if not isinstance(se, dict):
+            se = {}
+        if request.service_name:
+            se["name"] = request.service_name
+        elif not se.get("name"):
+            se["name"] = "Zabudowa / wyposażenie serwisowe"
+        se["total_price_net"] = f"{service_net:.2f} PLN netto"
+        se["total_price_gross"] = f"{service_gross:.2f} PLN brutto"
+        se["net_amount"] = round(service_net, 2)
+        se["gross_amount"] = service_gross
+        if request.service_components:
+            se["components"] = [
+                {
+                    "name": c.name,
+                    "price_net": f"{float(c.net):.2f} PLN netto",
+                    "price_gross": (
+                        f"{float(c.gross):.2f} PLN brutto"
+                        if c.gross
+                        else f"{round(float(c.net) * _VAT, 2):.2f} PLN brutto"
+                    ),
+                    "net_amount": round(float(c.net), 2),
+                    "gross_amount": (
+                        round(float(c.gross), 2)
+                        if c.gross
+                        else round(float(c.net) * _VAT, 2)
+                    ),
+                }
+                for c in request.service_components
+            ]
+        card_summary["service_equipment"] = se
+
+    # ── Apply per-option no_discount flags (reuse existing mechanism) ──
+    if request.option_discount_flags:
+        flag_map = {f.field_id: f.no_discount for f in request.option_discount_flags if f.field_id}
+        for opt in card_summary.get("paid_options") or []:
+            if isinstance(opt, dict) and opt.get("field_id") in flag_map:
+                opt["no_discount"] = flag_map[opt["field_id"]]
+
+    # ── Correct each factory paid_option's net/gross (match by field_id or name) ──
+    # Keeps per-line prices consistent with the confirmed totals so the live
+    # calculator and OPTIONS_SUM_MISMATCH agree. Only updates matching entries —
+    # never adds or removes options.
+    if request.factory_options:
+        by_id = {f.field_id: f for f in request.factory_options if f.field_id}
+        by_name = {f.name.strip().lower(): f for f in request.factory_options if f.name}
+        for opt in card_summary.get("paid_options") or []:
+            if not isinstance(opt, dict):
+                continue
+            fo = by_id.get(opt.get("field_id") or "") or by_name.get(
+                str(opt.get("name", "")).strip().lower()
+            )
+            if fo is None:
+                continue
+            fo_net = float(fo.net)
+            fo_gross = float(fo.gross) if fo.gross else round(fo_net * _VAT, 2)
+            opt["price"] = f"{fo_net:.2f} PLN netto"
+            opt["price_type"] = "netto"
+            opt["price_net"] = fo_net
+            opt["net_amount"] = fo_net
+            opt["gross_amount"] = fo_gross
+            opt["no_discount"] = fo.no_discount
+
+    # ── Lock markers ──
+    card_summary["_price_confirmed"] = True
+    breakdown = card_summary.setdefault("confidence_breakdown", {})
+    for key in ("base_price", "options_price", "total_price"):
+        breakdown[key] = 1.0
+    requires = list(card_summary.get("_requires_user_input") or [])
+    if "base_price" in requires:
+        requires.remove("base_price")
+    if requires:
+        card_summary["_requires_user_input"] = requires
+    else:
+        card_summary.pop("_requires_user_input", None)
+
+    # ── Re-run deterministic validator (closure check — don't trust blindly) ──
+    from core.pipeline_price_validator import (
+        soften_discount_blind_warnings,
+        validate_and_flag_prices,
+    )
+
+    synthesis["card_summary"] = card_summary
+    synthesis = validate_and_flag_prices(synthesis)
+    # Confirmed + discount triangulation closes → the base+options-vs-total gap
+    # equals the rabat (expected), so downgrade those discount-blind ERRORs.
+    soften_discount_blind_warnings(synthesis.get("card_summary", {}))
+
+    remaining = synthesis.get("card_summary", {}).get("_requires_user_input")
+    new_status = "needs_review" if remaining else "completed"
+
+    _direct_update_synthesis(vehicle_id, synthesis)
+    client.table("vehicle_synthesis").update(
+        {"verification_status": new_status}
+    ).eq("id", vehicle_id).execute()
+    cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
+    cache_invalidate_pattern("initial_data")
+    cache_invalidate_pattern("filters:*")
+
+    return {
+        "status": "ok",
+        "vehicle_id": vehicle_id,
+        "verification_status": new_status,
+        "validation": synthesis.get("card_summary", {}).get("_validation"),
     }
 
 
@@ -753,7 +1096,6 @@ def hitl_apply(vehicle_id: str, payload: HITLApplyPayload) -> Dict[str, Any]:
         se = card_summary.get("service_equipment") or {}
         if not isinstance(se, dict):
             se = {}
-        existing_comps = se.get("components") or []
         # Replace: HITL is authoritative
         se["components"] = new_service_components
         if not se.get("name"):
@@ -806,6 +1148,58 @@ def hitl_apply(vehicle_id: str, payload: HITLApplyPayload) -> Dict[str, Any]:
     synthesis["card_summary"] = card_summary
     synthesis = validate_and_flag_prices(synthesis)
 
+    # ── 5b. One-shot SOT mapping for manual-blank flow ──
+    # When a vehicle was created via POST /extract/blank (no PDF extraction
+    # ran), the engines / samar_classes / mapped_ai_data fields are empty.
+    # First successful HITL apply triggers finalize_vehicle_pipeline to fill
+    # them, then pops the _origin marker so subsequent edits stay HITL-only.
+    was_manual_blank = synthesis.get("_origin") == "manual_blank"
+    if was_manual_blank:
+        fuel_val = card_summary.get("fuel")
+        if not fuel_val or fuel_val == "Brak":
+            # map_to_engine_class requires a non-empty fuel — fail fast with
+            # a structured error so the UI can highlight the missing field.
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "missing_required_for_sot_mapping",
+                    "message": (
+                        "Pole 'fuel' jest wymagane przed pierwszym Apply "
+                        "(mapper silnika SOT nie zadziała bez niego)."
+                    ),
+                    "requires_user_input": ["fuel"],
+                },
+            )
+        try:
+            from core.extraction_pipeline.phase_2_mapping import (
+                finalize_vehicle_pipeline,
+            )
+
+            finalize_vehicle_pipeline(
+                supabase_client,
+                vehicle_id,
+                synthesis,
+                raw_pdf_url=None,
+                parent_file_id=vehicle_id,
+                document_markdown=None,
+            )
+            synthesis.pop("_origin", None)
+            logger.info(
+                "[HITL] manual_blank one-shot SOT mapping completed for %s",
+                vehicle_id,
+            )
+        except HTTPException:
+            raise
+        except Exception as sot_err:
+            logger.exception(
+                "[HITL] manual_blank SOT mapping failed for %s: %s",
+                vehicle_id,
+                sot_err,
+            )
+            # Don't block the apply — leave _origin in place so user can
+            # retry after fixing whatever input was wrong.
+            pass
+
     # ── 6. Persist + flip status ──
     _direct_update_synthesis(vehicle_id, synthesis)
     client.table("vehicle_synthesis").update(
@@ -831,6 +1225,32 @@ def hitl_apply(vehicle_id: str, payload: HITLApplyPayload) -> Dict[str, Any]:
     cache_invalidate_pattern(f"vehicle:{vehicle_id}*")
     cache_invalidate_pattern("initial_data")
     cache_invalidate_pattern("filters:*")
+
+    # ── 8. For manual-blank: rebuild auto-kalkulacja with fresh mapped_ai_data ──
+    # The auto matrix cache was created at /extract/blank time with empty
+    # brand/model/fuel/samar (SOT hadn't run yet). Now that SOT mapping
+    # populated mapped_ai_data, re-dispatch the refresh so the existing
+    # AUTO ltr_kalkulacje row gets updated with engine_name + samar_category
+    # (refresh_matrix_cache_for_vehicles uses upsert-by-vehicle_id, so we
+    # update rather than duplicate).
+    if was_manual_blank:
+        try:
+            from tasks.matrix_tasks import (  # noqa: PLC0415
+                refresh_matrix_cache_for_vehicles_task,
+            )
+
+            refresh_matrix_cache_for_vehicles_task.apply_async(args=[[vehicle_id]])
+            logger.info(
+                "[HITL] manual_blank %s — dispatched matrix refresh task", vehicle_id
+            )
+        except Exception as refresh_err:
+            # Non-fatal: user can still click "Przelicz" in UI to force-create
+            # a fresh kalkulacja. Just log and continue.
+            logger.warning(
+                "[HITL] manual_blank %s — matrix refresh dispatch failed: %s",
+                vehicle_id,
+                refresh_err,
+            )
 
     body_type_info = _resolve_body_type_for_composite(composite)
     capex = _compute_capex_from_corrections(payload.price_corrections)

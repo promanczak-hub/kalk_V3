@@ -18,12 +18,14 @@ import { VehicleEquipmentCard } from "./VehicleEquipmentCard";
 import { VehicleServiceOptionsCard } from "./VehicleServiceOptionsCard";
 import { VehicleFeaturesCard } from "./VehicleFeaturesCard";
 import { DiscountAuditCard } from "./DiscountAuditCard";
+import { PriceAuditCard } from "./PriceAuditCard";
 import { ValidationWarningsCard } from "./ValidationWarningsCard";
 import type { DiscountBreakdown } from "../../types";
 import type { DiscountAlert } from "../../hooks/useDiscountAlerts";
 import { supabase } from "../../../lib/supabaseClient";
 import { apiClient } from '../../../lib/apiClient';
 import type { ControlCenterSettings } from "../../../types";
+import { useNotification } from "../../../components/NotificationProvider";
 
 // Custom Hooks
 import { useVehicleFinancing } from "../../hooks/useVehicleFinancing";
@@ -121,6 +123,15 @@ export function VehicleRowCard({
 }: VehicleRowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const scrolledToMatrixRef = useRef(false);
+
+  // Auto-expand on highlight — used by /extract/blank flow: po utworzeniu pustego
+  // CardSummary URL dostaje ?highlight=<id> i nowy rząd powinien od razu otworzyć
+  // HITL wizard zamiast wymagać dodatkowego kliknięcia.
+  useEffect(() => {
+    if (isHighlighted) {
+      setIsExpanded(true);
+    }
+  }, [isHighlighted]);
   // Subcomponent states
   const [activeKalkulacjaId, setActiveKalkulacjaId] = useState<string | null>(null);
   const [activeKalkulacjaNumer, setActiveKalkulacjaNumer] = useState<string | null>(null);
@@ -132,6 +143,28 @@ export function VehicleRowCard({
   const [brochureData, setBrochureData] = useState<BrochureData | null>(null);
   const [brochureImages, setBrochureImages] = useState<string[]>([]);
   const [isGeneratingBrochure, setIsGeneratingBrochure] = useState(false);
+
+  const notify = useNotification();
+  const [isMarkingReady, setIsMarkingReady] = useState(false);
+
+  // Manual override: po sprawdzeniu danych użytkownik zatwierdza pojazd, co zdejmuje
+  // status needs_review (żółta ramka) i odblokowuje przeliczenie.
+  const handleMarkReady = async () => {
+    setIsMarkingReady(true);
+    try {
+      const { error } = await supabase
+        .from("vehicle_synthesis")
+        .update({ verification_status: "completed" })
+        .eq("id", vehicle.id);
+      if (error) throw error;
+      notify.success("✓ Samochód jest gotowy do przeliczenia.");
+      onRefresh();
+    } catch (e) {
+      notify.error("Nie udało się zatwierdzić pojazdu: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsMarkingReady(false);
+    }
+  };
 
   const [localMappedData, setLocalMappedData] = useState<MappedData | null>(null);
   const serverMappedData = vehicle.synthesis_data?.mapped_ai_data as MappedData | undefined;
@@ -784,6 +817,25 @@ export function VehicleRowCard({
         <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in fade-in slide-in-from-top-2 duration-300 ease-out relative">
           <div className="flex flex-col gap-6 items-start w-full">
 
+            {/* needs_review action bar — manual approve to clear the yellow frame. */}
+            {vehicle.verification_status === "needs_review" && (
+              <div className="w-full flex items-center justify-between gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <span className="text-xs text-amber-800">
+                    Pojazd oznaczony do weryfikacji. Po sprawdzeniu danych zatwierdź, aby odblokować przeliczenie.
+                  </span>
+                </div>
+                <button
+                  onClick={handleMarkReady}
+                  disabled={isMarkingReady}
+                  className="inline-flex items-center text-xs font-medium px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  {isMarkingReady ? "Zatwierdzanie..." : "Zatwierdź — gotowy do przeliczenia"}
+                </button>
+              </div>
+            )}
+
             {/* Warning banner — ONLY when base_price is ACTUALLY missing.
                 Previously this fired on any needs_review status regardless of
                 whether the price was already populated; that produced a mock
@@ -888,9 +940,27 @@ export function VehicleRowCard({
                   nonDiscountableTotalNet={nonDiscountableOptionsTotal + customServiceOptionsPriceTotal}
                   onUpdated={onRefresh}
                 />
+                <PriceAuditCard
+                  vehicleId={vehicle.id}
+                  cardSummary={
+                    (vehicle.synthesis_data as Record<string, unknown> | undefined)
+                      ?.card_summary as Record<string, unknown> | null | undefined
+                  }
+                  priceValidation={vehicle.price_validation}
+                  catalogBasePriceNet={catalogBasePriceNet}
+                  discountableOptionsNet={discountableOptionsTotal}
+                  nonDiscountableOptionsNet={nonDiscountableOptionsTotal}
+                  serviceTotalNet={customServiceOptionsPriceTotal}
+                  activeDiscountAmountNet={activeDiscountAmountNet}
+                  onUpdated={onRefresh}
+                />
                 <ValidationWarningsCard validation={vehicle.price_validation} />
                 <VehicleEquipmentCard
                   vehicle={vehicle}
+                  catalogBasePriceNet={catalogBasePriceNet}
+                  setCatalogBasePriceNet={setCatalogBasePriceNet}
+                  aiExtractedBasePrice={aiExtractedBasePrice}
+                  onRefresh={onRefresh}
                   customFactoryOptions={customFactoryOptions}
                   handleUpdateFactoryOptionName={handleUpdateFactoryOptionName}
                   handleUpdateFactoryOptionPrice={handleUpdateFactoryOptionPrice}
@@ -928,8 +998,6 @@ export function VehicleRowCard({
                  activeFinalPriceNet={activeFinalPriceNet}
                  dynamicTotalOptionsPrice={dynamicTotalOptionsPrice}
                  catalogBasePriceNet={catalogBasePriceNet}
-                 setCatalogBasePriceNet={setCatalogBasePriceNet}
-                 aiExtractedBasePrice={aiExtractedBasePrice}
                  discountableOptionsTotal={discountableOptionsTotal}
                  nonDiscountableOptionsTotal={nonDiscountableOptionsTotal}
                  serviceOptionsTotal={customServiceOptionsPriceTotal}
@@ -997,7 +1065,6 @@ export function VehicleRowCard({
                  crossCardAlerts={crossCardAlerts}
                  paramPreview={paramPreview}
                  controlCenter={controlCenter}
-                 onRefresh={onRefresh}
               />
               <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 bg-slate-50/50 rounded-b-xl">
                  <VehicleActionButtons

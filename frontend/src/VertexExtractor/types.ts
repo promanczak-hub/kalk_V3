@@ -150,6 +150,35 @@ export interface PriceValidation {
   summary?: PriceValidationSummary;
 }
 
+export interface DeducedOption {
+  field_id?: string;
+  name: string;
+  net: number;
+  gross: number;
+  bucket: "katalogowa" | "fabryczna" | "serwisowa";
+  discountable: boolean;
+}
+
+export interface PriceDeduction {
+  source_domain: "netto" | "brutto" | "unknown";
+  base_net: number;
+  base_gross: number;
+  discountable_options_net: number;
+  discountable_options_gross: number;
+  non_discountable_options_net: number;
+  non_discountable_options_gross: number;
+  service_net: number;
+  service_gross: number;
+  total_net: number;
+  total_gross: number;
+  rabat_pln: number;
+  vat_rate: number;
+  options: DeducedOption[];
+  deduced_fields: string[];
+  reasoning: string;
+  confidence: number;
+}
+
 export type DiscountExtractionMethod =
   | "explicit_amount"
   | "explicit_percentage"

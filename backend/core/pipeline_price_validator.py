@@ -1563,3 +1563,65 @@ def _apply_validator_penalties(card_summary: dict[str, Any], report: ValidationR
             path = path.strip()
             if path:
                 _decrement_confidence(card_summary, path, penalty)
+
+
+# ── Confirmed-price reconciliation: soften discount-blind sum errors ──
+
+_DISCOUNT_BLIND_RULES = {"BASE_PLUS_OPTIONS_VS_TOTAL", "FULL_SUM_INTEGRITY"}
+
+
+def soften_discount_blind_warnings(card_summary: dict[str, Any]) -> bool:
+    """Downgrade discount-blind sum ERRORs to INFO once a price is user-confirmed
+    AND the discount triangulation closes.
+
+    `BASE_PLUS_OPTIONS_VS_TOTAL` / `FULL_SUM_INTEGRITY` compare base + options
+    (+ service) against the POST-discount total without subtracting the rabat,
+    so a legitimately discounted, *confirmed* offer keeps showing red errors
+    whose magnitude equals the discount. When the discount-aware triangulation
+    (`discountable_base − rabat + non_discountable ≈ total`) holds, that gap is
+    expected — soften those two rules to INFO so the offer reads as valid.
+
+    Only the confirm path calls this; the validator's rules stay untouched
+    (their parity tests still see ERROR severity at extraction time).
+
+    Mutates ``card_summary['_validation']`` in place. Returns True if changed.
+    """
+    if not card_summary.get("_price_confirmed"):
+        return False
+    validation = card_summary.get("_validation")
+    if not isinstance(validation, dict):
+        return False
+
+    discount = card_summary.get("discount") or {}
+    try:
+        rabat = float(discount.get("explicit_rabat_pln") or 0)
+        disc_base = float(discount.get("discountable_base_net") or 0)
+        non_disc = float(discount.get("non_discountable_total_net") or 0)
+    except (TypeError, ValueError):
+        return False
+    if rabat <= 0:
+        return False
+
+    total = (validation.get("parsed_prices") or {}).get("total")
+    if not isinstance(total, (int, float)) or total <= 0:
+        return False
+
+    expected_total = disc_base - rabat + non_disc
+    if abs(expected_total - total) > max(1.0, total * 0.005):
+        return False  # triangulation doesn't close → keep the errors
+
+    changed = False
+    for w in validation.get("warnings", []):
+        if w.get("rule") in _DISCOUNT_BLIND_RULES and w.get("severity") == "ERROR":
+            w["severity"] = "INFO"
+            w["message"] = (
+                f"{w.get('message', '')} — różnica odpowiada zatwierdzonemu "
+                "rabatowi; obniżono do INFO po triangulacji."
+            )
+            changed = True
+
+    if changed:
+        validation["is_valid"] = not any(
+            w.get("severity") == "ERROR" for w in validation.get("warnings", [])
+        )
+    return changed
