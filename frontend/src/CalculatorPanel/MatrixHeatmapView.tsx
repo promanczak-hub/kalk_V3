@@ -13,7 +13,7 @@ interface MatrixHeatmapViewProps {
   isFetchingTrace?: boolean;
   getOverrides?: (months: number) => CellOverrides;
   onOverridesChange?: (months: number, overrides: Partial<CellOverrides>) => void;
-  onRecalculate?: (months: number) => void;
+  onRecalculate?: (months: number, overrideOverrides?: Partial<CellOverrides>, cellAnnualKm?: number) => void;
   onReset?: (months: number) => void;
   modifiedCells?: Set<number>;
   recalculatingCell?: number | null;
@@ -394,7 +394,7 @@ export function MatrixHeatmapView({
                           onOverridesChange(cell.Okres, { manual_wr_correction: isNaN(v) ? 0 : v });
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") onRecalculate(cell.Okres);
+                          if (e.key === "Enter") onRecalculate(cell.Okres, undefined, cell.Przebieg);
                         }}
                         className="w-20 text-xs p-1 border border-slate-300 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 bg-white tabular-nums font-mono"
                         placeholder="0"
@@ -410,14 +410,14 @@ export function MatrixHeatmapView({
                           onOverridesChange(cell.Okres, { manual_wr_correction: nettoFromBrutto });
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") onRecalculate(cell.Okres);
+                          if (e.key === "Enter") onRecalculate(cell.Okres, undefined, cell.Przebieg);
                         }}
                         className="w-20 text-xs p-1 border border-slate-300 rounded text-right outline-none focus:ring-1 focus:ring-blue-400 bg-white tabular-nums font-mono"
                         placeholder="0"
                       />
                       <span className="text-[9px] text-slate-400">PLN brutto</span>
                       <button
-                        onClick={() => onRecalculate(cell.Okres)}
+                        onClick={() => onRecalculate(cell.Okres, undefined, cell.Przebieg)}
                         disabled={isThisRecalcing}
                         className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
                       >
