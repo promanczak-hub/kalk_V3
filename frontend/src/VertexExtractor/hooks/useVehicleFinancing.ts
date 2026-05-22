@@ -66,7 +66,9 @@ export function useVehicleFinancing(
     return "current";
   });
 
-  // Paint Category (1: Niemetalizowany, 2: Metalizowany, 3: Perłowy)
+  // Paint Category (1: Niemetalizowany [Bazowy], 2: Metalizowany)
+  // Note: "Perłowy" (id=3) removed 2026-05-19 — pearlescent is a sub-type of
+  // metallic finish in our taxonomy and maps to id=2 in prompts.py.
   const [paintCategoryId, setPaintCategoryId] = useState<number>(() => {
     return autoDetectMetalic() ? 2 : 1;
   });

@@ -53,7 +53,7 @@ export function queuePreloadVehicleFeatures(vehicleId: string) {
 
 export async function fetchFeaturesForCache(vehicleId: string) {
     let instantFeatures: FeatureItem[] = [];
-    let data: any = null;
+    let data: unknown = null;
     
     const vehicleResp = await apiClient.fetch(`/api/kalkulator/pojazd/${vehicleId}?lite=true`);
     if (vehicleResp.ok) {
@@ -215,10 +215,17 @@ export async function fetchFeaturesForCache(vehicleId: string) {
         instantFeatures = [...stdEq, ...paidEq, ...dimensionFeatures, ...extendedFeatures];
     }
 
-    const response = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/state`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // Feature-state is supplementary (consumed by VehicleFeaturesCard). A failure here
+    // must NOT discard the equipment already built from the lite fetch above, so it is
+    // non-fatal — we still cache instantFeatures below.
+    let response: Response | null = null;
+    try {
+        response = await apiClient.fetch(`/api/features/vehicle/${vehicleId}/state`);
+    } catch (e) {
+        console.warn(`[Cache] feature-state fetch failed for ${vehicleId}; caching equipment only.`, e);
+    }
      
-    data = await response.json();
+    if (response && response.ok) data = await response.json();
     
     featuresCache.set(vehicleId, { instantFeatures, data });
     return featuresCache.get(vehicleId)!;

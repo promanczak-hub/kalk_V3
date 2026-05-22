@@ -13,6 +13,7 @@ from api.parser_routes import router as parser_router
 from api.image_routes import router as image_router
 from api.kalkulacje_routes import router as kalkulacje_router
 from api.extract_routes import router as extract_router
+from api.extract_blank_routes import router as extract_blank_router
 from api.extract_hitl_v3_routes import router as extract_hitl_v3_router
 from api.extract_manual_verify_routes import router as extract_manual_verify_router
 from api.extract_revalidate_routes import router as extract_revalidate_router
@@ -33,7 +34,6 @@ from api.ltr_manual_routes import router as ltr_manual_router
 from api.semantic_routes import router as semantic_router
 from api.resolve_vehicle_ids import router as resolve_vehicle_ids_router
 from api.admin_routes import router as admin_router
-from api.introspection_routes import router as introspection_router
 from core.auth_middleware import get_current_user
 from core.settings import FRONTEND_ORIGINS
 
@@ -70,6 +70,7 @@ async def health_check() -> dict[str, str]:
 app.include_router(parser_router, prefix="/api")
 app.include_router(image_router, prefix="/api")
 app.include_router(extract_router, prefix="/api")
+app.include_router(extract_blank_router, prefix="/api")
 app.include_router(extract_hitl_v3_router, prefix="/api")
 app.include_router(extract_manual_verify_router, prefix="/api")
 app.include_router(extract_revalidate_router, prefix="/api")
@@ -91,7 +92,6 @@ app.include_router(ltr_manual_router)
 app.include_router(semantic_router, prefix="/api")
 app.include_router(resolve_vehicle_ids_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
-app.include_router(introspection_router, prefix="/api")
 
 frontend_origins_str = FRONTEND_ORIGINS
 if frontend_origins_str == "*":

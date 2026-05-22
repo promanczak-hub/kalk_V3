@@ -2,7 +2,6 @@ import { useMemo, useEffect, lazy, Suspense } from "react";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
-import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
@@ -47,7 +46,6 @@ const CalculationsHistoryPage = lazy(() =>
     default: m.CalculationsHistoryPage,
   })),
 );
-const PipelineMapPage = lazy(() => import("./PipelineMap/PipelineMapPage"));
 
 function RouteFallback() {
   return (
@@ -74,7 +72,6 @@ const ROUTES = [
   { path: "/", label: "Ekstrakcja i Analiza AI", icon: <FileUploadOutlinedIcon fontSize="small" />, external: false },
   { path: "/search", label: "Szukaj Ofert", icon: <SearchOutlinedIcon fontSize="small" />, external: false },
   { path: "/calculations", label: "Historia Kalkulacji", icon: <HistoryOutlinedIcon fontSize="small" />, external: false },
-  { path: "/pipeline-map", label: "Mapa Pipeline", icon: <AccountTreeOutlinedIcon fontSize="small" />, external: false },
   ...(ADMIN_URL
     ? [{
         path: ADMIN_URL,
@@ -273,7 +270,6 @@ function AppContent({ mode }: AppContentProps) {
               <Route path="/" element={<VertexExtractorPage />} />
               <Route path="/calculations" element={<CalculationsHistoryPage />} />
               <Route path="/search" element={<ScoringSearchPage />} />
-              <Route path="/pipeline-map" element={<PipelineMapPage />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

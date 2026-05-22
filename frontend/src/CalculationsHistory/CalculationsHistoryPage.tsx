@@ -5,7 +5,6 @@ import {
   RefreshCw,
   History,
   ExternalLink,
-  Workflow,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import type { FleetVehicleView } from "../VertexExtractor/types";
@@ -263,7 +262,6 @@ export function CalculationsHistoryPage() {
         cellRendererParams: {
           onDelete: handleDeleteSetup,
           onOpen: handleOpenVertexExtractor,
-          onShowMap: handleShowOnMap,
         },
       },
     ],
@@ -338,10 +336,6 @@ export function CalculationsHistoryPage() {
       // Network blip — don't block navigation, but warn in console.
     }
     navigate(`/?highlight=${vehicleId}`);
-  }
-
-  function handleShowOnMap(vehicleId: string) {
-    navigate(`/pipeline-map?kalk=${vehicleId}`);
   }
 
   /* ── Grid Callbacks ── */
@@ -442,7 +436,6 @@ function ActionsCellRenderer(
   params: ICellRendererParams<HistoryRow> & {
     onDelete: (id: string) => void;
     onOpen: (id: string) => void;
-    onShowMap: (id: string) => void;
   },
 ) {
   const row = params.data;
@@ -458,16 +451,6 @@ function ActionsCellRenderer(
         title="Otwórz w edytorze"
       >
         <ExternalLink className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          params.onShowMap(row.id);
-        }}
-        className="p-1.5 text-violet-500 hover:text-violet-700 hover:bg-violet-50 rounded-md transition-colors"
-        title="Pokaż na mapie pipeline"
-      >
-        <Workflow className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={(e) => {

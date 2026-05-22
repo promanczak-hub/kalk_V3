@@ -3,7 +3,7 @@ import { useDocumentProcessing } from "./hooks/useDocumentProcessing";
 import { DocumentList } from "./components/DocumentList";
 import { VehicleTable } from "./components/VehicleTable";
 import { JsonViewerModal } from "./components/JsonViewerModal";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
 import type { ControlCenterSettings } from "../types";
@@ -16,8 +16,8 @@ import {
   useTheme,
   Tooltip,
 } from "@mui/material";
-import { CreateManualModal } from "../ManualKalkulacje/CreateManualModal";
-import { UploadCloud } from "lucide-react";
+import { UploadCloud, FilePlus } from "lucide-react";
+import { apiClient } from "../lib/apiClient";
 
 interface BodyTypeOption {
   id: number;
@@ -33,10 +33,14 @@ interface PaintTypeOption {
 
 export default function VertexExtractorPage() {
   const theme = useTheme();
-  const highlightVehicleId = useMemo(() => {
+  // Highlight lives in state (not memo) so that handleCreateBlank can update it
+  // imperatively after the POST /extract/blank returns — useMemo with empty
+  // deps would freeze the initial null and never react to the new ?highlight=
+  // we push via replaceState.
+  const [highlightVehicleId, setHighlightVehicleId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("highlight") ?? null;
-  }, []);
+  });
 
   useEffect(() => {
     if (highlightVehicleId) {
@@ -60,7 +64,7 @@ export default function VertexExtractorPage() {
     totalCount,
   } = useVehicles();
 
-  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [creatingBlank, setCreatingBlank] = useState(false);
   const [globalSettings, setGlobalSettings] = useState<ControlCenterSettings | null>(null);
   const [bodyTypes, setBodyTypes] = useState<BodyTypeOption[]>([]);
   const [paintTypes, setPaintTypes] = useState<PaintTypeOption[]>([]);
@@ -82,6 +86,30 @@ export default function VertexExtractorPage() {
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  // Tworzy pustą vehicle_synthesis i kieruje user-a do HITL wizard tej rzędu.
+  // Backend: POST /api/extract/blank (extract_blank_routes.py). Po INSERT
+  // realtime subscription w useVehicles.ts dorzuca rząd na górę,
+  // setHighlightVehicleId(new_id) aktywuje scroll-into-view + auto-expand
+  // w VehicleRowCard niezależnie od kolejności renderu vs realtime push.
+  const handleCreateBlank = async () => {
+    if (creatingBlank) return;
+    setCreatingBlank(true);
+    try {
+      const res = await apiClient.fetch('/api/extract/blank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = (await res.json()) as { vehicle_id: string };
+      setHighlightVehicleId(data.vehicle_id);
+      await fetchSavedVehicles();
+    } catch (e) {
+      console.error("Failed to create blank vehicle", e);
+    } finally {
+      setCreatingBlank(false);
     }
   };
 
@@ -195,14 +223,14 @@ export default function VertexExtractorPage() {
               bottom: 104, // Offset to sit above the Offer Cart FAB (usually at 32)
               right: 32,
               zIndex: 1100,
-              background: isDragging 
+              background: isDragging
                 ? "linear-gradient(45deg, #6366f1 30%, #a855f7 90%)"
                 : "linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)",
               color: "#ffffff",
               boxShadow: isDragging
                 ? "0 12px 48px rgba(79, 70, 229, 0.6)"
-                : (theme.palette.mode === 'dark' 
-                  ? "0 8px 32px rgba(79, 70, 229, 0.4)" 
+                : (theme.palette.mode === 'dark'
+                  ? "0 8px 32px rgba(79, 70, 229, 0.4)"
                   : "0 8px 20px rgba(79, 70, 229, 0.25)"),
               transform: isDragging ? "scale(1.15)" : "scale(1)",
               transition: "all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
@@ -225,17 +253,37 @@ export default function VertexExtractorPage() {
             />
           </Fab>
         </Tooltip>
-      </Container>
 
-      {/* Manual Calculation Modals */}
-      <CreateManualModal
-        open={manualModalOpen}
-        onClose={() => setManualModalOpen(false)}
-        onCreated={() => {
-          setManualModalOpen(false);
-          fetchSavedVehicles();
-        }}
-      />
+        <Tooltip title="Utwórz pusty CardSummary (bez PDF)" placement="left">
+          <Fab
+            aria-label="utwórz pusty cardsummary"
+            onClick={handleCreateBlank}
+            disabled={creatingBlank}
+            sx={{
+              position: "fixed",
+              bottom: 176, // Offset above the upload Fab (104 + 56 + 16 gap)
+              right: 32,
+              zIndex: 1100,
+              background: "linear-gradient(45deg, #059669 30%, #10b981 90%)",
+              color: "#ffffff",
+              boxShadow: theme.palette.mode === 'dark'
+                ? "0 8px 32px rgba(16, 185, 129, 0.4)"
+                : "0 8px 20px rgba(16, 185, 129, 0.25)",
+              transition: "all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+              "&:hover": {
+                transform: "scale(1.08)",
+              },
+              "&.Mui-disabled": {
+                background: "linear-gradient(45deg, #6b7280 30%, #9ca3af 90%)",
+                color: "#ffffff",
+                opacity: 0.6,
+              },
+            }}
+          >
+            <FilePlus />
+          </Fab>
+        </Tooltip>
+      </Container>
 
       <JsonViewerModal
         activeJsonView={activeJsonView}

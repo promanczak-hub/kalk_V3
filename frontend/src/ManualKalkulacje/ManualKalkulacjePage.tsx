@@ -6,8 +6,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { useNavigate } from 'react-router-dom';
 import { KalkulacjaCard } from './KalkulacjaCard';
-import { CreateManualModal } from './CreateManualModal';
 import { PricingPanel } from './PricingPanel';
 import type { KalkulacjaListItem, PricingState } from './types';
 import { DEFAULT_PRICING_COMPONENTS } from './types';
@@ -20,10 +20,10 @@ function extractSource(item: KalkulacjaListItem): 'pdf' | 'manual' | 'clone' {
 }
 
 export function ManualKalkulacjePage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<KalkulacjaListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterSource>('all');
-  const [createOpen, setCreateOpen] = useState(false);
 
   // Pricing edit dialog state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -160,23 +160,17 @@ export function ManualKalkulacjePage() {
         </Stack>
       )}
 
-      {/* FAB */}
-      <Tooltip title="Nowa kalkulacja manualna" placement="left">
+      {/* FAB — redirects to VertexExtractor where the blank-CardSummary flow now lives.
+          The old in-page CreateManualModal was replaced by /extract/blank + HITL wizard. */}
+      <Tooltip title="Nowa kalkulacja manualna (otwórz extractor)" placement="left">
         <Fab
           color="primary"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => navigate('/')}
           sx={{ position: 'fixed', bottom: 32, right: 32 }}
         >
           <AddIcon />
         </Fab>
       </Tooltip>
-
-      {/* Modal tworzenia */}
-      <CreateManualModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={async () => { setCreateOpen(false); await loadItems(); }}
-      />
 
       {/* Dialog edycji cen */}
       <Dialog open={editingId != null} onClose={() => setEditingId(null)} maxWidth="sm" fullWidth>
