@@ -165,27 +165,6 @@ def test_summary_pair_corrects_netto_label_flip():
     assert res.best.total_net == pytest.approx(166518.0, abs=2.0)
 
 
-def test_fallback_total_price_net_gross_pair_corrects_flip():
-    """digital_twin-enrichment path: Pro now captures the PODSUMOWANIE pair into
-    numeric card_summary.total_price_net + total_price_gross. The fallback must
-    build BOTH as anchors so the brutto reading wins and the netto-label flip is
-    corrected — same outcome as the _raw_price_lines pair, via aggregated fields."""
-    card = {
-        "base_price": "167 218.50 PLN netto",
-        "options_price": "2 029.50 PLN netto",
-        "service_equipment": {"net_amount": 85497.30},
-        "discount": {"explicit_rabat_pln": 49928.16},
-        "total_price_net": 166518.00,
-        "total_price_gross": 204817.14,
-        "_price_domain": "netto",
-    }
-    res = reconcile_prices(card, run_judge=False)
-
-    assert res.verdict == "ok"
-    assert res.source_domain == "brutto"
-    assert res.best.total_gross == pytest.approx(204817.14, abs=2.0)
-
-
 def test_parse_price_string_handles_polish_and_dot_decimals():
     assert ppr._parse_price_string("312 000,00 PLN brutto") == (312000.0, "brutto")
     assert ppr._parse_price_string("167 218.50 PLN netto") == (167218.5, "netto")

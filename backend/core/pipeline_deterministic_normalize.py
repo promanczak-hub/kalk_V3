@@ -543,21 +543,6 @@ def normalize_card_summary_from_digital_twin(
         if _is_empty(out.get("total_price")) and isinstance(final_gross, (int, float)):
             out["total_price"] = _format_price(float(final_gross), "brutto")
 
-    # ── PODSUMOWANIE net/gross pair → numeric total_price_net/gross ───
-    # The active digital_twin carries prices as single-domain strings, so the
-    # reconciliation engine otherwise sees ONE total anchor and trusts its
-    # (possibly flipped) label. When Pro captured the summary netto+brutto pair
-    # (digital_twin.pricing.total_net / .total_gross), surface BOTH as numeric
-    # anchors so reconciliation can cross-check the pair and correct a domain flip.
-    pricing = digital_twin.get("pricing") or {}
-    if isinstance(pricing, dict):
-        summary_net = parse_price_to_float(pricing.get("total_net"))
-        summary_gross = parse_price_to_float(pricing.get("total_gross"))
-        if _is_empty(out.get("total_price_net")) and summary_net > 0:
-            out["total_price_net"] = summary_net
-        if _is_empty(out.get("total_price_gross")) and summary_gross > 0:
-            out["total_price_gross"] = summary_gross
-
     # ── digital_twin.technical → card_summary scalar fields ──────────
     # Pro VLM extracts raw strings (e.g. "204 KM", "265 g/km", "2755") into
     # digital_twin.technical; deterministic parsers lift them into typed

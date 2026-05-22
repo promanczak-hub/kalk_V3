@@ -84,22 +84,6 @@ class VehicleExtractionSchema(BaseModel):
     options_price: Optional[str] = Field(
         None, description="Cena wariantów/opcji dodatkowych"
     )
-    summary_total_net: Optional[str] = Field(
-        None,
-        description=(
-            "Cena KOŃCOWA NETTO z bloku PODSUMOWANIE / RAZEM / „do zapłaty”, ale TYLKO "
-            "gdy dokument drukuje rozbicie netto / VAT / brutto. Sama jawna kwota netto "
-            "sumy (np. '166 518,00'). null gdy brak takiego rozbicia."
-        ),
-    )
-    summary_total_gross: Optional[str] = Field(
-        None,
-        description=(
-            "Cena KOŃCOWA BRUTTO z tego samego bloku PODSUMOWANIE / RAZEM (np. "
-            "'204 817,14'). Wypełnij PARĘ summary_total_net + summary_total_gross tylko "
-            "gdy dokument podaje OBIE kwoty (netto i brutto) — inaczej obie null."
-        ),
-    )
     engine_power_hp: Optional[str] = Field(None, description="Moc silnika (np. 150 KM)")
     engine_capacity_cm3: Optional[str] = Field(
         None, description="Pojemność silnika (np. 1498 cm3)"
@@ -145,11 +129,6 @@ def _format_unified_data(extracted_data: dict) -> dict:
                 "total_price": extracted_data.get("total_price"),
                 "base_price": extracted_data.get("base_price"),
                 "options_price": extracted_data.get("options_price"),
-                # PODSUMOWANIE net/gross pair (when the doc prints netto/VAT/brutto) —
-                # carried so deterministic normalize can set numeric total_price_net/gross
-                # and the reconciliation engine gets an independent pair to catch flips.
-                "total_net": extracted_data.get("summary_total_net"),
-                "total_gross": extracted_data.get("summary_total_gross"),
             },
             "technical": {
                 "power": extracted_data.get("engine_power_hp"),
