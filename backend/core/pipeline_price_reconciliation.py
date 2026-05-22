@@ -551,7 +551,7 @@ def reconcile_prices(
 
 
 def reconcile_and_flag(
-    card_summary: dict[str, Any],
+    card_summary: dict[str, Any] | None,
     *,
     known: dict[str, Any] | None = None,
     pdf_bytes: bytes | None = None,
