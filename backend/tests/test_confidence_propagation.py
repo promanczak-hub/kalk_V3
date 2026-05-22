@@ -17,7 +17,6 @@ from core.extractor_models import (
     DiscountBreakdown,
     PaidOption,
     ServiceComponentItem,
-    ServiceEquipment,
 )
 from core.extraction_pipeline.phase_2_mapping import _needs_hitl_review
 from core.pipeline_card_summary import _post_process_hitl_metadata

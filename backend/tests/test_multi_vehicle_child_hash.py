@@ -13,7 +13,6 @@ This test pins that child inserts carry a unique, parent-derived hash.
 
 from __future__ import annotations
 
-import pytest
 
 from core.extraction_pipeline import phase_1_twins
 

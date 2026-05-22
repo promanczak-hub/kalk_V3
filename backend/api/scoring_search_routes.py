@@ -4,9 +4,7 @@ Refactor 2026-05-19: extracted ~615 LOC of helpers to `scoring_search_helpers.py
 The underscored names below are thin aliases kept for in-file callsite stability.
 """
 
-import json
 import logging
-import re
 
 from datetime import datetime
 from typing import Any, Optional
@@ -28,11 +26,9 @@ from core.models_scoring_search import (
     ScoringSearchMatch,
     InitialDataResponse,
     SimilarVehicleMatch,
-    SimilarityReasons,
     TrimsAndOptionsRequest,
     TrimsAndOptionsResponse,
     OptionItem,
-    OptionLineItem,
     PackageContentsResponse,
     PackageSubFeature,
     PriceForParamsResponse,
@@ -50,32 +46,25 @@ from core.redis_cache import (
 from core.embeddings import generate_embedding
 
 from api.scoring_search_helpers import (
-    VAT_RATE,
     TTL_FILTERS as _TTL_FILTERS,
     TTL_INITIAL_DATA as _TTL_INITIAL_DATA,
     TTL_SEARCH as _TTL_SEARCH,
-    BODY_TYPE_FIELDS as _BODY_TYPE_FIELDS,
     PRESENT_STATUSES as _PRESENT_STATUSES,
     attach_kalkulacja_snapshot_to_matches as _attach_kalkulacja_snapshot_to_matches,
     build_similar_vehicle_match as _build_similar_vehicle_match,
-    coerce_bool as _coerce_bool,
-    coerce_float as _coerce_float,
     extract_option_line_items as _extract_option_line_items,
     fetch_kalkulacja_snapshot_params as _fetch_kalkulacja_snapshot_params,
     normalize_drive_type as _normalize_drive_type,
     normalize_transmission as _normalize_transmission,
     params_hash as _params_hash,
     parse_numeric as _parse_numeric,
-    parse_price_numeric as _parse_price_numeric,
     parse_price_pair as _parse_price_pair,
     parse_price_to_net as _parse_price_to_net,
     percentile as _percentile,
     redis_get as _redis_get,
     redis_set as _redis_set,
     resolve_candidate_vehicle_ids as _resolve_candidate_vehicle_ids,
-    resolve_price_domain as _resolve_price_domain,
     supabase_execute_with_retry as _supabase_execute_with_retry,
-    vehicle_body_styles as _vehicle_body_styles,
 )
 
 logger = logging.getLogger(__name__)

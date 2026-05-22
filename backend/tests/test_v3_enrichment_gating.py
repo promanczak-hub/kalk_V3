@@ -11,7 +11,7 @@ be called by `extract_vehicle_data_v2`. It is only invoked when
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

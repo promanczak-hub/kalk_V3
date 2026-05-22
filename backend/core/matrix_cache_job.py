@@ -6,7 +6,7 @@ across margin/mileage variants via Pydantic model_copy().
 
 import logging
 
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 from supabase import create_client, Client, ClientOptions
 from core.database import supabase
