@@ -367,6 +367,31 @@ class TestNormalizeCardSummary:
         # paid_options stays as Flash provided
         assert result["paid_options"] == existing
 
+    def test_summary_pair_sets_numeric_total_price_net_gross(self) -> None:
+        """When Pro captured the PODSUMOWANIE netto+brutto pair into
+        digital_twin.pricing.total_net/.total_gross, normalize surfaces BOTH as
+        numeric card_summary.total_price_net/gross so the reconciliation engine
+        gets an independent net/gross anchor pair (and can catch a domain flip)."""
+        card: dict = {}
+        twin = {
+            "pricing": {
+                "base_price": "167 218,50 zł",
+                "total_price": "204 817,14 zł",
+                "total_net": "166 518,00",
+                "total_gross": "204 817,14",
+            }
+        }
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["total_price_net"] == 166518.0
+        assert result["total_price_gross"] == 204817.14
+
+    def test_summary_pair_idempotent_when_already_set(self) -> None:
+        card: dict = {"total_price_net": 99999.0}
+        twin = {"pricing": {"total_net": "166 518,00", "total_gross": "204 817,14"}}
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["total_price_net"] == 99999.0  # not overwritten
+        assert result["total_price_gross"] == 204817.14  # gross was missing → filled
+
     def test_idempotent_does_not_overwrite_existing_vehicle_class(self) -> None:
         card = {"vehicle_class": "Osobowy"}  # weird but explicit
         twin = _renault_master_digital_twin()

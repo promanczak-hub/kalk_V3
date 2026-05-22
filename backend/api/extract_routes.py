@@ -691,6 +691,49 @@ def price_deduce(vehicle_id: str, request: PriceDeduceRequest) -> Dict[str, Any]
     return {"status": "ok", "vehicle_id": vehicle_id, "deduction": deduced}
 
 
+@router.post("/extract/price-reconcile/{vehicle_id}")
+def price_reconcile(vehicle_id: str, request: PriceDeduceRequest) -> Dict[str, Any]:
+    """Multi-hypothesis price reconciliation (read-only preview).
+
+    Re-runs the 4 net/brutto paths + LLM judge on demand from the Audyt-ceny panel
+    and returns verdict + all paths + judge note. Does NOT persist — commit via
+    `/extract/price-confirm`. The same engine runs automatically after every
+    extraction (`extractor_v2`)."""
+    from core.pipeline_price_reconciliation import reconcile_prices
+
+    client = supabase_client
+    resp = (
+        client.table("vehicle_synthesis")
+        .select("id, synthesis_data, raw_pdf_url")
+        .eq("id", vehicle_id)
+        .single()
+        .execute()
+    )
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    card_summary = (resp.data.get("synthesis_data") or {}).get("card_summary")
+    if not isinstance(card_summary, dict):
+        raise HTTPException(status_code=400, detail="No card_summary to reconcile")
+
+    # Source PDF → the LLM judge reads the netto/VAT/brutto labels. Best effort.
+    pdf_bytes: bytes | None = None
+    raw_pdf_url = resp.data.get("raw_pdf_url")
+    if raw_pdf_url:
+        try:
+            pdf_resp = requests.get(raw_pdf_url, timeout=30)
+            if pdf_resp.ok and pdf_resp.content:
+                pdf_bytes = pdf_resp.content
+        except Exception as e:  # pragma: no cover — network best-effort
+            logger.warning("[PRICE RECONCILE] PDF fetch failed (%s) — judge skipped", e)
+
+    known = request.model_dump(exclude_none=True)
+    result = reconcile_prices(
+        card_summary, known=known or None, pdf_bytes=pdf_bytes, run_judge=True
+    )
+    return {"status": "ok", "vehicle_id": vehicle_id, "reconciliation": result.to_dict()}
+
+
 @router.post("/extract/price-confirm/{vehicle_id}")
 def price_confirm(vehicle_id: str, request: PriceConfirmRequest) -> Dict[str, Any]:
     """Trwały zapis zatwierdzonych cen — nadpisuje niepełną/wadliwą ekstrakcję + lock.

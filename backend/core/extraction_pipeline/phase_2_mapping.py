@@ -44,6 +44,10 @@ _HITL_BLOCKING_RULES = frozenset(
         "PRICE_DOMAIN_UNKNOWN",
         # V3 (added 2026-05-19) — net/gross/vat triangulation conflict.
         "VAT_TRIANGULATION_FAILED",
+        # Reconciliation engine (added 2026-05-21) — no net/brutto path closes the
+        # price, or two paths tie / the LLM judge disagrees with the winner.
+        "PRICE_RECONCILIATION_FAILED",
+        "PRICE_RECONCILIATION_AMBIGUOUS",
     }
 )
 

@@ -11,6 +11,7 @@ from core.pipeline_deterministic_normalize import (
 from core.pipeline_discounts import match_fleet_discount
 from core.pipeline_overrides import process_manual_override
 from core.pipeline_price_validator import validate_and_flag_prices
+from core.pipeline_price_reconciliation import reconcile_and_flag
 from core.pipeline_v3_integration import (
     apply_v3_enrichment_or_shadow,
 )
@@ -123,6 +124,12 @@ def extract_vehicle_data_v2(
         _progress("validating_prices")
         pro_data = validate_and_flag_prices(pro_data)
 
+        # 2.6 Multi-hypothesis price reconciliation (4 net/brutto paths + judge)
+        reconcile_and_flag(
+            pro_data.get("card_summary"),
+            pdf_bytes=bytes(document_data) if isinstance(document_data, (bytes, bytearray)) else None,
+        )
+
         if _check_cancel():
             return "{}"
 
@@ -179,6 +186,9 @@ def process_single_twin(
         # 2.5 Deterministic financial validation
         _progress("validating_prices")
         pro_data = validate_and_flag_prices(pro_data)
+
+        # 2.6 Price reconciliation (deterministic only — no PDF in the twin path)
+        reconcile_and_flag(pro_data.get("card_summary"), run_judge=False)
 
         if _check_cancel():
             return "{}"

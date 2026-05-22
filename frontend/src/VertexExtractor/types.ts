@@ -179,6 +179,44 @@ export interface PriceDeduction {
   confidence: number;
 }
 
+// ── Multi-hypothesis price reconciliation (4 net/brutto paths + LLM judge) ──
+
+export interface ReconPath {
+  source_domain: "netto" | "brutto";
+  final_domain: "netto" | "brutto";
+  base_net: number;
+  base_gross: number;
+  options_net: number;
+  options_gross: number;
+  service_net: number;
+  service_gross: number;
+  rabat_net: number;
+  rabat_gross: number;
+  catalog_net: number;
+  catalog_gross: number;
+  total_net: number;
+  total_gross: number;
+  residual_pln: number;
+  penalties: number;
+  score: number;
+}
+
+export interface ReconJudge {
+  agrees_with_winner?: boolean;
+  chosen_source_domain?: string;
+  reasoning?: string;
+  confidence?: number;
+}
+
+export interface PriceReconciliation {
+  verdict: "ok" | "ambiguous" | "unreconcilable";
+  source_domain: "netto" | "brutto";
+  best: ReconPath;
+  all_paths: ReconPath[];
+  warning?: { rule: string; severity: string; message: string; field_path?: string } | null;
+  judge?: ReconJudge | null;
+}
+
 export type DiscountExtractionMethod =
   | "explicit_amount"
   | "explicit_percentage"

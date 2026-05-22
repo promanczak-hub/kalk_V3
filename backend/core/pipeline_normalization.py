@@ -98,21 +98,39 @@ def _build_price_string(triple_net: float | None, triple_gross: float | None) ->
 def _aggregate_role(
     raw_prices: list[RawPriceLine], role: str
 ) -> tuple[float | None, float | None, float | None]:
-    """Sum or pick the most authoritative price for a top-level role.
+    """Pick the authoritative (net, gross, vat) for a top-level role.
 
-    For roles with multiple raw lines (e.g. several `paid_option` lines), this
-    is NOT called — caller iterates raw_options directly. This helper covers
-    base_price / options_price / total_price aggregates: pick the FIRST
-    matching raw_price line (PASS A is responsible for emitting at most one
-    per role).
+    PASS A usually emits one line per role, but a PDF PODSUMOWANIE can print the
+    same total twice — once netto, once brutto. When several lines share a role,
+    combine the printed net (from a netto-bearing line) with the printed gross
+    (from a brutto-bearing line) so BOTH stated values survive as an independent
+    pair — never derive one from the other and discard the printed counterpart.
+    This matters under VAT-marża / rounding (gross ≠ net×1.23) and lets the
+    reconciliation engine cross-check the net/gross pair to catch a domain flip.
+    A single matching line behaves exactly as before (the missing side is
+    inferred via VAT).
     """
-    for line in raw_prices:
-        if line.role == role:
-            triple = infer_price_pair(
-                net=line.net_amount, gross=line.gross_amount, vat_rate=line.vat_rate
-            )
-            return triple.net, triple.gross, triple.vat_rate
-    return None, None, None
+    matches = [line for line in raw_prices if line.role == role]
+    if not matches:
+        return None, None, None
+
+    net: float | None = None
+    gross: float | None = None
+    vat: float | None = None
+    for line in matches:
+        label = str(line.label or "").lower()
+        if vat is None and line.vat_rate is not None:
+            vat = line.vat_rate
+        # Prefer a netto-labeled line's net (and a brutto-labeled line's gross);
+        # otherwise take the first present value. Once set, only an explicitly
+        # labeled line of the matching domain overrides it.
+        if line.net_amount is not None and (net is None or "netto" in label):
+            net = line.net_amount
+        if line.gross_amount is not None and (gross is None or "brutto" in label):
+            gross = line.gross_amount
+
+    triple = infer_price_pair(net=net, gross=gross, vat_rate=vat)
+    return triple.net, triple.gross, triple.vat_rate
 
 
 def normalize_raw_to_card_summary(
@@ -233,5 +251,11 @@ def normalize_raw_to_card_summary(
 
     # ── Dedup flagging (canonical_id + duplicate_of) ──────────────────
     card = flag_potential_duplicates(card)
+
+    # ── Stash the literal PASS-A price corpus for reconciliation ───────
+    # The aggregation above collapses raw_prices into {base,options,total}
+    # triples and discards the per-line labels (netto/brutto per total). The
+    # multi-hypothesis reconciliation engine needs those labeled lines.
+    card["_raw_price_lines"] = [ln.model_dump() for ln in raw.raw_prices]
 
     return card

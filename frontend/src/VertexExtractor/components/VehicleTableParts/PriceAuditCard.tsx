@@ -12,10 +12,11 @@ import {
   Pencil,
   X,
 } from "lucide-react";
-import type { PriceValidation, PriceDeduction, DeducedOption } from "../../types";
+import type { PriceValidation, PriceDeduction, DeducedOption, PriceReconciliation, DiscountBreakdown } from "../../types";
 import { apiClient } from "../../../lib/apiClient";
 import { parsePriceToNumber } from "./PriceDualFormat";
 import { revalidateVehicleQuiet } from "../../hooks/useRevalidateVehicle";
+import { PriceReconciliationPanel } from "./PriceReconciliationPanel";
 
 const VAT = 1.23;
 
@@ -27,7 +28,6 @@ interface PriceAuditCardProps {
   discountableOptionsNet: number;
   nonDiscountableOptionsNet: number;
   serviceTotalNet: number;
-  activeDiscountAmountNet: number;
   onUpdated?: () => void;
   defaultExpanded?: boolean;
 }
@@ -122,7 +122,6 @@ export function PriceAuditCard({
   discountableOptionsNet,
   nonDiscountableOptionsNet,
   serviceTotalNet,
-  activeDiscountAmountNet,
   onUpdated,
   defaultExpanded = false,
 }: PriceAuditCardProps) {
@@ -132,6 +131,11 @@ export function PriceAuditCard({
   const [showForm, setShowForm] = useState(false);
   const [deduction, setDeduction] = useState<PriceDeduction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconciliation, setReconciliation] = useState<PriceReconciliation | null>(() => {
+    const rec = (cardSummary as Record<string, unknown> | null | undefined)?._reconciliation;
+    return rec && typeof rec === "object" ? (rec as PriceReconciliation) : null;
+  });
 
   const cs = cardSummary || {};
   const domain = String((cs as Record<string, unknown>)._price_domain || (cs as Record<string, unknown>).price_domain || "unknown");
@@ -161,7 +165,21 @@ export function PriceAuditCard({
   const liveDiscOpt = pair(deduction ? deduction.discountable_options_net : discountableOptionsNet, deduction ? deduction.discountable_options_gross : null);
   const liveNonDiscOpt = pair(deduction ? deduction.non_discountable_options_net : nonDiscountableOptionsNet, deduction ? deduction.non_discountable_options_gross : null);
   const liveService = pair(deduction ? deduction.service_net : serviceTotalNet, deduction ? deduction.service_gross : null);
-  const rabatNet = deduction ? deduction.rabat_pln : activeDiscountAmountNet;
+
+  // PDF-grounded rabat ONLY. The active discount (offer / suggested-from-DB / custom)
+  // is the calculator's overlay and lives in DiscountAuditCard — it must never be mixed
+  // into the price audit, which validates strictly what the PDF prints.
+  const pdfDiscount = (cs as Record<string, unknown>).discount as DiscountBreakdown | undefined;
+  const pdfRabatNet = (() => {
+    if (!pdfDiscount || pdfDiscount.extraction_method === "none") return 0;
+    if (typeof pdfDiscount.explicit_rabat_pln === "number" && pdfDiscount.explicit_rabat_pln > 0) {
+      return pdfDiscount.explicit_rabat_pln;
+    }
+    const pct = pdfDiscount.computed_pct ?? pdfDiscount.explicit_rabat_pct;
+    const base = pdfDiscount.discountable_base_net ?? catalogBasePriceNet + discountableOptionsNet;
+    return typeof pct === "number" && pct > 0 && base > 0 ? round2(base * (pct / 100)) : 0;
+  })();
+  const rabatNet = deduction ? deduction.rabat_pln : pdfRabatNet;
 
   const computedTotalNet =
     (liveBase.net ?? 0) + (liveDiscOpt.net ?? 0) + (liveNonDiscOpt.net ?? 0) + (liveService.net ?? 0) - (rabatNet || 0);
@@ -207,6 +225,26 @@ export function PriceAuditCard({
       setError("Dedukcja LLM nieudana — spróbuj ponownie lub wpisz ceny cząstkowe ręcznie.");
     } finally {
       setDeducing(false);
+    }
+  };
+
+  const handleReconcile = async () => {
+    setReconciling(true);
+    setError(null);
+    try {
+      const res = await apiClient.fetch(`/api/extract/price-reconcile/${vehicleId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setReconciliation(data.reconciliation as PriceReconciliation);
+    } catch (e) {
+      console.error(e);
+      setError("Audyt 4 ścieżek nieudany — spróbuj ponownie.");
+    } finally {
+      setReconciling(false);
     }
   };
 
@@ -297,6 +335,13 @@ export function PriceAuditCard({
 
       {expanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-current/5">
+          {/* ── Audyt 4 ścieżek (reconciliation) ── */}
+          <PriceReconciliationPanel
+            reconciliation={reconciliation}
+            loading={reconciling}
+            onRun={handleReconcile}
+          />
+
           {/* ── Rozkład ceny ── */}
           <section>
             <h6 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 mt-2">
@@ -312,7 +357,7 @@ export function PriceAuditCard({
               <PriceRow label="Opcje fabryczne (Σ)" net={(liveDiscOpt.net ?? 0) + (liveNonDiscOpt.net ?? 0)} gross={round2(((liveDiscOpt.net ?? 0) + (liveNonDiscOpt.net ?? 0)) * VAT)} sign="+" />
             )}
             <PriceRow label="Zabudowa / serwis (nierabatowane)" net={liveService.net} gross={liveService.gross} sign="+" hint="Pakiety serwisowe / zabudowa — zawsze poza rabatem" />
-            <PriceRow label="Rabat" net={rabatNet ? -rabatNet : 0} gross={rabatNet ? round2(-rabatNet * VAT) : 0} sign="−" />
+            <PriceRow label="Rabat (z PDF)" net={rabatNet ? -rabatNet : 0} gross={rabatNet ? round2(-rabatNet * VAT) : 0} sign="−" />
             <PriceRow label="Total (wyliczony)" net={computedTotalNet} gross={computedTotalGross} bold />
           </section>
 

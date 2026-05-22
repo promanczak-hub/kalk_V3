@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ScanSearch, CheckCircle2, AlertTriangle, Lock, ChevronDown } from "lucide-react";
+import { ScanSearch, CheckCircle2, AlertTriangle, Lock, ChevronDown, Check } from "lucide-react";
 import type { DiscountBreakdown, PriceValidation } from "../../types";
 import { DiscountAuditCard } from "./DiscountAuditCard";
 import { PriceAuditCard } from "./PriceAuditCard";
@@ -34,6 +34,12 @@ interface AuditChipPopoverProps {
  * expand animation) which otherwise clips the popover to the collapsed header.
  */
 const POP_W = 460;
+
+// Minimal green dot shown when there's nothing to flag (reconciliation ok +
+// no validator warnings, or the price was confirmed) — keeps manual access
+// (domain flip / re-run) without cluttering a clean row.
+const DOT_CLS =
+  "inline-flex items-center justify-center w-[18px] h-[18px] rounded-full border border-emerald-300 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer shadow-sm";
 
 export function AuditChipPopover(props: AuditChipPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -90,6 +96,15 @@ export function AuditChipPopover(props: AuditChipPopoverProps) {
   const confirmed =
     (props.cardSummary as Record<string, unknown> | null | undefined)?._price_confirmed === true;
 
+  // Reconciliation verdict (auto-run on extraction) + validator warnings together
+  // express "100% zgodności i pokrycia". When clean (or confirmed), collapse the
+  // chip to a minimal dot; surface the full chip only when something needs review.
+  const recon = (props.cardSummary as Record<string, unknown> | null | undefined)?._reconciliation as
+    | { verdict?: string }
+    | undefined;
+  const reconProblem = recon?.verdict === "ambiguous" || recon?.verdict === "unreconcilable";
+  const clean = confirmed || (!hasError && !hasWarn && !reconProblem);
+
   const tone = confirmed
     ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
     : hasError
@@ -102,21 +117,33 @@ export function AuditChipPopover(props: AuditChipPopoverProps) {
   return (
     // stopPropagation: chip lives inside the row header (onClick toggles expand)
     <div className="inline-block" onClick={(e) => e.stopPropagation()}>
-      <button
-        ref={chipRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        title="Audyt rabatu i ceny"
-        className={`inline-flex items-center gap-1 border px-2 py-0.5 h-[22px] rounded text-[10px] font-semibold transition-colors cursor-pointer shadow-sm ${tone}`}
-      >
-        <ScanSearch className="w-3 h-3" />
-        Audyt
-        {props.activeDiscountPct > 0 && (
-          <span className="font-mono">· {props.activeDiscountPct.toFixed(1)}%</span>
-        )}
-        <StatusIcon className="w-3 h-3" />
-        <ChevronDown className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+      {clean ? (
+        <button
+          ref={chipRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          title={confirmed ? "Audyt ceny — zatwierdzone (kliknij, by otworzyć)" : "Audyt ceny — spójne (kliknij, by otworzyć)"}
+          className={DOT_CLS}
+        >
+          {confirmed ? <Lock className="w-2.5 h-2.5" /> : <Check className="w-3 h-3" />}
+        </button>
+      ) : (
+        <button
+          ref={chipRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          title="Audyt rabatu i ceny"
+          className={`inline-flex items-center gap-1 border px-2 py-0.5 h-[22px] rounded text-[10px] font-semibold transition-colors cursor-pointer shadow-sm ${tone}`}
+        >
+          <ScanSearch className="w-3 h-3" />
+          Audyt
+          {props.activeDiscountPct > 0 && (
+            <span className="font-mono">· {props.activeDiscountPct.toFixed(1)}%</span>
+          )}
+          <StatusIcon className="w-3 h-3" />
+          <ChevronDown className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      )}
 
       {open &&
         pos &&
@@ -154,7 +181,6 @@ export function AuditChipPopover(props: AuditChipPopoverProps) {
               discountableOptionsNet={props.discountableOptionsNet}
               nonDiscountableOptionsNet={props.nonDiscountableOptionsNet}
               serviceTotalNet={props.serviceTotalNet}
-              activeDiscountAmountNet={props.activeDiscountAmountNet}
               onUpdated={props.onUpdated}
               defaultExpanded
             />

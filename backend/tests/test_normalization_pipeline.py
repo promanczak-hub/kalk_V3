@@ -53,6 +53,35 @@ class TestTopLevelPrices:
         assert card["base_price_net"] is None
         assert card["base_price"] == "Brak"
 
+    def test_summary_netto_brutto_pair_preserves_both_printed_values(self) -> None:
+        """A PDF PODSUMOWANIE may print the total twice — once netto, once brutto.
+        Both PRINTED values must survive as an independent pair; deriving gross from
+        net (×1.23) would discard the stated brutto and fabricate one. Here the
+        printed brutto (122 950) deliberately ≠ net×1.23 (123 000) — as happens under
+        rounding / VAT-marża — so first-match-then-derive is provably wrong.
+        """
+        raw = RawExtractionResult(
+            raw_prices=[
+                RawPriceLine(
+                    quoted_text="Razem netto 100 000,00 PLN",
+                    role="total_price",
+                    net_amount=100_000.0,
+                    label="netto",
+                    vat_rate=0.23,
+                ),
+                RawPriceLine(
+                    quoted_text="Razem brutto 122 950,00 PLN",
+                    role="total_price",
+                    gross_amount=122_950.0,
+                    label="brutto",
+                    vat_rate=0.23,
+                ),
+            ],
+        )
+        card = normalize_raw_to_card_summary(raw)
+        assert card["total_price_net"] == 100_000.0
+        assert card["total_price_gross"] == 122_950.0  # printed, NOT 123 000 (=net×1.23)
+
 
 # ═══════════════════════════════════════════════════════════════════
 # Paid options + service equipment split

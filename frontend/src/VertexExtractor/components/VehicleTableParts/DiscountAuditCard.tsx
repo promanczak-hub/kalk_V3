@@ -444,6 +444,12 @@ export function DiscountAuditCard({
               value={fmtPln(nonDiscountableTotalNet)}
               hint="Zabudowy / akcesoria dealera / pakiety serwisowe — dodawane do total bez %"
             />
+            <Row
+              label="Cena oferty po rabacie"
+              value={fmtPln(discountableBaseNet * (1 - activeDiscountPct / 100) + nonDiscountableTotalNet)}
+              hint="Stosowana podstawa × (1 − rabat%) + poza rabatem — finalna cena oferty z rabatem aktywnym (osobno od audytu PDF)"
+              bold
+            />
           </section>
 
           {isEditing && (
