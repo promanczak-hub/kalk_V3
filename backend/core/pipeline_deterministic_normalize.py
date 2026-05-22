@@ -543,6 +543,39 @@ def normalize_card_summary_from_digital_twin(
         if _is_empty(out.get("total_price")) and isinstance(final_gross, (int, float)):
             out["total_price"] = _format_price(float(final_gross), "brutto")
 
+    # ── Price-domain detection from the PODSUMOWANIE net/gross pair (domain ONLY) ──
+    # When the doc prints "Kwota netto / Kwota brutto" totals we can tell whether the
+    # card's single price strings are net or gross, and fix the domain WITHOUT touching
+    # the discount. If the card total matches the GROSS side, the catalog strings are
+    # brutto; align price_domain/_price_domain + re-tag the price-string suffixes so the
+    # calculator splits net/gross correctly. Deliberately does NOT set
+    # total_price_net/gross — that fed (and broke) the computed_from_total discount.
+    pricing = digital_twin.get("pricing") or {}
+    if isinstance(pricing, dict):
+        summary_net = parse_price_to_float(pricing.get("total_net"))
+        summary_gross = parse_price_to_float(pricing.get("total_gross"))
+        total_val = parse_price_to_float(out.get("total_price"))
+        is_vat_pair = 0 < summary_net < summary_gross <= summary_net * 1.3
+        if is_vat_pair and total_val > 0:
+            detected: str | None = None
+            if abs(total_val - summary_gross) <= max(2.0, summary_gross * 0.01):
+                detected = "brutto"
+            elif abs(total_val - summary_net) <= max(2.0, summary_net * 0.01):
+                detected = "netto"
+            if detected:
+                out["price_domain"] = detected
+                out["_price_domain"] = detected
+                opposite = "netto" if detected == "brutto" else "brutto"
+                for key in ("base_price", "options_price", "total_price"):
+                    val = out.get(key)
+                    if isinstance(val, str) and opposite in val.lower():
+                        out[key] = re.sub(opposite, detected, val, flags=re.IGNORECASE)
+                logger.info(
+                    "[NORMALIZE] price domain set to %s from PODSUMOWANIE pair "
+                    "(net %.0f / gross %.0f, total %.0f)",
+                    detected, summary_net, summary_gross, total_val,
+                )
+
     # ── digital_twin.technical → card_summary scalar fields ──────────
     # Pro VLM extracts raw strings (e.g. "204 KM", "265 g/km", "2755") into
     # digital_twin.technical; deterministic parsers lift them into typed

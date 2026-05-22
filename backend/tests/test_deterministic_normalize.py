@@ -367,6 +367,41 @@ class TestNormalizeCardSummary:
         # paid_options stays as Flash provided
         assert result["paid_options"] == existing
 
+    def test_summary_pair_flips_domain_to_brutto_without_totals(self) -> None:
+        """izoterma: doc prints netto 166 518 / brutto 204 817,14; the LLM mislabeled the
+        card total (= the GROSS) as 'netto'. The pair must flip the domain to brutto
+        (price_domain + base_price suffix) but must NOT set total_price_net/gross — that
+        is what poisoned the computed_from_total discount."""
+        card = {
+            "base_price": "167 218.50 PLN netto",
+            "options_price": "2 029.50 PLN netto",
+            "total_price": "204 817.14 PLN netto",
+        }
+        twin = {"pricing": {"total_net": "166 518.00 zł", "total_gross": "204 817.14 zł"}}
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["_price_domain"] == "brutto"
+        assert result["price_domain"] == "brutto"
+        assert "brutto" in result["base_price"].lower()
+        assert "netto" not in result["base_price"].lower()
+        assert "brutto" in result["total_price"].lower()
+        # Domain-only — discount inputs untouched.
+        assert result.get("total_price_net") is None
+        assert result.get("total_price_gross") is None
+
+    def test_summary_pair_keeps_netto_when_total_matches_net(self) -> None:
+        """Card total equals the NET side → domain is netto (no spurious flip)."""
+        card = {"base_price": "100 000 PLN netto", "total_price": "100 000 PLN netto"}
+        twin = {"pricing": {"total_net": "100 000 zł", "total_gross": "123 000 zł"}}
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert result["_price_domain"] == "netto"
+
+    def test_no_summary_pair_leaves_domain_untouched(self) -> None:
+        """Without a netto/brutto pair the domain is not guessed."""
+        card = {"base_price": "100 000 PLN netto", "total_price": "120 000 PLN netto"}
+        twin = {"pricing": {"base_price": "100 000 zł"}}
+        result = normalize_card_summary_from_digital_twin(card, twin)
+        assert "_price_domain" not in result or result.get("_price_domain") in (None, "")
+
     def test_idempotent_does_not_overwrite_existing_vehicle_class(self) -> None:
         card = {"vehicle_class": "Osobowy"}  # weird but explicit
         twin = _renault_master_digital_twin()
